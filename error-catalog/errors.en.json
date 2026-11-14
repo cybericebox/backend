@@ -293,6 +293,7 @@
   "23522": "The lab has more gateways than allowed",
   "23523": "A network can have only one gateway",
   "23524": "A gateway has only its own settings: DHCP, DNS and reverse connections",
+  "23525": "An opponent of the variant is invalid",
   "23604": "The authoring assistant did not accept the request",
   "23611": "Unknown statistics source or mode",
   "30101": "Setting not found",

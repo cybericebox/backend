@@ -180,6 +180,9 @@ type Variant struct {
 	ImageOverrides []ImageOverride `json:"image_overrides,omitempty"`
 	Tasks          []Task          `json:"tasks"`
 	Topology       Topology        `json:"topology"`
+	// Opponents are the automated attackers and defenders the Academy may run against this variant's lab: author
+	// content, never shown to participants and ignored by events (see opponent.go). A linked variant takes its base's.
+	Opponents []Opponent `json:"opponents,omitempty"`
 }
 
 // ImageOverride is a linked variant's own image for one device of its base.

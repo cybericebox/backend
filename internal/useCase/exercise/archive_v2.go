@@ -64,6 +64,10 @@ type (
 		DeviceImages map[string]archiveImageV2 `json:"device_images,omitempty"`
 		Tasks        []archiveTaskV2           `json:"tasks,omitempty"`
 		Topology     archiveTopologyV2         `json:"topology"`
+		// Opponents (Academy only): the automated attackers and defenders of the variant. The platform alone decides
+		// their image, toolset, keys and budget: naming one of those is refused. Not for a linked variant (it takes its
+		// base's).
+		Opponents []exerciseModel.Opponent `json:"opponents,omitempty"`
 	}
 
 	archiveTaskV2 struct {
@@ -341,6 +345,9 @@ func decodeArchiveV2(payload []byte) (archiveDocV2, error) {
 	// encoding/json matches keys case-insensitively, so unknown keys are checked on the generic
 	// tree against the exact tags first; DisallowUnknownFields below stays as a backstop.
 	if err := checkLinkedVariantKeys(payload); err != nil {
+		return archiveDocV2{}, err
+	}
+	if err := checkOpponentKeys(payload); err != nil {
 		return archiveDocV2{}, err
 	}
 	if err := checkArchiveKeys("", generic, reflect.TypeFor[archiveDocV2]()); err != nil {
@@ -699,7 +706,7 @@ func (v archiveVariantV2) toDomain(path string, number int, id uuid.UUID, links 
 	if err != nil {
 		return exerciseModel.Variant{}, err
 	}
-	variant := exerciseModel.Variant{ID: id, Index: v.Index, Note: v.Note, Weight: weightValue(v.Weight), Topology: topology}
+	variant := exerciseModel.Variant{ID: id, Index: v.Index, Note: v.Note, Weight: weightValue(v.Weight), Topology: topology, Opponents: exerciseModel.CopyOpponents(v.Opponents)}
 	for ti, task := range v.Tasks {
 		value, taskErr := task.toDomain(fmt.Sprintf("%s.tasks[%d]", path, ti+1), deviceIDs, links)
 		if taskErr != nil {
@@ -1120,7 +1127,7 @@ func exportVariantV2(variant exerciseModel.Variant, paths map[uuid.UUID]string, 
 		}
 		topology.Connections = append(topology.Connections, out)
 	}
-	result := archiveVariantV2{ID: optionalID(variant.ID), Index: variant.Index, Note: variant.Note, Weight: weightPointer(variant.Weight), Topology: topology}
+	result := archiveVariantV2{ID: optionalID(variant.ID), Index: variant.Index, Note: variant.Note, Weight: weightPointer(variant.Weight), Topology: topology, Opponents: exerciseModel.CopyOpponents(variant.Opponents)}
 	for _, task := range variant.Tasks {
 		result.Tasks = append(result.Tasks, exportTaskV2(task, refs, paths))
 	}
