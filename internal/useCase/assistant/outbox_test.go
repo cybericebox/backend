@@ -295,3 +295,36 @@ func TestAnUnenrolledOrUnconfiguredWatcherDoesNothing(t *testing.T) {
 		t.Fatal("a watcher without a brain must return at once")
 	}
 }
+
+func TestABrokenRequestWithAReadableIDIsAnsweredInvalidBeforeTheCursorMoves(t *testing.T) {
+	o := newOutboxRig(t,
+		outboxFrame{seq: 1, event: "x", data: `{"request_id":"r1","type":"provide_data","task_refs":[`},   // cut off JSON
+		outboxFrame{seq: 2, event: "x", data: `{"request_id":"r2","type":["not","a","string"]}`},          // valid JSON, wrong shape
+		outboxFrame{seq: 3, event: "x", data: `no id at all {`},                                           // nothing to answer to
+		outboxFrame{seq: 4, event: "x", data: `{"request_id":"bad/id with spaces","type":"provide_lab"}`}, // unusable id
+		req(5, "r5", "provide_lab"),
+	)
+	o.run(t)
+	eventually(t, "all handled", func() bool { return o.cursor.get() == 5 })
+	for _, id := range []string{"r1", "r2"} {
+		a := o.brain.answered(id)
+		if len(a) != 1 || refusalCode(t, a[0]) != "invalid_request" {
+			t.Fatalf("%s: %v", id, a)
+		}
+	}
+	o.brain.mu.Lock()
+	defer o.brain.mu.Unlock()
+	if len(o.brain.answers) != 3 {
+		t.Fatalf("only requests with a readable id are answered (r1, r2, r5): %v", o.brain.answers)
+	}
+}
+
+func TestAnInvalidAnswerIsNotAdvancedPastWhenTheBrainKeepsFailing(t *testing.T) {
+	o := newOutboxRig(t, outboxFrame{seq: 1, event: "x", data: `{"request_id":"r1","type":`})
+	o.brain.answerCodes = []int{503, 503, 503, 503, 503}
+	o.run(t)
+	eventually(t, "answered after the reconnect", func() bool { return o.cursor.get() == 1 })
+	if len(o.brain.answered("r1")) < 6 {
+		t.Fatalf("answers: %d", len(o.brain.answered("r1")))
+	}
+}
