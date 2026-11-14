@@ -3,6 +3,8 @@ package assistant_test
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
@@ -64,6 +66,8 @@ type fakeImporter struct {
 	job     exerciseUseCase.ImportJobView // what the job is now
 	jobErr  error
 	delay   time.Duration
+	// during runs while the import is in progress (the row must already be claimed).
+	during func()
 }
 
 func (f *fakeImporter) AuthorizeImport(context.Context, exerciseUseCase.Actor, *uuid.UUID) error {
@@ -77,6 +81,9 @@ func (f *fakeImporter) ArchiveLimits(context.Context) exerciseModel.ArchiveLimit
 
 func (f *fakeImporter) ImportRawArchive(_ context.Context, _ exerciseUseCase.Actor, in exerciseUseCase.ImportExerciseInput) (exerciseUseCase.ArchiveImportStart, error) {
 	f.line.add("import")
+	if f.during != nil {
+		f.during()
+	}
 	time.Sleep(f.delay)
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -113,10 +120,13 @@ func (f *fakeFiles) UploadFile(_ context.Context, _, _ string, r io.Reader, _ uu
 	return mediaModel.File{ID: fileID}, nil
 }
 
-// memSaves is the save store in memory; locker is a per-key mutex like the advisory lock.
+// memSaves is the save store in memory, with the same claim rules as the table.
 type memSaves struct {
 	mu   sync.Mutex
 	rows map[string]assistantModel.Save
+	hash map[string]string
+	// completeFails makes the next n Complete calls fail.
+	completeFails int
 }
 
 func key(session string, author uuid.UUID) string { return session + "/" + author.String() }
@@ -128,27 +138,61 @@ func (m *memSaves) Get(_ context.Context, session string, author uuid.UUID) (ass
 	return r, ok, nil
 }
 
-func (m *memSaves) Create(_ context.Context, s assistantModel.Save, _ time.Time) (bool, error) {
+func (m *memSaves) Claim(_ context.Context, session string, author uuid.UUID, hash string, now, staleBefore time.Time) (bool, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if _, ok := m.rows[key(s.Session, s.Author)]; ok {
+	k := key(session, author)
+	if r, ok := m.rows[k]; ok && !(r.State == assistantModel.SaveFailed || (r.State == assistantModel.SavePending && r.JobID == uuid.Nil && r.ClaimedAt.Before(staleBefore))) {
 		return false, nil
 	}
-	m.rows[key(s.Session, s.Author)] = s
+	m.rows[k] = assistantModel.Save{Session: session, Author: author, State: assistantModel.SavePending, ClaimedAt: now}
+	m.hash[k] = hash
 	return true, nil
 }
 
-func (m *memSaves) update(session string, author uuid.UUID, f func(*assistantModel.Save)) {
+func (m *memSaves) update(session string, author uuid.UUID, f func(*assistantModel.Save)) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if r, ok := m.rows[key(session, author)]; ok {
+	r, ok := m.rows[key(session, author)]
+	if ok {
 		f(&r)
 		m.rows[key(session, author)] = r
 	}
+	return ok
 }
 
-func (m *memSaves) SetExercise(_ context.Context, session string, author, exercise uuid.UUID) error {
-	m.update(session, author, func(r *assistantModel.Save) { r.ExerciseID = exercise })
+func (m *memSaves) SetJob(_ context.Context, session string, author, job uuid.UUID) error {
+	m.update(session, author, func(r *assistantModel.Save) {
+		if r.State == assistantModel.SavePending {
+			r.JobID = job
+		}
+	})
+	return nil
+}
+
+func (m *memSaves) Complete(_ context.Context, session string, author, exercise uuid.UUID) (bool, error) {
+	m.mu.Lock()
+	if m.completeFails > 0 {
+		m.completeFails--
+		m.mu.Unlock()
+		return false, errors.New("database unavailable")
+	}
+	m.mu.Unlock()
+	changed := false
+	m.update(session, author, func(r *assistantModel.Save) {
+		if r.State == assistantModel.SavePending {
+			r.State, r.ExerciseID, changed = assistantModel.SaveDone, exercise, true
+		}
+	})
+	return changed, nil
+}
+
+func (m *memSaves) Fail(_ context.Context, session string, author uuid.UUID) error {
+	m.update(session, author, func(r *assistantModel.Save) {
+		if r.State == assistantModel.SavePending {
+			r.State = assistantModel.SaveFailed
+		}
+	})
 	return nil
 }
 
@@ -157,19 +201,12 @@ func (m *memSaves) SetNotified(_ context.Context, session string, author uuid.UU
 	return nil
 }
 
-func (m *memSaves) Delete(_ context.Context, session string, author uuid.UUID) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	delete(m.rows, key(session, author))
-	return nil
-}
-
 func (m *memSaves) Unsettled(context.Context, time.Time, int) ([]assistantModel.Save, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	var out []assistantModel.Save
 	for _, r := range m.rows {
-		if r.Pending() || !r.Notified {
+		if (r.State == assistantModel.SavePending && r.JobID != uuid.Nil) || (r.State == assistantModel.SaveDone && !r.Notified) {
 			out = append(out, r)
 		}
 	}
@@ -179,26 +216,6 @@ func (m *memSaves) Unsettled(context.Context, time.Time, int) ([]assistantModel.
 func (m *memSaves) row(session string) (assistantModel.Save, bool) {
 	r, ok, _ := m.Get(context.Background(), session, userOne)
 	return r, ok
-}
-
-type locker struct {
-	mu    sync.Mutex
-	locks map[string]*sync.Mutex
-}
-
-func (l *locker) lock(_ context.Context, k string) (func(), error) {
-	l.mu.Lock()
-	if l.locks == nil {
-		l.locks = map[string]*sync.Mutex{}
-	}
-	m, ok := l.locks[k]
-	if !ok {
-		m = &sync.Mutex{}
-		l.locks[k] = m
-	}
-	l.mu.Unlock()
-	m.Lock()
-	return m.Unlock, nil
 }
 
 type saveRig struct {
@@ -220,9 +237,9 @@ func newSaveRig(t *testing.T, images bool) *saveRig {
 	line := &timeline{}
 	imp := &fakeImporter{line: line, start: exerciseUseCase.ArchiveImportStart{Exercises: []exerciseUseCase.ExerciseView{{ID: taskID}}}}
 	files := &fakeFiles{line: line}
-	s := &saveRig{line: line, importer: imp, files: files, saves: &memSaves{rows: map[string]assistantModel.Save{}}}
+	s := &saveRig{line: line, importer: imp, files: files, saves: &memSaves{rows: map[string]assistantModel.Save{}, hash: map[string]string{}}}
 	s.rig = enrolledRig(t, func(d *assistant.Dependencies) {
-		d.Saves, d.Lock = s.saves, (&locker{}).lock
+		d.Saves = s.saves
 		d.Importer, d.Files = imp, files
 		d.NamesImages = func([]byte, exerciseModel.ArchiveLimits) bool { return images }
 	})
@@ -305,7 +322,7 @@ func TestSaveFetchesImportsThenTellsTheBrainTheExerciseID(t *testing.T) {
 	}
 }
 
-func TestSaveDoesNotTellTheBrainWhenTheImportFailsAndStoresNothing(t *testing.T) {
+func TestSaveDoesNotTellTheBrainWhenTheImportFails(t *testing.T) {
 	s := newSaveRig(t, false)
 	s.importer.err = exerciseModel.ErrExerciseForbidden.Err()
 	_, err := s.save(t)
@@ -315,8 +332,8 @@ func TestSaveDoesNotTellTheBrainWhenTheImportFailsAndStoresNothing(t *testing.T)
 	if got := s.line.list(); len(got) != 2 || got[1] != "import" || len(s.savedBodies()) != 0 {
 		t.Fatalf("the brain must not be told: %v", got)
 	}
-	if _, ok := s.saves.row("s1"); ok {
-		t.Fatal("a failed import must leave nothing stored")
+	if r, _ := s.saves.row("s1"); r.State != assistantModel.SaveFailed || r.ExerciseID != uuid.Nil {
+		t.Fatalf("a failed import leaves a failed claim and no task: %+v", r)
 	}
 }
 
@@ -360,6 +377,25 @@ func TestSaveTwoTasksInOneArchiveIsAFailedImport(t *testing.T) {
 	}
 }
 
+func TestTheSaveIsClaimedBeforeTheImportRunsAndKeepsTheArchiveHash(t *testing.T) {
+	s := newSaveRig(t, false)
+	var during assistantModel.Save
+	s.importer.during = func() { during, _ = s.saves.row("s1") }
+	if _, err := s.save(t); err != nil {
+		t.Fatal(err)
+	}
+	if during.State != assistantModel.SavePending || during.ExerciseID != uuid.Nil {
+		t.Fatalf("at import time the row must already be pending: %+v", during)
+	}
+	sum := sha256.Sum256(archive)
+	if got := s.saves.hash[key("s1", userOne)]; got != hex.EncodeToString(sum[:]) {
+		t.Fatalf("archive hash = %q", got)
+	}
+	if r, _ := s.saves.row("s1"); r.State != assistantModel.SaveDone || r.ExerciseID != taskID {
+		t.Fatalf("after the import: %+v", r)
+	}
+}
+
 func TestRepeatedSaveSkipsFetchAndImportAndTellsTheBrainTheStoredID(t *testing.T) {
 	s := newSaveRig(t, false)
 	for range 2 {
@@ -376,18 +412,21 @@ func TestRepeatedSaveSkipsFetchAndImportAndTellsTheBrainTheStoredID(t *testing.T
 	}
 }
 
-func TestSaveAfterAFailedImportImportsAgain(t *testing.T) {
+func TestFailedImportMarksTheSaveFailedAndTheNextSaveClaimsItAgain(t *testing.T) {
 	s := newSaveRig(t, false)
 	s.importer.err = exerciseModel.ErrExerciseForbidden.Err()
 	if _, err := s.save(t); err == nil {
 		t.Fatal("expected the import error")
+	}
+	if r, _ := s.saves.row("s1"); r.State != assistantModel.SaveFailed {
+		t.Fatalf("state = %q", r.State)
 	}
 	s.importer.err = nil
 	if done, err := s.save(t); err != nil || !done {
 		t.Fatalf("done=%v err=%v", done, err)
 	}
 	if s.line.count("import") != 2 || len(s.savedBodies()) != 1 {
-		t.Fatalf("a failed import stores nothing: imports=%d saved=%d", s.line.count("import"), len(s.savedBodies()))
+		t.Fatalf("imports=%d saved=%d", s.line.count("import"), len(s.savedBodies()))
 	}
 }
 
@@ -395,7 +434,7 @@ func TestSavesOfOneSessionAtOnceImportOnce(t *testing.T) {
 	for _, images := range []bool{false, true} {
 		s := newSaveRig(t, images)
 		s.importer.delay = 50 * time.Millisecond
-		s.importer.setJob(exerciseUseCase.ImportJobView{State: exerciseModel.ImportJobRunning})
+		s.importer.setJob(running())
 		var wg sync.WaitGroup
 		errs := make(chan error, 8)
 		for range 8 {
@@ -413,13 +452,63 @@ func TestSavesOfOneSessionAtOnceImportOnce(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		imports := s.line.count("import") + s.line.count("queue")
-		if imports != 1 {
+		if imports := s.line.count("import") + s.line.count("queue"); imports != 1 {
 			t.Fatalf("images=%v: imports = %d, want 1", images, imports)
 		}
-		if !images && len(s.savedBodies()) != 8 {
-			t.Fatalf("every click tells the brain: %d", len(s.savedBodies()))
+		if !images {
+			if got := s.savedBodies(); len(got) != 1 {
+				t.Fatalf("the claim's owner tells the brain once: %d", len(got))
+			}
+			if done, err := s.save(t); err != nil || !done {
+				t.Fatalf("a later save tells the brain again: %v %v", done, err)
+			}
 		}
+	}
+}
+
+func TestSaveWhileAnotherRequestImportsAnswersNotDoneWithoutImporting(t *testing.T) {
+	s := newSaveRig(t, false)
+	var second bool
+	var err2 error
+	s.importer.during = func() { second, err2 = s.save(t) }
+	if _, err := s.save(t); err != nil {
+		t.Fatal(err)
+	}
+	if err2 != nil || second || s.line.count("import") != 1 {
+		t.Fatalf("second: done=%v err=%v imports=%d", second, err2, s.line.count("import"))
+	}
+}
+
+func TestRecordingTheImportIsRetriedAndASuccessfulRetryCompletesTheSave(t *testing.T) {
+	s := newSaveRig(t, false)
+	s.saves.completeFails = 2
+	if done, err := s.save(t); err != nil || !done {
+		t.Fatalf("done=%v err=%v", done, err)
+	}
+	if r, _ := s.saves.row("s1"); r.State != assistantModel.SaveDone || r.ExerciseID != taskID {
+		t.Fatalf("row: %+v", r)
+	}
+}
+
+func TestWhenRecordingFailsForGoodARetryInsideTheLeaseDoesNotImportAgain(t *testing.T) {
+	s := newSaveRig(t, false)
+	s.saves.completeFails = 100
+	if _, err := s.save(t); err == nil {
+		t.Fatal("the page is told the save was not recorded")
+	}
+	if r, _ := s.saves.row("s1"); r.State != assistantModel.SavePending {
+		t.Fatalf("the claim stays pending: %+v", r)
+	}
+	if done, err := s.save(t); err != nil || done || s.line.count("import") != 1 {
+		t.Fatalf("inside the lease: done=%v err=%v imports=%d", done, err, s.line.count("import"))
+	}
+	// Past the lease the claim is taken over. The import has no idempotency key, so this one imports again.
+	s.clock.advance(6 * time.Minute)
+	s.saves.mu.Lock()
+	s.saves.completeFails = 0
+	s.saves.mu.Unlock()
+	if done, err := s.save(t); err != nil || !done || s.line.count("import") != 2 {
+		t.Fatalf("after the lease: done=%v err=%v imports=%d", done, err, s.line.count("import"))
 	}
 }
 
@@ -524,7 +613,7 @@ func TestLeaderTellsTheBrainWhenTheBackgroundImportIsDone(t *testing.T) {
 	if len(saved) != 1 || bodyID(t, saved[0]) != taskID.String() {
 		t.Fatalf("brain save: %v", saved)
 	}
-	if r, _ := s.saves.row("s1"); r.Pending() || !r.Notified || r.ExerciseID != taskID {
+	if r, _ := s.saves.row("s1"); r.State != assistantModel.SaveDone || !r.Notified || r.ExerciseID != taskID {
 		t.Fatalf("stored save: %+v", r)
 	}
 	// Settled: the next pass has nothing to do, and a repeated save from the page tells the brain the stored task.
@@ -561,8 +650,8 @@ func TestFailedBackgroundImportLeavesTheSaveRetryable(t *testing.T) {
 	if err := s.uc.SettleSaves(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := s.saves.row("s1"); ok || len(s.savedBodies()) != 0 {
-		t.Fatalf("a failed job clears the save and the brain is not told: saved=%v", s.savedBodies())
+	if r, ok := s.saves.row("s1"); !ok || r.State != assistantModel.SaveFailed || len(s.savedBodies()) != 0 {
+		t.Fatalf("a failed job marks the save failed and the brain is not told: %+v saved=%v", r, s.savedBodies())
 	}
 	// The page saves again: a new import is queued.
 	s.importer.setJob(running())
@@ -593,7 +682,7 @@ func TestSaveWithImagesNeedsImportRights(t *testing.T) {
 		t.Fatal("an unauthorized caller reached the upload or the queue")
 	}
 	if _, ok := s.saves.row("s1"); ok {
-		t.Fatal("nothing is stored")
+		t.Fatal("a refused import leaves no claim behind")
 	}
 }
 
@@ -609,7 +698,7 @@ func TestAJobThatIsGoneCountsAsFailed(t *testing.T) {
 	if err := s.uc.SettleSaves(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := s.saves.row("s1"); ok {
-		t.Fatal("a vanished job must clear the save")
+	if r, _ := s.saves.row("s1"); r.State != assistantModel.SaveFailed {
+		t.Fatalf("a vanished job must fail the save: %+v", r)
 	}
 }

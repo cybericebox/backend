@@ -1,24 +1,50 @@
 -- name: GetAssistantSave :one
--- The save of this session by this author: the task (empty while its background import runs), the import job and whether
--- the brain was told.
-SELECT exercise_id, job_id, notified
+-- The save of this session by this author: its state, the task (empty until done), the import job, whether the brain
+-- was told and when it was claimed.
+SELECT state, exercise_id, job_id, notified, claimed_at
 FROM assistant_saves
 WHERE session_id = sqlc.arg(session_id)
   AND author_id = sqlc.arg(author_id);
 
--- name: CreateAssistantSave :execrows
--- Records a save: the imported task, or the queued import job. A row that is already there stays (0 rows).
-INSERT INTO assistant_saves (session_id, author_id, exercise_id, job_id, created_at)
-VALUES (sqlc.arg(session_id), sqlc.arg(author_id), sqlc.narg(exercise_id), sqlc.narg(job_id), sqlc.arg(created_at))
-ON CONFLICT (session_id, author_id) DO NOTHING;
+-- name: ClaimAssistantSave :execrows
+-- Claims the save for one request: a new row, a failed one, or a pending one without an import job whose claim is older
+-- than the lease (its request died). 0 rows: another request holds it.
+INSERT INTO assistant_saves (session_id, author_id, state, archive_hash, claimed_at, created_at)
+VALUES (sqlc.arg(session_id), sqlc.arg(author_id), 'pending', sqlc.arg(archive_hash), sqlc.arg(now), sqlc.arg(now))
+ON CONFLICT (session_id, author_id) DO UPDATE
+    SET state        = 'pending',
+        archive_hash = EXCLUDED.archive_hash,
+        claimed_at   = EXCLUDED.claimed_at,
+        exercise_id  = NULL,
+        job_id       = NULL,
+        notified     = false
+WHERE assistant_saves.state = 'failed'
+   OR (assistant_saves.state = 'pending' AND assistant_saves.job_id IS NULL AND assistant_saves.claimed_at < sqlc.arg(stale_before));
 
--- name: SetAssistantSaveExercise :execrows
--- The background import finished: the task it created.
+-- name: SetAssistantSaveJob :execrows
+-- The claim's background import was queued.
 UPDATE assistant_saves
-SET exercise_id = sqlc.arg(exercise_id)
+SET job_id = sqlc.arg(job_id)
 WHERE session_id = sqlc.arg(session_id)
   AND author_id = sqlc.arg(author_id)
-  AND exercise_id IS NULL;
+  AND state = 'pending';
+
+-- name: CompleteAssistantSave :execrows
+-- The task exists: the save is done.
+UPDATE assistant_saves
+SET state       = 'done',
+    exercise_id = sqlc.arg(exercise_id)
+WHERE session_id = sqlc.arg(session_id)
+  AND author_id = sqlc.arg(author_id)
+  AND state = 'pending';
+
+-- name: FailAssistantSave :execrows
+-- The import failed: the next save claims the row again.
+UPDATE assistant_saves
+SET state = 'failed'
+WHERE session_id = sqlc.arg(session_id)
+  AND author_id = sqlc.arg(author_id)
+  AND state = 'pending';
 
 -- name: SetAssistantSaveNotified :execrows
 -- The brain was told the task.
@@ -27,19 +53,12 @@ SET notified = true
 WHERE session_id = sqlc.arg(session_id)
   AND author_id = sqlc.arg(author_id);
 
--- name: DeleteAssistantSave :execrows
--- A failed import leaves nothing behind: the next save starts again.
-DELETE
-FROM assistant_saves
-WHERE session_id = sqlc.arg(session_id)
-  AND author_id = sqlc.arg(author_id);
-
 -- name: ListUnsettledAssistantSaves :many
--- The saves the leader still has to finish: an import job to follow, or a task the brain was not told yet. Rows older
+-- The saves the leader still has to finish: a queued import to follow, or a task the brain was not told yet. Rows older
 -- than the cutoff are left alone.
-SELECT session_id, author_id, exercise_id, job_id, notified
+SELECT session_id, author_id, state, exercise_id, job_id, notified, claimed_at
 FROM assistant_saves
-WHERE (exercise_id IS NULL OR NOT notified)
+WHERE ((state = 'pending' AND job_id IS NOT NULL) OR (state = 'done' AND NOT notified))
   AND created_at > sqlc.arg(since)
 ORDER BY created_at
 LIMIT sqlc.arg(max_rows);

@@ -76,16 +76,41 @@ func (m *saves) Get(_ context.Context, s string, a uuid.UUID) (assistantModel.Sa
 	return r, ok, nil
 }
 
-func (m *saves) Create(_ context.Context, r assistantModel.Save, _ time.Time) (bool, error) {
+func (m *saves) Claim(_ context.Context, s string, a uuid.UUID, _ string, now, _ time.Time) (bool, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.rows[r.Session+r.Author.String()] = r
+	m.rows[s+a.String()] = assistantModel.Save{Session: s, Author: a, State: assistantModel.SavePending, ClaimedAt: now}
 	return true, nil
 }
 
-func (m *saves) SetExercise(context.Context, string, uuid.UUID, uuid.UUID) error { return nil }
-func (m *saves) SetNotified(context.Context, string, uuid.UUID) error            { return nil }
-func (m *saves) Delete(context.Context, string, uuid.UUID) error                 { return nil }
+func (m *saves) update(s string, a uuid.UUID, f func(*assistantModel.Save)) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	r := m.rows[s+a.String()]
+	f(&r)
+	m.rows[s+a.String()] = r
+}
+
+func (m *saves) SetJob(_ context.Context, s string, a, job uuid.UUID) error {
+	m.update(s, a, func(r *assistantModel.Save) { r.JobID = job })
+	return nil
+}
+
+func (m *saves) Complete(_ context.Context, s string, a, e uuid.UUID) (bool, error) {
+	m.update(s, a, func(r *assistantModel.Save) { r.State, r.ExerciseID = assistantModel.SaveDone, e })
+	return true, nil
+}
+
+func (m *saves) Fail(_ context.Context, s string, a uuid.UUID) error {
+	m.update(s, a, func(r *assistantModel.Save) { r.State = assistantModel.SaveFailed })
+	return nil
+}
+
+func (m *saves) SetNotified(_ context.Context, s string, a uuid.UUID) error {
+	m.update(s, a, func(r *assistantModel.Save) { r.Notified = true })
+	return nil
+}
+
 func (m *saves) Unsettled(context.Context, time.Time, int) ([]assistantModel.Save, error) {
 	return nil, nil
 }
@@ -183,7 +208,6 @@ func newRig(t *testing.T) *rig {
 		Store: &memStore{conn: map[string]assistantModel.Connection{}}, Cipher: cipher, Importer: imp, Files: files{},
 		NamesImages: func(a []byte, _ exerciseModel.ArchiveLimits) bool { return bytes.Equal(a, []byte("PK-with-images")) },
 		Saves:       &saves{rows: map[string]assistantModel.Save{}},
-		Lock:        func(context.Context, string) (func(), error) { return func() {}, nil },
 		Config:      assistantUseCase.Config{Endpoint: f.Endpoint(), EnrollmentToken: brainfake.Token, CAFile: caFile},
 	})
 	if _, err = uc.BootstrapBrain(context.Background()); err != nil {

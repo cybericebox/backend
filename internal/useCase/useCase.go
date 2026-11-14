@@ -605,13 +605,6 @@ func NewUseCase(deps Dependencies) *UseCase {
 			Store: brainConnectionRepo.New(deps.Repo), Cipher: deps.PlatformCipher,
 			Config:   assistantUseCase.Config{Endpoint: deps.Brain.Endpoint, EnrollmentToken: deps.Brain.EnrollmentToken, CAFile: deps.Brain.CAFile},
 			Importer: exerciseUC, Files: mediaUC, Saves: assistantSaveRepo.New(deps.Repo),
-			Lock: func(ctx context.Context, key string) (func(), error) {
-				held, err := advisory.Lock(ctx, deps.Repo.Pool(), advisory.Key("assistant-save", key))
-				if err != nil {
-					return nil, err
-				}
-				return held.Release, nil
-			},
 		}),
 	}
 }
