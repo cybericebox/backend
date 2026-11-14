@@ -40,4 +40,5 @@ const (
 	PasskeyObjectCode
 	TablePrefsObjectCode
 	ExerciseDocumentObjectCode
+	AssistantObjectCode
 )

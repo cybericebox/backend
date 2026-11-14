@@ -171,6 +171,8 @@ type Querier interface {
 	// field's own filter empty). field: role, status, emailConfirmed or signIn (a user counts once per method).
 	CountUsersFacet(ctx context.Context, arg CountUsersFacetParams) ([]CountUsersFacetRow, error)
 	CreateAdminAuditLog(ctx context.Context, arg CreateAdminAuditLogParams) error
+	// A freshly enrolled connection. Two replicas enrolling at once: the first row stays (0 rows for the second).
+	CreateBrainConnection(ctx context.Context, arg CreateBrainConnectionParams) (int64, error)
 	CreateChallengeAttempt(ctx context.Context, arg CreateChallengeAttemptParams) (ChallengeAttempt, error)
 	CreateChallengeAttemptDecision(ctx context.Context, arg CreateChallengeAttemptDecisionParams) (ChallengeAttemptDecision, error)
 	CreateCopiedEventChallengeGroup(ctx context.Context, arg CreateCopiedEventChallengeGroupParams) error
@@ -473,6 +475,8 @@ type Querier interface {
 	GetActiveChannels(ctx context.Context, arg GetActiveChannelsParams) ([]string, error)
 	// The screen's one working link (unrevoked and not expired).
 	GetActiveEventLiveScreenLink(ctx context.Context, arg GetActiveEventLiveScreenLinkParams) (EventLiveScreenLink, error)
+	// The stored connection to one brain endpoint.
+	GetBrainConnection(ctx context.Context, endpoint string) (BrainConnection, error)
 	GetClusterReservation(ctx context.Context, id uuid.UUID) (ClusterReservation, error)
 	GetClusterReservationOfTestGroup(ctx context.Context, ownerID uuid.NullUUID) (ClusterReservation, error)
 	GetClusterReservationOfTestRun(ctx context.Context, testDeployID uuid.NullUUID) (ClusterReservation, error)
@@ -2065,6 +2069,8 @@ type Querier interface {
 	// person's names (the real one and the pseudonym).
 	ScrubRawLabObservations(ctx context.Context, arg ScrubRawLabObservationsParams) (int64, error)
 	SelectEventStageRetainedLab(ctx context.Context, arg SelectEventStageRetainedLabParams) error
+	// A renewed client certificate with its new key (the tenant is the certificate CN and stays).
+	SetBrainConnectionCertificate(ctx context.Context, arg SetBrainConnectionCertificateParams) (int64, error)
 	SetDispatchStatus(ctx context.Context, arg SetDispatchStatusParams) error
 	SetErrorGroupStatus(ctx context.Context, arg SetErrorGroupStatusParams) (ErrorGroup, error)
 	SetErrorTelegramChatFailing(ctx context.Context, arg SetErrorTelegramChatFailingParams) error
