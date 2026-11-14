@@ -106,6 +106,10 @@ func VPNAccess(entry string) Access {
 	return Access{"vpn": raw}
 }
 
+// NoAccess is the access of a run that joins no lab: a task with nothing to reach (only its materials and answers). It is
+// one more kind of the open union, written {"none": {}}.
+func NoAccess() Access { return Access{"none": json.RawMessage(`{}`)} }
+
 // runRoleExcluded lists the roles of a run and whether their runs are left out of the participant statistics. None is
 // counted: the grader measures the task and an opponent plays against it, so the figures stay those of people. A role
 // has to be listed here to exist.

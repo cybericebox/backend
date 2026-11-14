@@ -65,6 +65,7 @@ type (
 		RevokeLabClient(ctx context.Context, owner, deployID uuid.UUID, client string) error
 		JudgeAnswer(ctx context.Context, owner, deployID uuid.UUID, subtaskRef, value string) (bool, error)
 		RunTarget(ctx context.Context, versionID, variantID uuid.UUID, want time.Duration) (exerciseUseCase.RunTarget, error)
+		RunMaterials(ctx context.Context, owner, deployID uuid.UUID) (exerciseUseCase.Materials, error)
 	}
 
 	// RunView is a run with the answers it submitted and how they were judged.
@@ -83,8 +84,8 @@ func (u *UseCase) runsReady() error {
 
 // StartGraderRun starts a grader run on a variant: the variant's test lab is deployed as the actor (the same path, limits
 // and authorization as their own test deploy), and the leader then starts the run at the brain once the lab is ready. The
-// run is returned as it is, still starting. A variant has at most one active run, a user a few; a variant without devices
-// has no lab to join.
+// run is returned as it is, still starting. A variant has at most one active run, a user a few. A variant without devices
+// has no lab (its test deploy is only a row with the pinned answers): the run gets materials and answers only.
 func (u *UseCase) StartGraderRun(ctx context.Context, actor exerciseUseCase.Actor, exerciseID, versionID, variantID uuid.UUID) (assistantModel.Run, error) {
 	if err := u.runsReady(); err != nil {
 		return assistantModel.Run{}, err
@@ -98,9 +99,6 @@ func (u *UseCase) StartGraderRun(ctx context.Context, actor exerciseUseCase.Acto
 	}
 	if target.ExerciseID != exerciseID {
 		return assistantModel.Run{}, exerciseModel.ErrExerciseVersionNotFound.Err()
-	}
-	if !target.HasLab {
-		return assistantModel.Run{}, exerciseModel.ErrTestDeployNoLab.Err()
 	}
 	if err = u.requireRunRoom(ctx, actor.UserID, variantID); err != nil {
 		return assistantModel.Run{}, err

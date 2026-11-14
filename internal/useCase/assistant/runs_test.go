@@ -1,9 +1,13 @@
 package assistant_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
+	"mime"
+	"mime/multipart"
 	"strings"
 	"sync"
 	"testing"
@@ -284,7 +288,8 @@ type fakeLabs struct {
 
 func newFakeLabs() *fakeLabs { return &fakeLabs{hasLab: true, judged: map[string]string{}} }
 
-func (f *fakeLabs) lookCount() int { f.mu.Lock(); defer f.mu.Unlock(); return f.looks }
+func (f *fakeLabs) deploys() int { f.mu.Lock(); defer f.mu.Unlock(); return f.deployCount }
+func (f *fakeLabs) lookCount() int     { f.mu.Lock(); defer f.mu.Unlock(); return f.looks }
 func (f *fakeLabs) record(call string) { f.mu.Lock(); f.calls = append(f.calls, call); f.mu.Unlock() }
 func (f *fakeLabs) called() []string {
 	f.mu.Lock()
@@ -351,6 +356,13 @@ func (f *fakeLabs) JudgeAnswer(_ context.Context, _, _ uuid.UUID, ref, value str
 	defer f.mu.Unlock()
 	want, ok := f.judged[ref]
 	return ok && value == want, nil
+}
+func (f *fakeLabs) RunMaterials(context.Context, uuid.UUID, uuid.UUID) (exerciseUseCase.Materials, error) {
+	f.record("materials")
+	return exerciseUseCase.Materials{
+		Task:  []byte(`{"title":"Web login","description":"","subtasks":[{"key":"login","title":"Log in","prompt":"Open the site","answer_kind":"flag"}]}`),
+		Files: []exerciseUseCase.MaterialFile{{Name: "notes.txt", ContentType: "text/plain", Data: []byte("participant file")}},
+	}, nil
 }
 func (f *fakeLabs) RunTarget(_ context.Context, runVersion, _ uuid.UUID, want time.Duration) (exerciseUseCase.RunTarget, error) {
 	variants := `[{"topology":{"devices":[{"image":"nginx:1"},{"image":"redis:7"}]}}]`
@@ -469,13 +481,6 @@ func TestStartGraderRunRefusals(t *testing.T) {
 			t.Fatal("no lab for someone who may not test the task")
 		}
 	})
-	t.Run("a variant without devices has no lab", func(t *testing.T) {
-		r := newRunRig(t, nil)
-		r.labs.hasLab = false
-		if _, err := r.uc.StartGraderRun(context.Background(), runActor, runExercise, runVersion, runVariant); !errors.Is(err, exerciseModel.ErrTestDeployNoLab.Err()) || r.labs.deployCount != 0 {
-			t.Fatalf("%v", err)
-		}
-	})
 	t.Run("one active run per variant", func(t *testing.T) {
 		r := newRunRig(t, nil)
 		r.start(t)
@@ -542,9 +547,20 @@ func TestAGraderRunFromStartToTeardown(t *testing.T) {
 	id := run.ID.String()
 	r.drive(t)
 
-	// started at the brain once the lab is ready: a participant's VPN, no band, no budget, no goal
+	// the materials come first, then the run starts at the brain: a participant's VPN, no band, no budget, no goal
 	r.waitState(t, run.ID, assistantModel.RunRunning)
 	eventually(t, "StartRun", func() bool { return len(r.brn.Started()) == 1 })
+	if order := r.brn.Order(); len(order) != 2 || order[0] != "materials:"+id || order[1] != "start:"+id {
+		t.Fatalf("materials first, then the start: %v", order)
+	}
+	uploaded := r.brn.Materials(id)
+	if len(uploaded) != 1 || uploaded[0].RequestedWith != "cybericebox-daemon" {
+		t.Fatalf("%+v", uploaded)
+	}
+	form := parseUpload(t, uploaded[0])
+	if form["task"].filename != "task.json" || !strings.Contains(form["task"].body, `"answer_kind":"flag"`) || form["file"].filename != "notes.txt" || form["file"].body != "participant file" {
+		t.Fatalf("%+v", form)
+	}
 	body := mustJSON(t, r.brn.Started()[0])
 	for _, forbidden := range []string{"band", "budget", "goal"} {
 		if _, has := body[forbidden]; has {
@@ -618,6 +634,27 @@ func TestAGraderRunFromStartToTeardown(t *testing.T) {
 	if len(r.brn.Stops()) != 0 {
 		t.Fatalf("%v", r.brn.Stops())
 	}
+}
+
+type uploadedPart struct{ filename, contentType, body string }
+
+func parseUpload(t *testing.T, u brainfake.Upload) map[string]uploadedPart {
+	t.Helper()
+	_, params, err := mime.ParseMediaType(u.ContentType)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := map[string]uploadedPart{}
+	reader := multipart.NewReader(bytes.NewReader(u.Body), params["boundary"])
+	for {
+		part, err := reader.NextPart()
+		if err != nil {
+			break
+		}
+		body, _ := io.ReadAll(part)
+		out[part.FormName()] = uploadedPart{filename: part.FileName(), contentType: part.Header.Get("Content-Type"), body: string(body)}
+	}
+	return out
 }
 
 func indexOf(list []string, item string) int {
@@ -811,7 +848,10 @@ func TestAVerdictThatFailsIsSentAgainWithTheSameBody(t *testing.T) {
 	r.drive(t)
 	r.waitState(t, run.ID, assistantModel.RunRunning)
 	r.brn.Emit(id, "answer", `{"type":"answer","run_id":"`+id+`","subtask_ref":"login","value":"ICE{real}"}`)
-	eventually(t, "the verdict to arrive", func() bool { return len(r.brn.Verdicts(id)) == 1 })
+	eventually(t, "the verdict to arrive and be recorded as sent", func() bool {
+		answers, _ := r.runs.Answers(context.Background(), run.ID)
+		return len(r.brn.Verdicts(id)) == 1 && len(answers) == 1 && answers[0].VerdictSent
+	})
 	r.brn.DropStreams() // the next pass looks at the unsent verdicts again
 	time.Sleep(50 * time.Millisecond)
 	if n := len(r.brn.Verdicts(id)); n != 1 {
@@ -948,5 +988,101 @@ func TestAnotherExercisesIdsAreNotFoundOnEveryMeasureRoute(t *testing.T) {
 	}
 	if r.labs.deployCount != 1 {
 		t.Fatalf("a start with the wrong exercise must not deploy a lab: %d", r.labs.deployCount)
+	}
+}
+
+func TestTheMaterialsAreRetriedOnServerErrorsAndAFailureRefusesTheRun(t *testing.T) {
+	t.Run("a server error twice, then accepted", func(t *testing.T) {
+		r := newRunRig(t, nil)
+		r.brn.FailMaterials(503, 502)
+		run := r.start(t)
+		r.drive(t)
+		r.waitState(t, run.ID, assistantModel.RunRunning)
+		if len(r.brn.Materials(run.ID.String())) != 1 || len(r.brn.Started()) != 1 {
+			t.Fatalf("%v", r.brn.Order())
+		}
+	})
+	t.Run("a server error that does not stop", func(t *testing.T) {
+		r := newRunRig(t, nil)
+		r.brn.FailMaterials(503, 503, 503)
+		run := r.start(t)
+		r.drive(t)
+		got := r.waitState(t, run.ID, assistantModel.RunFailed)
+		if got.FailureReason != assistantModel.FailureStartRefused || len(r.brn.Started()) != 0 {
+			t.Fatalf("%+v %v", got, r.brn.Order())
+		}
+		eventually(t, "the lab to go", func() bool { return r.labs.count("destroy") >= 1 })
+		if indexOf(r.labs.called(), "revoke:"+got.AccessClient) < 0 {
+			t.Fatalf("the client is revoked: %v", r.labs.called())
+		}
+	})
+	t.Run("a refusal that cannot change", func(t *testing.T) {
+		r := newRunRig(t, nil)
+		r.brn.FailMaterials(422)
+		run := r.start(t)
+		r.drive(t)
+		if got := r.waitState(t, run.ID, assistantModel.RunFailed); got.FailureReason != assistantModel.FailureStartRefused || len(r.brn.Started()) != 0 {
+			t.Fatalf("%+v", got)
+		}
+	})
+}
+
+func TestAStaticGraderRunEndToEnd(t *testing.T) {
+	r := newRunRig(t, nil)
+	r.labs.hasLab = false
+	r.labs.judged["login"] = "ICE{real}"
+	run := r.start(t)
+	id := run.ID.String()
+	r.drive(t)
+	r.waitState(t, run.ID, assistantModel.RunRunning)
+	eventually(t, "StartRun", func() bool { return len(r.brn.Started()) == 1 })
+	if order := r.brn.Order(); len(order) != 2 || order[0] != "materials:"+id {
+		t.Fatalf("%v", order)
+	}
+	body := mustJSON(t, r.brn.Started()[0])
+	if string(body["access"]) != `{"none":{}}` {
+		t.Fatalf("a task with no lab is started with the access kind none: %s", body["access"])
+	}
+	for _, c := range r.labs.called() {
+		if strings.HasPrefix(c, "mint:") {
+			t.Fatalf("a static run gets no VPN client: %v", r.labs.called())
+		}
+	}
+	if r.runs.state(run.ID).AccessClient != "" {
+		t.Fatalf("%+v", r.runs.state(run.ID))
+	}
+
+	r.brn.Emit(id, "answer", `{"type":"answer","run_id":"`+id+`","subtask_ref":"login","value":"ICE{real}"}`)
+	r.brn.Emit(id, "measure", `{"type":"measure","runs":1,"solved":1}`)
+	r.brn.Emit(id, "run_finished", `{"type":"run_finished","run_id":"`+id+`","status":"done"}`)
+	done := r.waitState(t, run.ID, assistantModel.RunFinished)
+	if string(done.Measurement) != `{"type":"measure","runs":1,"solved":1}` {
+		t.Fatalf("%s", done.Measurement)
+	}
+	verdicts := r.brn.Verdicts(id)
+	if len(verdicts) != 1 || string(mustJSON(t, verdicts[0])["correct"]) != "true" {
+		t.Fatalf("answers are judged by the same checker: %v", verdicts)
+	}
+	// torn down by closing the run: the deploy row is removed, nothing was revoked
+	if r.labs.count("destroy") != 1 {
+		t.Fatalf("%v", r.labs.called())
+	}
+	if len(r.brn.Stops()) != 0 {
+		t.Fatal("a run that finished is not stopped")
+	}
+}
+
+func TestOnlyTheMeasureEventIsTheMeasurement(t *testing.T) {
+	r := newRunRig(t, nil)
+	run := r.start(t)
+	id := run.ID.String()
+	r.drive(t)
+	r.waitState(t, run.ID, assistantModel.RunRunning)
+	r.brn.Emit(id, "aggregate", `{"type":"aggregate","not":"this"}`)
+	r.brn.Emit(id, "measure", `{"type":"measure","runs":3}`)
+	r.brn.Emit(id, "run_finished", `{"type":"run_finished","status":"done"}`)
+	done := r.waitState(t, run.ID, assistantModel.RunFinished)
+	if string(done.Measurement) != `{"type":"measure","runs":3}` {
+		t.Fatalf("%s", done.Measurement)
 	}
 }

@@ -19,16 +19,19 @@ type Runs struct {
 	// EventsStatus, when not 0, is the status the event stream answers with an error envelope (the brain is down).
 	EventsStatus int
 
-	started  []json.RawMessage
-	stops    []string
-	verdicts map[string][]json.RawMessage
-	frames   map[string][]frame
-	opened   map[string]int // event stream connections per run
-	afters   map[string][]int64
-	vFail    int // how many of the next verdicts are refused with vStatus
-	vStatus  int
-	closeAll bool
-	wake     chan struct{}
+	started      []json.RawMessage
+	stops        []string
+	materials    map[string][]Upload
+	materialsErr []int    // statuses the next materials uploads answer with (then accepted)
+	order        []string // the calls in the order they came: "materials:<id>", "start:<id>"
+	verdicts     map[string][]json.RawMessage
+	frames       map[string][]frame
+	opened       map[string]int // event stream connections per run
+	afters       map[string][]int64
+	vFail        int // how many of the next verdicts are refused with vStatus
+	vStatus      int
+	closeAll     bool
+	wake         chan struct{}
 }
 
 type frame struct {
@@ -39,7 +42,7 @@ type frame struct {
 
 // NewRuns makes an empty run side; set it as Fake.Runs.
 func NewRuns() *Runs {
-	return &Runs{verdicts: map[string][]json.RawMessage{}, frames: map[string][]frame{}, opened: map[string]int{}, afters: map[string][]int64{}, wake: make(chan struct{})}
+	return &Runs{verdicts: map[string][]json.RawMessage{}, materials: map[string][]Upload{}, frames: map[string][]frame{}, opened: map[string]int{}, afters: map[string][]int64{}, wake: make(chan struct{})}
 }
 
 // Emit adds an event to the run's stream and returns its sequence number.
@@ -127,6 +130,8 @@ func (r *Runs) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	switch {
 	case rest == "" && req.Method == http.MethodPost:
 		r.start(w, req)
+	case strings.HasSuffix(rest, "/materials") && req.Method == http.MethodPost:
+		r.upload(w, req, strings.TrimSuffix(rest, "/materials"))
 	case strings.HasSuffix(rest, "/stop") && req.Method == http.MethodPost:
 		r.mu.Lock()
 		r.stops = append(r.stops, strings.TrimSuffix(rest, "/stop"))
@@ -161,6 +166,11 @@ func (r *Runs) start(w http.ResponseWriter, req *http.Request) {
 	status := r.StartStatus
 	if status == 0 {
 		r.started = append(r.started, body)
+		var probe struct {
+			RunID string `json:"run_id"`
+		}
+		_ = json.Unmarshal(body, &probe)
+		r.order = append(r.order, "start:"+probe.RunID)
 	}
 	r.mu.Unlock()
 	if status != 0 {
@@ -219,4 +229,54 @@ func (r *Runs) events(w http.ResponseWriter, req *http.Request, runID string) {
 		case <-wake:
 		}
 	}
+}
+
+// Upload is one accepted materials upload: the raw body with the headers that matter.
+type Upload struct {
+	Body          []byte
+	ContentType   string
+	RequestedWith string
+}
+
+// FailMaterials makes the next uploads answer these statuses with an error envelope, one each (then they are accepted).
+func (r *Runs) FailMaterials(statuses ...int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.materialsErr = statuses
+}
+
+// Materials are the accepted uploads of a run.
+func (r *Runs) Materials(runID string) []Upload {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]Upload(nil), r.materials[runID]...)
+}
+
+// Order is the accepted materials uploads and starts in the order they came ("materials:<id>", "start:<id>").
+func (r *Runs) Order() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]string(nil), r.order...)
+}
+
+func (r *Runs) upload(w http.ResponseWriter, req *http.Request, runID string) {
+	body, _ := io.ReadAll(req.Body)
+	r.mu.Lock()
+	if len(r.materialsErr) > 0 {
+		status := r.materialsErr[0]
+		r.materialsErr = r.materialsErr[1:]
+		r.mu.Unlock()
+		Fail(w, status, "upload_failed", "the upload was not accepted")
+		return
+	}
+	if req.Header.Get("X-Requested-With") == "" {
+		r.mu.Unlock()
+		Fail(w, http.StatusForbidden, "csrf", "the marker header is missing")
+		return
+	}
+	r.materials[runID] = append(r.materials[runID], Upload{Body: body, ContentType: req.Header.Get("Content-Type"), RequestedWith: req.Header.Get("X-Requested-With")})
+	r.order = append(r.order, "materials:"+runID)
+	r.mu.Unlock()
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write([]byte(`{}`))
 }
