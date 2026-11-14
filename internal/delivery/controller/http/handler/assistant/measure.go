@@ -53,6 +53,9 @@ type (
 		FailureReason string `json:"FailureReason,omitempty"`
 		VersionID     string `json:"VersionID"`
 		VariantID     string `json:"VariantID"`
+		// Opponent is the 1-based position of the opponent in the variant's manifest (an opponent run only), Role its role.
+		Opponent int    `json:"Opponent,omitempty"`
+		Role     string `json:"Role,omitempty"`
 		// DeployID is the test lab of the run (it shows with the author's other test labs).
 		DeployID string `json:"DeployID"`
 		LastSeq  int64  `json:"LastSeq"`
@@ -100,11 +103,15 @@ func timePtr(t time.Time) *time.Time {
 }
 
 func runToResponse(run assistantModel.Run) runResponse {
-	return runResponse{
+	out := runResponse{
 		ID: run.ID.String(), State: string(run.State), FailureReason: run.FailureReason, VersionID: run.VersionID.String(),
 		VariantID: run.VariantID.String(), DeployID: run.DeployID.String(), LastSeq: run.LastSeq, Measurement: run.Measurement,
 		CreatedAt: run.CreatedAt, StartedAt: timePtr(run.StartedAt), FinishedAt: timePtr(run.FinishedAt), ExpiresAt: run.ExpiresAt,
 	}
+	if run.Opponent > 0 {
+		out.Opponent, out.Role = run.Opponent, run.Role
+	}
+	return out
 }
 
 // ids reads the actor and the variant's path; false means the response is already written.
@@ -283,6 +290,15 @@ func (h *MeasureHandler) events(c *gin.Context) {
 		response.AbortWithError(c, err)
 		return
 	}
+	serveEvents(c, actor, after, read, func(ctx context.Context) error {
+		_, authErr := h.useCase.GraderRun(ctx, actor, exerciseID, versionID, variantID, id)
+		return authErr
+	})
+}
+
+// serveEvents serves the stored events of a run to the page: from `after`, until the run is over, with a heartbeat. The actor is
+// asked again from time to time (revalidate), since access may be taken away while the stream is open.
+func serveEvents(c *gin.Context, actor exerciseUseCase.Actor, after int64, read func(ctx context.Context, after int64, limit int) ([]assistantModel.RunEvent, assistantModel.RunState, error), revalidateAccess func(ctx context.Context) error) {
 	release, admitted := sse.Streams.Acquire("measure:"+actor.UserID.String(), limits.Get().StreamsPerUser)
 	if !admitted {
 		response.AbortWithTooManyRequests(c, response.StreamRetryAfter)
@@ -327,7 +343,7 @@ func (h *MeasureHandler) events(c *gin.Context) {
 			sse.Heartbeat(c.Writer, flusher)
 		case <-revalidate.C:
 			// The reader may lose access while the stream is open (a role taken away).
-			if _, authErr := h.useCase.GraderRun(streamCtx, actor, exerciseID, versionID, variantID, id); authErr != nil {
+			if authErr := revalidateAccess(streamCtx); authErr != nil {
 				return
 			}
 		case <-poll.C:

@@ -22434,6 +22434,143 @@ const docTemplate = `{
                 }
             }
         },
+        "/exercises/{id}/versions/{versionID}/variants/{variantID}/opponents/{index}/try": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "exercises"
+                ],
+                "summary": "The runs of an opponent of a variant, newest first",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/assistant.runResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "exercises"
+                ],
+                "summary": "Try an opponent of a variant against its test lab",
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/assistant.runResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/exercises/{id}/versions/{versionID}/variants/{variantID}/opponents/{index}/try/{runID}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "exercises"
+                ],
+                "summary": "One run of an opponent with its judged answers",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/assistant.runDetailResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/exercises/{id}/versions/{versionID}/variants/{variantID}/opponents/{index}/try/{runID}/events": {
+            "get": {
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "exercises"
+                ],
+                "summary": "The events of a run of an opponent, from storage (resume with ?after= or Last-Event-ID)",
+                "responses": {}
+            }
+        },
+        "/exercises/{id}/versions/{versionID}/variants/{variantID}/opponents/{index}/try/{runID}/stop": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "exercises"
+                ],
+                "summary": "Stop a run of an opponent; its lab and tools device are torn down",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/assistant.runResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/infrastructure/agents": {
             "get": {
                 "description": "The enrolled agents (Source admin: added in the admin; env: bootstrapped from AGENT_ENDPOINT and the enrollment token), with live state, held lab groups, capacity and the certificate expiry. Requires infrastructure.read (super_admin only).",
@@ -29677,6 +29814,13 @@ const docTemplate = `{
                         "type": "integer"
                     }
                 },
+                "Opponent": {
+                    "description": "Opponent is the 1-based position of the opponent in the variant's manifest (an opponent run only), Role its role.",
+                    "type": "integer"
+                },
+                "Role": {
+                    "type": "string"
+                },
                 "StartedAt": {
                     "type": "string"
                 },
@@ -29723,6 +29867,13 @@ const docTemplate = `{
                     "items": {
                         "type": "integer"
                     }
+                },
+                "Opponent": {
+                    "description": "Opponent is the 1-based position of the opponent in the variant's manifest (an opponent run only), Role its role.",
+                    "type": "integer"
+                },
+                "Role": {
+                    "type": "string"
                 },
                 "StartedAt": {
                     "type": "string"

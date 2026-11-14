@@ -237,7 +237,7 @@ func TestAgentBootstrapConfig(t *testing.T) {
 func TestBrainConfig_DefaultsEnvAndRejectsInvalidEndpoint(t *testing.T) {
 	t.Setenv("RECAPTCHA_SECRET", "rsecret")
 	off := MustGetConfig().Brain
-	if off != (BrainConfig{RunGrace: time.Minute, RunMaxDuration: 30 * time.Minute}) || off.Validate() != nil {
+	if off != (BrainConfig{RunGrace: time.Minute, RunMaxDuration: 30 * time.Minute, OpponentActions: 100, OpponentTokens: 500000, OpponentSeconds: 1200}) || off.Validate() != nil {
 		t.Fatalf("the brain is off by default: %+v", off)
 	}
 
@@ -261,6 +261,9 @@ func TestBrainConfig_DefaultsEnvAndRejectsInvalidEndpoint(t *testing.T) {
 	}
 	if (BrainConfig{Endpoint: "brain.example.test:443", RunGrace: -time.Second}).Validate() == nil {
 		t.Fatal("accepted a negative grace")
+	}
+	if (BrainConfig{Endpoint: "brain.example.test:443", OpponentTokens: -1}).Validate() == nil {
+		t.Fatal("accepted a negative opponent budget")
 	}
 	if (BrainConfig{Endpoint: "[::1]:443"}).Validate() != nil {
 		t.Fatal("rejected an IPv6 endpoint")

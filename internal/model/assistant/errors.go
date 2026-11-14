@@ -7,7 +7,7 @@ import (
 	"github.com/cybericebox/daemon/pkg/err"
 )
 
-// next free detail code: 16
+// next free detail code: 18
 
 var (
 	// ErrAssistantUnavailable: the assistant is off (no BRAIN_ENDPOINT), not enrolled yet, or the platform secrets
@@ -92,4 +92,16 @@ var (
 	ErrAssistantRunLimit = err.ErrConflict.WithObjectCode(model.AssistantObjectCode).
 				WithMessage("Too many active runs").
 				WithDetailCode(15)
+
+	// ErrAssistantOpponentNotFound: the variant has no opponent at that position of its manifest.
+	ErrAssistantOpponentNotFound = err.ErrObjectNotFound.WithObjectCode(model.AssistantObjectCode).
+					WithMessage("The variant has no such opponent").
+					WithDetailCode(16)
+
+	// ErrAssistantOpponentUnavailable: the platform cannot run an opponent here (no tools image is configured, or the lab
+	// has no VPN network with DHCP for the tools device).
+	ErrAssistantOpponentUnavailable = err.ErrConflict.WithObjectCode(model.AssistantObjectCode).
+					WithMessage("Opponents cannot be run in this lab").
+					WithDetailCode(17).
+					WithHTTPCode(http.StatusServiceUnavailable)
 )
