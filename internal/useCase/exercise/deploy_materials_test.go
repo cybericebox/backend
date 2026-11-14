@@ -133,7 +133,7 @@ func TestRunMaterials_ThePlaceholdersAreResolvedForTheRunsLab(t *testing.T) {
 	if err = json.Unmarshal(m.Task, &doc); err != nil {
 		t.Fatal(err)
 	}
-	if doc.Title != "Web login" || doc.Description != "A small web task." || len(doc.Subtasks) != 2 {
+	if doc.Title != "Log in" || doc.Description != "" || len(doc.Subtasks) != 2 {
 		t.Fatalf("%s", m.Task)
 	}
 	first := doc.Subtasks[0]
@@ -141,8 +141,8 @@ func TestRunMaterials_ThePlaceholdersAreResolvedForTheRunsLab(t *testing.T) {
 	if first.Key != "login" || first.Title != "Log in" || first.Prompt != want || first.AnswerKind != "flag" {
 		t.Fatalf("%+v", first)
 	}
-	if doc.Subtasks[1].Key != "service" || doc.Subtasks[1].AnswerKind != "" || doc.Subtasks[1].Prompt != "Make it run." {
-		t.Fatalf("a state task has no answer kind: %+v", doc.Subtasks[1])
+	if doc.Subtasks[1].Key != "service" || doc.Subtasks[1].AnswerKind != "state" || doc.Subtasks[1].Prompt != "Make it run." {
+		t.Fatalf("a subtask checked by the lab's state says so: %+v", doc.Subtasks[1])
 	}
 	if len(m.Files) != 1 || m.Files[0].Name != "notes.txt" || string(m.Files[0].Data) != "the participant's file" || m.Files[0].ContentType != "text/plain" {
 		t.Fatalf("%+v", m.Files)
@@ -167,12 +167,12 @@ func TestRunMaterials_NothingPrivateIsInIt(t *testing.T) {
 	}
 }
 
-func TestRunMaterials_AnUnresolvablePlaceholderIsLeftVisibleAndAttachmentsAreCapped(t *testing.T) {
+func TestRunMaterials_AnUnresolvablePlaceholderIsADashAndAttachmentsAreCapped(t *testing.T) {
 	files := &memFiles{files: map[uuid.UUID][]byte{}, types: map[uuid.UUID]string{}, size: map[uuid.UUID]int64{}}
 	uc, owner, deployID, infra := materialsFixture(t, files, "l-lab")
 	infra.status.Access, infra.status.Gateways = nil, nil
 	m, err := uc.RunMaterials(context.Background(), owner, deployID)
-	if err != nil || !strings.Contains(string(m.Task), "{{site}}") || !strings.Contains(string(m.Task), "{{net}}") || !strings.Contains(string(m.Task), "{{host}}") {
+	if err != nil || strings.Count(string(m.Task), "—") < 3 {
 		t.Fatalf("%v %s", err, m.Task)
 	}
 	// a file over the entry limit of an archive is refused before it is read

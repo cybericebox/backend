@@ -256,3 +256,44 @@ func pickLease(allowedMinutes []int, want time.Duration) time.Duration {
 	}
 	return longest
 }
+
+// StateSubtask is a subtask of the variant that is checked by the state of the lab, with whether its check has passed.
+type StateSubtask struct {
+	Key string
+	// Passed: the lab's check of the subtask has passed (now, or at some time before).
+	Passed bool
+}
+
+// RunStateTasks gives the state-checked subtasks of the variant of the owner's test lab, in the order of the variant, and
+// which of them have passed. It reads the results the laboratory recorded for that lab (the same ones the author's own
+// test deploy shows in its task states), so it asks neither the agent nor anyone else. A lab without recorded results, or
+// a variant without state tasks, passes nothing.
+func (u *ExerciseUseCase) RunStateTasks(ctx context.Context, owner, deployID uuid.UUID) ([]StateSubtask, error) {
+	deploy, err := u.testDeploys.GetOwned(ctx, deployID, owner)
+	if err != nil {
+		if repositoryTools.IsObjectNotFoundError(err) {
+			return nil, exerciseModel.ErrTestDeployNotFound.Err()
+		}
+		return nil, model.ErrPlatform.WithError(err).WithMessage("Failed to load test deploy").Err()
+	}
+	_, variant, _, err := u.loadVersionVariant(ctx, deploy.VersionID, deploy.VariantID)
+	if err != nil {
+		return nil, err
+	}
+	tasks := variant.StateTasks()
+	out := make([]StateSubtask, 0, len(tasks))
+	for _, task := range tasks {
+		out = append(out, StateSubtask{Key: task.Key})
+	}
+	if len(tasks) == 0 || deploy.IsStatic() || u.labChecks == nil {
+		return out, nil
+	}
+	results, err := u.labChecks.List(ctx, deploy.GroupName, deploy.LabName)
+	if err != nil {
+		return nil, model.ErrPlatform.WithError(err).WithMessage("Failed to read the lab checks").Err()
+	}
+	for i, state := range TaskCheckStates(variant, results) {
+		out[i].Passed = state.Solved || state.FirstSolvedAt != nil
+	}
+	return out, nil
+}

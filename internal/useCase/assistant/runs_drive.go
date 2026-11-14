@@ -111,6 +111,8 @@ type runDriver struct {
 	mintFails int
 	stopSent  bool
 	refused   bool
+	// stateFlushed: the verdicts of the state subtasks that never passed were sent (once, before the teardown).
+	stateFlushed bool
 	// materialsSent: the materials of this run are with the brain (kept for this leadership; a new leader sends them again).
 	materialsSent bool
 	revoked       bool
@@ -404,6 +406,7 @@ func (d *runDriver) running(ctx context.Context, run assistantModel.Run) time.Du
 		d.close(ctx, run, assistantModel.RunFailed, assistantModel.FailureTimeout)
 		return 0
 	}
+	d.judgeStateTasks(ctx, run, false)
 	d.sendUnsent(ctx, run)
 	c, err := u.client(ctx)
 	if err != nil {
@@ -432,6 +435,8 @@ func (d *runDriver) running(ctx context.Context, run assistantModel.Run) time.Du
 					cancel()
 					return
 				}
+				// The state subtasks are judged by the lab: a pass is told as soon as it is seen.
+				d.judgeStateTasks(readCtx, run, false)
 				// A verdict that did not get through is sent again without waiting for the stream to end.
 				d.sendUnsent(readCtx, run)
 			}
@@ -723,6 +728,10 @@ func (d *runDriver) closing(ctx context.Context, run assistantModel.Run) time.Du
 		d.stopSent = true
 		d.stopAtBrain(ctx, run)
 	}
+	if !d.stateFlushed && run.Role == assistantModel.RoleGrader && !run.StartedAt.IsZero() {
+		d.stateFlushed = true
+		d.flushStateTasks(ctx, run)
+	}
 	failed := false
 	if !d.revoked {
 		if err := u.labs.RevokeLabClient(ctx, run.Actor, run.DeployID, run.AccessClient); err != nil {
@@ -892,4 +901,49 @@ func (d *runDriver) refuseLab(ctx context.Context, run assistantModel.Run) {
 	if err := d.u.runs.SetAnswered(ctx, run.ID, d.u.now().UTC()); err != nil {
 		log.Warn().Err(err).Msg("Recording a refused lab request failed")
 	}
+}
+
+// stateSeq is the sequence number a state subtask's verdict is kept under: the brain's own answers have positive ones, so
+// the verdicts the platform decides itself take the negative numbers, one per state subtask in the variant's order.
+func stateSeq(index int) int64 { return -int64(index) - 1 }
+
+// judgeStateTasks tells the brain, once per state subtask, that its check passed. The brain submits nothing for such a
+// subtask and only acts; the lab's check decides, from the results the laboratory recorded for the run's lab. With final
+// set (the run is ending) a subtask that never passed is told as not correct. A verdict is sent only when the subtask
+// changes from nothing to a result, never again.
+func (d *runDriver) judgeStateTasks(ctx context.Context, run assistantModel.Run, final bool) {
+	if run.Role != assistantModel.RoleGrader {
+		return
+	}
+	u := d.u
+	tasks, err := u.labs.RunStateTasks(ctx, run.Actor, run.DeployID)
+	if err != nil {
+		log.Warn().Err(err).Msg("Reading the state subtasks of a run failed")
+		return
+	}
+	for i, task := range tasks {
+		if !task.Passed && !final {
+			continue
+		}
+		seq := stateSeq(i)
+		if _, found, readErr := u.runs.Answer(ctx, run.ID, seq); readErr != nil || found {
+			continue // told already (or the store is down: the next pass tries again)
+		}
+		if _, addErr := u.runs.AddAnswer(ctx, run.ID, seq, task.Key, task.Passed, u.now().UTC()); addErr != nil {
+			log.Warn().Err(addErr).Msg("Recording the verdict of a state subtask failed")
+			continue
+		}
+		if stored, found, readErr := u.runs.Answer(ctx, run.ID, seq); readErr == nil && found {
+			d.sendVerdict(ctx, run, stored)
+		}
+	}
+}
+
+// flushStateTasks is the last look before the teardown: every state subtask that did not pass is told as not correct, and
+// the verdicts the brain has not got yet are sent, once and within bestEffort (the teardown does not wait on the brain).
+func (d *runDriver) flushStateTasks(ctx context.Context, run assistantModel.Run) {
+	ctx, cancel := context.WithTimeout(ctx, bestEffort)
+	defer cancel()
+	d.judgeStateTasks(ctx, run, true)
+	d.sendUnsent(ctx, run)
 }

@@ -3,9 +3,7 @@ package exercise
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
-	"net"
 	"strconv"
 	"strings"
 
@@ -43,9 +41,9 @@ type (
 		Key    string `json:"key"`
 		Title  string `json:"title"`
 		Prompt string `json:"prompt"`
-		// AnswerKind is how the participant's answer is read: flag (ICE{...}) or text. A subtask whose check is a state
-		// of the lab has no answer to give and no kind.
-		AnswerKind string `json:"answer_kind,omitempty"`
+		// AnswerKind is how the subtask is judged: flag (an answer ICE{...}), text (a free answer, compared as the
+		// participant's checker does) or state (nothing is submitted: the platform checks the lab).
+		AnswerKind string `json:"answer_kind"`
 	}
 )
 
@@ -56,21 +54,20 @@ func (u *ExerciseUseCase) RunMaterials(ctx context.Context, owner, deployID uuid
 	if err != nil {
 		return Materials{}, err
 	}
-	exerciseID, variant, _, err := u.loadVersionVariant(ctx, deploy.VersionID, deploy.VariantID)
+	_, variant, _, err := u.loadVersionVariant(ctx, deploy.VersionID, deploy.VariantID)
 	if err != nil {
 		return Materials{}, err
 	}
-	exercise, err := u.exercises.GetByID(ctx, exerciseID)
-	if err != nil {
-		return Materials{}, model.ErrPlatform.WithError(err).WithMessage("Failed to get exercise").Err()
+	// A participant sees the name and the text of each subtask only (the event's task snapshot carries nothing of the exercise
+	// itself), so the title is the name of the first subtask and there is no text above the subtasks.
+	doc := materialsTask{Subtasks: make([]materialsSubtask, 0, len(variant.Tasks))}
+	if len(variant.Tasks) > 0 {
+		doc.Title = strings.TrimSpace(variant.Tasks[0].Name)
 	}
-	doc := materialsTask{Title: exercise.Name, Description: exercise.Description, Subtasks: make([]materialsSubtask, 0, len(variant.Tasks))}
 	var refs []exerciseModel.AttachmentRef
 	for _, task := range variant.Tasks {
 		sub := materialsSubtask{Key: task.Key, Title: task.Name, Prompt: renderDescription(task.Description, placeholderResolver(task.Placeholders, status))}
-		if answer := task.Check.Answer; answer != nil {
-			sub.AnswerKind = string(answer.Type)
-		}
+		sub.AnswerKind = answerKind(task)
 		doc.Subtasks = append(doc.Subtasks, sub)
 		refs = append(refs, task.Attachments...)
 	}
@@ -120,22 +117,87 @@ func (u *ExerciseUseCase) readAttachments(ctx context.Context, refs []exerciseMo
 	return out, nil
 }
 
+// unresolvedPlaceholder is shown in place of a value the lab has not produced (or that has no lab at all), as the
+// participant's page does.
+const unresolvedPlaceholder = "—"
+
+// answerKind is the answer_kind of a subtask: the type of its answer, or state when the lab's state is what is checked.
+func answerKind(task exerciseModel.Task) string {
+	if answer := task.Check.Answer; answer != nil {
+		return string(answer.Type)
+	}
+	return "state"
+}
+
 // placeholderResolver resolves the {{key}} variables of a description for one lab: the subnets and addresses of its
-// network and the access links of its devices. A placeholder the lab cannot give is left as {{key}}.
+// network and the access links of its devices.
+//
+// DIVERGENCE RISK: the participant's page fills these values in the browser, not on the server, so this is a second
+// implementation of the same rules. The source of truth is event-frontend
+// src/components/event/challenges/descriptionValues.ts (descriptionValues, resolveOne, relativeIp, linkUrl); its tests are
+// mirrored in testdata/placeholder_values.json, which the golden test of this file compares against. A change of a rule
+// there must be made here too (the one shared source is on the backlog). Known differences: this side formats the
+// description to plain text (the page renders rich text), and a lab is "current" here when it is ready (the page also
+// compares the lab's lifecycle revision).
 func placeholderResolver(placeholders []exerciseModel.Placeholder, status exerciseModel.LabDeployStatus) func(string) (string, bool) {
-	byKey := make(map[string]exerciseModel.Placeholder, len(placeholders))
-	for _, p := range placeholders {
-		if p.Key != "" {
-			byKey[p.Key] = p
-		}
-	}
+	values := placeholderValues(placeholders, status)
 	return func(key string) (string, bool) {
-		p, ok := byKey[key]
-		if !ok {
-			return "", false
+		if value, ok := values[key]; ok {
+			return value, true
 		}
-		return resolvePlaceholder(p, status)
+		return unresolvedPlaceholder, true
 	}
+}
+
+// placeholderValues is descriptionValues of the page: the value of every placeholder that has a key.
+func placeholderValues(placeholders []exerciseModel.Placeholder, status exerciseModel.LabDeployStatus) map[string]string {
+	values := make(map[string]string, len(placeholders))
+	for _, p := range placeholders {
+		if p.Key == "" {
+			continue
+		}
+		static := p.Kind == exerciseModel.PlaceholderIP && p.IPReference == "static"
+		if !status.Ready && !static {
+			values[p.Key] = unresolvedPlaceholder
+			continue
+		}
+		if p.Kind == exerciseModel.PlaceholderExternalLink {
+			values[p.Key] = firstNonEmpty(accessURL(p.DeviceName, status), unresolvedPlaceholder)
+			continue
+		}
+		address := resolveAddress(p, status)
+		if p.Kind == exerciseModel.PlaceholderIP && p.AsLink && address != "" {
+			scheme := p.Scheme
+			if scheme == "" {
+				scheme = "http"
+			}
+			link := scheme + "://" + address
+			if p.Port > 0 {
+				link += ":" + strconv.Itoa(p.Port)
+			}
+			values[p.Key] = link + p.Path
+			continue
+		}
+		values[p.Key] = firstNonEmpty(address, unresolvedPlaceholder)
+	}
+	return values
+}
+
+func firstNonEmpty(a, b string) string {
+	if a != "" {
+		return a
+	}
+	return b
+}
+
+// accessURL is the url of the first access entry of the device that has one, whatever its kind.
+func accessURL(device string, status exerciseModel.LabDeployStatus) string {
+	for _, a := range status.Access {
+		if a.Device == device && a.URL != "" {
+			return a.URL
+		}
+	}
+	return ""
 }
 
 // gatewayCIDR is the /24 of the lab's gateway of that name; empty until it has one.
@@ -148,70 +210,40 @@ func gatewayCIDR(status exerciseModel.LabDeployStatus, name string) string {
 	return ""
 }
 
-func resolvePlaceholder(p exerciseModel.Placeholder, status exerciseModel.LabDeployStatus) (string, bool) {
+// resolveAddress is the text of a subnet or an IP placeholder; empty when the lab cannot give it.
+func resolveAddress(p exerciseModel.Placeholder, status exerciseModel.LabDeployStatus) string {
 	switch p.Kind {
 	case exerciseModel.PlaceholderGatewaySubnet:
-		cidr := gatewayCIDR(status, p.Gateway)
-		return cidr, cidr != ""
+		return gatewayCIDR(status, p.Gateway)
 	case exerciseModel.PlaceholderIP:
-		return resolveIP(p, status)
-	case exerciseModel.PlaceholderExternalLink:
-		return resolveLink(p, status)
-	}
-	return "", false
-}
-
-// resolveIP builds the address of an IP placeholder in the fixed /24 of its network.
-func resolveIP(p exerciseModel.Placeholder, status exerciseModel.LabDeployStatus) (string, bool) {
-	var prefix string
-	switch p.IPReference {
-	case "gateway":
-		prefix = octets(gatewayCIDR(status, p.Gateway))
-	case "static":
-		prefix = p.Octets1to3
-	}
-	address := prefix + "." + strconv.Itoa(p.LastOctet)
-	if prefix == "" || net.ParseIP(address) == nil {
-		return "", false
-	}
-	if p.AsLink {
-		link := p.Scheme + "://" + address
-		if p.Port > 0 {
-			link += ":" + strconv.Itoa(p.Port)
+		// A mask is shown on a plain address only, never on a link or a static address.
+		mask := p.ShowMask && !p.AsLink
+		switch p.IPReference {
+		case "gateway":
+			return relativeIP(gatewayCIDR(status, p.Gateway), p.LastOctet, mask)
+		case "static":
+			if p.Octets1to3 == "" {
+				return ""
+			}
+			return p.Octets1to3 + "." + strconv.Itoa(p.LastOctet)
 		}
-		return link + p.Path, true
 	}
-	if p.ShowMask {
-		address += "/24"
-	}
-	return address, true
+	return ""
 }
 
-// octets are the first three octets of a network written as a CIDR ("10.8.3.0/24" gives "10.8.3").
-func octets(cidr string) string {
-	ip, _, err := net.ParseCIDR(cidr)
-	if err != nil || ip.To4() == nil {
+// relativeIP is the address with the last octet in the network of a CIDR (10.8.3.0/24, 7 gives 10.8.3.7), with the mask of
+// the CIDR when asked.
+func relativeIP(cidr string, lastOctet int, showMask bool) string {
+	address, mask, ok := strings.Cut(cidr, "/")
+	parts := strings.Split(address, ".")
+	if !ok || mask == "" || len(parts) != 4 {
 		return ""
 	}
-	v4 := ip.To4()
-	return fmt.Sprintf("%d.%d.%d", v4[0], v4[1], v4[2])
-}
-
-// resolveLink is the access link an external.link placeholder points to: the url the laboratory gave the entry.
-func resolveLink(p exerciseModel.Placeholder, status exerciseModel.LabDeployStatus) (string, bool) {
-	kind := p.EffectiveAccess()
-	for _, a := range status.Access {
-		if a.Device != p.DeviceName || a.URL == "" {
-			continue
-		}
-		if kind == exerciseModel.AccessHTTP && (a.Protocol == "" || strings.HasPrefix(a.Protocol, string(exerciseModel.AccessHTTP))) {
-			return a.URL, true
-		}
-		if kind != exerciseModel.AccessHTTP && a.Protocol == string(kind) {
-			return a.URL, true
-		}
+	out := strings.Join(parts[:3], ".") + "." + strconv.Itoa(lastOctet)
+	if showMask {
+		out += "/" + mask
 	}
-	return "", false
+	return out
 }
 
 // renderDescription turns the editor document of a description into the text a participant reads: blocks are separated
