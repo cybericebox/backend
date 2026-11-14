@@ -98,7 +98,9 @@ type (
 		// a run lasts, RunGrace how long an unreachable brain is waited for, MaxActiveRuns how many runs a user may have at
 		// once, RunPoll how often the leader looks at the runs and RunPause the first pause between retries (zero: the
 		// defaults, 2s and 1s).
-		Runs           RunStore
+		Runs RunStore
+		// Users gives the role of the user a lab request names (nil: labs are unavailable).
+		Users          UserLookup
 		Labs           LabRunner
 		RunMaxDuration time.Duration
 		RunGrace       time.Duration
@@ -127,6 +129,7 @@ type (
 		namesImages func(archive []byte, lim exerciseModel.ArchiveLimits) bool
 
 		runs              RunStore
+		users             UserLookup
 		labs              LabRunner
 		runMax, runGrace  time.Duration
 		maxActive         int
@@ -148,7 +151,7 @@ func New(d Dependencies) *UseCase {
 		store: d.Store, cipher: d.Cipher, cfg: d.Config, enroll: d.Enroll, now: d.Now, importer: d.Importer, files: d.Files, saves: d.Saves, subjects: d.Subjects, audit: d.Audit, cursor: d.Cursor, stats: d.Stats, statsAdmin: d.StatsAdmin,
 		watchMin: orDefault(d.WatchMin, watchBackoffMin), watchMax: orDefault(d.WatchMax, watchBackoffMax), answerPause: orDefault(d.AnswerPause, 200*time.Millisecond),
 		namesImages: d.NamesImages,
-		runs:        d.Runs, labs: d.Labs, maxActive: d.MaxActiveRuns,
+		runs:        d.Runs, users: d.Users, labs: d.Labs, maxActive: d.MaxActiveRuns,
 		runMax: orDefault(d.RunMaxDuration, DefaultRunMaxDuration), runGrace: orDefault(d.RunGrace, DefaultRunGrace),
 		runPoll: orDefault(d.RunPoll, 2*time.Second), runPause: orDefault(d.RunPause, time.Second),
 	}

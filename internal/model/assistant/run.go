@@ -60,7 +60,10 @@ type Run struct {
 	FailureReason string
 	// AccessClient is the WireGuard client made for the run ("" until it exists).
 	AccessClient string
-	LastSeq      int64
+	// RequestID is the outbox request a lab (RoleLab) was made for, Answered whether the brain got its answer.
+	RequestID string
+	Answered  bool
+	LastSeq   int64
 	// StreamDownSince is when the brain's event stream stopped being readable (zero while it is).
 	StreamDownSince time.Time
 	Measurement     json.RawMessage

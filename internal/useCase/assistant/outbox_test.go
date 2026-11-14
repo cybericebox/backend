@@ -98,6 +98,8 @@ func (b *outboxBrain) handler() http.Handler {
 	})
 }
 
+func (b *outboxBrain) watchCount() int { b.mu.Lock(); defer b.mu.Unlock(); return b.watches }
+
 func (b *outboxBrain) answered(id string) []string {
 	b.mu.Lock()
 	defer b.mu.Unlock()

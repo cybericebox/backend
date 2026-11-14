@@ -1,12 +1,26 @@
 -- name: CreateAssistantRun :exec
 -- A run that is starting. The partial unique index refuses a second active run of the variant.
-INSERT INTO assistant_runs (id, exercise_id, version_id, variant_id, deploy_id, actor_id, role, state, created_at, updated_at, expires_at)
-VALUES (sqlc.arg(id), sqlc.arg(exercise_id), sqlc.arg(version_id), sqlc.arg(variant_id), sqlc.arg(deploy_id), sqlc.arg(actor_id), sqlc.arg(role),
+INSERT INTO assistant_runs (id, exercise_id, version_id, variant_id, deploy_id, actor_id, role, request_id, state, created_at, updated_at, expires_at)
+VALUES (sqlc.arg(id), sqlc.arg(exercise_id), sqlc.arg(version_id), sqlc.arg(variant_id), sqlc.arg(deploy_id), sqlc.arg(actor_id), sqlc.arg(role), sqlc.arg(request_id),
         'starting', sqlc.arg(now)::timestamptz, sqlc.arg(now)::timestamptz, sqlc.arg(expires_at)::timestamptz);
 
 -- name: GetAssistantRun :one
 SELECT *
 FROM assistant_runs
+WHERE id = sqlc.arg(id);
+
+-- name: GetAssistantLabByRequest :one
+-- The lab kept for an outbox request (a request seen again finds its lab instead of making another).
+SELECT *
+FROM assistant_runs
+WHERE request_id = sqlc.arg(request_id)
+  AND role = 'lab';
+
+-- name: SetAssistantRunAnswered :execrows
+-- The brain was answered the outbox request this lab was made for.
+UPDATE assistant_runs
+SET answered   = true,
+    updated_at = sqlc.arg(now)::timestamptz
 WHERE id = sqlc.arg(id);
 
 -- name: ListAssistantRunsOfVariant :many

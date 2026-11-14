@@ -78,9 +78,9 @@ func (q *Queries) CountActiveAssistantRunsOfActor(ctx context.Context, actorID u
 }
 
 const createAssistantRun = `-- name: CreateAssistantRun :exec
-INSERT INTO assistant_runs (id, exercise_id, version_id, variant_id, deploy_id, actor_id, role, state, created_at, updated_at, expires_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7,
-        'starting', $8::timestamptz, $8::timestamptz, $9::timestamptz)
+INSERT INTO assistant_runs (id, exercise_id, version_id, variant_id, deploy_id, actor_id, role, request_id, state, created_at, updated_at, expires_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
+        'starting', $9::timestamptz, $9::timestamptz, $10::timestamptz)
 `
 
 type CreateAssistantRunParams struct {
@@ -91,6 +91,7 @@ type CreateAssistantRunParams struct {
 	DeployID   uuid.UUID `json:"deploy_id"`
 	ActorID    uuid.UUID `json:"actor_id"`
 	Role       string    `json:"role"`
+	RequestID  string    `json:"request_id"`
 	Now        time.Time `json:"now"`
 	ExpiresAt  time.Time `json:"expires_at"`
 }
@@ -105,6 +106,7 @@ func (q *Queries) CreateAssistantRun(ctx context.Context, arg CreateAssistantRun
 		arg.DeployID,
 		arg.ActorID,
 		arg.Role,
+		arg.RequestID,
 		arg.Now,
 		arg.ExpiresAt,
 	)
@@ -134,8 +136,45 @@ func (q *Queries) FinishAssistantRun(ctx context.Context, arg FinishAssistantRun
 	return result.RowsAffected(), nil
 }
 
+const getAssistantLabByRequest = `-- name: GetAssistantLabByRequest :one
+SELECT id, exercise_id, version_id, variant_id, deploy_id, actor_id, role, state, end_state, failure_reason, access_client, request_id, answered, last_seq, stream_down_since, measurement, created_at, updated_at, started_at, finished_at, expires_at
+FROM assistant_runs
+WHERE request_id = $1
+  AND role = 'lab'
+`
+
+// The lab kept for an outbox request (a request seen again finds its lab instead of making another).
+func (q *Queries) GetAssistantLabByRequest(ctx context.Context, requestID string) (AssistantRun, error) {
+	row := q.db.QueryRow(ctx, getAssistantLabByRequest, requestID)
+	var i AssistantRun
+	err := row.Scan(
+		&i.ID,
+		&i.ExerciseID,
+		&i.VersionID,
+		&i.VariantID,
+		&i.DeployID,
+		&i.ActorID,
+		&i.Role,
+		&i.State,
+		&i.EndState,
+		&i.FailureReason,
+		&i.AccessClient,
+		&i.RequestID,
+		&i.Answered,
+		&i.LastSeq,
+		&i.StreamDownSince,
+		&i.Measurement,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.ExpiresAt,
+	)
+	return i, err
+}
+
 const getAssistantRun = `-- name: GetAssistantRun :one
-SELECT id, exercise_id, version_id, variant_id, deploy_id, actor_id, role, state, end_state, failure_reason, access_client, last_seq, stream_down_since, measurement, created_at, updated_at, started_at, finished_at, expires_at
+SELECT id, exercise_id, version_id, variant_id, deploy_id, actor_id, role, state, end_state, failure_reason, access_client, request_id, answered, last_seq, stream_down_since, measurement, created_at, updated_at, started_at, finished_at, expires_at
 FROM assistant_runs
 WHERE id = $1
 `
@@ -155,6 +194,8 @@ func (q *Queries) GetAssistantRun(ctx context.Context, id uuid.UUID) (AssistantR
 		&i.EndState,
 		&i.FailureReason,
 		&i.AccessClient,
+		&i.RequestID,
+		&i.Answered,
 		&i.LastSeq,
 		&i.StreamDownSince,
 		&i.Measurement,
@@ -259,7 +300,7 @@ func (q *Queries) InsertAssistantRunEvent(ctx context.Context, arg InsertAssista
 }
 
 const listActiveAssistantRuns = `-- name: ListActiveAssistantRuns :many
-SELECT id, exercise_id, version_id, variant_id, deploy_id, actor_id, role, state, end_state, failure_reason, access_client, last_seq, stream_down_since, measurement, created_at, updated_at, started_at, finished_at, expires_at
+SELECT id, exercise_id, version_id, variant_id, deploy_id, actor_id, role, state, end_state, failure_reason, access_client, request_id, answered, last_seq, stream_down_since, measurement, created_at, updated_at, started_at, finished_at, expires_at
 FROM assistant_runs
 WHERE state IN ('starting', 'running', 'closing')
 ORDER BY created_at
@@ -288,6 +329,8 @@ func (q *Queries) ListActiveAssistantRuns(ctx context.Context, maxRows int32) ([
 			&i.EndState,
 			&i.FailureReason,
 			&i.AccessClient,
+			&i.RequestID,
+			&i.Answered,
 			&i.LastSeq,
 			&i.StreamDownSince,
 			&i.Measurement,
@@ -396,7 +439,7 @@ func (q *Queries) ListAssistantRunEvents(ctx context.Context, arg ListAssistantR
 }
 
 const listAssistantRunsOfVariant = `-- name: ListAssistantRunsOfVariant :many
-SELECT id, exercise_id, version_id, variant_id, deploy_id, actor_id, role, state, end_state, failure_reason, access_client, last_seq, stream_down_since, measurement, created_at, updated_at, started_at, finished_at, expires_at
+SELECT id, exercise_id, version_id, variant_id, deploy_id, actor_id, role, state, end_state, failure_reason, access_client, request_id, answered, last_seq, stream_down_since, measurement, created_at, updated_at, started_at, finished_at, expires_at
 FROM assistant_runs
 WHERE variant_id = $1
   AND role = 'grader'
@@ -431,6 +474,8 @@ func (q *Queries) ListAssistantRunsOfVariant(ctx context.Context, arg ListAssist
 			&i.EndState,
 			&i.FailureReason,
 			&i.AccessClient,
+			&i.RequestID,
+			&i.Answered,
 			&i.LastSeq,
 			&i.StreamDownSince,
 			&i.Measurement,
@@ -567,6 +612,27 @@ type SetAssistantRunAnswerSentParams struct {
 
 func (q *Queries) SetAssistantRunAnswerSent(ctx context.Context, arg SetAssistantRunAnswerSentParams) (int64, error) {
 	result, err := q.db.Exec(ctx, setAssistantRunAnswerSent, arg.RunID, arg.Seq)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const setAssistantRunAnswered = `-- name: SetAssistantRunAnswered :execrows
+UPDATE assistant_runs
+SET answered   = true,
+    updated_at = $1::timestamptz
+WHERE id = $2
+`
+
+type SetAssistantRunAnsweredParams struct {
+	Now time.Time `json:"now"`
+	ID  uuid.UUID `json:"id"`
+}
+
+// The brain was answered the outbox request this lab was made for.
+func (q *Queries) SetAssistantRunAnswered(ctx context.Context, arg SetAssistantRunAnsweredParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setAssistantRunAnswered, arg.Now, arg.ID)
 	if err != nil {
 		return 0, err
 	}
