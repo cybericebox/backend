@@ -63,6 +63,25 @@ func (s *memStore) SetCertificate(context.Context, string, string, string, strin
 	return false, nil
 }
 
+type saves struct {
+	mu   sync.Mutex
+	rows map[string]uuid.UUID
+}
+
+func (m *saves) Get(_ context.Context, s string, a uuid.UUID) (uuid.UUID, bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	id, ok := m.rows[s+a.String()]
+	return id, ok, nil
+}
+
+func (m *saves) Put(_ context.Context, s string, a, e uuid.UUID, _ time.Time) (bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.rows[s+a.String()] = e
+	return true, nil
+}
+
 // importer records the import of the save route.
 type importer struct {
 	mu      sync.Mutex
@@ -144,6 +163,8 @@ func newRig(t *testing.T) *rig {
 	imp := &importer{}
 	uc := assistantUseCase.New(assistantUseCase.Dependencies{
 		Store: &memStore{conn: map[string]assistantModel.Connection{}}, Cipher: cipher, Importer: imp,
+		Saves:  &saves{rows: map[string]uuid.UUID{}},
+		Lock:   func(context.Context, string) (func(), error) { return func() {}, nil },
 		Config: assistantUseCase.Config{Endpoint: f.Endpoint(), EnrollmentToken: brainfake.Token, CAFile: caFile},
 	})
 	if _, err = uc.BootstrapBrain(context.Background()); err != nil {

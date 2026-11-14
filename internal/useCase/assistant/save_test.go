@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -52,6 +53,7 @@ type fakeImporter struct {
 	queued  exerciseUseCase.QueueImportInput
 	jobs    []exerciseUseCase.ImportJobView // answers in order, the last one repeats
 	polls   int
+	delay   time.Duration
 }
 
 func (f *fakeImporter) AuthorizeImport(context.Context, exerciseUseCase.Actor, *uuid.UUID) error {
@@ -65,6 +67,7 @@ func (f *fakeImporter) ArchiveLimits(context.Context) exerciseModel.ArchiveLimit
 
 func (f *fakeImporter) ImportRawArchive(_ context.Context, actor exerciseUseCase.Actor, in exerciseUseCase.ImportExerciseInput) (exerciseUseCase.ArchiveImportStart, error) {
 	f.line.add("import")
+	time.Sleep(f.delay)
 	f.actor, f.input = actor, in
 	return f.start, f.err
 }
@@ -93,6 +96,50 @@ func (f *fakeFiles) UploadFile(_ context.Context, name, contentType string, r io
 	return mediaModel.File{ID: fileID}, nil
 }
 
+// memSaves is the save store in memory; locker is a per-key mutex like the advisory lock.
+type memSaves struct {
+	mu   sync.Mutex
+	rows map[string]uuid.UUID
+}
+
+func (m *memSaves) Get(_ context.Context, session string, author uuid.UUID) (uuid.UUID, bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	id, ok := m.rows[session+"/"+author.String()]
+	return id, ok, nil
+}
+
+func (m *memSaves) Put(_ context.Context, session string, author, exercise uuid.UUID, _ time.Time) (bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	k := session + "/" + author.String()
+	if _, ok := m.rows[k]; ok {
+		return false, nil
+	}
+	m.rows[k] = exercise
+	return true, nil
+}
+
+type locker struct {
+	mu    sync.Mutex
+	locks map[string]*sync.Mutex
+}
+
+func (l *locker) lock(_ context.Context, key string) (func(), error) {
+	l.mu.Lock()
+	if l.locks == nil {
+		l.locks = map[string]*sync.Mutex{}
+	}
+	m, ok := l.locks[key]
+	if !ok {
+		m = &sync.Mutex{}
+		l.locks[key] = m
+	}
+	l.mu.Unlock()
+	m.Lock()
+	return m.Unlock, nil
+}
+
 type saveRig struct {
 	*rig
 	line     *timeline
@@ -101,6 +148,8 @@ type saveRig struct {
 	saved    []string // bodies of the brain's /save
 	subjects []string
 	archive  func(w http.ResponseWriter)
+	saves    *memSaves
+	mu       sync.Mutex // guards saved and subjects: the brain handler runs on server goroutines
 }
 
 func newSaveRig(t *testing.T, images bool) *saveRig {
@@ -110,6 +159,8 @@ func newSaveRig(t *testing.T, images bool) *saveRig {
 	files := &fakeFiles{line: line}
 	s := &saveRig{line: line, importer: imp, files: files}
 	s.rig = enrolledRig(t, func(d *assistant.Dependencies) {
+		s.saves = &memSaves{rows: map[string]uuid.UUID{}}
+		d.Saves, d.Lock = s.saves, (&locker{}).lock
 		d.Importer, d.Files = imp, files
 		d.NamesImages = func([]byte, exerciseModel.ArchiveLimits) bool { return images }
 		d.ImportPoll, d.ImportWait = time.Millisecond, 200*time.Millisecond
@@ -119,7 +170,9 @@ func newSaveRig(t *testing.T, images bool) *saveRig {
 		_, _ = w.Write(archive)
 	}
 	s.fake.Assistant = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		s.mu.Lock()
 		s.subjects = append(s.subjects, req.Header.Get(assistant.SubjectHeader))
+		s.mu.Unlock()
 		switch {
 		case req.Method == http.MethodGet && req.URL.Path == "/v1/assistant/sessions/s1/archive":
 			line.add("brain:archive")
@@ -127,7 +180,9 @@ func newSaveRig(t *testing.T, images bool) *saveRig {
 		case req.Method == http.MethodPost && req.URL.Path == "/v1/assistant/sessions/s1/save":
 			line.add("brain:save")
 			b, _ := io.ReadAll(req.Body)
+			s.mu.Lock()
 			s.saved = append(s.saved, string(b))
+			s.mu.Unlock()
 			_, _ = w.Write([]byte("{}"))
 		default:
 			brainfake.Fail(w, http.StatusNotFound, "not_found", "no route")
@@ -147,7 +202,7 @@ func TestSaveFetchesImportsThenTellsTheBrainTheExerciseID(t *testing.T) {
 		t.Fatalf("order: %v", got)
 	}
 	var sent map[string]string
-	if err := json.Unmarshal([]byte(s.saved[0]), &sent); err != nil || sent["ExerciseID"] != taskID.String() {
+	if err := json.Unmarshal([]byte(s.saved[0]), &sent); err != nil || sent["exercise_id"] != taskID.String() {
 		t.Fatalf("brain save body = %q", s.saved[0])
 	}
 	if !bytes.Equal(s.importer.input.Archive, archive) || s.importer.input.CreatedBy != userOne || s.importer.actor != actor || s.importer.input.OwnerEventID != nil {
@@ -240,7 +295,7 @@ func TestSaveWithImagesWaitsForTheBackgroundImportThenTellsTheBrain(t *testing.T
 	}
 	var sent map[string]string
 	_ = json.Unmarshal([]byte(s.saved[0]), &sent)
-	if sent["ExerciseID"] != taskID.String() {
+	if sent["exercise_id"] != taskID.String() {
 		t.Fatalf("brain save body = %q", s.saved[0])
 	}
 }
@@ -271,5 +326,95 @@ func TestSaveWithImagesNeedsImportRights(t *testing.T) {
 		if e == "upload" || e == "queue" {
 			t.Fatalf("unauthorized caller reached %q", e)
 		}
+	}
+}
+
+func (s *saveRig) importCount() int {
+	n := 0
+	for _, e := range s.line.list() {
+		if e == "import" {
+			n++
+		}
+	}
+	return n
+}
+
+func TestRepeatedSaveSkipsFetchAndImportAndTellsTheBrainTheStoredID(t *testing.T) {
+	s := newSaveRig(t, false)
+	for range 2 {
+		if err := s.uc.SaveSession(context.Background(), actor, "s1"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := s.line.list(); len(got) != 4 || got[0] != "brain:archive" || got[1] != "import" || got[2] != "brain:save" || got[3] != "brain:save" {
+		t.Fatalf("order: %v", got)
+	}
+	if len(s.saved) != 2 || s.saved[0] != s.saved[1] || !strings.Contains(s.saved[1], `"exercise_id":"`+taskID.String()+`"`) {
+		t.Fatalf("both saves carry the one stored id: %v", s.saved)
+	}
+}
+
+func TestSaveAfterAFailedImportImportsAgain(t *testing.T) {
+	s := newSaveRig(t, false)
+	s.importer.err = exerciseModel.ErrExerciseForbidden.Err()
+	if err := s.uc.SaveSession(context.Background(), actor, "s1"); err == nil {
+		t.Fatal("expected the import error")
+	}
+	s.importer.err = nil
+	if err := s.uc.SaveSession(context.Background(), actor, "s1"); err != nil {
+		t.Fatal(err)
+	}
+	if s.importCount() != 2 || len(s.saved) != 1 {
+		t.Fatalf("a failed import stores nothing: imports=%d saved=%d", s.importCount(), len(s.saved))
+	}
+}
+
+func TestSavesOfOneSessionAtOnceImportOnce(t *testing.T) {
+	s := newSaveRig(t, false)
+	s.importer.delay = 50 * time.Millisecond
+	var wg sync.WaitGroup
+	errs := make(chan error, 8)
+	for range 8 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			errs <- s.uc.SaveSession(context.Background(), actor, "s1")
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if s.importCount() != 1 {
+		t.Fatalf("imports = %d, want 1", s.importCount())
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.saved) != 8 {
+		t.Fatalf("every click tells the brain: %d", len(s.saved))
+	}
+}
+
+func TestOtherSessionsAreIndependent(t *testing.T) {
+	s := newSaveRig(t, false)
+	s.fake.Assistant = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if strings.HasSuffix(req.URL.Path, "/archive") {
+			s.line.add("brain:archive")
+			_, _ = w.Write(archive)
+			return
+		}
+		s.line.add("brain:save")
+		_, _ = w.Write([]byte("{}"))
+	})
+	for _, id := range []string{"s1", "s2"} {
+		if err := s.uc.SaveSession(context.Background(), actor, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if s.importCount() != 2 {
+		t.Fatalf("imports = %d", s.importCount())
 	}
 }

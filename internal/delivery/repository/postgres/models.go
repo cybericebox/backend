@@ -32,6 +32,13 @@ type AppSetting struct {
 	RequiredPermission string    `json:"required_permission"`
 }
 
+type AssistantSave struct {
+	SessionID  string    `json:"session_id"`
+	AuthorID   uuid.UUID `json:"author_id"`
+	ExerciseID uuid.UUID `json:"exercise_id"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
 type BrainConnection struct {
 	Endpoint            string    `json:"endpoint"`
 	Tenant              string    `json:"tenant"`
