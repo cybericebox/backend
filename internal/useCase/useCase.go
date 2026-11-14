@@ -604,7 +604,7 @@ func NewUseCase(deps Dependencies) *UseCase {
 		imageRegistryUC,
 		inboxRequests,
 		assistantUseCase.New(assistantUseCase.Dependencies{
-			Store: brainConnectionRepo.New(deps.Repo), Cipher: deps.PlatformCipher,
+			Store: brainConnectionRepo.New(deps.Repo), Cursor: brainConnectionRepo.New(deps.Repo), Cipher: deps.PlatformCipher,
 			Config:   assistantUseCase.Config{Endpoint: deps.Brain.Endpoint, EnrollmentToken: deps.Brain.EnrollmentToken, CAFile: deps.Brain.CAFile},
 			Importer: exerciseUC, Files: mediaUC, Saves: assistantSaveRepo.New(deps.Repo), Subjects: assistantSubjectRepo.New(deps.Repo), Audit: adminAuditUC.RecordAdminAction,
 		}),

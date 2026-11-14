@@ -22,3 +22,16 @@ SET client_cert_pem       = sqlc.arg(client_cert_pem),
     updated_at            = sqlc.arg(updated_at)
 WHERE endpoint = sqlc.arg(endpoint)
   AND tenant = sqlc.arg(tenant);
+
+-- name: GetBrainOutboxSeq :one
+-- The last outbox request that was answered.
+SELECT outbox_seq
+FROM brain_connections
+WHERE endpoint = sqlc.arg(endpoint);
+
+-- name: SetBrainOutboxSeq :execrows
+-- Moves the outbox cursor forward; it never goes back.
+UPDATE brain_connections
+SET outbox_seq = sqlc.arg(outbox_seq)
+WHERE endpoint = sqlc.arg(endpoint)
+  AND outbox_seq < sqlc.arg(outbox_seq);

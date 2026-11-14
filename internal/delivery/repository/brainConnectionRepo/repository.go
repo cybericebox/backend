@@ -15,6 +15,8 @@ type Queries interface {
 	GetBrainConnection(context.Context, string) (postgres.BrainConnection, error)
 	CreateBrainConnection(context.Context, postgres.CreateBrainConnectionParams) (int64, error)
 	SetBrainConnectionCertificate(context.Context, postgres.SetBrainConnectionCertificateParams) (int64, error)
+	GetBrainOutboxSeq(context.Context, string) (int64, error)
+	SetBrainOutboxSeq(context.Context, postgres.SetBrainOutboxSeqParams) (int64, error)
 }
 
 type Repository struct{ q Queries }
@@ -53,4 +55,22 @@ func (r *Repository) SetCertificate(ctx context.Context, endpoint, tenant, certP
 		Endpoint: endpoint, Tenant: tenant,
 	})
 	return n > 0, err
+}
+
+// OutboxSeq is the last outbox request of the brain that was answered (0: none).
+func (r *Repository) OutboxSeq(ctx context.Context, endpoint string) (int64, error) {
+	seq, err := r.q.GetBrainOutboxSeq(ctx, endpoint)
+	if err != nil {
+		if repositoryTools.IsObjectNotFoundError(err) {
+			return 0, nil
+		}
+		return 0, err
+	}
+	return seq, nil
+}
+
+// SetOutboxSeq moves the outbox cursor forward; it never goes back.
+func (r *Repository) SetOutboxSeq(ctx context.Context, endpoint string, seq int64) error {
+	_, err := r.q.SetBrainOutboxSeq(ctx, postgres.SetBrainOutboxSeqParams{OutboxSeq: seq, Endpoint: endpoint})
+	return err
 }
