@@ -27,7 +27,7 @@ type LabCapabilities struct {
 	// Observations are the observation kinds a state check may use, by their document names, and the file keys "file.type"
 	// and "file.checksum".
 	Observations map[string]Availability
-	// Access are the access kinds of a device that are served: http, terminal, vnc, rdp.
+	// Access are the access kinds of a device that are served: http, terminal, vnc, rdp, grpc.
 	Access map[string]Availability
 	// Bootstrap: a device initialization (files, script) and the service command are supported.
 	Bootstrap Availability
@@ -47,7 +47,7 @@ func CapabilityObservationKeys() []string {
 }
 
 // CapabilityAccessKeys lists the keys of LabCapabilities.Access.
-func CapabilityAccessKeys() []string { return []string{"http", "terminal", "vnc", "rdp"} }
+func CapabilityAccessKeys() []string { return []string{"http", "terminal", "vnc", "rdp", "grpc"} }
 
 // CapabilitiesOf aggregates the features of the laboratories that are used: one entry per laboratory, nil for one that has not
 // reported yet. Per option the answer is "all" when every reporting laboratory can, "none" when none can and "some"

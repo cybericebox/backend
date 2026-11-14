@@ -203,7 +203,8 @@ func classifyPlaceholder(t Topology, byName map[string]Device, p Placeholder) (b
 			return true, false
 		}
 	case PlaceholderExternalLink:
-		if !p.EffectiveAccess().Valid() {
+		// A link is for a person in a browser: the grpc channel is for automated actors and has no link.
+		if !p.EffectiveAccess().Valid() || p.EffectiveAccess() == AccessGRPC {
 			return true, false
 		}
 		d, ok := byName[p.DeviceName]

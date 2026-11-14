@@ -15,7 +15,7 @@ type labCapabilitiesResponse struct {
 	Known bool `json:"Known"`
 	// Observations: file, directory, process, port, kernel_param, request, permission, custom, file.type, file.checksum.
 	Observations map[string]string `json:"Observations"`
-	// Access: http, terminal, vnc, rdp. vnc and rdp are "none" (accepted by the schema, not served yet).
+	// Access: http, terminal, vnc, rdp, grpc. vnc and rdp are "none" (accepted by the schema, not served yet).
 	Access map[string]string `json:"Access"`
 	// Profiles: container, microvm, vm. The platform setting «Профілі вузлів»: "all" when ticked, else "none".
 	Profiles map[string]string `json:"Profiles"`
