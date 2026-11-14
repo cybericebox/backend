@@ -99,6 +99,10 @@ type Opponent struct {
 	Start OpponentStart `json:"start"`
 	// Operates is required for defense and attack-defense and forbidden for attack.
 	Operates []string `json:"operates,omitempty"`
+	// Foothold is the name of a switch or hub of the variant's topology where the opponent's tools device is cabled in: its
+	// first position in the lab. Required for attack and attack-defense, forbidden for defense (a defender sits with the
+	// devices it operates).
+	Foothold string `json:"foothold,omitempty"`
 	// Brief is the author's text for the opponent (author content, not UI text).
 	Brief string `json:"brief,omitempty"`
 }
@@ -116,6 +120,9 @@ const (
 	OpponentReasonOperatesForbid   = "operates_forbidden"
 	OpponentReasonOperatesUnknown  = "operates_unknown"
 	OpponentReasonOperatesRepeated = "operates_repeated"
+	OpponentReasonFootholdNeeded   = "foothold_required"
+	OpponentReasonFootholdForbid   = "foothold_forbidden"
+	OpponentReasonFootholdUnknown  = "foothold_unknown"
 	OpponentReasonBriefTooLong     = "brief_too_long"
 	OpponentReasonForbiddenField   = "forbidden_field"
 )
@@ -141,8 +148,12 @@ func (v Variant) ValidateOpponents() error {
 		}
 	}
 	deviceNames := make(map[string]bool, len(v.Topology.Devices))
+	segments := make(map[string]bool)
 	for _, device := range v.Topology.Devices {
 		deviceNames[device.Name] = true
+		if device.Type.IsForwarding() {
+			segments[device.Name] = true
+		}
 	}
 	for i, opponent := range v.Opponents {
 		at := fmt.Sprintf("opponents[%d]", i+1)
@@ -170,6 +181,14 @@ func (v Variant) ValidateOpponents() error {
 		}
 		if err := validateOperates(at, opponent, deviceNames); err != nil {
 			return err
+		}
+		switch {
+		case opponent.Role == OpponentDefense && opponent.Foothold != "":
+			return opponentInvalid(at+".foothold", OpponentReasonFootholdForbid)
+		case opponent.Role != OpponentDefense && opponent.Foothold == "":
+			return opponentInvalid(at+".foothold", OpponentReasonFootholdNeeded)
+		case opponent.Foothold != "" && !segments[opponent.Foothold]:
+			return opponentInvalid(at+".foothold", OpponentReasonFootholdUnknown)
 		}
 		if utf8.RuneCountInString(opponent.Brief) > opponentBriefMaxLen {
 			return opponentInvalid(at+".brief", OpponentReasonBriefTooLong)

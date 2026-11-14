@@ -326,7 +326,7 @@ func (d *runDriver) startingOpponent(ctx context.Context, run assistantModel.Run
 	body := assistantModel.StartRun{
 		RunID: run.ID.String(), Role: string(opponent.Role), TaskRef: run.ExerciseID.String(), Version: run.VersionID.String(),
 		Image: image, Access: assistantModel.EDAAccess(eda.URL, eda.Token), Start: json.RawMessage(`"immediate"`),
-		Band: opponent.Band, Goal: opponent.Goal, Operates: opponent.Operates, Brief: opponent.Brief, Budget: u.opponentBudget(),
+		Band: opponent.Band, Goal: opponent.Goal, Operates: opponent.Operates, Foothold: opponent.Foothold, Brief: opponent.Brief, Budget: u.opponentBudget(),
 	}
 	return d.started(ctx, run, body)
 }

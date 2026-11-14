@@ -453,6 +453,9 @@ func TestProvideDeviceToolsAnswersTheEDAAccessOfTheDevice(t *testing.T) {
 	if p.labs.count("deploy-tools") != 1 || p.labs.count("deploy") != 1 {
 		t.Fatalf("%v", p.labs.called())
 	}
+	if vars := p.labs.places[0].Env; len(vars) != 2 || vars[0].Value != p.toolsLab(t).ID.String() || vars[1].Name != "EDA_TRUST_CA" || p.labs.places[0].Foothold != "" || len(p.labs.places[0].Beside) != 0 {
+		t.Fatalf("the default place, told its run (the row) and the brain's CA: %+v", p.labs.places[0])
+	}
 	eventually(t, "the answer to be recorded", func() bool { return p.toolsLab(t).Answered })
 	lab := p.toolsLab(t)
 	if lab.Role != assistantModel.RoleTools || lab.Actor != runActor.UserID || p.labs.edaRun != lab.ID.String() || p.labs.edaDevice != "" {

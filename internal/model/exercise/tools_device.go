@@ -2,7 +2,7 @@ package exerciseModel
 
 import (
 	"errors"
-	"fmt"
+	"slices"
 	"strconv"
 
 	"github.com/gofrs/uuid"
@@ -15,6 +15,9 @@ var (
 	// ErrToolsNoVPN: the lab has no VPN network (or no DHCP on it), so the tools device would have no place among the
 	// participants' machines.
 	ErrToolsNoVPN = errors.New("the lab has no VPN network with DHCP for the tools device")
+	// ErrToolsNoSegment: the segment the device is to sit on (the foothold, or the segment of an operated device) is not in the
+	// lab, or has no free port.
+	ErrToolsNoSegment = errors.New("the lab has no such segment for the tools device")
 )
 
 // ToolsDeviceName is the logical name of the platform tools device in a lab; a taken name gets a number.
@@ -23,12 +26,52 @@ const ToolsDeviceName = "tools"
 // toolsSwitchName is the display name of the switch put between the VPN gateway and the device it was cabled to.
 const toolsSwitchName = "tools-switch"
 
-// WithToolsDevice returns a copy of the topology with the platform tools device added: a container of the given image that
-// sits on the segment of the VPN gateway (where the participants' machines are) and is reached out of band through its grpc
-// access. It has no connection to the internet. If the gateway is cabled to a switch or hub the device takes a free port of
-// it; if it is cabled to a device, an unmanaged switch is put between them (the same L2 segment); if it is not cabled at all
-// the device is cabled to it directly. The copy is validated; the input is never changed.
-func (t Topology) WithToolsDevice(image string) (Topology, Device, error) {
+// ToolsPlacement says where the tools device sits and what it is told. The zero value is the segment of the VPN gateway, where
+// the participants' machines are.
+type ToolsPlacement struct {
+	// Foothold is the name of a switch or hub of the topology: the device takes a port of it (the attacker's place).
+	Foothold string
+	// Beside are names of devices: the device sits on the segment of the first of them (the defender's place, with the devices
+	// it operates). Ignored when Foothold is set.
+	Beside []string
+	// Env is what the device's service process is given (see EDAEnv).
+	Env []EnvVar
+}
+
+// vpnGatewayWithDHCP is the first VPN gateway of the topology whose DHCP server is on: where the tools device gets its address.
+func (t Topology) vpnGatewayWithDHCP() (Device, bool) {
+	for _, d := range t.Devices {
+		if d.Type == DeviceTypeVPNGateway && d.DHCP {
+			return d, true
+		}
+	}
+	return Device{}, false
+}
+
+// Names of the values a tools device is given to check the credentials of its callers.
+const (
+	// EnvEDATrustCA is the brain's CA (PEM): the runner verifies the brain's own credential against it.
+	EnvEDATrustCA = "EDA_TRUST_CA"
+	// EnvEDARunID is the run the device works for: the runner checks the audience of its token against it.
+	EnvEDARunID = "EDA_RUN_ID"
+)
+
+// EDAEnv is the environment of a tools device for one run. It is the one place that says how the values reach the device
+// (today: the device's bootstrap env).
+func EDAEnv(runID, trustCA string) []EnvVar {
+	env := []EnvVar{{Name: EnvEDARunID, Value: runID}}
+	if trustCA != "" {
+		env = append(env, EnvVar{Name: EnvEDATrustCA, Value: trustCA})
+	}
+	return env
+}
+
+// WithToolsDevice returns a copy of the topology with the platform tools device added: a container of the given image that is
+// reached over the lab network by the VPN client of its run. It has no connection to the internet. Where it sits is the placement: a port
+// of the foothold switch, the segment of an operated device, or (by default) the segment of the VPN gateway. On a segment
+// that is a switch or hub the device takes a free port; where the anchor is cabled to a device an unmanaged switch is put
+// between them (the same L2 segment). The copy is validated; the input is never changed.
+func (t Topology) WithToolsDevice(image string, place ToolsPlacement) (Topology, Device, error) {
 	if image == "" {
 		return Topology{}, Device{}, ErrToolsNoImage
 	}
@@ -43,12 +86,12 @@ func (t Topology) WithToolsDevice(image string) (Topology, Device, error) {
 		out.Connections[i] = Connection{Endpoints: append([]Endpoint(nil), c.Endpoints...)}
 	}
 
-	names := make(map[string]bool, len(t.Devices))
+	byName := make(map[string]Device, len(t.Devices))
 	for _, d := range t.Devices {
-		names[d.Name] = true
+		byName[d.Name] = d
 	}
 	name := ToolsDeviceName
-	for n := 2; names[name]; n++ {
+	for n := 2; byName[name].ID != uuid.Nil; n++ {
 		name = ToolsDeviceName + "-" + strconv.Itoa(n)
 	}
 	tools := Device{
@@ -57,45 +100,60 @@ func (t Topology) WithToolsDevice(image string) (Topology, Device, error) {
 		SecurityPreset: SecurityPresetExtended,
 		Interfaces:     []Interface{{Name: "eth0", IP: IPConfig{Type: IPConfigTypeDHCPPreset}}},
 		Access:         []Access{{Kind: AccessGRPC}},
+		Bootstrap:      Bootstrap{Env: slices.Clone(place.Env)},
 	}
 	toolsEnd := Endpoint{Kind: EndpointDevice, DeviceID: tools.ID, Interface: "eth0"}
 
-	vpnAt := -1
-	for i, c := range out.Connections {
-		for _, ep := range c.Endpoints {
-			if ep.Kind == EndpointDevice && ep.DeviceID == vpn.ID {
-				vpnAt = i
-			}
-		}
-	}
-	gatewayEnd := Endpoint{Kind: EndpointDevice, DeviceID: vpn.ID, Interface: GatewayPort}
 	switch {
-	case vpnAt < 0:
-		out.Connections = append(out.Connections, Connection{Endpoints: []Endpoint{gatewayEnd, toolsEnd}})
-	default:
-		other := otherEnd(out.Connections[vpnAt], vpn.ID)
-		var peer Device
-		for _, d := range out.Devices {
-			if d.ID == other.DeviceID {
-				peer = d
+	case place.Foothold != "":
+		sw, ok := byName[place.Foothold]
+		if !ok || !sw.Type.IsForwarding() {
+			return Topology{}, Device{}, ErrToolsNoSegment
+		}
+		port, ok := freePort(out.Connections, sw.ID)
+		if !ok {
+			return Topology{}, Device{}, ErrToolsNoSegment
+		}
+		out.Connections = append(out.Connections, Connection{Endpoints: []Endpoint{toolsEnd, {Kind: EndpointDevice, DeviceID: sw.ID, Interface: port}}})
+	case len(place.Beside) > 0:
+		anchor, ok := byName[place.Beside[0]]
+		if !ok {
+			return Topology{}, Device{}, ErrToolsNoSegment
+		}
+		at := -1
+		for i, c := range out.Connections {
+			for _, ep := range c.Endpoints {
+				if ep.Kind == EndpointDevice && ep.DeviceID == anchor.ID {
+					at = i
+				}
+			}
+			if at >= 0 {
+				break
 			}
 		}
-		if peer.Type.IsForwarding() {
-			port, ok := freePort(out.Connections, peer.ID)
-			if !ok {
-				return Topology{}, Device{}, fmt.Errorf("the switch of the VPN gateway has no free port")
+		if at < 0 {
+			return Topology{}, Device{}, ErrToolsNoSegment
+		}
+		if err := out.cableBeside(at, Endpoint{Kind: EndpointDevice, DeviceID: anchor.ID}, toolsEnd); err != nil {
+			return Topology{}, Device{}, err
+		}
+	default:
+		// The segment of the VPN gateway, where the participants' machines are.
+		at := -1
+		for i, c := range out.Connections {
+			for _, ep := range c.Endpoints {
+				if ep.Kind == EndpointDevice && ep.DeviceID == vpn.ID {
+					at = i
+				}
 			}
-			out.Connections = append(out.Connections, Connection{Endpoints: []Endpoint{toolsEnd, {Kind: EndpointDevice, DeviceID: peer.ID, Interface: port}}})
-		} else {
-			sw := Device{ID: uuid.Must(uuid.NewV7()), Name: toolsSwitchName, Type: DeviceTypeUnmanagedSwitch}
-			out.Devices = append(out.Devices, sw)
-			port := func(n int) Endpoint {
-				return Endpoint{Kind: EndpointDevice, DeviceID: sw.ID, Interface: "GigabitEthernet0/" + strconv.Itoa(n)}
+			if at >= 0 {
+				break
 			}
-			out.Connections[vpnAt] = Connection{Endpoints: []Endpoint{gatewayEnd, port(1)}}
-			out.Connections = append(out.Connections,
-				Connection{Endpoints: []Endpoint{other, port(2)}},
-				Connection{Endpoints: []Endpoint{toolsEnd, port(3)}})
+		}
+		if at < 0 {
+			out.Connections = append(out.Connections, Connection{Endpoints: []Endpoint{{Kind: EndpointDevice, DeviceID: vpn.ID, Interface: GatewayPort}, toolsEnd}})
+		} else if err := out.cableBeside(at, Endpoint{Kind: EndpointDevice, DeviceID: vpn.ID}, toolsEnd); err != nil {
+			return Topology{}, Device{}, err
 		}
 	}
 	out.Devices = append(out.Devices, tools)
@@ -109,24 +167,50 @@ func (t Topology) WithToolsDevice(image string) (Topology, Device, error) {
 	return out, tools, nil
 }
 
-// otherEnd is the end of a connection that is not the device.
-func otherEnd(c Connection, device uuid.UUID) Endpoint {
+// cableBeside puts the tools end on the segment of the connection at: the one the anchor end is on. The other end of the
+// connection is the segment's peer: a switch or hub gets the tools device on a free port, a device gets an unmanaged
+// switch between itself and the anchor.
+func (t *Topology) cableBeside(at int, anchor, toolsEnd Endpoint) error {
+	conn := t.Connections[at]
+	var anchorEnd, other Endpoint
+	for _, ep := range conn.Endpoints {
+		if ep.Kind == anchor.Kind && ep.DeviceID == anchor.DeviceID {
+			anchorEnd = ep
+		} else {
+			other = ep
+		}
+	}
+	var peer Device
+	for _, d := range t.Devices {
+		if other.Kind == EndpointDevice && d.ID == other.DeviceID {
+			peer = d
+		}
+	}
+	if peer.Type.IsForwarding() {
+		port, ok := freePort(t.Connections, peer.ID)
+		if !ok {
+			return ErrToolsNoSegment
+		}
+		t.Connections = append(t.Connections, Connection{Endpoints: []Endpoint{toolsEnd, {Kind: EndpointDevice, DeviceID: peer.ID, Interface: port}}})
+		return nil
+	}
+	sw := Device{ID: uuid.Must(uuid.NewV7()), Name: toolsSwitchName, Type: DeviceTypeUnmanagedSwitch}
+	t.Devices = append(t.Devices, sw)
+	port := func(n int) Endpoint {
+		return Endpoint{Kind: EndpointDevice, DeviceID: sw.ID, Interface: "GigabitEthernet0/" + strconv.Itoa(n)}
+	}
+	t.Connections[at] = Connection{Endpoints: []Endpoint{anchorEnd, port(1)}}
+	t.Connections = append(t.Connections, Connection{Endpoints: []Endpoint{other, port(2)}}, Connection{Endpoints: []Endpoint{toolsEnd, port(3)}})
+	return nil
+}
+
+func otherEnd(c Connection, kind EndpointKind) Endpoint {
 	for _, ep := range c.Endpoints {
-		if ep.DeviceID != device {
+		if ep.Kind != kind {
 			return ep
 		}
 	}
 	return Endpoint{}
-}
-
-// vpnGatewayWithDHCP is the first VPN gateway of the topology whose DHCP server is on: where the tools device gets its address.
-func (t Topology) vpnGatewayWithDHCP() (Device, bool) {
-	for _, d := range t.Devices {
-		if d.Type == DeviceTypeVPNGateway && d.DHCP {
-			return d, true
-		}
-	}
-	return Device{}, false
 }
 
 // freePort is the first port of a switch or hub no connection uses.

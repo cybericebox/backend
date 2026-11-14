@@ -16,6 +16,7 @@ func opponentVariant(opponents ...Opponent) Variant {
 		Topology: Topology{Devices: []Device{
 			{ID: uuid.FromStringOrNil("11111111-1111-4111-8111-111111111111"), Name: "web"},
 			{ID: uuid.FromStringOrNil("22222222-2222-4222-8222-222222222222"), Name: "db"},
+			{ID: uuid.FromStringOrNil("33333333-3333-4333-8333-333333333333"), Name: "sw", Type: DeviceTypeUnmanagedSwitch},
 		}},
 		Opponents: opponents,
 	}
@@ -42,14 +43,14 @@ func TestAVariantWithoutOpponentsIsValid(t *testing.T) {
 
 func TestTheRolesDecideWhetherAnOpponentOperatesDevices(t *testing.T) {
 	good := []Opponent{
-		{Role: OpponentAttack, Band: 1, Goal: []string{"root"}},
+		{Role: OpponentAttack, Foothold: "sw", Band: 1, Goal: []string{"root"}},
 		{Role: OpponentDefense, Band: 6, Goal: []string{"recon", "root"}, Operates: []string{"web"}, Start: OpponentStart{After: "recon"}},
-		{Role: OpponentAttackDefense, Band: 3, Goal: []string{"root"}, Operates: []string{"db", "web"}, Brief: "hold the line"},
+		{Role: OpponentAttackDefense, Foothold: "sw", Band: 3, Goal: []string{"root"}, Operates: []string{"db", "web"}, Brief: "hold the line"},
 	}
 	if err := opponentVariant(good...).ValidateOpponents(); err != nil {
 		t.Fatal(err)
 	}
-	if field, reason := fieldOf(t, opponentVariant(Opponent{Role: OpponentAttack, Band: 1, Goal: []string{"root"}, Operates: []string{"web"}}).ValidateOpponents()); field != "opponents[1].operates" || reason != OpponentReasonOperatesForbid {
+	if field, reason := fieldOf(t, opponentVariant(Opponent{Role: OpponentAttack, Foothold: "sw", Band: 1, Goal: []string{"root"}, Operates: []string{"web"}}).ValidateOpponents()); field != "opponents[1].operates" || reason != OpponentReasonOperatesForbid {
 		t.Fatalf("%s %s", field, reason)
 	}
 	if field, reason := fieldOf(t, opponentVariant(good[0], Opponent{Role: OpponentDefense, Band: 1, Goal: []string{"root"}}).ValidateOpponents()); field != "opponents[2].operates" || reason != OpponentReasonOperatesNeeded {
@@ -62,8 +63,8 @@ func TestAnOpponentThatNamesATaskOrDeviceTheVariantLacksIsInvalid(t *testing.T) 
 		opponent Opponent
 		field    string
 	}{
-		{Opponent{Role: OpponentAttack, Band: 1, Goal: []string{"gone"}}, "opponents[1].goal[1]"},
-		{Opponent{Role: OpponentAttack, Band: 1, Goal: []string{"root"}, Start: OpponentStart{After: "gone"}}, "opponents[1].start.after"},
+		{Opponent{Role: OpponentAttack, Foothold: "sw", Band: 1, Goal: []string{"gone"}}, "opponents[1].goal[1]"},
+		{Opponent{Role: OpponentAttack, Foothold: "sw", Band: 1, Goal: []string{"root"}, Start: OpponentStart{After: "gone"}}, "opponents[1].start.after"},
 		{Opponent{Role: OpponentDefense, Band: 1, Goal: []string{"root"}, Operates: []string{"gone"}}, "opponents[1].operates[1]"},
 	} {
 		if field, _ := fieldOf(t, opponentVariant(c.opponent).ValidateOpponents()); field != c.field {
@@ -73,7 +74,7 @@ func TestAnOpponentThatNamesATaskOrDeviceTheVariantLacksIsInvalid(t *testing.T) 
 }
 
 func TestADocumentValidationOfAVariantChecksItsOpponents(t *testing.T) {
-	v := opponentVariant(Opponent{Role: OpponentAttack, Band: 9, Goal: []string{"root"}})
+	v := opponentVariant(Opponent{Role: OpponentAttack, Foothold: "sw", Band: 9, Goal: []string{"root"}})
 	v.Tasks[0].Check = Check{Answer: &AnswerCheck{Type: AnswerTypeFlag}}
 	v.Tasks[1].Check = Check{Answer: &AnswerCheck{Type: AnswerTypeFlag}}
 	if field, _ := fieldOf(t, v.ValidateDocument()); field != "opponents[1].band" {
@@ -82,8 +83,8 @@ func TestADocumentValidationOfAVariantChecksItsOpponents(t *testing.T) {
 }
 
 func TestStartIsWrittenAsImmediateOrAfter(t *testing.T) {
-	immediate, _ := json.Marshal(Opponent{Role: OpponentAttack, Band: 1, Goal: []string{"a"}})
-	after, _ := json.Marshal(Opponent{Role: OpponentAttack, Band: 1, Goal: []string{"a"}, Start: OpponentStart{After: "b"}})
+	immediate, _ := json.Marshal(Opponent{Role: OpponentAttack, Foothold: "sw", Band: 1, Goal: []string{"a"}})
+	after, _ := json.Marshal(Opponent{Role: OpponentAttack, Foothold: "sw", Band: 1, Goal: []string{"a"}, Start: OpponentStart{After: "b"}})
 	if !strings.Contains(string(immediate), `"start":"immediate"`) || !strings.Contains(string(after), `"start":{"after":"b"}`) {
 		t.Fatalf("%s %s", immediate, after)
 	}
@@ -122,7 +123,7 @@ func TestOpponentsAreStoredWithTheVariantAndSurviveACopy(t *testing.T) {
 }
 
 func TestALinkedVariantTakesItsBasesOpponents(t *testing.T) {
-	base := opponentVariant(Opponent{Role: OpponentAttack, Band: 4, Goal: []string{"root"}})
+	base := opponentVariant(Opponent{Role: OpponentAttack, Foothold: "sw", Band: 4, Goal: []string{"root"}})
 	base.ID = uuid.FromStringOrNil("aaaaaaaa-0000-4000-8000-000000000001")
 	linked := Variant{ID: uuid.FromStringOrNil("aaaaaaaa-0000-4000-8000-000000000002"), LinkedTo: uuid.NullUUID{UUID: base.ID, Valid: true}}
 	version := ExerciseVersion{Variants: []Variant{base, linked}}
@@ -139,9 +140,27 @@ func TestALinkedVariantTakesItsBasesOpponents(t *testing.T) {
 }
 
 func TestWithoutOpponentsLeavesTheRestOfTheVariant(t *testing.T) {
-	v := opponentVariant(Opponent{Role: OpponentAttack, Band: 1, Goal: []string{"root"}})
+	v := opponentVariant(Opponent{Role: OpponentAttack, Foothold: "sw", Band: 1, Goal: []string{"root"}})
 	stripped := v.WithoutOpponents()
 	if stripped.Opponents != nil || len(stripped.Tasks) != 2 || len(v.Opponents) != 1 {
 		t.Fatalf("%+v / %+v", stripped, v)
+	}
+}
+
+func TestTheFootholdIsARealSegmentForAttackersOnly(t *testing.T) {
+	for name, c := range map[string]struct {
+		opponent Opponent
+		reason   string
+	}{
+		"an attacker without one":     {Opponent{Role: OpponentAttack, Band: 1, Goal: []string{"root"}}, OpponentReasonFootholdNeeded},
+		"an attack-defender without":  {Opponent{Role: OpponentAttackDefense, Band: 1, Goal: []string{"root"}, Operates: []string{"web"}}, OpponentReasonFootholdNeeded},
+		"a defender with one":         {Opponent{Role: OpponentDefense, Band: 1, Goal: []string{"root"}, Operates: []string{"web"}, Foothold: "sw"}, OpponentReasonFootholdForbid},
+		"a name that is no segment":   {Opponent{Role: OpponentAttack, Band: 1, Goal: []string{"root"}, Foothold: "gone"}, OpponentReasonFootholdUnknown},
+		"a device that is no segment": {Opponent{Role: OpponentAttack, Band: 1, Goal: []string{"root"}, Foothold: "web"}, OpponentReasonFootholdUnknown},
+	} {
+		field, reason := fieldOf(t, opponentVariant(c.opponent).ValidateOpponents())
+		if field != "opponents[1].foothold" || reason != c.reason {
+			t.Errorf("%s: %s %s", name, field, reason)
+		}
 	}
 }

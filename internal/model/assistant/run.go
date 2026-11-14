@@ -158,6 +158,7 @@ type StartRun struct {
 	Band     int             `json:"band,omitempty"`
 	Goal     []string        `json:"goal,omitempty"`
 	Operates []string        `json:"operates,omitempty"`
+	Foothold string          `json:"foothold,omitempty"`
 	Brief    string          `json:"brief,omitempty"`
 	Budget   *RunBudget      `json:"budget,omitempty"`
 }

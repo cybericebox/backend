@@ -340,6 +340,21 @@ func (u *UseCase) sealKey(endpoint, keyPEM string) (string, error) {
 	return sealed, nil
 }
 
+// brainCA is the CA pinned at enrollment (PEM): the tools device is given it to verify the brain's own credentials.
+func (u *UseCase) brainCA(ctx context.Context) (string, error) {
+	if !u.Enabled() {
+		return "", assistantModel.ErrAssistantUnavailable.Err()
+	}
+	conn, found, err := u.store.Get(ctx, u.endpoint())
+	if err != nil {
+		return "", model.ErrPlatform.WithError(err).WithMessage("Failed to read the cyber-brain connection").Err()
+	}
+	if !found || strings.TrimSpace(conn.CAPEM) == "" {
+		return "", assistantModel.ErrAssistantUnavailable.Err()
+	}
+	return conn.CAPEM, nil
+}
+
 // client returns the mutual-TLS client of the stored connection. It is rebuilt when the stored certificate changed
 // (a renewal by the leader), and the stored connection is re-read at most once per connectionTTL.
 func (u *UseCase) client(ctx context.Context) (*brain.Client, error) {

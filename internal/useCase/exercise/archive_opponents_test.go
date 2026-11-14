@@ -18,7 +18,7 @@ func opponentDoc(opponents string) string {
 	}
 	return v2Header + `"exercise":{"name":"Sample"},"versions":[{"status":"draft","variants":[{` +
 		`"tasks":[{"key":"recon","name":"Recon","check":{"answer":{"type":"flag","values":["ICE{a}"]}}},{"key":"root","name":"Root","check":{"answer":{"type":"flag","values":["ICE{b}"]}}}],` +
-		`"topology":{"devices":[{"name":"web","type":"container"},{"name":"db","type":"container"}]}` + block + `}]}]}`
+		`"topology":{"devices":[{"name":"web","type":"container"},{"name":"db","type":"container"},{"name":"sw","type":"unmanaged-switch"}]}` + block + `}]}]}`
 }
 
 func parseOpponents(t *testing.T, opponents string) ([]exerciseModel.Opponent, error) {
@@ -35,9 +35,9 @@ func parseOpponents(t *testing.T, opponents string) ([]exerciseModel.Opponent, e
 }
 
 const validOpponents = `[
- {"role":"attack","band":3,"goal":["recon","root"],"start":"immediate","brief":"Be quiet."},
+ {"role":"attack","foothold":"sw","band":3,"goal":["recon","root"],"start":"immediate","brief":"Be quiet."},
  {"role":"defense","band":2,"goal":["root"],"start":{"after":"recon"},"operates":["web","db"]},
- {"role":"attack-defense","band":6,"goal":["recon"],"operates":["web"]}
+ {"role":"attack-defense","foothold":"sw","band":6,"goal":["recon"],"operates":["web"]}
 ]`
 
 func TestOpponentsAreReadFromTheDocumentWithAllTheirFields(t *testing.T) {
@@ -46,9 +46,9 @@ func TestOpponentsAreReadFromTheDocumentWithAllTheirFields(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []exerciseModel.Opponent{
-		{Role: exerciseModel.OpponentAttack, Band: 3, Goal: []string{"recon", "root"}, Brief: "Be quiet."},
+		{Role: exerciseModel.OpponentAttack, Foothold: "sw", Band: 3, Goal: []string{"recon", "root"}, Brief: "Be quiet."},
 		{Role: exerciseModel.OpponentDefense, Band: 2, Goal: []string{"root"}, Start: exerciseModel.OpponentStart{After: "recon"}, Operates: []string{"web", "db"}},
-		{Role: exerciseModel.OpponentAttackDefense, Band: 6, Goal: []string{"recon"}, Operates: []string{"web"}},
+		{Role: exerciseModel.OpponentAttackDefense, Foothold: "sw", Band: 6, Goal: []string{"recon"}, Operates: []string{"web"}},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %+v\nwant %+v", got, want)
@@ -69,21 +69,21 @@ func TestEachOpponentFieldIsCheckedAgainstItsVariantAndNamedWithItsPath(t *testi
 	cases := []struct{ name, opponents, field, reason string }{
 		{"role", `[{"role":"sniper","band":1,"goal":["recon"]}]`, "opponents[1].role", exerciseModel.OpponentReasonRole},
 		{"no role", `[{"band":1,"goal":["recon"]}]`, "opponents[1].role", exerciseModel.OpponentReasonRole},
-		{"band low", `[{"role":"attack","band":0,"goal":["recon"]}]`, "opponents[1].band", exerciseModel.OpponentReasonBand},
-		{"band high", `[{"role":"attack","band":7,"goal":["recon"]}]`, "opponents[1].band", exerciseModel.OpponentReasonBand},
-		{"goal empty", `[{"role":"attack","band":1,"goal":[]}]`, "opponents[1].goal", exerciseModel.OpponentReasonGoalEmpty},
-		{"goal missing", `[{"role":"attack","band":1}]`, "opponents[1].goal", exerciseModel.OpponentReasonGoalEmpty},
-		{"goal unknown", `[{"role":"attack","band":1,"goal":["recon","nowhere"]}]`, "opponents[1].goal[2]", exerciseModel.OpponentReasonGoalUnknown},
-		{"goal repeated", `[{"role":"attack","band":1,"goal":["recon","recon"]}]`, "opponents[1].goal[2]", exerciseModel.OpponentReasonGoalRepeated},
-		{"start unknown", `[{"role":"attack","band":1,"goal":["recon"],"start":{"after":"nowhere"}}]`, "opponents[1].start.after", exerciseModel.OpponentReasonStartUnknown},
+		{"band low", `[{"role":"attack","foothold":"sw","band":0,"goal":["recon"]}]`, "opponents[1].band", exerciseModel.OpponentReasonBand},
+		{"band high", `[{"role":"attack","foothold":"sw","band":7,"goal":["recon"]}]`, "opponents[1].band", exerciseModel.OpponentReasonBand},
+		{"goal empty", `[{"role":"attack","foothold":"sw","band":1,"goal":[]}]`, "opponents[1].goal", exerciseModel.OpponentReasonGoalEmpty},
+		{"goal missing", `[{"role":"attack","foothold":"sw","band":1}]`, "opponents[1].goal", exerciseModel.OpponentReasonGoalEmpty},
+		{"goal unknown", `[{"role":"attack","foothold":"sw","band":1,"goal":["recon","nowhere"]}]`, "opponents[1].goal[2]", exerciseModel.OpponentReasonGoalUnknown},
+		{"goal repeated", `[{"role":"attack","foothold":"sw","band":1,"goal":["recon","recon"]}]`, "opponents[1].goal[2]", exerciseModel.OpponentReasonGoalRepeated},
+		{"start unknown", `[{"role":"attack","foothold":"sw","band":1,"goal":["recon"],"start":{"after":"nowhere"}}]`, "opponents[1].start.after", exerciseModel.OpponentReasonStartUnknown},
 		{"defense without operates", `[{"role":"defense","band":1,"goal":["recon"]}]`, "opponents[1].operates", exerciseModel.OpponentReasonOperatesNeeded},
-		{"defense with empty operates", `[{"role":"attack-defense","band":1,"goal":["recon"],"operates":[]}]`, "opponents[1].operates", exerciseModel.OpponentReasonOperatesNeeded},
-		{"attack with operates", `[{"role":"attack","band":1,"goal":["recon"],"operates":["web"]}]`, "opponents[1].operates", exerciseModel.OpponentReasonOperatesForbid},
+		{"defense with empty operates", `[{"role":"attack-defense","foothold":"sw","band":1,"goal":["recon"],"operates":[]}]`, "opponents[1].operates", exerciseModel.OpponentReasonOperatesNeeded},
+		{"attack with operates", `[{"role":"attack","foothold":"sw","band":1,"goal":["recon"],"operates":["web"]}]`, "opponents[1].operates", exerciseModel.OpponentReasonOperatesForbid},
 		{"operates unknown", `[{"role":"defense","band":1,"goal":["recon"],"operates":["web","mail"]}]`, "opponents[1].operates[2]", exerciseModel.OpponentReasonOperatesUnknown},
 		{"operates repeated", `[{"role":"defense","band":1,"goal":["recon"],"operates":["web","web"]}]`, "opponents[1].operates[2]", exerciseModel.OpponentReasonOperatesRepeated},
-		{"second opponent", `[{"role":"attack","band":1,"goal":["recon"]},{"role":"attack","band":9,"goal":["recon"]}]`, "opponents[2].band", exerciseModel.OpponentReasonBand},
-		{"brief", `[{"role":"attack","band":1,"goal":["recon"],"brief":"` + strings.Repeat("я", 2001) + `"}]`, "opponents[1].brief", exerciseModel.OpponentReasonBriefTooLong},
-		{"too many", `[` + strings.TrimSuffix(strings.Repeat(`{"role":"attack","band":1,"goal":["recon"]},`, 9), ",") + `]`, "opponents", exerciseModel.OpponentReasonCount},
+		{"second opponent", `[{"role":"attack","foothold":"sw","band":1,"goal":["recon"]},{"role":"attack","foothold":"sw","band":9,"goal":["recon"]}]`, "opponents[2].band", exerciseModel.OpponentReasonBand},
+		{"brief", `[{"role":"attack","foothold":"sw","band":1,"goal":["recon"],"brief":"` + strings.Repeat("я", 2001) + `"}]`, "opponents[1].brief", exerciseModel.OpponentReasonBriefTooLong},
+		{"too many", `[` + strings.TrimSuffix(strings.Repeat(`{"role":"attack","foothold":"sw","band":1,"goal":["recon"]},`, 9), ",") + `]`, "opponents", exerciseModel.OpponentReasonCount},
 	}
 	for _, c := range cases {
 		_, err := parseOpponents(t, c.opponents)
@@ -102,14 +102,14 @@ func TestEachOpponentFieldIsCheckedAgainstItsVariantAndNamedWithItsPath(t *testi
 }
 
 func TestABriefOfExactlyTheCapIsAccepted(t *testing.T) {
-	if _, err := parseOpponents(t, `[{"role":"attack","band":1,"goal":["recon"],"brief":"`+strings.Repeat("я", 2000)+`"}]`); err != nil {
+	if _, err := parseOpponents(t, `[{"role":"attack","foothold":"sw","band":1,"goal":["recon"],"brief":"`+strings.Repeat("я", 2000)+`"}]`); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestTheImageToolsetKeysAndBudgetAreTheAuthorsToNeverSet(t *testing.T) {
 	for _, key := range []string{"image", "toolset", "tools", "key", "private_key", "budget", "actions", "tokens", "time", "model"} {
-		_, err := parseOpponents(t, `[{"role":"attack","band":1,"goal":["recon"]},{"role":"attack","band":1,"goal":["recon"],"`+key+`":"x"}]`)
+		_, err := parseOpponents(t, `[{"role":"attack","foothold":"sw","band":1,"goal":["recon"]},{"role":"attack","foothold":"sw","band":1,"goal":["recon"],"`+key+`":"x"}]`)
 		if !errors.Is(err, exerciseModel.ErrOpponentInvalid.Err()) {
 			t.Errorf("%s: got %v", key, err)
 			continue
@@ -122,7 +122,7 @@ func TestTheImageToolsetKeysAndBudgetAreTheAuthorsToNeverSet(t *testing.T) {
 }
 
 func TestAnyOtherUnknownKeyOfAnOpponentIsRefusedByTheStrictDocument(t *testing.T) {
-	_, err := parseOpponents(t, `[{"role":"attack","band":1,"goal":["recon"],"mood":"angry"}]`)
+	_, err := parseOpponents(t, `[{"role":"attack","foothold":"sw","band":1,"goal":["recon"],"mood":"angry"}]`)
 	if !errors.Is(err, exerciseModel.ErrArchiveInvalid.Err()) || !strings.Contains(publicContext(t, err)["reason"].(string), "mood") {
 		t.Fatalf("got %v", err)
 	}
@@ -130,7 +130,7 @@ func TestAnyOtherUnknownKeyOfAnOpponentIsRefusedByTheStrictDocument(t *testing.T
 
 func TestAStartThatIsNotImmediateOrAfterIsRefused(t *testing.T) {
 	for _, start := range []string{`"later"`, `5`, `{}`, `{"after":""}`, `{"after":"recon","soon":true}`, `["recon"]`} {
-		_, err := parseOpponents(t, `[{"role":"attack","band":1,"goal":["recon"],"start":`+start+`}]`)
+		_, err := parseOpponents(t, `[{"role":"attack","foothold":"sw","band":1,"goal":["recon"],"start":`+start+`}]`)
 		if err == nil {
 			t.Errorf("start %s was accepted", start)
 		}
@@ -139,7 +139,7 @@ func TestAStartThatIsNotImmediateOrAfterIsRefused(t *testing.T) {
 
 func TestALinkedVariantTakesItsBasesOpponentsAndMayNotNameItsOwn(t *testing.T) {
 	payload := v2Header + `"exercise":{"name":"S"},"versions":[{"variants":[{"tasks":[{"key":"recon","name":"R","check":{"answer":{"type":"flag","values":["ICE{a}"]}}}],"topology":{"devices":[{"name":"web","type":"container"}]}},` +
-		`{"linked_to":1,"opponents":[{"role":"attack","band":1,"goal":["recon"]}]}]}]}`
+		`{"linked_to":1,"opponents":[{"role":"attack","foothold":"sw","band":1,"goal":["recon"]}]}]}]}`
 	if _, err := decodeArchiveV2([]byte(payload)); !errors.Is(err, exerciseModel.ErrArchiveLinkedVariantField.Err()) {
 		t.Fatalf("got %v", err)
 	}

@@ -25,7 +25,7 @@ func opponentRig(t *testing.T, opponents ...exerciseModel.Opponent) *runRig {
 }
 
 func attacker() exerciseModel.Opponent {
-	return exerciseModel.Opponent{Role: exerciseModel.OpponentAttack, Band: 3, Goal: []string{"root", "user"}, Brief: "think like a thief"}
+	return exerciseModel.Opponent{Role: exerciseModel.OpponentAttack, Band: 3, Goal: []string{"root", "user"}, Foothold: "dmz", Brief: "think like a thief"}
 }
 
 func (r *runRig) tryOpponent(t *testing.T, index int) assistantModel.Run {
@@ -79,6 +79,28 @@ func TestAnOpponentRunStartsWithTheManifestTheBudgetAndTheEDAAccess(t *testing.T
 	}
 	if !strings.HasPrefix(r.runs.state(run.ID).AccessClient, "g-") {
 		t.Fatalf("the run's own client: %+v", r.runs.state(run.ID))
+	}
+	// the tools device is placed with the operated devices and told its run and the brain's CA
+	place := r.labs.places[0]
+	if len(place.Beside) != 1 || place.Beside[0] != "web" || place.Foothold != "" {
+		t.Fatalf("a defender sits with the devices it operates: %+v", place)
+	}
+	vars := place.Env
+	if len(vars) != 2 || vars[0].Name != "EDA_RUN_ID" || vars[0].Value != run.ID.String() || vars[1].Name != "EDA_TRUST_CA" || !strings.Contains(vars[1].Value, "BEGIN CERTIFICATE") {
+		t.Fatalf("%+v", vars)
+	}
+}
+
+func TestAnAttackersToolsDeviceSitsOnItsFoothold(t *testing.T) {
+	r := opponentRig(t, attacker())
+	r.tryOpponent(t, 1)
+	if place := r.labs.places[0]; place.Foothold != "dmz" || len(place.Beside) != 0 {
+		t.Fatalf("%+v", place)
+	}
+	r.drive(t)
+	eventually(t, "StartRun", func() bool { return len(r.brn.Started()) == 1 })
+	if !strings.Contains(string(r.brn.Started()[0]), `"foothold":"dmz"`) {
+		t.Fatalf("StartRun carries the foothold: %s", r.brn.Started()[0])
 	}
 }
 
