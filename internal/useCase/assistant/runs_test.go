@@ -301,6 +301,7 @@ type fakeLabs struct {
 	revokeErr   error
 	deployOwner uuid.UUID
 	toolsErr    error
+	places      []exerciseModel.ToolsPlacement
 	opponents   []exerciseModel.Opponent
 	solved      map[string]bool
 	edaErr      error
@@ -346,7 +347,10 @@ func (f *fakeLabs) DeployVariantTest(_ context.Context, owner, _, _ uuid.UUID, l
 	}
 	return exerciseModel.DeployHandle{Group: runDeploy.String(), Lab: "l-lab"}, nil
 }
-func (f *fakeLabs) DeployVariantTestWithTools(ctx context.Context, owner, version, variant uuid.UUID, length time.Duration) (exerciseModel.DeployHandle, error) {
+func (f *fakeLabs) DeployVariantTestWithTools(ctx context.Context, owner, version, variant uuid.UUID, length time.Duration, place exerciseModel.ToolsPlacement) (exerciseModel.DeployHandle, error) {
+	f.mu.Lock()
+	f.places = append(f.places, place)
+	f.mu.Unlock()
 	f.mu.Lock()
 	toolsErr := f.toolsErr
 	f.mu.Unlock()

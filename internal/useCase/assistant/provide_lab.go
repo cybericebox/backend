@@ -117,11 +117,19 @@ func (u *UseCase) provideTaskLab(ctx context.Context, req OutboxRequest, tools b
 	if err != nil || n >= u.maxActive {
 		return nil, &AnswerError{Code: codeLabUnavailable, Message: "the user has too many labs or runs"}
 	}
-	deploy, role := u.labs.DeployVariantTest, assistantModel.RoleLab
+	rowID := uuid.Must(uuid.NewV7())
+	role := assistantModel.RoleLab
+	var handle exerciseModel.DeployHandle
 	if tools {
-		deploy, role = u.labs.DeployVariantTestWithTools, assistantModel.RoleTools
+		role = assistantModel.RoleTools
+		ca, caErr := u.brainCA(ctx)
+		if caErr != nil {
+			return nil, &AnswerError{Code: codeUnavailable, Message: "labs are not available"}
+		}
+		handle, err = u.labs.DeployVariantTestWithTools(ctx, user, version, target.VariantID, 0, exerciseModel.ToolsPlacement{Env: exerciseModel.EDAEnv(rowID.String(), ca)})
+	} else {
+		handle, err = u.labs.DeployVariantTest(ctx, user, version, target.VariantID, 0)
 	}
-	handle, err := deploy(ctx, user, version, target.VariantID, 0)
 	if errors.Is(err, exerciseModel.ErrToolsNoImage) || errors.Is(err, exerciseModel.ErrToolsNoVPN) {
 		return nil, &AnswerError{Code: codeNotSupportedYet, Message: "the tools device is not available for this lab"}
 	}
@@ -135,7 +143,7 @@ func (u *UseCase) provideTaskLab(ctx context.Context, req OutboxRequest, tools b
 	}
 	now := u.now().UTC()
 	lab := assistantModel.Run{
-		ID: uuid.Must(uuid.NewV7()), ExerciseID: exercise, VersionID: version, VariantID: target.VariantID, DeployID: deployID, Actor: user,
+		ID: rowID, ExerciseID: exercise, VersionID: version, VariantID: target.VariantID, DeployID: deployID, Actor: user,
 		Role: role, RequestID: req.ID, State: assistantModel.RunStarting, CreatedAt: now, UpdatedAt: now, ExpiresAt: now.Add(labLeaseCap),
 	}
 	if err = u.runs.Create(ctx, lab, now); err != nil {

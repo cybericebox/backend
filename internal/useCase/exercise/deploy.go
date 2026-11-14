@@ -254,20 +254,20 @@ func (u *ExerciseUseCase) InfrastructureAvailable() bool {
 // resolved values for its write-only env Secret. length is the run length the author chose (one of
 // AllowedTestLengths; zero takes the lease in force); it is the lease and the window of the run's reservation.
 func (u *ExerciseUseCase) DeployVariantTest(ctx context.Context, ownerID, versionID, variantID uuid.UUID, length time.Duration) (exerciseModel.DeployHandle, error) {
-	return u.deployVariantTest(ctx, nil, ownerID, versionID, variantID, length, false)
+	return u.deployVariantTest(ctx, nil, ownerID, versionID, variantID, length, nil)
 }
 
 // DeployVariantTestWithTools is DeployVariantTest with the platform tools device added to the lab (see
 // Topology.WithToolsDevice): the lab an automated opponent works from. Without a configured tools image it is refused with
 // ErrToolsNoImage; a variant without a lab with ErrTestDeployNoLab.
-func (u *ExerciseUseCase) DeployVariantTestWithTools(ctx context.Context, ownerID, versionID, variantID uuid.UUID, length time.Duration) (exerciseModel.DeployHandle, error) {
-	return u.deployVariantTest(ctx, nil, ownerID, versionID, variantID, length, true)
+func (u *ExerciseUseCase) DeployVariantTestWithTools(ctx context.Context, ownerID, versionID, variantID uuid.UUID, length time.Duration, place exerciseModel.ToolsPlacement) (exerciseModel.DeployHandle, error) {
+	return u.deployVariantTest(ctx, nil, ownerID, versionID, variantID, length, &place)
 }
 
 // SetToolsImage wires the image of the platform tools device; empty: no tools device can be provided.
 func (u *ExerciseUseCase) SetToolsImage(image string) { u.toolsImage = image }
 func (u *ExerciseUseCase) DeployEventPreviewVariantTest(ctx context.Context, eventID, ownerID, versionID, variantID uuid.UUID, length time.Duration) (exerciseModel.DeployHandle, error) {
-	return u.deployVariantTest(ctx, &eventID, ownerID, versionID, variantID, length, false)
+	return u.deployVariantTest(ctx, &eventID, ownerID, versionID, variantID, length, nil)
 }
 
 // TestRunLengths are the run lengths an author may choose and the one taken when none is chosen.
@@ -286,7 +286,7 @@ func (u *ExerciseUseCase) testLength(ctx context.Context, chosen time.Duration) 
 	return lease, nil
 }
 
-func (u *ExerciseUseCase) deployVariantTest(ctx context.Context, eventID *uuid.UUID, ownerID, versionID, variantID uuid.UUID, length time.Duration, withTools bool) (exerciseModel.DeployHandle, error) {
+func (u *ExerciseUseCase) deployVariantTest(ctx context.Context, eventID *uuid.UUID, ownerID, versionID, variantID uuid.UUID, length time.Duration, tools *exerciseModel.ToolsPlacement) (exerciseModel.DeployHandle, error) {
 	defer logDuration("deploy test lab", time.Now(), uuid.Nil)
 
 	lease, err := u.testLength(ctx, length)
@@ -303,10 +303,10 @@ func (u *ExerciseUseCase) deployVariantTest(ctx context.Context, eventID *uuid.U
 	}
 	// A variant without devices has no laboratory to run: its test is a row with flags and a lease, which needs
 	// no agent. An event preview always needs a laboratory.
-	if withTools && u.toolsImage == "" {
+	if tools != nil && u.toolsImage == "" {
 		return exerciseModel.DeployHandle{}, exerciseModel.ErrToolsNoImage
 	}
-	if eventID == nil && !variant.Topology.HasLab() && !withTools {
+	if eventID == nil && !variant.Topology.HasLab() && tools == nil {
 		return u.deployStaticTest(ctx, ownerID, versionID, variant, lease)
 	}
 	if u.infra == nil {
@@ -356,8 +356,8 @@ func (u *ExerciseUseCase) deployVariantTest(ctx context.Context, eventID *uuid.U
 	if topo, err = topo.WithBootstrapFiles(u.readBootstrapFile(ctx)); err != nil {
 		return exerciseModel.DeployHandle{}, exerciseModel.InVariantIfScoped(err, number)
 	}
-	if withTools {
-		if topo, _, err = topo.WithToolsDevice(u.toolsImage); err != nil {
+	if tools != nil {
+		if topo, _, err = topo.WithToolsDevice(u.toolsImage, *tools); err != nil {
 			return exerciseModel.DeployHandle{}, err
 		}
 	}

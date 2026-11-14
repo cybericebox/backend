@@ -623,7 +623,9 @@ type opponentDTO struct {
 	Goal       []string `json:"Goal"`
 	StartAfter string   `json:"StartAfter,omitempty"`
 	Operates   []string `json:"Operates,omitempty"`
-	Brief      string   `json:"Brief,omitempty"`
+	// Foothold is a switch or hub of the topology: the opponent's first position (attack, attack-defense).
+	Foothold string `json:"Foothold,omitempty"`
+	Brief    string `json:"Brief,omitempty"`
 }
 
 // imageOverrideDTO is a linked variant's own image for one device of its base.
@@ -909,7 +911,7 @@ func (d variantDTO) toDomain() exerciseModel.Variant {
 	for _, o := range d.Opponents {
 		out.Opponents = append(out.Opponents, exerciseModel.Opponent{
 			Role: exerciseModel.OpponentRole(o.Role), Band: o.Band, Goal: o.Goal, Start: exerciseModel.OpponentStart{After: o.StartAfter},
-			Operates: o.Operates, Brief: o.Brief,
+			Operates: o.Operates, Foothold: o.Foothold, Brief: o.Brief,
 		})
 	}
 	if d.ID != nil {
@@ -1266,7 +1268,7 @@ func variantToDTO(v exerciseModel.Variant) variantDTO {
 	}
 	for _, o := range v.Opponents {
 		d.Opponents = append(d.Opponents, opponentDTO{
-			Role: string(o.Role), Band: o.Band, Goal: o.Goal, StartAfter: o.Start.After, Operates: o.Operates, Brief: o.Brief,
+			Role: string(o.Role), Band: o.Band, Goal: o.Goal, StartAfter: o.Start.After, Operates: o.Operates, Foothold: o.Foothold, Brief: o.Brief,
 		})
 	}
 	return d

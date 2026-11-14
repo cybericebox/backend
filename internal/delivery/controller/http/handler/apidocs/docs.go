@@ -42149,6 +42149,10 @@ const docTemplate = `{
                 "Brief": {
                     "type": "string"
                 },
+                "Foothold": {
+                    "description": "Foothold is a switch or hub of the topology: the opponent's first position (attack, attack-defense).",
+                    "type": "string"
+                },
                 "Goal": {
                     "type": "array",
                     "items": {
