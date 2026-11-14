@@ -234,6 +234,31 @@ func TestAgentBootstrapConfig(t *testing.T) {
 	}
 }
 
+func TestBrainConfig_DefaultsEnvAndRejectsInvalidEndpoint(t *testing.T) {
+	t.Setenv("RECAPTCHA_SECRET", "rsecret")
+	off := MustGetConfig().Brain
+	if off != (BrainConfig{}) || off.Validate() != nil {
+		t.Fatalf("the brain is off by default: %+v", off)
+	}
+
+	t.Setenv("BRAIN_ENDPOINT", "brain.example.test:8443")
+	t.Setenv("BRAIN_ENROLLMENT_TOKEN", "one-time")
+	t.Setenv("BRAIN_CA_FILE", "/ca/brain.crt")
+	got := MustGetConfig().Brain
+	if got.Endpoint != "brain.example.test:8443" || got.EnrollmentToken != "one-time" || got.CAFile != "/ca/brain.crt" {
+		t.Fatalf("brain config from env: %+v", got)
+	}
+
+	for _, bad := range []string{"brain.example.test", ":443", "brain.example.test:", "https://brain.example.test:443"} {
+		if (BrainConfig{Endpoint: bad}).Validate() == nil {
+			t.Fatalf("accepted endpoint %q", bad)
+		}
+	}
+	if (BrainConfig{Endpoint: "[::1]:443"}).Validate() != nil {
+		t.Fatal("rejected an IPv6 endpoint")
+	}
+}
+
 func TestExerciseConfigStandDeployBudgetBounds(t *testing.T) {
 	valid := ExerciseConfig{FlagRandomBytes: 20, FlagWarningBits: 20, MaxActiveTestDeploys: 3, StandDeployBudget: 200, LabSweepInterval: 10 * time.Minute, LabSweepGrace: 15 * time.Minute, TestDeployTTL: 2 * time.Hour, TestDeployTTLMax: 8 * time.Hour}
 	if err := valid.Validate(); err != nil {
