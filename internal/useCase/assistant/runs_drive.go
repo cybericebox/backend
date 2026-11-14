@@ -18,6 +18,7 @@ import (
 	assistantModel "github.com/cybericebox/daemon/internal/model/assistant"
 	"github.com/cybericebox/daemon/internal/model/challengeAttempt"
 	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseUseCase "github.com/cybericebox/daemon/internal/useCase/exercise"
 )
 
 const (
@@ -41,8 +42,9 @@ const (
 	eventRunFinished = "run_finished"
 )
 
-// The brain's final aggregate of a run: its last event of one of these types is the measurement.
-var measurementEvents = map[string]bool{"measure": true, "aggregate": true}
+// The brain's final measurement of a run: its last event of this type (run_finished always comes after it) is the
+// measurement.
+var measurementEvents = map[string]bool{"measure": true}
 
 // DriveRuns follows every active run until ctx ends (the leadership is lost, or the process stops): it starts the run at
 // the brain once its lab is ready, reads the brain's events and stores them, judges the answers, and tears the lab down
@@ -108,8 +110,10 @@ type runDriver struct {
 	config    string
 	mintFails int
 	stopSent  bool
-	revoked   bool
-	pause     time.Duration
+	// materialsSent: the materials of this run are with the brain (kept for this leadership; a new leader sends them again).
+	materialsSent bool
+	revoked       bool
+	pause         time.Duration
 }
 
 func sleep(ctx context.Context, d time.Duration) bool {
@@ -224,32 +228,31 @@ func (d *runDriver) starting(ctx context.Context, run assistantModel.Run) time.D
 		}
 		return u.runPoll
 	}
-	client := run.AccessClient
-	if client == "" {
-		client = runClientName(run.ID)
-		// Recorded before it is made, so a crash leaves a client that is known and gets revoked.
-		if err = u.runs.SetAccessClient(ctx, run.ID, client, now.UTC()); err != nil {
-			log.Warn().Err(err).Msg("Recording the VPN client of a run failed")
-			return d.backoff()
-		}
-	}
-	if d.config == "" {
-		if d.config, err = u.labs.MintLabClient(ctx, run.Actor, run.DeployID, client); err != nil {
-			d.config = ""
-			d.mintFails++
-			log.Warn().Err(err).Int("attempt", d.mintFails).Msg("Making the VPN client of a run failed")
-			if d.mintFails >= mintAttempts {
-				d.close(ctx, run, assistantModel.RunFailed, assistantModel.FailureLabFailed)
-				return 0
-			}
-			return d.backoff()
-		}
-	}
-	body, err := d.startBody(ctx, run)
+	target, err := u.labs.RunTarget(ctx, run.VersionID, run.VariantID, 0)
 	if err != nil {
 		log.Warn().Err(err).Msg("Reading the task of a run failed")
 		return d.backoff()
 	}
+	// A variant without devices has no lab to join: no client, the run gets its materials and answers only.
+	if target.HasLab {
+		if wait, done := d.access(ctx, run); !done {
+			return wait
+		}
+	}
+	if !d.materialsSent {
+		switch outcome := d.sendMaterials(ctx, run); outcome {
+		case startRefused:
+			d.close(ctx, run, assistantModel.RunFailed, assistantModel.FailureStartRefused)
+			return 0
+		case startRetry:
+			if d.down(ctx, run) {
+				return 0
+			}
+			return d.backoff()
+		}
+		d.materialsSent = true
+	}
+	body := d.startBody(run, target)
 	switch outcome := u.startAtBrain(ctx, body); outcome {
 	case startAccepted:
 		d.reachable(ctx, run)
@@ -270,16 +273,92 @@ func (d *runDriver) starting(ctx context.Context, run assistantModel.Run) time.D
 	}
 }
 
-func (d *runDriver) startBody(ctx context.Context, run assistantModel.Run) (assistantModel.StartRun, error) {
-	target, err := d.u.labs.RunTarget(ctx, run.VersionID, run.VariantID, 0)
-	if err != nil {
-		return assistantModel.StartRun{}, err
+// access gives the run its own VPN client (recorded before it is made, so a crash leaves a client that is known and gets
+// revoked). done is false when the step has to be left and tried again after wait, or the run was closed.
+func (d *runDriver) access(ctx context.Context, run assistantModel.Run) (wait time.Duration, done bool) {
+	u := d.u
+	client := run.AccessClient
+	if client == "" {
+		client = runClientName(run.ID)
+		if err := u.runs.SetAccessClient(ctx, run.ID, client, u.now().UTC()); err != nil {
+			log.Warn().Err(err).Msg("Recording the VPN client of a run failed")
+			return d.backoff(), false
+		}
 	}
+	if d.config != "" {
+		return 0, true
+	}
+	config, err := u.labs.MintLabClient(ctx, run.Actor, run.DeployID, client)
+	if err != nil {
+		d.mintFails++
+		log.Warn().Err(err).Int("attempt", d.mintFails).Msg("Making the VPN client of a run failed")
+		if d.mintFails >= mintAttempts {
+			d.close(ctx, run, assistantModel.RunFailed, assistantModel.FailureLabFailed)
+			return 0, false
+		}
+		return d.backoff(), false
+	}
+	d.config = config
+	return 0, true
+}
+
+func (d *runDriver) startBody(run assistantModel.Run, target exerciseUseCase.RunTarget) assistantModel.StartRun {
 	image, _ := imageAndKind(target.VariantsJS)
+	access := assistantModel.NoAccess()
+	if d.config != "" {
+		access = assistantModel.VPNAccess(d.config)
+	}
 	return assistantModel.StartRun{
 		RunID: run.ID.String(), Role: assistantModel.RoleGrader, TaskRef: run.ExerciseID.String(), Version: run.VersionID.String(),
-		Image: image, Access: assistantModel.VPNAccess(d.config), Start: json.RawMessage(`"immediate"`),
-	}, nil
+		Image: image, Access: access, Start: json.RawMessage(`"immediate"`),
+	}
+}
+
+// materialsAttempts is how often the upload of the materials is tried when the brain answers a server error.
+const materialsAttempts = 3
+
+// sendMaterials gives the brain the participant's view of the task before the run starts: the task as text and the
+// attachments a participant downloads, built from what the lab and the task say. A server error is retried, and a refusal
+// that cannot change (or the retries running out) fails the run; 409 means the brain has them already.
+func (d *runDriver) sendMaterials(ctx context.Context, run assistantModel.Run) startOutcome {
+	u := d.u
+	m, err := u.labs.RunMaterials(ctx, run.Actor, run.DeployID)
+	if err != nil {
+		log.Warn().Err(err).Msg("Building the materials of a run failed")
+		return startRefused
+	}
+	parts := []brain.Part{{Field: "task", Filename: "task.json", ContentType: "application/json", Data: m.Task}}
+	for _, f := range m.Files {
+		parts = append(parts, brain.Part{Field: "file", Filename: f.Name, ContentType: f.ContentType, Data: f.Data})
+	}
+	c, err := u.client(ctx)
+	if err != nil {
+		return startRetry
+	}
+	pause := u.runPause
+	for attempt := 1; ; attempt++ {
+		err = c.PostMultipart(ctx, "/v1/runs/"+run.ID.String()+"/materials", parts)
+		var api *brain.APIError
+		switch {
+		case err == nil:
+			return startAccepted
+		case !errors.As(err, &api):
+			return startRetry // the brain cannot be reached: the grace decides
+		case api.Status == http.StatusConflict:
+			return startAccepted
+		case api.Status < http.StatusInternalServerError && api.Status != http.StatusTooManyRequests:
+			log.Warn().Int("status", api.Status).Str("code", api.Code).Msg("The brain refused the materials of a run")
+			return startRefused
+		}
+		if attempt >= materialsAttempts {
+			log.Warn().Err(err).Msg("The materials of a run were not accepted")
+			return startRefused
+		}
+		if !sleep(ctx, pause) {
+			return startRetry
+		}
+		pause *= 2
+	}
 }
 
 type startOutcome int

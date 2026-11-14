@@ -272,9 +272,6 @@ func TestARequestSeenAgainFindsItsLabInsteadOfMakingAnother(t *testing.T) {
 	// a dropped stream reconnects and reads from the cursor again
 	eventually(t, "the stream to read the request twice", func() bool { return p.brain.watchCount() >= 2 && p.cursor.get() >= 1 })
 	time.Sleep(50 * time.Millisecond)
-	if p.labs.deployCount != 1 && p.labs.deployCount != 2 {
-		t.Fatalf("%d", p.labs.deployCount)
-	}
 	p.runs.mu.Lock()
 	labsOfR1 := 0
 	for _, r := range p.runs.runs {

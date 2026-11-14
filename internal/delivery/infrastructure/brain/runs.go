@@ -4,7 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"net/url"
 	"strconv"
 )
@@ -38,4 +41,48 @@ func (c *Client) Stream(ctx context.Context, path string, after int64, fn func(F
 	}
 	defer func() { _ = resp.Body.Close() }()
 	return ReadFrames(resp.Body, fn)
+}
+
+// Part is one part of a multipart upload.
+type Part struct {
+	// Field is the form field name; Filename and ContentType describe the content.
+	Field, Filename, ContentType string
+	Data                         []byte
+}
+
+// RequestedWith is the non-empty marker header of an upload: the brain's CSRF guard asks for it.
+const RequestedWith = "cybericebox-daemon"
+
+// PostMultipart sends the parts as one multipart/form-data body (held in memory: the caller has capped it), with the
+// marker header the brain's uploads ask for; a non-2xx answer is an *APIError.
+func (c *Client) PostMultipart(ctx context.Context, path string, parts []Part) error {
+	var body bytes.Buffer
+	w := multipart.NewWriter(&body)
+	for _, p := range parts {
+		header := textproto.MIMEHeader{}
+		header.Set("Content-Disposition", fmt.Sprintf(`form-data; name=%q; filename=%q`, p.Field, p.Filename))
+		contentType := p.ContentType
+		if contentType == "" {
+			contentType = "application/octet-stream"
+		}
+		header.Set("Content-Type", contentType)
+		part, err := w.CreatePart(header)
+		if err != nil {
+			return err
+		}
+		if _, err = part.Write(p.Data); err != nil {
+			return err
+		}
+	}
+	if err := w.Close(); err != nil {
+		return err
+	}
+	resp, err := c.Do(ctx, Request{
+		Method: http.MethodPost, Path: path, Body: bytes.NewReader(body.Bytes()), ContentLength: int64(body.Len()),
+		Header: http.Header{"Content-Type": {w.FormDataContentType()}, "Accept": {"application/json"}, "X-Requested-With": {RequestedWith}},
+	})
+	if err != nil {
+		return err
+	}
+	return resp.Body.Close()
 }
