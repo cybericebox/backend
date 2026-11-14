@@ -400,3 +400,16 @@ func TestBuildLabSpec_AccessListWithEveryKind(t *testing.T) {
 		t.Fatalf("access = %+v, want %+v", access, want)
 	}
 }
+
+func TestBuildLabSpec_InternetPolicyGoesOutOnlyWhenSet(t *testing.T) {
+	denied := exerciseModel.Device{Name: "tools", Type: exerciseModel.DeviceTypeContainer, Image: "tools", Internet: exerciseModel.InternetDeny}
+	plain := exerciseModel.Device{Name: "web", Type: exerciseModel.DeviceTypeContainer, Image: "nginx"}
+	b, _, err := BuildLabSpec(exerciseModel.Topology{Devices: []exerciseModel.Device{denied, plain}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	devices := decode(t, b).Devices
+	if devices[0].Internet != "deny" || devices[1].Internet != "" || strings.Count(string(b), `"internet":"deny"`) != 1 || strings.Count(string(b), `"internet"`) != 1 {
+		t.Fatalf("%s", b)
+	}
+}

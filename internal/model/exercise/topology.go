@@ -193,6 +193,9 @@ type (
 		// container. A port published through the web proxy is checked automatically either way. Off by
 		// default, so exercises saved before it keep their behaviour.
 		WaitReadyFile bool `json:"wait_ready_file,omitempty"`
+		// Internet is the device's reach to the public internet: "" or InternetAllow (the default) or InternetDeny. It is the
+		// platform's, set for the tools device of a run; an author has no field for it (documents and the editor never carry it).
+		Internet string `json:"internet,omitempty"`
 	}
 
 	// DevicePersistence is the state-persistence policy of a device, set at creation and
@@ -341,6 +344,9 @@ func (t Topology) validateStructure() error {
 		}
 		if d.Type.IsForwarding() && strings.TrimSpace(d.Name) == "" {
 			return ErrDeviceDisplayNameInvalid.WithContext("device", d.Name).Err()
+		}
+		if d.Internet != "" && (d.Internet != InternetAllow && d.Internet != InternetDeny || d.Type.IsForwarding()) {
+			return ErrDeviceTypeInvalid.WithContext("device", d.Name).Err()
 		}
 		if !d.Type.Valid() ||
 			(d.Type.IsForwarding() && (len(d.Interfaces) > 0 || d.Image != "" || len(d.Access) > 0 || d.WaitReadyFile || d.SecurityPreset != "" || d.Resources != nil || d.ResourcePreset != "")) {
