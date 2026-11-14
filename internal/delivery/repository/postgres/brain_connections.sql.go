@@ -71,6 +71,20 @@ func (q *Queries) GetBrainConnection(ctx context.Context, endpoint string) (Brai
 	return i, err
 }
 
+const getBrainOutboxSeq = `-- name: GetBrainOutboxSeq :one
+SELECT outbox_seq
+FROM brain_connections
+WHERE endpoint = $1
+`
+
+// The last outbox request that was answered.
+func (q *Queries) GetBrainOutboxSeq(ctx context.Context, endpoint string) (int64, error) {
+	row := q.db.QueryRow(ctx, getBrainOutboxSeq, endpoint)
+	var outbox_seq int64
+	err := row.Scan(&outbox_seq)
+	return outbox_seq, err
+}
+
 const setBrainConnectionCertificate = `-- name: SetBrainConnectionCertificate :execrows
 UPDATE brain_connections
 SET client_cert_pem       = $1,
@@ -107,20 +121,6 @@ func (q *Queries) SetBrainConnectionCertificate(ctx context.Context, arg SetBrai
 		return 0, err
 	}
 	return result.RowsAffected(), nil
-}
-
-const getBrainOutboxSeq = `-- name: GetBrainOutboxSeq :one
-SELECT outbox_seq
-FROM brain_connections
-WHERE endpoint = $1
-`
-
-// The last outbox request that was answered.
-func (q *Queries) GetBrainOutboxSeq(ctx context.Context, endpoint string) (int64, error) {
-	row := q.db.QueryRow(ctx, getBrainOutboxSeq, endpoint)
-	var outbox_seq int64
-	err := row.Scan(&outbox_seq)
-	return outbox_seq, err
 }
 
 const setBrainOutboxSeq = `-- name: SetBrainOutboxSeq :execrows

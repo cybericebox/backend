@@ -46,3 +46,17 @@ func (q *Queries) GetAssistantSubject(ctx context.Context, userID uuid.UUID) (uu
 	err := row.Scan(&subject)
 	return subject, err
 }
+
+const getAssistantSubjectUser = `-- name: GetAssistantSubjectUser :one
+SELECT user_id
+FROM assistant_subjects
+WHERE subject = $1
+`
+
+// The user a pseudonym belongs to (the brain's requests name the pseudonym only).
+func (q *Queries) GetAssistantSubjectUser(ctx context.Context, subject uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getAssistantSubjectUser, subject)
+	var user_id uuid.UUID
+	err := row.Scan(&user_id)
+	return user_id, err
+}

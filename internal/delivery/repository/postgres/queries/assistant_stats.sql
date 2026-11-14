@@ -115,8 +115,9 @@ SELECT tasks.exercise_id,
        tasks.subtasks::bigint                                                      AS subtasks,
        COALESCE(at.attempts, 0)::bigint                                            AS attempts,
        COALESCE(so.solved, 0)::bigint                                              AS solved_subtasks,
-       CASE WHEN so.solved = tasks.subtasks AND op.opened_at IS NOT NULL AND op.opened_at <= so.done_at
-                THEN EXTRACT(EPOCH FROM (so.done_at - op.opened_at)) END::float8   AS solve_seconds,
+       COALESCE(CASE WHEN so.solved = tasks.subtasks AND op.opened_at IS NOT NULL AND op.opened_at <= so.done_at
+                         THEN EXTRACT(EPOCH FROM (so.done_at - op.opened_at)) END, 0)::float8 AS solve_seconds,
+       COALESCE(so.solved = tasks.subtasks AND op.opened_at IS NOT NULL AND op.opened_at <= so.done_at, false)::bool AS has_solve_seconds,
        COALESCE(hi.hints, 0)::bigint                                               AS hints
 FROM tasks
          JOIN teams ON teams.event_id = tasks.event_id
