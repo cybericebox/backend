@@ -32,6 +32,17 @@ type AppSetting struct {
 	RequiredPermission string    `json:"required_permission"`
 }
 
+type BrainConnection struct {
+	Endpoint            string    `json:"endpoint"`
+	Tenant              string    `json:"tenant"`
+	ClientCertPem       string    `json:"client_cert_pem"`
+	ClientKeyCiphertext string    `json:"client_key_ciphertext"`
+	CaPem               string    `json:"ca_pem"`
+	CertNotAfter        time.Time `json:"cert_not_after"`
+	CreatedAt           time.Time `json:"created_at"`
+	UpdatedAt           time.Time `json:"updated_at"`
+}
+
 type ChallengeAttempt struct {
 	ID              uuid.UUID `json:"id"`
 	EventID         uuid.UUID `json:"event_id"`
