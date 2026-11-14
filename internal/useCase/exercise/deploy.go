@@ -638,7 +638,7 @@ func (u *ExerciseUseCase) provisionTestLab(ctx context.Context, deploy exerciseM
 	if err := u.deployLab(ctx, deploy.GroupName, deploy.LabName, meta, topo); err != nil {
 		return err
 	}
-	if err := u.infra.ReconcileLabGroupAccess(ctx, deploy.GroupName, []labAccessModel.ClientPolicy{{Name: client, AllowedLabs: labNames(existing, uuid.Nil, deploy.LabName)}}); err != nil {
+	if err := u.reconcileTestGroup(ctx, deploy, uuid.Nil, labAccessModel.ClientPolicy{Name: client, AllowedLabs: labNames(existing, uuid.Nil, deploy.LabName)}); err != nil {
 		return err
 	}
 	if !first {
@@ -669,7 +669,7 @@ func (u *ExerciseUseCase) removeTestLab(ctx context.Context, deploy exerciseMode
 	if err := u.infra.DeleteLab(ctx, deploy.GroupName, deploy.LabName); err != nil {
 		return err
 	}
-	err := u.infra.ReconcileLabGroupAccess(ctx, deploy.GroupName, []labAccessModel.ClientPolicy{{Name: testClientName(deploy.CreatedBy), AllowedLabs: labNames(all, deploy.ID)}})
+	err := u.reconcileTestGroup(ctx, deploy, deploy.ID, labAccessModel.ClientPolicy{Name: testClientName(deploy.CreatedBy), AllowedLabs: labNames(all, deploy.ID)})
 	if err == nil || !strings.Contains(err.Error(), labNotInGroup) {
 		return err
 	}
@@ -690,7 +690,7 @@ func (u *ExerciseUseCase) removeTestLab(ctx context.Context, deploy exerciseMode
 		}
 		present = append(present, item)
 	}
-	if retryErr := u.infra.ReconcileLabGroupAccess(ctx, deploy.GroupName, []labAccessModel.ClientPolicy{{Name: testClientName(deploy.CreatedBy), AllowedLabs: labNames(present, deploy.ID)}}); retryErr != nil {
+	if retryErr := u.reconcileTestGroup(ctx, deploy, deploy.ID, labAccessModel.ClientPolicy{Name: testClientName(deploy.CreatedBy), AllowedLabs: labNames(present, deploy.ID)}); retryErr != nil {
 		log.Warn().Err(retryErr).Str("lab_group", deploy.GroupName).Str("lab", deploy.LabName).Msg("Test lab removed, its group policy still names a lab the agent does not have")
 	}
 	return nil

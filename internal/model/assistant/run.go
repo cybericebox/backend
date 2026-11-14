@@ -110,3 +110,24 @@ func ExcludeRun(role string) bool {
 	excluded, known := runRoleExcluded[role]
 	return excluded || !known
 }
+
+// StartRun is the body of `POST /v1/runs` for a run the platform originates: the grader has no band and no budget (the
+// brain applies its own reference configuration) and no goal. Access is the one entry point; Start is "immediate" or
+// {"after": "<ref>"}.
+type StartRun struct {
+	RunID   string          `json:"run_id"`
+	Role    string          `json:"role"`
+	TaskRef string          `json:"task_ref"`
+	Version string          `json:"version"`
+	Image   string          `json:"image"`
+	Access  Access          `json:"access"`
+	Start   json.RawMessage `json:"start"`
+}
+
+// Verdict is the body of `POST /v1/runs/{id}/verdict`: whether the answer was right and when it was judged. Never the
+// expected value.
+type Verdict struct {
+	SubtaskRef string `json:"subtask_ref"`
+	Correct    bool   `json:"correct"`
+	At         string `json:"at"`
+}
