@@ -275,6 +275,7 @@ type fakeLabs struct {
 	looks       int
 	failed      bool
 	gone        bool
+	materials   *exerciseUseCase.Materials
 	stateTasks  []exerciseUseCase.StateSubtask
 	authorized  []exerciseUseCase.Actor
 	mintErr     error
@@ -360,6 +361,9 @@ func (f *fakeLabs) JudgeAnswer(_ context.Context, _, _ uuid.UUID, ref, value str
 }
 func (f *fakeLabs) RunMaterials(context.Context, uuid.UUID, uuid.UUID) (exerciseUseCase.Materials, error) {
 	f.record("materials")
+	if f.materials != nil {
+		return *f.materials, nil
+	}
 	return exerciseUseCase.Materials{
 		Task:  []byte(`{"title":"Web login","description":"","subtasks":[{"key":"login","title":"Log in","prompt":"Open the site","answer_kind":"flag"}]}`),
 		Files: []exerciseUseCase.MaterialFile{{Name: "notes.txt", ContentType: "text/plain", Data: []byte("participant file")}},

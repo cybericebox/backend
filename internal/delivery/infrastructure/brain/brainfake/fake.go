@@ -36,6 +36,9 @@ type Fake struct {
 	CertTTL time.Duration
 	// Assistant answers /v1/assistant/* (after the client certificate was verified).
 	Assistant http.Handler
+	// RunsBackend, when set, answers /v1/runs/* instead of Runs: a real brain behind this fake's TLS (a contract test puts a
+	// reverse proxy to a locally started brain here).
+	RunsBackend http.Handler
 	// Runs answers /v1/runs/* (after the client certificate was verified); nil: not found.
 	Runs *Runs
 
@@ -159,6 +162,10 @@ func (f *Fake) serve(w http.ResponseWriter, r *http.Request) {
 	default:
 		if len(r.TLS.VerifiedChains) == 0 {
 			Fail(w, http.StatusUnauthorized, "client_certificate_required", "mutual TLS is required")
+			return
+		}
+		if f.RunsBackend != nil && (r.URL.Path == "/v1/runs" || strings.HasPrefix(r.URL.Path, "/v1/runs/")) {
+			f.RunsBackend.ServeHTTP(w, r)
 			return
 		}
 		if f.Runs != nil && (r.URL.Path == "/v1/runs" || strings.HasPrefix(r.URL.Path, "/v1/runs/")) {
