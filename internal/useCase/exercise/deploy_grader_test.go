@@ -15,6 +15,7 @@ import (
 	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
 	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
 	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	labCheckModel "github.com/cybericebox/daemon/internal/model/labCheck"
 	"github.com/cybericebox/daemon/internal/useCase/exercise"
 )
 
@@ -196,5 +197,90 @@ func TestRunTarget_PicksTheVariantOrTheFirstOneWithDevices(t *testing.T) {
 	}
 	if _, err = uc.RunTarget(context.Background(), versionID, uuid.Must(uuid.NewV7()), 0); !errors.Is(err, exerciseModel.ErrExerciseVersionNotFound.Err()) {
 		t.Fatalf("%v", err)
+	}
+}
+
+type fakeLabChecks struct {
+	results []labCheckModel.Result
+}
+
+func (f *fakeLabChecks) List(context.Context, string, string) ([]labCheckModel.Result, error) {
+	return f.results, nil
+}
+func (f *fakeLabChecks) AskRun(context.Context, string, string, time.Duration, int, time.Time) (bool, time.Duration, error) {
+	return false, 0, nil
+}
+
+func TestRunStateTasks_ReadsTheRecordedLabChecks(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	q := postgresMocks.NewMockQuerier(ctrl)
+	owner, deployID, versionID, variantID, device := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	variants, _ := json.Marshal([]exerciseModel.Variant{{ID: variantID, Tasks: []exerciseModel.Task{
+		{ID: uuid.Must(uuid.NewV7()), Key: "flag", Check: exerciseModel.Check{Answer: &exerciseModel.AnswerCheck{Type: exerciseModel.AnswerTypeFlag}}},
+		{ID: uuid.Must(uuid.NewV7()), Key: "service", Check: exerciseModel.Check{State: &exerciseModel.StateCheck{Conditions: []exerciseModel.Condition{{DeviceID: device}}}}},
+		{ID: uuid.Must(uuid.NewV7()), Key: "fw", Check: exerciseModel.Check{State: &exerciseModel.StateCheck{Conditions: []exerciseModel.Condition{{DeviceID: device}}}}},
+	}}})
+	row := graderRow(owner, deployID)
+	row.VersionID, row.VariantID = versionID, variantID
+	q.EXPECT().GetOwnedExerciseTestDeploy(gomock.Any(), gomock.Any()).Return(row, nil).AnyTimes()
+	q.EXPECT().GetExerciseVersionByID(gomock.Any(), versionID).Return(postgres.ExerciseVersion{ID: versionID, Variants: variants}, nil).AnyTimes()
+	checks := &fakeLabChecks{}
+	uc := exercise.NewExerciseUseCase(exercise.Dependencies{Repo: q, Infra: &fakeInfra{}})
+	uc.SetLabChecks(checks)
+
+	got, err := uc.RunStateTasks(context.Background(), owner, deployID)
+	if err != nil || len(got) != 2 || got[0].Key != "service" || got[1].Key != "fw" || got[0].Passed || got[1].Passed {
+		t.Fatalf("the state subtasks in the variant's order, none passed yet: %+v %v", got, err)
+	}
+	first := time.Now().Add(-time.Minute)
+	checks.results = []labCheckModel.Result{{CheckID: exerciseModel.CheckID("service", 1), State: labCheckModel.StatePassed, FirstPassedAt: &first, ChangedAt: first}}
+	if got, err = uc.RunStateTasks(context.Background(), owner, deployID); err != nil || !got[0].Passed || got[1].Passed {
+		t.Fatalf("%+v %v", got, err)
+	}
+	// a check that passed once and fails now has still passed (the first pass is what is reported)
+	checks.results[0].State = labCheckModel.StateNotPassed
+	if got, err = uc.RunStateTasks(context.Background(), owner, deployID); err != nil || !got[0].Passed {
+		t.Fatalf("%+v %v", got, err)
+	}
+}
+
+// The checker the run's answers go through is the one of the author's own flag check: a text answer is compared with the
+// task's own ignore_case and trim, a flag exactly.
+func TestJudgeAnswer_TextAnswersFollowTheTasksCompareOptions(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	q := postgresMocks.NewMockQuerier(ctrl)
+	owner, deployID, versionID, variantID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	loose, strict, plain := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	noTrim := false
+	tasks := []exerciseModel.Task{
+		{ID: loose, Key: "loose", Check: exerciseModel.Check{Answer: &exerciseModel.AnswerCheck{Type: exerciseModel.AnswerTypeText, IgnoreCase: true}}},
+		{ID: strict, Key: "strict", Check: exerciseModel.Check{Answer: &exerciseModel.AnswerCheck{Type: exerciseModel.AnswerTypeText, Trim: &noTrim}}},
+		{ID: plain, Key: "plain", Check: exerciseModel.Check{Answer: &exerciseModel.AnswerCheck{Type: exerciseModel.AnswerTypeFlag}}},
+	}
+	flags := []exerciseModel.DeployFlag{}
+	for _, task := range tasks {
+		flags = append(flags, exerciseModel.NewDeployFlag(task, "Open Sesame"))
+	}
+	flags[2].Flag = "ICE{abc}"
+	stored, _ := json.Marshal(flags)
+	variants, _ := json.Marshal([]exerciseModel.Variant{{ID: variantID, Tasks: tasks}})
+	row := graderRow(owner, deployID)
+	row.VersionID, row.VariantID, row.Flags = versionID, variantID, stored
+	q.EXPECT().GetOwnedExerciseTestDeploy(gomock.Any(), gomock.Any()).Return(row, nil).AnyTimes()
+	q.EXPECT().MarkExerciseTestDeploySolved(gomock.Any(), gomock.Any()).Return(postgres.ExerciseTestDeployment{}, nil).AnyTimes()
+	q.EXPECT().GetExerciseVersionByID(gomock.Any(), versionID).Return(postgres.ExerciseVersion{ID: versionID, Variants: variants}, nil).AnyTimes()
+	uc := exercise.NewExerciseUseCase(exercise.Dependencies{Repo: q})
+	for _, c := range []struct {
+		ref, value string
+		want       bool
+	}{
+		{"loose", "open sesame", true}, {"loose", "  OPEN SESAME  ", true}, {"loose", "open  sesame", false},
+		{"strict", "Open Sesame", true}, {"strict", "open sesame", false}, {"strict", " Open Sesame", false},
+		{"plain", "ICE{abc}", true}, {"plain", "ice{abc}", false},
+	} {
+		got, err := uc.JudgeAnswer(context.Background(), owner, deployID, c.ref, c.value)
+		if err != nil || got != c.want {
+			t.Errorf("%s %q = %v %v, want %v", c.ref, c.value, got, err, c.want)
+		}
 	}
 }

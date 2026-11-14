@@ -66,6 +66,7 @@ type (
 		JudgeAnswer(ctx context.Context, owner, deployID uuid.UUID, subtaskRef, value string) (bool, error)
 		RunTarget(ctx context.Context, versionID, variantID uuid.UUID, want time.Duration) (exerciseUseCase.RunTarget, error)
 		RunMaterials(ctx context.Context, owner, deployID uuid.UUID) (exerciseUseCase.Materials, error)
+		RunStateTasks(ctx context.Context, owner, deployID uuid.UUID) ([]exerciseUseCase.StateSubtask, error)
 	}
 
 	// RunView is a run with the answers it submitted and how they were judged.

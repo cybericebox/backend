@@ -275,6 +275,7 @@ type fakeLabs struct {
 	looks       int
 	failed      bool
 	gone        bool
+	stateTasks  []exerciseUseCase.StateSubtask
 	authorized  []exerciseUseCase.Actor
 	mintErr     error
 	judged      map[string]string // subtask ref -> the value that is right
@@ -363,6 +364,20 @@ func (f *fakeLabs) RunMaterials(context.Context, uuid.UUID, uuid.UUID) (exercise
 		Task:  []byte(`{"title":"Web login","description":"","subtasks":[{"key":"login","title":"Log in","prompt":"Open the site","answer_kind":"flag"}]}`),
 		Files: []exerciseUseCase.MaterialFile{{Name: "notes.txt", ContentType: "text/plain", Data: []byte("participant file")}},
 	}, nil
+}
+func (f *fakeLabs) RunStateTasks(context.Context, uuid.UUID, uuid.UUID) ([]exerciseUseCase.StateSubtask, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]exerciseUseCase.StateSubtask(nil), f.stateTasks...), nil
+}
+func (f *fakeLabs) setStatePassed(key string, passed bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for i := range f.stateTasks {
+		if f.stateTasks[i].Key == key {
+			f.stateTasks[i].Passed = passed
+		}
+	}
 }
 func (f *fakeLabs) RunTarget(_ context.Context, runVersion, _ uuid.UUID, want time.Duration) (exerciseUseCase.RunTarget, error) {
 	variants := `[{"topology":{"devices":[{"image":"nginx:1"},{"image":"redis:7"}]}}]`
@@ -1134,4 +1149,81 @@ func TestTeardownDoesNotWaitOnTheBrainOrOnARevocation(t *testing.T) {
 		r.labs.mu.Unlock()
 		r.waitState(t, run.ID, assistantModel.RunStopped)
 	})
+}
+
+func verdictBodies(t *testing.T, r *runRig, id string) []map[string]json.RawMessage {
+	t.Helper()
+	var out []map[string]json.RawMessage
+	for _, raw := range r.brn.Verdicts(id) {
+		out = append(out, mustJSON(t, raw))
+	}
+	return out
+}
+
+func TestAStateSubtaskIsToldCorrectOnTheFirstPassAndOnlyOnce(t *testing.T) {
+	r := newRunRig(t, nil)
+	r.labs.stateTasks = []exerciseUseCase.StateSubtask{{Key: "service"}, {Key: "firewall"}}
+	run := r.start(t)
+	id := run.ID.String()
+	r.drive(t)
+	r.waitState(t, run.ID, assistantModel.RunRunning)
+	time.Sleep(30 * time.Millisecond)
+	if n := len(r.brn.Verdicts(id)); n != 0 {
+		t.Fatalf("nothing is told before a check passes: %d", n)
+	}
+	r.labs.setStatePassed("service", true)
+	eventually(t, "the verdict of the passed subtask", func() bool { return len(r.brn.Verdicts(id)) == 1 })
+	time.Sleep(50 * time.Millisecond) // the state is looked at every pass, and the verdict goes once
+	got := verdictBodies(t, r, id)
+	if len(got) != 1 || string(got[0]["subtask_ref"]) != `"service"` || string(got[0]["correct"]) != "true" || len(got[0]) != 3 {
+		t.Fatalf("%v", r.brn.Verdicts(id))
+	}
+	// a check that stops passing is not told again: only a change from nothing to a result is
+	r.labs.setStatePassed("service", false)
+	time.Sleep(50 * time.Millisecond)
+	if len(r.brn.Verdicts(id)) != 1 {
+		t.Fatalf("%v", r.brn.Verdicts(id))
+	}
+}
+
+func TestAStateSubtaskThatNeverPassedIsToldNotCorrectBeforeTheTeardown(t *testing.T) {
+	r := newRunRig(t, nil)
+	r.labs.stateTasks = []exerciseUseCase.StateSubtask{{Key: "service"}, {Key: "firewall", Passed: false}}
+	run := r.start(t)
+	id := run.ID.String()
+	r.drive(t)
+	r.waitState(t, run.ID, assistantModel.RunRunning)
+	r.labs.setStatePassed("service", true)
+	eventually(t, "the pass", func() bool { return len(r.brn.Verdicts(id)) == 1 })
+	r.brn.Emit(id, "run_finished", `{"type":"run_finished","run_id":"`+id+`","status":"done"}`)
+	r.waitState(t, run.ID, assistantModel.RunFinished)
+	eventually(t, "the verdict of the subtask that never passed", func() bool { return len(r.brn.Verdicts(id)) == 2 })
+	got := verdictBodies(t, r, id)
+	if string(got[1]["subtask_ref"]) != `"firewall"` || string(got[1]["correct"]) != "false" {
+		t.Fatalf("%v", r.brn.Verdicts(id))
+	}
+	if r.labs.count("destroy") != 1 {
+		t.Fatalf("%v", r.labs.called())
+	}
+	answers, _ := r.runs.Answers(context.Background(), run.ID)
+	if len(answers) != 2 || answers[0].Seq >= 0 || answers[1].Seq >= 0 {
+		t.Fatalf("the platform's own verdicts are kept under negative numbers: %+v", answers)
+	}
+}
+
+func TestStateVerdictsNeverHoldTheTeardownWhenTheBrainIsDown(t *testing.T) {
+	r := newRunRig(t, nil)
+	r.labs.stateTasks = []exerciseUseCase.StateSubtask{{Key: "service"}}
+	r.brn.FailVerdicts(1000, 503)
+	r.brn.SetStopStatus(503)
+	run := r.start(t)
+	r.drive(t)
+	r.waitState(t, run.ID, assistantModel.RunRunning)
+	if _, err := r.uc.StopGraderRun(context.Background(), runActor, runExercise, runVersion, runVariant, run.ID); err != nil {
+		t.Fatal(err)
+	}
+	got := r.waitState(t, run.ID, assistantModel.RunStopped)
+	if indexOf(r.labs.called(), "revoke:"+got.AccessClient) < 0 || r.labs.count("destroy") != 1 {
+		t.Fatalf("%v", r.labs.called())
+	}
 }
