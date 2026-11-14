@@ -3,6 +3,7 @@ package assistant_test
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -237,4 +238,43 @@ func TestAnEventsSourcePushCarriesOnlyAggregateFields(t *testing.T) {
 	if err := json.Unmarshal([]byte(b.bodies[0]), &sent); err != nil || len(sent.Aggregates) != 1 || sent.Aggregates[0].Solves != 1 {
 		t.Fatalf("%v %+v", err, sent)
 	}
+}
+
+func TestEveryAggregateNamesItsSourceAndSourcesAreNotMerged(t *testing.T) {
+	store := &fakeEventStore{facts: []assistantStatsRepo.Fact{fact(exA, verA1, 1, 1, 1, secs(1), 0)}}
+	events := assistant.EventsSource{Store: store}
+	got, err := events.Aggregates(context.Background(), nil, asOf)
+	if err != nil || len(got) != 1 || got[0].Source != "events" {
+		t.Fatalf("%v %+v", err, got)
+	}
+
+	// A second source with the same task: the brain gets one entry per source.
+	academyAggregate := aggregate(refA)
+	academyAggregate.Source = "academy"
+	academy := &namedStats{name: "academy", all: []assistantModel.Aggregate{academyAggregate}}
+	all, err := assistant.MultiSource{events, academy}.Aggregates(context.Background(), nil, asOf)
+	if err != nil || len(all) != 2 {
+		t.Fatalf("%v %+v", err, all)
+	}
+	sources := map[string]bool{all[0].Source: true, all[1].Source: true}
+	if !sources["events"] || !sources["academy"] {
+		t.Fatalf("one entry per source: %+v", all)
+	}
+	raw, _ := json.Marshal(all[0])
+	if !strings.Contains(string(raw), `"source":`) {
+		t.Fatalf("the source is in the payload: %s", raw)
+	}
+}
+
+type namedStats struct {
+	name string
+	all  []assistantModel.Aggregate
+}
+
+func (n *namedStats) Name() string { return n.name }
+func (n *namedStats) Aggregates(context.Context, []assistantModel.TaskRef, time.Time) ([]assistantModel.Aggregate, error) {
+	return n.all, nil
+}
+func (n *namedStats) CollectionOn(context.Context, []assistantModel.TaskRef) (map[assistantModel.TaskRef]bool, error) {
+	return nil, nil
 }

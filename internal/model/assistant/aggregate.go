@@ -24,9 +24,11 @@ type HintBucket struct {
 }
 
 // Aggregate is what the platform tells the brain about one task: figures over all teams, never a row of one person or
-// one team. AsOf is the moment the figures were taken; they are cumulative up to it, so a later push replaces an earlier
-// one.
+// one team. Source names where they come from ("events"): the brain gets one entry per (source, task_ref, version,
+// image) and decides itself what to do with several. AsOf is the moment the figures were taken; they are cumulative up
+// to it, so a later push replaces an earlier one.
 type Aggregate struct {
+	Source string `json:"source"`
 	TaskRef
 	Solves    int64        `json:"solves"`
 	Attempts  int64        `json:"attempts"`
