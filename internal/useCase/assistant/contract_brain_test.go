@@ -112,12 +112,6 @@ func TestAGraderRunAgainstTheRealBrain(t *testing.T) {
 	proxy := httputil.NewSingleHostReverseProxy(brainURL)
 	proxy.FlushInterval = -1
 	r.fake.RunsBackend = proxy
-	// KNOWN MISMATCH (brain, internal/run/server.go handleStart): it parses access as {"kind","addr"}, while the wire
-	// (daemon-interface.md, StartRun) is the keyed union {"none":{}} / {"vpn":{"entry"}}. The shim rewrites the one into the
-	// other so the rest of the flow is exercised; BRAIN_CONTRACT_STRICT=1 sends the documented body as it is.
-	if os.Getenv("BRAIN_CONTRACT_STRICT") == "" {
-		r.fake.RunsBackend = shimAccess(proxy)
-	}
 	r.labs.hasLab = false // a static task: access none, only materials
 	r.labs.judged["login"] = "ICE{real}"
 	r.labs.materials = &exerciseUseCase.Materials{
@@ -151,26 +145,4 @@ func TestAGraderRunAgainstTheRealBrain(t *testing.T) {
 	if last := events[len(events)-1]; last.Type != "run_finished" {
 		t.Fatalf("run_finished is the last event: %v", types)
 	}
-}
-
-// shimAccess rewrites the documented access union ({"none":{}}) into the {"kind": ...} form the brain parses today, to look
-// past that mismatch until the brain parses the documented form. It is a stopgap, not the contract.
-func shimAccess(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		if req.Method == http.MethodPost && req.URL.Path == "/v1/runs" {
-			raw, _ := io.ReadAll(req.Body)
-			var body map[string]json.RawMessage
-			if json.Unmarshal(raw, &body) == nil {
-				var access map[string]json.RawMessage
-				if json.Unmarshal(body["access"], &access) == nil {
-					for kind := range access {
-						body["access"], _ = json.Marshal(map[string]string{"kind": kind})
-					}
-				}
-				raw, _ = json.Marshal(body)
-			}
-			req.Body, req.ContentLength = io.NopCloser(strings.NewReader(string(raw))), int64(len(raw))
-		}
-		next.ServeHTTP(w, req)
-	})
 }

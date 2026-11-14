@@ -72,6 +72,10 @@ type (
 		RunGrace time.Duration `env:"RUN_GRACE" envDefault:"60s"`
 		// RunMaxDuration is the longest a run may last, the start of its lab included; then it is torn down as failed.
 		RunMaxDuration time.Duration `env:"RUN_MAX_DURATION" envDefault:"30m"`
+		// ToolsImage is the image of the platform tools device an automated actor works from (a container with the tools and
+		// the runner, reached over the grpc access). It has no default: unset, provide_device for tools and the opponent runs
+		// answer not_supported_yet.
+		ToolsImage string `env:"TOOLS_IMAGE"`
 	}
 
 	// TelegramConfig is the one bot of the platform's operator notifications (the error journal).

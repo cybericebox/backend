@@ -109,8 +109,10 @@ type runDriver struct {
 
 	config    string
 	mintFails int
-	stopSent  bool
-	refused   bool
+	// edaFails counts the failed attempts to make the access of the tools device of a lab.
+	edaFails int
+	stopSent bool
+	refused  bool
 	// stateFlushed: the verdicts of the state subtasks that never passed were sent (once, before the teardown).
 	stateFlushed bool
 	// materialsSent: the materials of this run are with the brain (kept for this leadership; a new leader sends them again).
@@ -155,7 +157,7 @@ func (d *runDriver) run(ctx context.Context) {
 			return
 		}
 		var wait time.Duration
-		if run.Role == assistantModel.RoleLab {
+		if assistantModel.IsLabRole(run.Role) {
 			wait = d.lab(ctx, run)
 			if !sleep(ctx, wait) {
 				return
@@ -720,7 +722,7 @@ const bestEffort = 15 * time.Second
 // step is still tried), so a lab or a key is never kept alive by a brain that is down.
 func (d *runDriver) closing(ctx context.Context, run assistantModel.Run) time.Duration {
 	u := d.u
-	if run.Role == assistantModel.RoleLab && run.RequestID != "" && !run.Answered && !d.refused {
+	if assistantModel.IsLabRole(run.Role) && run.RequestID != "" && !run.Answered && !d.refused {
 		d.refused = true
 		d.refuseLab(ctx, run)
 	}
@@ -876,7 +878,27 @@ func (d *runDriver) labAnswer(ctx context.Context, run assistantModel.Run) time.
 		log.Warn().Err(err).Msg("Making the VPN client of a lab again failed")
 		return d.backoff()
 	}
-	result := map[string]any{"device_ref": run.DeployID.String(), "access": assistantModel.VPNAccess(d.config)}
+	access := assistantModel.VPNAccess(d.config)
+	if run.Role == assistantModel.RoleTools {
+		// The tools device is reached out of band, with a token that ends with the lab's own window (plus the grace): the
+		// VPN config of the run's client is not handed out.
+		until := u.now().Add(u.runMax + u.runGrace)
+		if until.After(run.ExpiresAt) {
+			until = run.ExpiresAt
+		}
+		eda, err := u.labs.MintEDAAccess(ctx, run.Actor, run.DeployID, "", run.AccessClient, run.ID.String(), until)
+		if err != nil {
+			log.Warn().Err(err).Msg("Making the access of the tools device failed")
+			d.edaFails++
+			if d.edaFails >= mintAttempts {
+				d.close(ctx, run, assistantModel.RunFailed, assistantModel.FailureLabFailed)
+				return 0
+			}
+			return d.backoff()
+		}
+		access = assistantModel.EDAAccess(eda.URL, eda.Token)
+	}
+	result := map[string]any{"device_ref": run.DeployID.String(), "access": access}
 	if err := u.answer(ctx, run.RequestID, result, nil); err != nil {
 		log.Warn().Err(err).Msg("Answering a lab request failed; trying again")
 		return d.backoff()

@@ -569,6 +569,7 @@ func NewUseCase(deps Dependencies) *UseCase {
 	})
 	// A test lab's group policy keeps the clients of the active runs, or a run would lose its lab when the author deploys another.
 	exerciseUC.SetLabClientSource(assistantUC.LabClients)
+	exerciseUC.SetToolsImage(deps.Brain.ToolsImage)
 	return &UseCase{
 		authUC,
 		adminAuditUC,

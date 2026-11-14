@@ -14,7 +14,13 @@ import (
 const (
 	RoleGrader = "grader"
 	RoleLab    = "lab"
+	// RoleTools is the lab of a provide_device request for the platform tools device: the task's lab with the tools device
+	// in it, kept as a row like a RoleLab one (its client and lab are revoked and destroyed with it).
+	RoleTools = "tools"
 )
+
+// IsLabRole says a row is a lab the brain asked for (provide_lab or provide_device), not a run of the brain.
+func IsLabRole(role string) bool { return role == RoleLab || role == RoleTools }
 
 // RunState is where a run stands. starting: the lab is being deployed and the run is not accepted by the brain yet;
 // running: its events are read; closing: the outcome is decided and the lab and the access are being torn down;
@@ -123,7 +129,7 @@ func NoAccess() Access { return Access{"none": json.RawMessage(`{}`)} }
 // runRoleExcluded lists the roles of a run and whether their runs are left out of the participant statistics. None is
 // counted: the grader measures the task and an opponent plays against it, so the figures stay those of people. A role
 // has to be listed here to exist.
-var runRoleExcluded = map[string]bool{RoleGrader: true, RoleLab: true, "attack": true, "defense": true, "attack-defense": true}
+var runRoleExcluded = map[string]bool{RoleGrader: true, RoleLab: true, RoleTools: true, "attack": true, "defense": true, "attack-defense": true}
 
 // ExcludeRun says a run never counts in the participant statistics; a role that is not listed is left out too. The
 // statistics sources call it for any run-shaped fact they may read. The events source reads teams only, and a grader's

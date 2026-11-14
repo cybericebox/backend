@@ -411,3 +411,129 @@ func repeatStatus(status, n int) []int {
 	}
 	return out
 }
+
+func (p *provideRig) deviceFrame(seq int64, id, deviceType, body string) outboxFrame {
+	return outboxFrame{seq: seq, event: "provide_device", data: fmt.Sprintf(`{"request_id":%q,"type":"provide_device","device_type":%q,%s}`, id, deviceType, body)}
+}
+
+func (p *provideRig) toolsLab(t *testing.T) assistantModel.Run {
+	t.Helper()
+	p.runs.mu.Lock()
+	defer p.runs.mu.Unlock()
+	for _, r := range p.runs.runs {
+		if r.Role == assistantModel.RoleTools {
+			return r
+		}
+	}
+	t.Fatal("no tools lab row")
+	return assistantModel.Run{}
+}
+
+func TestProvideDeviceToolsAnswersTheEDAAccessOfTheDevice(t *testing.T) {
+	p := newProvideRig(t, nil)
+	p.brain.frames = []outboxFrame{p.deviceFrame(1, "r1", "tools", p.task(p.subject, labImage()))}
+	p.labs.readyAfter = 1
+	p.serve(t)
+	p.drive(t)
+	var got struct {
+		Result struct {
+			DeviceRef string                       `json:"device_ref"`
+			Access    map[string]map[string]string `json:"access"`
+		}
+	}
+	if err := json.Unmarshal([]byte(p.answeredOnce(t, "r1")), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Result.DeviceRef != runDeploy.String() || got.Result.Access["eda"]["url"] != "https://proxy.example/tools" || got.Result.Access["eda"]["token"] != "secret-bearer" {
+		t.Fatalf("%v", p.brain.answered("r1"))
+	}
+	if _, vpn := got.Result.Access["vpn"]; vpn {
+		t.Fatal("the VPN config of the run's client is not handed out for a tools device")
+	}
+	if p.labs.count("deploy-tools") != 1 || p.labs.count("deploy") != 1 {
+		t.Fatalf("%v", p.labs.called())
+	}
+	eventually(t, "the answer to be recorded", func() bool { return p.toolsLab(t).Answered })
+	lab := p.toolsLab(t)
+	if lab.Role != assistantModel.RoleTools || lab.Actor != runActor.UserID || p.labs.edaRun != lab.ID.String() || p.labs.edaDevice != "" {
+		t.Fatalf("%+v run %q device %q", lab, p.labs.edaRun, p.labs.edaDevice)
+	}
+	if !p.labs.edaUntil.After(time.Now()) || p.labs.edaUntil.After(lab.ExpiresAt) {
+		t.Fatalf("the token ends with the run's window: %v (lab ends %v)", p.labs.edaUntil, lab.ExpiresAt)
+	}
+	if assistantModel.ExcludeRun(lab.Role) != true {
+		t.Fatal("a tools lab never counts in the participant statistics")
+	}
+}
+
+func TestProvideDeviceRefusals(t *testing.T) {
+	for name, c := range map[string]struct {
+		deviceType string
+		body       func(p *provideRig) string
+		prep       func(p *provideRig)
+		code       string
+	}{
+		"a configured host": {deviceType: "configured_host", body: func(p *provideRig) string { return p.task(p.subject, labImage()) }, code: "not_supported_yet"},
+		"an unknown type":   {deviceType: "mystery", body: func(p *provideRig) string { return p.task(p.subject, labImage()) }, code: "not_supported_yet"},
+		"a draft": {deviceType: "tools", body: func(p *provideRig) string {
+			return fmt.Sprintf(`"subject":%q,"source":{"draft":"d-1"}`, p.subject.String())
+		}, code: "not_supported_yet"},
+		"no tools image": {deviceType: "tools", body: func(p *provideRig) string { return p.task(p.subject, labImage()) },
+			prep: func(p *provideRig) { p.labs.toolsErr = exerciseModel.ErrToolsNoImage }, code: "not_supported_yet"},
+		"a lab without a VPN": {deviceType: "tools", body: func(p *provideRig) string { return p.task(p.subject, labImage()) },
+			prep: func(p *provideRig) { p.labs.toolsErr = exerciseModel.ErrToolsNoVPN }, code: "not_supported_yet"},
+		"no lab":          {deviceType: "tools", body: func(p *provideRig) string { return p.task(p.subject, labImage()) }, prep: func(p *provideRig) { p.labs.hasLab = false }, code: "no_lab"},
+		"unknown subject": {deviceType: "tools", body: func(p *provideRig) string { return p.task(uuid.Must(uuid.NewV7()), labImage()) }, code: "unknown_subject"},
+		"forbidden":       {deviceType: "tools", body: func(p *provideRig) string { return p.task(p.subject, labImage()) }, prep: func(p *provideRig) { p.labs.authErr = assistantModel.ErrAssistantForbidden.Err() }, code: "forbidden"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			p := newProvideRig(t, nil)
+			if c.prep != nil {
+				c.prep(p)
+			}
+			p.brain.frames = []outboxFrame{p.deviceFrame(1, "r1", c.deviceType, c.body(p))}
+			p.serve(t)
+			if got := refusalCode(t, p.answeredOnce(t, "r1")); got != c.code {
+				t.Fatalf("%s", p.brain.answered("r1")[0])
+			}
+			if p.labs.count("deploy") != 0 {
+				t.Fatal("a refused request deploys nothing")
+			}
+		})
+	}
+}
+
+func TestAToolsLabWhoseAccessFailsIsClosedRefusedAndTornDown(t *testing.T) {
+	p := newProvideRig(t, nil)
+	p.brain.frames = []outboxFrame{p.deviceFrame(1, "r1", "tools", p.task(p.subject, labImage()))}
+	p.labs.edaErr = fmt.Errorf("no grpc entry")
+	p.serve(t)
+	p.drive(t)
+	if got := refusalCode(t, p.answeredOnce(t, "r1")); got != "lab_unavailable" {
+		t.Fatalf("%s", p.brain.answered("r1")[0])
+	}
+	id := p.toolsLab(t).ID
+	p.waitState(t, id, assistantModel.RunFailed)
+	calls := p.labs.called()
+	if indexOf(calls, "destroy") < 0 || indexOf(calls, "revoke:"+p.toolsLab(t).AccessClient) < 0 {
+		t.Fatalf("a lab that cannot give its access is revoked and destroyed: %v", calls)
+	}
+}
+
+func TestAToolsLabIsRevokedAndDestroyedWhenItIsGone(t *testing.T) {
+	p := newProvideRig(t, nil)
+	p.brain.frames = []outboxFrame{p.deviceFrame(1, "r1", "tools", p.task(p.subject, labImage()))}
+	p.serve(t)
+	p.drive(t)
+	p.answeredOnce(t, "r1")
+	eventually(t, "the answer to be recorded", func() bool { return p.toolsLab(t).Answered })
+	id, client := p.toolsLab(t).ID, p.toolsLab(t).AccessClient
+	p.labs.mu.Lock()
+	p.labs.gone = true
+	p.labs.mu.Unlock()
+	p.waitState(t, id, assistantModel.RunFinished)
+	calls := p.labs.called()
+	if indexOf(calls, "revoke:"+client) < 0 || indexOf(calls, "destroy") < 0 {
+		t.Fatalf("%v", calls)
+	}
+}
