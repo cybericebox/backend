@@ -310,6 +310,14 @@ func (u *ExerciseUseCase) RunStateTasks(ctx context.Context, owner, deployID uui
 	return out, nil
 }
 
+// The one network is also all a student can reach: the VPN pod forwards a client to a lab only for destinations inside that
+// lab's VPN CIDR, on the lab's own interface (laboratory internal/vpn/forward_plan.go, forwardBinding: one rule per client and
+// lab with DestinationCIDR = LabAccessSnapshot.VPNCIDR = Lab.Status.VPN.CIDR, applied in forward_batch_linux.go as
+// `-i wg -o labN -s client/32 -d LabCIDR`; every other packet hits the chain's final DROP). status.VPNCIDR here is that same
+// field (the agent's vpn_cidr, labagent GetVpnCidr), so the narrowed profile loses nothing a student has; segments behind a
+// router device of the lab are reached through it from inside the lab, never routed by the VPN pod. A lab has one VPN CIDR
+// today; if it ever gets several, this must take the whole set from the same snapshot.
+//
 // restrictAllowedIPs sets the AllowedIPs of the peer in a WireGuard client config to the one network of the lab. The
 // network must be a real IPv4 subnet, never a default route. A config with no AllowedIPs line is refused.
 func restrictAllowedIPs(config, cidr string) (string, error) {
