@@ -85,6 +85,8 @@ type ExerciseUseCase struct {
 	exportFiles   IExportFiles
 	exportQueue   ExportJobQueue
 	exportSealer  secret.Sealer
+	// labClients lists the run clients of an owner's lab group (SetLabClientSource); nil: none.
+	labClients LabClientSource
 }
 
 // IVPNConfigAudit is the event activity log port the deploy status route logs

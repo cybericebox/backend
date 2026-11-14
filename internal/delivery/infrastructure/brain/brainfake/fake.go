@@ -16,6 +16,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"time"
 )
@@ -35,6 +36,8 @@ type Fake struct {
 	CertTTL time.Duration
 	// Assistant answers /v1/assistant/* (after the client certificate was verified).
 	Assistant http.Handler
+	// Runs answers /v1/runs/* (after the client certificate was verified); nil: not found.
+	Runs *Runs
 
 	mu            sync.Mutex
 	ca            *authority
@@ -156,6 +159,10 @@ func (f *Fake) serve(w http.ResponseWriter, r *http.Request) {
 	default:
 		if len(r.TLS.VerifiedChains) == 0 {
 			Fail(w, http.StatusUnauthorized, "client_certificate_required", "mutual TLS is required")
+			return
+		}
+		if f.Runs != nil && (r.URL.Path == "/v1/runs" || strings.HasPrefix(r.URL.Path, "/v1/runs/")) {
+			f.Runs.ServeHTTP(w, r)
 			return
 		}
 		if f.Assistant == nil {
