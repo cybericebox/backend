@@ -34,6 +34,7 @@ type fakeStats struct {
 
 func aggregate(ref assistantModel.TaskRef) assistantModel.Aggregate {
 	return assistantModel.Aggregate{
+		Source:  "events",
 		TaskRef: ref, Solves: 7, Attempts: 30, SolveRate: 0.35, Time: assistantModel.TimeStats{Median: 600, P25: 300, P75: 1200},
 		HintsUsed: []assistantModel.HintBucket{{Hints: 0, Teams: 12}, {Hints: 1, Teams: 5}}, Modality: "web",
 		AsOf: time.Date(2026, 11, 14, 12, 0, 0, 0, time.UTC),
@@ -257,7 +258,7 @@ var allowedKeys = map[string]bool{
 	"aggregates": true, "result": true,
 	"task_ref": true, "version": true, "image": true, "solves": true, "attempts": true, "solve_rate": true,
 	"time": true, "median": true, "p25": true, "p75": true, "hints_used": true, "hints": true, "teams": true,
-	"modality": true, "as_of": true, "error": true,
+	"modality": true, "as_of": true, "error": true, "source": true,
 }
 
 var identifying = regexp.MustCompile(`(?i)user|team_id|team_name|member|captain|participant|email|name|ip|addr|client|session|account|login|login`)
@@ -347,7 +348,7 @@ func TestTheAggregateTypeHasOnlyTheDocumentedFields(t *testing.T) {
 			t.Errorf("the aggregate has the field %q", tag)
 		}
 	}
-	if len(tags) != 15 {
+	if len(tags) != 16 {
 		t.Errorf("fields: %v", tags)
 	}
 }

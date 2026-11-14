@@ -137,6 +137,9 @@ func (s EventsSource) Aggregates(ctx context.Context, refs []assistantModel.Task
 		return nil, err
 	}
 	all := BuildAggregates(facts, variants, asOf)
+	for i := range all {
+		all[i].Source = assistantModel.SourceEvents
+	}
 	if refs == nil {
 		return all, nil
 	}
