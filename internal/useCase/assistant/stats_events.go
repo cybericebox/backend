@@ -162,7 +162,7 @@ func (s EventsSource) Aggregates(ctx context.Context, refs []assistantModel.Task
 func BuildAggregates(facts []assistantStatsRepo.Fact, variants map[uuid.UUID][]byte, asOf time.Time) []assistantModel.Aggregate {
 	type acc struct {
 		ref      assistantModel.TaskRef
-		modality string
+		kind     string
 		tried    int64
 		solves   int64
 		attempts int64
@@ -171,11 +171,11 @@ func BuildAggregates(facts []assistantStatsRepo.Fact, variants map[uuid.UUID][]b
 	}
 	groups := map[assistantModel.TaskRef]*acc{}
 	for _, f := range facts {
-		image, modality := imageAndModality(variants[f.VersionID])
+		image, kind := imageAndKind(variants[f.VersionID])
 		ref := assistantModel.TaskRef{TaskRef: f.ExerciseID.String(), Version: f.VersionID.String(), Image: image}
 		g := groups[ref]
 		if g == nil {
-			g = &acc{ref: ref, modality: modality, hints: map[int64]int64{}}
+			g = &acc{ref: ref, kind: kind, hints: map[int64]int64{}}
 			groups[ref] = g
 		}
 		g.tried++
@@ -191,7 +191,7 @@ func BuildAggregates(facts []assistantStatsRepo.Fact, variants map[uuid.UUID][]b
 	out := make([]assistantModel.Aggregate, 0, len(groups))
 	for _, g := range groups {
 		a := assistantModel.Aggregate{
-			TaskRef: g.ref, Solves: g.solves, Attempts: g.attempts, Modality: g.modality, AsOf: asOf,
+			TaskRef: g.ref, Solves: g.solves, Attempts: g.attempts, TaskKind: g.kind, AsOf: asOf,
 			Time: assistantModel.TimeStats{Median: percentile(g.times, 0.5), P25: percentile(g.times, 0.25), P75: percentile(g.times, 0.75)},
 		}
 		if g.tried > 0 {
@@ -232,9 +232,9 @@ func percentile(values []float64, p float64) float64 {
 	return sorted[lower] + (sorted[upper]-sorted[lower])*(pos-float64(lower))
 }
 
-// imageAndModality reads the variants of a version: the fingerprint of its device images (sha256 over the sorted,
+// imageAndKind reads the variants of a version: the fingerprint of its device images (sha256 over the sorted,
 // distinct image references; empty when it has none) and its kind (static without an image, dynamic with one).
-func imageAndModality(variants []byte) (image, modality string) {
+func imageAndKind(variants []byte) (image, kind string) {
 	var list []struct {
 		Topology struct {
 			Devices []struct {

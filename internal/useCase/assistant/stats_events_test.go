@@ -49,7 +49,7 @@ func TestAggregatesCountSolvesRateTimesAndHints(t *testing.T) {
 		t.Fatalf("aggregates: %+v", got)
 	}
 	a := got[0]
-	if a.TaskRef.TaskRef != exA.String() || a.Version != verA1.String() || a.Modality != "dynamic" || !a.AsOf.Equal(asOf) {
+	if a.TaskRef.TaskRef != exA.String() || a.Version != verA1.String() || a.TaskKind != "dynamic" || !a.AsOf.Equal(asOf) {
 		t.Fatalf("identity: %+v", a)
 	}
 	if a.Solves != 4 || a.Attempts != 36 {
@@ -76,7 +76,7 @@ func TestAggregatesCountSolvesRateTimesAndHints(t *testing.T) {
 
 func TestATaskNobodySolvedHasZeroTimesAndRate(t *testing.T) {
 	got := assistant.BuildAggregates([]assistantStatsRepo.Fact{fact(exB, verB1, 1, 3, 0, nil, 0)}, nil, asOf)
-	if len(got) != 1 || got[0].Solves != 0 || got[0].SolveRate != 0 || got[0].Time != (assistantModel.TimeStats{}) || got[0].Modality != "static" || got[0].Image != "" {
+	if len(got) != 1 || got[0].Solves != 0 || got[0].SolveRate != 0 || got[0].Time != (assistantModel.TimeStats{}) || got[0].TaskKind != "static" || got[0].Image != "" {
 		t.Fatalf("%+v", got)
 	}
 }

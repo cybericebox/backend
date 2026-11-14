@@ -35,7 +35,7 @@ type Aggregate struct {
 	SolveRate float64      `json:"solve_rate"`
 	Time      TimeStats    `json:"time"`
 	HintsUsed []HintBucket `json:"hints_used"`
-	Modality  string       `json:"modality"`
+	TaskKind  string       `json:"task_kind"`
 	AsOf      time.Time    `json:"as_of"`
 }
 
