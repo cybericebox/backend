@@ -3,6 +3,7 @@ package assistant_test
 import (
 	"context"
 	"errors"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -361,5 +362,112 @@ func TestClientIsReloadedAfterTheLeaderRenewed(t *testing.T) {
 	call()
 	if len(seen) != 2 || seen[0] == seen[1] {
 		t.Fatalf("the call after the renewal must present the new certificate: %v", seen)
+	}
+}
+
+// ── the brain's CA is pinned after the first enrollment ─────────────────────────
+
+func TestEnrollmentPinsTheCAThatTheBrainReturned(t *testing.T) {
+	r := newRig(t, nil)
+	if _, err := r.uc.BootstrapBrain(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	conn, _, _ := r.store.Get(context.Background(), r.fake.Endpoint())
+	if conn.CAPEM != string(r.fake.CAPEM) {
+		t.Fatal("the stored CA must be the one the brain returned")
+	}
+}
+
+func TestAServerOfAnotherCAIsRejectedAfterEnrollmentEvenWhenBRAINCAFileTrustsIt(t *testing.T) {
+	other := brainfake.New()
+	defer other.Server.Close()
+	r := newRig(t, func(d *assistant.Dependencies) {
+		// BRAIN_CA_FILE trusts both brains: it is only for the first enrollment.
+		both, err := os.ReadFile(d.Config.CAFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = os.WriteFile(d.Config.CAFile, append(both, other.CAPEM...), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if _, err := r.uc.BootstrapBrain(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	other.Assistant = http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("{}")) })
+	call := func() error {
+		resp, err := r.uc.Proxy(context.Background(), userOne, assistant.Call{Method: http.MethodGet, Path: "/v1/assistant/ideas"})
+		if err == nil {
+			_ = resp.Body.Close()
+		}
+		return err
+	}
+	r.fake.Assistant = http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("{}")) })
+	if err := call(); err != nil {
+		t.Fatalf("the enrolled brain works: %v", err)
+	}
+
+	// Another brain, with a certificate of its own CA, takes the address.
+	addr := r.fake.Server.Listener.Addr().String()
+	r.fake.Server.Close()
+	var l net.Listener
+	var err error
+	for range 40 {
+		if l, err = net.Listen("tcp", addr); err == nil {
+			break
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	if err != nil {
+		t.Skipf("cannot take over the address: %v", err)
+	}
+	imposter := brainfake.NewOn(l)
+	defer imposter.Server.Close()
+	imposter.Assistant = other.Assistant
+	if err = call(); !errors.Is(err, assistantModel.ErrAssistantBrainUnreachable.Err()) {
+		t.Fatalf("a server of another CA must be refused, got %v", err)
+	}
+}
+
+func TestRenewalMayRotateTheCAAndThePinMovesWithIt(t *testing.T) {
+	r := newRig(t, nil)
+	r.fake.CertTTL = 30 * 24 * time.Hour
+	r.fake.Assistant = http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("{}")) })
+	if _, err := r.uc.BootstrapBrain(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	before, _, _ := r.store.Get(context.Background(), r.fake.Endpoint())
+	r.fake.RotateCAOnNextRenew()
+	r.clock.advance(21 * 24 * time.Hour)
+	if ok, err := r.uc.RenewBrainCertificate(context.Background()); err != nil || !ok {
+		t.Fatalf("renew: %v %v", ok, err)
+	}
+	after, _, _ := r.store.Get(context.Background(), r.fake.Endpoint())
+	if after.CAPEM == before.CAPEM || after.CAPEM != string(r.fake.CurrentCAPEM()) {
+		t.Fatal("the new CA must replace the pinned one")
+	}
+	resp, err := r.uc.Proxy(context.Background(), userOne, assistant.Call{Method: http.MethodGet, Path: "/v1/assistant/ideas"})
+	if err != nil {
+		t.Fatalf("calls after the rotation: %v", err)
+	}
+	_ = resp.Body.Close()
+}
+
+func TestRenewalWhoseCertificateDoesNotChainToTheReturnedCAIsRefused(t *testing.T) {
+	other := brainfake.New()
+	defer other.Server.Close()
+	r := newRig(t, nil)
+	r.fake.CertTTL = 30 * 24 * time.Hour
+	if _, err := r.uc.BootstrapBrain(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	before, _, _ := r.store.Get(context.Background(), r.fake.Endpoint())
+	r.fake.ReturnCAOnRenew(other.CAPEM)
+	r.clock.advance(21 * 24 * time.Hour)
+	if ok, err := r.uc.RenewBrainCertificate(context.Background()); ok || err == nil {
+		t.Fatalf("a certificate that does not chain to the returned CA must not be stored: %v %v", ok, err)
+	}
+	if after, _, _ := r.store.Get(context.Background(), r.fake.Endpoint()); after != before {
+		t.Fatal("the stored connection and its pin must stay as they were")
 	}
 }
