@@ -79,14 +79,14 @@ func readableRequestID(data []byte) string {
 // unsupported_request.
 func (u *UseCase) handlers() map[string]requestHandler {
 	return map[string]requestHandler{
-		"provide_lab":    u.provideDevice,
+		"provide_lab":    u.provideLab,
 		"provide_device": u.provideDevice,
 		"provide_data":   u.provideData,
 	}
 }
 
-// provideDevice answers provide_lab and provide_device. Provisioning through the real lab path is built later (phase 3);
-// this function is where it plugs in.
+// provideDevice answers provide_device: a tools or host device needs the laboratory phase, so it is not supported yet.
+// provide_lab (provideLab) is served.
 func (u *UseCase) provideDevice(context.Context, OutboxRequest) (any, *AnswerError) {
 	return nil, &AnswerError{Code: codeNotSupportedYet, Message: "provisioning labs and devices for the brain is not supported yet"}
 }

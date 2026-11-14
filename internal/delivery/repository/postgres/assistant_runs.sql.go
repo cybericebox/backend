@@ -399,6 +399,7 @@ const listAssistantRunsOfVariant = `-- name: ListAssistantRunsOfVariant :many
 SELECT id, exercise_id, version_id, variant_id, deploy_id, actor_id, role, state, end_state, failure_reason, access_client, last_seq, stream_down_since, measurement, created_at, updated_at, started_at, finished_at, expires_at
 FROM assistant_runs
 WHERE variant_id = $1
+  AND role = 'grader'
 ORDER BY created_at DESC
 LIMIT $2
 `
@@ -408,7 +409,7 @@ type ListAssistantRunsOfVariantParams struct {
 	MaxRows   int32     `json:"max_rows"`
 }
 
-// The runs of a variant, newest first.
+// The grader runs of a variant, newest first (the labs the brain asked for are not runs).
 func (q *Queries) ListAssistantRunsOfVariant(ctx context.Context, arg ListAssistantRunsOfVariantParams) ([]AssistantRun, error) {
 	rows, err := q.db.Query(ctx, listAssistantRunsOfVariant, arg.VariantID, arg.MaxRows)
 	if err != nil {

@@ -240,6 +240,7 @@ type fakeLabs struct {
 	readyAfter  int
 	looks       int
 	failed      bool
+	gone        bool
 	mintErr     error
 	judged      map[string]string // subtask ref -> the value that is right
 	calls       []string
@@ -290,6 +291,9 @@ func (f *fakeLabs) TestLabState(context.Context, uuid.UUID, uuid.UUID) (exercise
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.looks++
+	if f.gone {
+		return exerciseUseCase.LabState{Gone: true}, nil
+	}
 	if f.failed {
 		return exerciseUseCase.LabState{Failed: true}, nil
 	}

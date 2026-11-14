@@ -10,10 +10,11 @@ FROM assistant_runs
 WHERE id = sqlc.arg(id);
 
 -- name: ListAssistantRunsOfVariant :many
--- The runs of a variant, newest first.
+-- The grader runs of a variant, newest first (the labs the brain asked for are not runs).
 SELECT *
 FROM assistant_runs
 WHERE variant_id = sqlc.arg(variant_id)
+  AND role = 'grader'
 ORDER BY created_at DESC
 LIMIT sqlc.arg(max_rows);
 

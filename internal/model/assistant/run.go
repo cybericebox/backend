@@ -7,9 +7,14 @@ import (
 	"github.com/gofrs/uuid"
 )
 
-// The role of a run: the grader measures a task by working it the way a participant would. The opponents' roles
-// (attack, defense, attack-defense) are the manifest's and are not started by the platform yet.
-const RoleGrader = "grader"
+// The roles of a run row. The grader measures a task by working it the way a participant would. A lab is not a run of
+// the brain: it is a test lab the brain asked for (provide_lab), kept as a row so that the VPN client made for it is
+// revoked when the lab is gone. The opponents' roles (attack, defense, attack-defense) are the manifest's and are not
+// started by the platform yet.
+const (
+	RoleGrader = "grader"
+	RoleLab    = "lab"
+)
 
 // RunState is where a run stands. starting: the lab is being deployed and the run is not accepted by the brain yet;
 // running: its events are read; closing: the outcome is decided and the lab and the access are being torn down;
@@ -101,7 +106,7 @@ func VPNAccess(entry string) Access {
 // runRoleExcluded lists the roles of a run and whether their runs are left out of the participant statistics. None is
 // counted: the grader measures the task and an opponent plays against it, so the figures stay those of people. A role
 // has to be listed here to exist.
-var runRoleExcluded = map[string]bool{RoleGrader: true, "attack": true, "defense": true, "attack-defense": true}
+var runRoleExcluded = map[string]bool{RoleGrader: true, RoleLab: true, "attack": true, "defense": true, "attack-defense": true}
 
 // ExcludeRun says a run never counts in the participant statistics; a role that is not listed is left out too. The
 // statistics sources call it for any run-shaped fact they may read. The events source reads teams only, and a grader's

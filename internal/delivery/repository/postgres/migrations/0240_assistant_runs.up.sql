@@ -4,7 +4,8 @@
 --
 -- State: starting (the lab is being deployed, then the run is started at the brain) -> running (events are read) ->
 -- closing (the outcome is decided, the lab and the access are being torn down) -> finished | failed | stopped. A run that
--- is starting, running or closing is active; a variant has at most one active run.
+-- is starting, running or closing is active; a variant has at most one active grader run. A lab the brain asked for
+-- (role lab) is kept as a run too: it holds the VPN client of that lab until the lab is gone, and no brain run belongs to it.
 CREATE TABLE assistant_runs
 (
     id                uuid PRIMARY KEY,
@@ -19,7 +20,7 @@ CREATE TABLE assistant_runs
     -- how a closing run ends: the state it takes once its teardown is done
     end_state         text        NOT NULL DEFAULT '' CHECK (end_state IN ('', 'finished', 'failed', 'stopped')),
     failure_reason    text        NOT NULL DEFAULT '',
-    -- the WireGuard client made for this run (revoked at teardown); empty until it exists
+    -- the WireGuard client made for this run or lab (revoked at teardown); empty until it exists
     access_client     text        NOT NULL DEFAULT '',
     -- the last brain event sequence number that was stored
     last_seq          bigint      NOT NULL DEFAULT 0,
@@ -35,7 +36,7 @@ CREATE TABLE assistant_runs
     expires_at        timestamptz NOT NULL
 );
 
-CREATE UNIQUE INDEX assistant_runs_one_active_per_variant ON assistant_runs (variant_id) WHERE state IN ('starting', 'running', 'closing');
+CREATE UNIQUE INDEX assistant_runs_one_active_per_variant ON assistant_runs (variant_id) WHERE role = 'grader' AND state IN ('starting', 'running', 'closing');
 CREATE INDEX assistant_runs_variant ON assistant_runs (variant_id, created_at DESC);
 CREATE INDEX assistant_runs_actor_active ON assistant_runs (actor_id) WHERE state IN ('starting', 'running', 'closing');
 

@@ -193,11 +193,12 @@ func (u *ExerciseUseCase) JudgeAnswer(ctx context.Context, owner, deployID uuid.
 	return false, nil
 }
 
-// RunTarget is the task a run measures, as the statistics name it: the exercise, the version, and the variants of the
-// version as JSON (the fingerprint of its device images is taken from them).
+// RunTarget is the task a run works on, as the statistics name it: the exercise, the version, the variant, and the
+// variants of the version as JSON (the fingerprint of its device images is taken from them).
 type RunTarget struct {
 	ExerciseID uuid.UUID
 	VersionID  uuid.UUID
+	VariantID  uuid.UUID
 	VariantsJS []byte
 	// HasLab: the variant has devices, so a test of it is a lab a run can join (a variant without devices has none).
 	HasLab bool
@@ -205,14 +206,27 @@ type RunTarget struct {
 	Lease time.Duration
 }
 
-// RunTarget reads the version a variant belongs to and picks the lab length for a run of the wanted time.
+// RunTarget reads the version a variant belongs to and picks the lab length for a run of the wanted time. A zero variant
+// id picks the first variant that has devices (the first one when none has): a lab asked for by task and version only.
 func (u *ExerciseUseCase) RunTarget(ctx context.Context, versionID, variantID uuid.UUID, want time.Duration) (RunTarget, error) {
-	exerciseID, variant, _, err := u.loadVersionVariant(ctx, versionID, variantID)
-	if err != nil {
-		return RunTarget{}, err
-	}
 	version, err := u.exercises.GetVersion(ctx, versionID)
 	if err != nil {
+		return RunTarget{}, exerciseModel.ErrExerciseVersionNotFound.Err()
+	}
+	var chosen *exerciseModel.Variant
+	for i := range version.Variants {
+		v := &version.Variants[i]
+		switch {
+		case variantID != uuid.Nil && v.ID == variantID:
+			chosen = v
+		case variantID == uuid.Nil && (chosen == nil || len(chosen.Topology.Devices) == 0 && len(v.Topology.Devices) > 0):
+			chosen = v
+		}
+		if variantID != uuid.Nil && chosen != nil {
+			break
+		}
+	}
+	if chosen == nil {
 		return RunTarget{}, exerciseModel.ErrExerciseVersionNotFound.Err()
 	}
 	raw, err := json.Marshal(version.Variants)
@@ -220,8 +234,10 @@ func (u *ExerciseUseCase) RunTarget(ctx context.Context, versionID, variantID uu
 		return RunTarget{}, model.ErrPlatform.WithError(err).WithMessage("Failed to read the version").Err()
 	}
 	allowed, _ := u.TestRunLengths(ctx)
-	lease := pickLease(allowed, want)
-	return RunTarget{ExerciseID: exerciseID, VersionID: versionID, VariantsJS: raw, HasLab: len(variant.Topology.Devices) > 0, Lease: lease}, nil
+	return RunTarget{
+		ExerciseID: version.ExerciseID, VersionID: versionID, VariantID: chosen.ID, VariantsJS: raw,
+		HasLab: len(chosen.Topology.Devices) > 0, Lease: pickLease(allowed, want),
+	}, nil
 }
 
 // pickLease is the shortest allowed length (in minutes) that is at least want, else the longest allowed; zero when none is
