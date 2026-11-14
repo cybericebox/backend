@@ -103,7 +103,7 @@ func (m *saves) Complete(_ context.Context, s string, a, e uuid.UUID) (bool, err
 	return true, nil
 }
 
-func (m *saves) Fail(_ context.Context, s string, a uuid.UUID) error {
+func (m *saves) Fail(_ context.Context, s string, a uuid.UUID, _ int) error {
 	m.update(s, a, func(r *assistantModel.Save) { r.State = assistantModel.SaveFailed })
 	return nil
 }

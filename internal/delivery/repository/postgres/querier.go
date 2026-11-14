@@ -453,7 +453,7 @@ type Querier interface {
 	// Counts of the test lab table per value of one field (status, author or exercise) under the other filters: the
 	// filter of the field itself is ignored.
 	FacetPlatformTestLabs(ctx context.Context, arg FacetPlatformTestLabsParams) ([]FacetPlatformTestLabsRow, error)
-	// The import failed: the next save claims the row again.
+	// The import failed with this error code: the next save claims the row again, the leader tells the brain.
 	FailAssistantSave(ctx context.Context, arg FailAssistantSaveParams) (int64, error)
 	// Final disposal follows a persisted exact tombstone and retired children,
 	// never a names-only command result or an absent monitoring frame.
@@ -1676,8 +1676,8 @@ type Querier interface {
 	// an old short tag makes one) is never a candidate: removing that tag could remove what serves the other digest; its
 	// rows stay until the other digest's row goes. At most 500 rows a pass; the rest wait for the next one.
 	ListUnreferencedPlatformImages(ctx context.Context, before time.Time) ([]PlatformImage, error)
-	// The saves the leader still has to finish: a queued import to follow, or a task the brain was not told yet. Rows older
-	// than the cutoff are left alone.
+	// The saves the leader still has to finish: a queued import to follow, or an outcome (task or failure) the brain was not
+	// told yet. Rows older than the cutoff are left alone.
 	ListUnsettledAssistantSaves(ctx context.Context, arg ListUnsettledAssistantSavesParams) ([]ListUnsettledAssistantSavesRow, error)
 	// (a part holding back a shrink is sent again: the admin may force it, or the labs may be gone.)
 	ListUnsyncedClusterReservationAgents(ctx context.Context) ([]uuid.UUID, error)

@@ -188,10 +188,10 @@ func (m *memSaves) Complete(_ context.Context, session string, author, exercise 
 	return changed, nil
 }
 
-func (m *memSaves) Fail(_ context.Context, session string, author uuid.UUID) error {
+func (m *memSaves) Fail(_ context.Context, session string, author uuid.UUID, code int) error {
 	m.update(session, author, func(r *assistantModel.Save) {
 		if r.State == assistantModel.SavePending {
-			r.State = assistantModel.SaveFailed
+			r.State, r.FailureCode = assistantModel.SaveFailed, code
 		}
 	})
 	return nil
@@ -207,7 +207,7 @@ func (m *memSaves) Unsettled(context.Context, time.Time, int) ([]assistantModel.
 	defer m.mu.Unlock()
 	var out []assistantModel.Save
 	for _, r := range m.rows {
-		if (r.State == assistantModel.SavePending && r.JobID != uuid.Nil) || (r.State == assistantModel.SaveDone && !r.Notified) {
+		if (r.State == assistantModel.SavePending && r.JobID != uuid.Nil) || ((r.State == assistantModel.SaveDone || r.State == assistantModel.SaveFailed) && !r.Notified) {
 			out = append(out, r)
 		}
 	}
@@ -249,8 +249,10 @@ type saveRig struct {
 	saved    []string   // bodies of the brain's /save
 	subjects []string
 	archive  func(w http.ResponseWriter)
-	// brainSaveStatus makes the brain's /save fail with this status (0: ok).
-	brainSaveStatus int
+	// brainSaveStatus makes the brain's /save fail with this status (0: ok); brainFailedStatus the same for save_failed.
+	brainSaveStatus   int
+	brainFailedStatus int
+	failedBodies      []string
 }
 
 func newSaveRig(t *testing.T, images bool) *saveRig {
@@ -276,6 +278,18 @@ func newSaveRig(t *testing.T, images bool) *saveRig {
 		case req.Method == http.MethodGet && req.URL.Path == "/v1/assistant/sessions/s1/archive":
 			line.add("brain:archive")
 			s.archive(w)
+		case req.Method == http.MethodPost && strings.HasSuffix(req.URL.Path, "/save_failed"):
+			line.add("brain:save_failed")
+			b, _ := io.ReadAll(req.Body)
+			s.mu.Lock()
+			s.failedBodies = append(s.failedBodies, string(b))
+			status := s.brainFailedStatus
+			s.mu.Unlock()
+			if status != 0 {
+				brainfake.Fail(w, status, "x", "x")
+				return
+			}
+			_, _ = w.Write([]byte("{}"))
 		case req.Method == http.MethodPost && strings.HasSuffix(req.URL.Path, "/save"):
 			line.add("brain:save")
 			b, _ := io.ReadAll(req.Body)
@@ -350,8 +364,8 @@ func TestSaveDoesNotTellTheBrainWhenTheImportFails(t *testing.T) {
 	if !errors.Is(err, exerciseModel.ErrExerciseForbidden.Err()) {
 		t.Fatalf("the import's own error must come back, got %v", err)
 	}
-	if got := s.line.list(); len(got) != 2 || got[1] != "import" || len(s.savedBodies()) != 0 {
-		t.Fatalf("the brain must not be told: %v", got)
+	if got := s.line.list(); len(got) != 3 || got[1] != "import" || got[2] != "brain:save_failed" || len(s.savedBodies()) != 0 {
+		t.Fatalf("the brain is told of the failure, not of a task: %v", got)
 	}
 	if r, _ := s.saves.row("s1"); r.State != assistantModel.SaveFailed || r.ExerciseID != uuid.Nil {
 		t.Fatalf("a failed import leaves a failed claim and no task: %+v", r)
@@ -784,5 +798,160 @@ func TestSavesAtOnceWriteOneAuditEntry(t *testing.T) {
 	wg.Wait()
 	if n := len(s.audit.list()); n != 1 {
 		t.Fatalf("audit entries = %d", n)
+	}
+}
+
+// ── save_failed: the brain is told when an import fails ────────────────────────
+
+func failedBodies(s *saveRig) []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.failedBodies...)
+}
+
+func codeIn(t *testing.T, body string) int {
+	t.Helper()
+	var sent map[string]int
+	if err := json.Unmarshal([]byte(body), &sent); err != nil || len(sent) != 1 {
+		t.Fatalf("save_failed body: %q %v", body, err)
+	}
+	return sent["code"]
+}
+
+func TestAFailedSynchronousImportTellsTheBrainWithTheStableCode(t *testing.T) {
+	s := newSaveRig(t, false)
+	s.importer.err = exerciseModel.ErrExerciseForbidden.Err()
+	if _, err := s.save(t); !errors.Is(err, exerciseModel.ErrExerciseForbidden.Err()) {
+		t.Fatalf("the import's own error still comes back: %v", err)
+	}
+	bodies := failedBodies(s)
+	if len(bodies) != 1 || codeIn(t, bodies[0]) != exerciseModel.ErrExerciseForbidden.Err().StatusCode().FullCode() {
+		t.Fatalf("save_failed: %v", bodies)
+	}
+	if r, _ := s.saves.row("s1"); r.State != assistantModel.SaveFailed || !r.Notified || r.FailureCode == 0 {
+		t.Fatalf("row: %+v", r)
+	}
+	if len(s.savedBodies()) != 0 {
+		t.Fatal("/save is not called for a failure")
+	}
+}
+
+func TestAnUntypedImportFailureIsTheFailedImportCode(t *testing.T) {
+	s := newSaveRig(t, false)
+	s.importer.err = errors.New("zip: not a valid zip file")
+	_, _ = s.save(t)
+	bodies := failedBodies(s)
+	if len(bodies) != 1 || codeIn(t, bodies[0]) != assistantModel.ErrAssistantImportFailed.Err().StatusCode().FullCode() {
+		t.Fatalf("save_failed: %v", bodies)
+	}
+}
+
+func TestSaveFailedThatDoesNotGetThroughIsRetriedByTheLeaderUntilItDoes(t *testing.T) {
+	s := newSaveRig(t, false)
+	s.brainFailedStatus = http.StatusServiceUnavailable
+	s.importer.err = exerciseModel.ErrExerciseForbidden.Err()
+	_, _ = s.save(t)
+	if r, _ := s.saves.row("s1"); r.State != assistantModel.SaveFailed || r.Notified {
+		t.Fatalf("the failure is stored but not announced: %+v", r)
+	}
+	if err := s.uc.SettleSaves(context.Background()); err == nil {
+		t.Fatal("the brain still refuses: the pass reports it")
+	}
+	s.mu.Lock()
+	s.brainFailedStatus = 0
+	s.mu.Unlock()
+	if err := s.uc.SettleSaves(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if r, _ := s.saves.row("s1"); !r.Notified {
+		t.Fatalf("announced: %+v", r)
+	}
+	before := len(failedBodies(s))
+	if err := s.uc.SettleSaves(context.Background()); err != nil || len(failedBodies(s)) != before {
+		t.Fatalf("a told failure is not told again: %v", err)
+	}
+	// All attempts carried the same code.
+	for _, b := range failedBodies(s) {
+		if codeIn(t, b) != exerciseModel.ErrExerciseForbidden.Err().StatusCode().FullCode() {
+			t.Fatalf("code changed between attempts: %q", b)
+		}
+	}
+}
+
+func TestSaveFailedAnsweredWith409Or400IsFinalAndNotRetried(t *testing.T) {
+	for _, status := range []int{http.StatusConflict, http.StatusBadRequest, http.StatusNotFound} {
+		s := newSaveRig(t, false)
+		s.brainFailedStatus = status
+		s.importer.err = exerciseModel.ErrExerciseForbidden.Err()
+		_, _ = s.save(t)
+		if r, _ := s.saves.row("s1"); !r.Notified {
+			t.Fatalf("status %d: nothing more to tell the brain: %+v", status, r)
+		}
+		_ = s.uc.SettleSaves(context.Background())
+		if n := len(failedBodies(s)); n != 1 {
+			t.Fatalf("status %d: asked %d times", status, n)
+		}
+	}
+}
+
+func TestAFailedBackgroundImportTellsTheBrainWithTheJobsCode(t *testing.T) {
+	s := newSaveRig(t, true)
+	s.importer.setJob(running())
+	if _, err := s.save(t); err != nil {
+		t.Fatal(err)
+	}
+	if len(failedBodies(s)) != 0 {
+		t.Fatal("not failed yet")
+	}
+	s.importer.setJob(exerciseUseCase.ImportJobView{State: exerciseModel.ImportJobFailed, Error: &exerciseModel.ImportJobError{Code: 70995}})
+	if err := s.uc.SettleSaves(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	bodies := failedBodies(s)
+	if len(bodies) != 1 || codeIn(t, bodies[0]) != 70995 {
+		t.Fatalf("save_failed: %v", bodies)
+	}
+	if r, _ := s.saves.row("s1"); r.State != assistantModel.SaveFailed || !r.Notified || r.FailureCode != 70995 {
+		t.Fatalf("row: %+v", r)
+	}
+	if err := s.uc.SettleSaves(context.Background()); err != nil || len(failedBodies(s)) != 1 {
+		t.Fatalf("idempotent: %v %d", err, len(failedBodies(s)))
+	}
+	if len(s.savedBodies()) != 0 {
+		t.Fatal("/save is not called for a failure")
+	}
+}
+
+func TestAVanishedJobTellsTheBrainTheFailedImportCode(t *testing.T) {
+	s := newSaveRig(t, true)
+	s.importer.setJob(running())
+	if _, err := s.save(t); err != nil {
+		t.Fatal(err)
+	}
+	s.importer.mu.Lock()
+	s.importer.jobErr = exerciseModel.ErrImportJobNotFound.Err()
+	s.importer.mu.Unlock()
+	if err := s.uc.SettleSaves(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	bodies := failedBodies(s)
+	if len(bodies) != 1 || codeIn(t, bodies[0]) != assistantModel.ErrAssistantImportFailed.Err().StatusCode().FullCode() {
+		t.Fatalf("save_failed: %v", bodies)
+	}
+}
+
+func TestAPageRetryAfterAFailureClaimsAgainAndAnOldFailureIsNotToldAgain(t *testing.T) {
+	s := newSaveRig(t, false)
+	s.importer.err = exerciseModel.ErrExerciseForbidden.Err()
+	_, _ = s.save(t)
+	s.importer.err = nil
+	if done, err := s.save(t); err != nil || !done {
+		t.Fatalf("done=%v err=%v", done, err)
+	}
+	if err := s.uc.SettleSaves(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(failedBodies(s)) != 1 || len(s.savedBodies()) != 1 {
+		t.Fatalf("failed=%d saved=%d", len(failedBodies(s)), len(s.savedBodies()))
 	}
 }

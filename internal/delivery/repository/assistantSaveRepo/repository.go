@@ -35,10 +35,10 @@ func idOf(n uuid.NullUUID) uuid.UUID {
 	return n.UUID
 }
 
-func toSave(session string, author uuid.UUID, state string, exercise, job uuid.NullUUID, notified bool, claimed time.Time) assistantModel.Save {
+func toSave(session string, author uuid.UUID, state string, exercise, job uuid.NullUUID, notified bool, claimed time.Time, failureCode int32) assistantModel.Save {
 	return assistantModel.Save{
 		Session: session, Author: author, State: assistantModel.SaveState(state), ExerciseID: idOf(exercise), JobID: idOf(job),
-		Notified: notified, ClaimedAt: claimed,
+		Notified: notified, ClaimedAt: claimed, FailureCode: int(failureCode),
 	}
 }
 
@@ -51,7 +51,7 @@ func (r *Repository) Get(ctx context.Context, session string, author uuid.UUID) 
 		}
 		return assistantModel.Save{}, false, err
 	}
-	return toSave(session, author, row.State, row.ExerciseID, row.JobID, row.Notified, row.ClaimedAt.Time), true, nil
+	return toSave(session, author, row.State, row.ExerciseID, row.JobID, row.Notified, row.ClaimedAt.Time, row.FailureCode), true, nil
 }
 
 // Claim makes the caller the owner of the save: a new row, a failed one, or a pending one without a job claimed before
@@ -75,9 +75,10 @@ func (r *Repository) Complete(ctx context.Context, session string, author, exerc
 	return n > 0, err
 }
 
-// Fail ends the claim as failed: the next save claims the row again.
-func (r *Repository) Fail(ctx context.Context, session string, author uuid.UUID) error {
-	_, err := r.q.FailAssistantSave(ctx, postgres.FailAssistantSaveParams{SessionID: session, AuthorID: author})
+// Fail ends the claim as failed with the error code of the failure: the next save claims the row again, the leader tells
+// the brain.
+func (r *Repository) Fail(ctx context.Context, session string, author uuid.UUID, code int) error {
+	_, err := r.q.FailAssistantSave(ctx, postgres.FailAssistantSaveParams{SessionID: session, AuthorID: author, FailureCode: int32(code)}) //nolint:gosec // an error code
 	return err
 }
 
@@ -87,7 +88,7 @@ func (r *Repository) SetNotified(ctx context.Context, session string, author uui
 	return err
 }
 
-// Unsettled lists the saves newer than since that wait for a queued import or for the brain to be told.
+// Unsettled lists the saves newer than since that wait for a queued import or for the brain to be told the outcome.
 func (r *Repository) Unsettled(ctx context.Context, since time.Time, limit int) ([]assistantModel.Save, error) {
 	rows, err := r.q.ListUnsettledAssistantSaves(ctx, postgres.ListUnsettledAssistantSavesParams{Since: since, MaxRows: int32(limit)})
 	if err != nil {
@@ -95,7 +96,7 @@ func (r *Repository) Unsettled(ctx context.Context, since time.Time, limit int) 
 	}
 	out := make([]assistantModel.Save, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, toSave(row.SessionID, row.AuthorID, row.State, row.ExerciseID, row.JobID, row.Notified, row.ClaimedAt.Time))
+		out = append(out, toSave(row.SessionID, row.AuthorID, row.State, row.ExerciseID, row.JobID, row.Notified, row.ClaimedAt.Time, row.FailureCode))
 	}
 	return out, nil
 }
