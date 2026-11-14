@@ -13,24 +13,26 @@ import (
 )
 
 const createAssistantSave = `-- name: CreateAssistantSave :execrows
-INSERT INTO assistant_saves (session_id, author_id, exercise_id, created_at)
-VALUES ($1, $2, $3, $4)
+INSERT INTO assistant_saves (session_id, author_id, exercise_id, job_id, created_at)
+VALUES ($1, $2, $3, $4, $5)
 ON CONFLICT (session_id, author_id) DO NOTHING
 `
 
 type CreateAssistantSaveParams struct {
-	SessionID  string    `json:"session_id"`
-	AuthorID   uuid.UUID `json:"author_id"`
-	ExerciseID uuid.UUID `json:"exercise_id"`
-	CreatedAt  time.Time `json:"created_at"`
+	SessionID  string        `json:"session_id"`
+	AuthorID   uuid.UUID     `json:"author_id"`
+	ExerciseID uuid.NullUUID `json:"exercise_id"`
+	JobID      uuid.NullUUID `json:"job_id"`
+	CreatedAt  time.Time     `json:"created_at"`
 }
 
-// Records the import of a session. A row that is already there stays (0 rows).
+// Records a save: the imported task, or the queued import job. A row that is already there stays (0 rows).
 func (q *Queries) CreateAssistantSave(ctx context.Context, arg CreateAssistantSaveParams) (int64, error) {
 	result, err := q.db.Exec(ctx, createAssistantSave,
 		arg.SessionID,
 		arg.AuthorID,
 		arg.ExerciseID,
+		arg.JobID,
 		arg.CreatedAt,
 	)
 	if err != nil {
@@ -39,8 +41,29 @@ func (q *Queries) CreateAssistantSave(ctx context.Context, arg CreateAssistantSa
 	return result.RowsAffected(), nil
 }
 
+const deleteAssistantSave = `-- name: DeleteAssistantSave :execrows
+DELETE
+FROM assistant_saves
+WHERE session_id = $1
+  AND author_id = $2
+`
+
+type DeleteAssistantSaveParams struct {
+	SessionID string    `json:"session_id"`
+	AuthorID  uuid.UUID `json:"author_id"`
+}
+
+// A failed import leaves nothing behind: the next save starts again.
+func (q *Queries) DeleteAssistantSave(ctx context.Context, arg DeleteAssistantSaveParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteAssistantSave, arg.SessionID, arg.AuthorID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getAssistantSave = `-- name: GetAssistantSave :one
-SELECT exercise_id
+SELECT exercise_id, job_id, notified
 FROM assistant_saves
 WHERE session_id = $1
   AND author_id = $2
@@ -51,10 +74,111 @@ type GetAssistantSaveParams struct {
 	AuthorID  uuid.UUID `json:"author_id"`
 }
 
-// The task a session was already saved as by this author.
-func (q *Queries) GetAssistantSave(ctx context.Context, arg GetAssistantSaveParams) (uuid.UUID, error) {
+type GetAssistantSaveRow struct {
+	ExerciseID uuid.NullUUID `json:"exercise_id"`
+	JobID      uuid.NullUUID `json:"job_id"`
+	Notified   bool          `json:"notified"`
+}
+
+// The save of this session by this author: the task (empty while its background import runs), the import job and whether
+// the brain was told.
+func (q *Queries) GetAssistantSave(ctx context.Context, arg GetAssistantSaveParams) (GetAssistantSaveRow, error) {
 	row := q.db.QueryRow(ctx, getAssistantSave, arg.SessionID, arg.AuthorID)
-	var exercise_id uuid.UUID
-	err := row.Scan(&exercise_id)
-	return exercise_id, err
+	var i GetAssistantSaveRow
+	err := row.Scan(&i.ExerciseID, &i.JobID, &i.Notified)
+	return i, err
+}
+
+const listUnsettledAssistantSaves = `-- name: ListUnsettledAssistantSaves :many
+SELECT session_id, author_id, exercise_id, job_id, notified
+FROM assistant_saves
+WHERE (exercise_id IS NULL OR NOT notified)
+  AND created_at > $1
+ORDER BY created_at
+LIMIT $2
+`
+
+type ListUnsettledAssistantSavesParams struct {
+	Since   time.Time `json:"since"`
+	MaxRows int32     `json:"max_rows"`
+}
+
+type ListUnsettledAssistantSavesRow struct {
+	SessionID  string        `json:"session_id"`
+	AuthorID   uuid.UUID     `json:"author_id"`
+	ExerciseID uuid.NullUUID `json:"exercise_id"`
+	JobID      uuid.NullUUID `json:"job_id"`
+	Notified   bool          `json:"notified"`
+}
+
+// The saves the leader still has to finish: an import job to follow, or a task the brain was not told yet. Rows older
+// than the cutoff are left alone.
+func (q *Queries) ListUnsettledAssistantSaves(ctx context.Context, arg ListUnsettledAssistantSavesParams) ([]ListUnsettledAssistantSavesRow, error) {
+	rows, err := q.db.Query(ctx, listUnsettledAssistantSaves, arg.Since, arg.MaxRows)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListUnsettledAssistantSavesRow{}
+	for rows.Next() {
+		var i ListUnsettledAssistantSavesRow
+		if err := rows.Scan(
+			&i.SessionID,
+			&i.AuthorID,
+			&i.ExerciseID,
+			&i.JobID,
+			&i.Notified,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const setAssistantSaveExercise = `-- name: SetAssistantSaveExercise :execrows
+UPDATE assistant_saves
+SET exercise_id = $1
+WHERE session_id = $2
+  AND author_id = $3
+  AND exercise_id IS NULL
+`
+
+type SetAssistantSaveExerciseParams struct {
+	ExerciseID uuid.UUID `json:"exercise_id"`
+	SessionID  string    `json:"session_id"`
+	AuthorID   uuid.UUID `json:"author_id"`
+}
+
+// The background import finished: the task it created.
+func (q *Queries) SetAssistantSaveExercise(ctx context.Context, arg SetAssistantSaveExerciseParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setAssistantSaveExercise, arg.ExerciseID, arg.SessionID, arg.AuthorID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const setAssistantSaveNotified = `-- name: SetAssistantSaveNotified :execrows
+UPDATE assistant_saves
+SET notified = true
+WHERE session_id = $1
+  AND author_id = $2
+`
+
+type SetAssistantSaveNotifiedParams struct {
+	SessionID string    `json:"session_id"`
+	AuthorID  uuid.UUID `json:"author_id"`
+}
+
+// The brain was told the task.
+func (q *Queries) SetAssistantSaveNotified(ctx context.Context, arg SetAssistantSaveNotifiedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setAssistantSaveNotified, arg.SessionID, arg.AuthorID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

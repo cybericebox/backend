@@ -15,7 +15,8 @@ func (u *UseCase) AssistantProxy(ctx context.Context, user uuid.UUID, call assis
 	return u.Assistant.Proxy(ctx, user, call)
 }
 
-// AssistantSaveSession imports the finished task of a chat session into the catalog and tells the brain.
-func (u *UseCase) AssistantSaveSession(ctx context.Context, actor exerciseUseCase.Actor, sessionID string) error {
+// AssistantSaveSession imports the finished task of a chat session into the catalog and tells the brain (done), or
+// queues the background import of a task with device images (not done yet).
+func (u *UseCase) AssistantSaveSession(ctx context.Context, actor exerciseUseCase.Actor, sessionID string) (bool, error) {
 	return u.Assistant.SaveSession(ctx, actor, sessionID)
 }
