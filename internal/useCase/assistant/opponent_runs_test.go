@@ -71,7 +71,7 @@ func TestAnOpponentRunStartsWithTheManifestTheBudgetAndTheEDAAccess(t *testing.T
 	if got.Budget != (assistantModel.RunBudget{Actions: 40, Tokens: 9000, Time: 600}) {
 		t.Fatalf("the platform's budget: %+v", got.Budget)
 	}
-	if got.Access["eda"]["url"] != "https://proxy.example/tools" || got.Access["eda"]["token"] != "secret-bearer" || len(got.Access) != 1 {
+	if got.Access["eda"]["url"] != "https://proxy.example/tools" || got.Access["eda"]["lab_access_token"] != "secret-bearer" || len(got.Access) != 1 {
 		t.Fatalf("the eda access of the tools device only: %s", r.brn.Started()[0])
 	}
 	if r.labs.edaRun != run.ID.String() || r.labs.edaDevice != "" || !r.labs.edaUntil.After(run.ExpiresAt) {
