@@ -1,3 +1,7 @@
+GET    /api/admin/assistant/statistics | gate: platform.settings.read | layers: -
+PUT    /api/admin/assistant/statistics/defaults/:source | gate: platform.settings.write | layers: -
+GET    /api/admin/assistant/statistics/events/:eventID | gate: platform.settings.read | layers: -
+PUT    /api/admin/assistant/statistics/events/:eventID | gate: platform.settings.write | layers: -
 GET    /api/admin/audit-log | gate: platform.audit.read | layers: -
 GET    /api/admin/audit-log/export | gate: platform.audit.read | layers: -
 GET    /api/admin/dashboard | gate: self | layers: dashboard.requireAdminTier

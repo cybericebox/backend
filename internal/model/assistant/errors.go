@@ -7,7 +7,7 @@ import (
 	"github.com/cybericebox/daemon/pkg/err"
 )
 
-// next free detail code: 11
+// next free detail code: 13
 
 var (
 	// ErrAssistantUnavailable: the assistant is off (no BRAIN_ENDPOINT), not enrolled yet, or the platform secrets
@@ -67,4 +67,14 @@ var (
 	ErrAssistantImportPending = err.ErrConflict.WithObjectCode(model.AssistantObjectCode).
 					WithMessage("The finished task is still being imported").
 					WithDetailCode(10)
+
+	// ErrAssistantStatsInvalid: an unknown statistics source or mode.
+	ErrAssistantStatsInvalid = err.ErrInvalidData.WithObjectCode(model.AssistantObjectCode).
+					WithMessage("Unknown statistics source or mode").
+					WithDetailCode(11)
+
+	// ErrAssistantStatsEventNotFound: the event whose statistics mode is set does not exist.
+	ErrAssistantStatsEventNotFound = err.ErrObjectNotFound.WithObjectCode(model.AssistantObjectCode).
+					WithMessage("Event not found").
+					WithDetailCode(12)
 )

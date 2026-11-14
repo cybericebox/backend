@@ -32,25 +32,6 @@ type AppSetting struct {
 	RequiredPermission string    `json:"required_permission"`
 }
 
-type AssistantSave struct {
-	SessionID   string             `json:"session_id"`
-	AuthorID    uuid.UUID          `json:"author_id"`
-	ExerciseID  uuid.NullUUID      `json:"exercise_id"`
-	CreatedAt   time.Time          `json:"created_at"`
-	JobID       uuid.NullUUID      `json:"job_id"`
-	Notified    bool               `json:"notified"`
-	State       string             `json:"state"`
-	ArchiveHash string             `json:"archive_hash"`
-	ClaimedAt   pgtype.Timestamptz `json:"claimed_at"`
-	FailureCode int32              `json:"failure_code"`
-}
-
-type AssistantSubject struct {
-	UserID    uuid.UUID `json:"user_id"`
-	Subject   uuid.UUID `json:"subject"`
-	CreatedAt time.Time `json:"created_at"`
-}
-
 type BrainConnection struct {
 	Endpoint            string    `json:"endpoint"`
 	Tenant              string    `json:"tenant"`

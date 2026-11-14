@@ -40,6 +40,8 @@ func aggregate(ref assistantModel.TaskRef) assistantModel.Aggregate {
 	}
 }
 
+func (f *fakeStats) Name() string { return "events" }
+
 func (f *fakeStats) Aggregates(_ context.Context, refs []assistantModel.TaskRef, _ time.Time) ([]assistantModel.Aggregate, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
