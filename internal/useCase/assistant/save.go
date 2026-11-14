@@ -18,6 +18,8 @@ import (
 	assistantModel "github.com/cybericebox/daemon/internal/model/assistant"
 	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
 	mediaModel "github.com/cybericebox/daemon/internal/model/media"
+	"github.com/cybericebox/daemon/internal/model/rbac"
+	adminAuditUseCase "github.com/cybericebox/daemon/internal/useCase/adminAudit"
 	exerciseUseCase "github.com/cybericebox/daemon/internal/useCase/exercise"
 	appErr "github.com/cybericebox/daemon/pkg/err"
 )
@@ -158,15 +160,36 @@ func (u *UseCase) recordJob(ctx context.Context, rec assistantModel.Save, job uu
 // complete writes the imported task to the claim. The import has no idempotency key of its own (a raw import creates a
 // new task each time), so a failed write is retried before it is given up.
 func (u *UseCase) complete(ctx context.Context, rec assistantModel.Save) error {
-	err := u.retry(ctx, func(ctx context.Context) error {
-		_, err := u.saves.Complete(ctx, rec.Session, rec.Author, rec.ExerciseID)
+	var changed bool
+	err := u.retry(ctx, func(ctx context.Context) (err error) {
+		changed, err = u.saves.Complete(ctx, rec.Session, rec.Author, rec.ExerciseID)
 		return err
 	})
 	if err != nil {
 		log.Error().Err(err).Str("exercise", rec.ExerciseID.String()).Msg("The imported assistant task is not recorded")
 		return model.ErrPlatform.WithError(err).WithMessage("Failed to record the imported assistant task").Err()
 	}
+	if changed {
+		u.recordAudit(ctx, rec)
+	}
 	return nil
+}
+
+// recordAudit writes the admin audit entry of a task the assistant saved, once (when the claim becomes done), whichever
+// request or the leader finished it: the same entry shape the middleware writes for a normal import (actor, the task as
+// the target), with the source named. The task exists: a failed write is only logged.
+func (u *UseCase) recordAudit(ctx context.Context, rec assistantModel.Save) {
+	if u.audit == nil {
+		return
+	}
+	err := u.audit(context.WithoutCancel(ctx), adminAuditUseCase.Entry{
+		ActorID: rec.Author, Permission: string(rbac.PermSelf), Method: http.MethodPost,
+		Route: "/api/assistant/sessions/:id/save", ResponseStatus: http.StatusOK,
+		Target: "exercise:" + rec.ExerciseID.String() + " source:assistant",
+	})
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to record the audit entry of an assistant save")
+	}
 }
 
 // retry runs the write a few times, detached from a client that left, so an import that happened is recorded.

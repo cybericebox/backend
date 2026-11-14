@@ -176,6 +176,8 @@ type Querier interface {
 	// field's own filter empty). field: role, status, emailConfirmed or signIn (a user counts once per method).
 	CountUsersFacet(ctx context.Context, arg CountUsersFacetParams) ([]CountUsersFacetRow, error)
 	CreateAdminAuditLog(ctx context.Context, arg CreateAdminAuditLogParams) error
+	// Gives the user a pseudonym on first use. Two requests at once: the first row stays (0 rows for the second).
+	CreateAssistantSubject(ctx context.Context, arg CreateAssistantSubjectParams) (int64, error)
 	// A freshly enrolled connection. Two replicas enrolling at once: the first row stays (0 rows for the second).
 	CreateBrainConnection(ctx context.Context, arg CreateBrainConnectionParams) (int64, error)
 	CreateChallengeAttempt(ctx context.Context, arg CreateChallengeAttemptParams) (ChallengeAttempt, error)
@@ -485,6 +487,8 @@ type Querier interface {
 	// The save of this session by this author: its state, the task (empty until done), the import job, whether the brain
 	// was told and when it was claimed.
 	GetAssistantSave(ctx context.Context, arg GetAssistantSaveParams) (GetAssistantSaveRow, error)
+	// The user's pseudonym at the brain.
+	GetAssistantSubject(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
 	// The stored connection to one brain endpoint.
 	GetBrainConnection(ctx context.Context, endpoint string) (BrainConnection, error)
 	GetClusterReservation(ctx context.Context, id uuid.UUID) (ClusterReservation, error)

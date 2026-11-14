@@ -147,6 +147,37 @@ func (i *importer) ArchiveImportJob(context.Context, uuid.UUID, uuid.UUID) (exer
 	return exerciseUseCase.ImportJobView{State: exerciseModel.ImportJobRunning}, nil
 }
 
+type subjects struct {
+	mu   sync.Mutex
+	rows map[uuid.UUID]uuid.UUID
+}
+
+func (m *subjects) Get(_ context.Context, u uuid.UUID) (uuid.UUID, bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	s, ok := m.rows[u]
+	return s, ok, nil
+}
+
+func (m *subjects) Create(_ context.Context, u, s uuid.UUID, _ time.Time) (bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, ok := m.rows[u]; ok {
+		return false, nil
+	}
+	m.rows[u] = s
+	return true, nil
+}
+
+func subjectOf(t *testing.T, uc *assistantUseCase.UseCase, user uuid.UUID) string {
+	t.Helper()
+	s, err := uc.Subject(context.Background(), user)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return s
+}
+
 type files struct{}
 
 func (files) UploadFile(context.Context, string, string, io.Reader, uuid.UUID) (mediaModel.File, error) {
@@ -210,6 +241,7 @@ func newRig(t *testing.T) *rig {
 		Store: &memStore{conn: map[string]assistantModel.Connection{}}, Cipher: cipher, Importer: imp, Files: files{},
 		NamesImages: func(a []byte, _ exerciseModel.ArchiveLimits) bool { return bytes.Equal(a, []byte("PK-with-images")) },
 		Saves:       &saves{rows: map[string]assistantModel.Save{}},
+		Subjects:    &subjects{rows: map[uuid.UUID]uuid.UUID{}},
 		Config:      assistantUseCase.Config{Endpoint: f.Endpoint(), EnrollmentToken: brainfake.Token, CAFile: caFile},
 	})
 	if _, err = uc.BootstrapBrain(context.Background()); err != nil {
@@ -325,7 +357,7 @@ func TestJSONRoutesGoThroughWithTheSubjectAndTheAnswerComesBack(t *testing.T) {
 		{"GET", "/v1/assistant/ideas", "", "", ""},
 		{"DELETE", "/v1/assistant/sessions/s1/attachments/a-1", "", "", ""},
 	}
-	subject := r.uc.Subject(author)
+	subject := subjectOf(t, r.uc, author)
 	if len(got) != len(want) {
 		t.Fatalf("calls: %+v", got)
 	}
@@ -486,7 +518,7 @@ func TestEventsRelayEveryFrameVerbatimIncludingUnknownTypesAndPassAfterThrough(t
 	if got := read(t, resp); got != frames {
 		t.Fatalf("frames changed on the way:\n got: %q\nwant: %q", got, frames)
 	}
-	if afterAtBrain != "6" || acceptAtBrain != "text/event-stream" || subject != r.uc.Subject(author) {
+	if afterAtBrain != "6" || acceptAtBrain != "text/event-stream" || subject != subjectOf(t, r.uc, author) {
 		t.Fatalf("after=%q accept=%q subject=%q", afterAtBrain, acceptAtBrain, subject)
 	}
 }

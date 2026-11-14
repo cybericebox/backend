@@ -44,6 +44,12 @@ type AssistantSave struct {
 	ClaimedAt   pgtype.Timestamptz `json:"claimed_at"`
 }
 
+type AssistantSubject struct {
+	UserID    uuid.UUID `json:"user_id"`
+	Subject   uuid.UUID `json:"subject"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 type BrainConnection struct {
 	Endpoint            string    `json:"endpoint"`
 	Tenant              string    `json:"tenant"`
