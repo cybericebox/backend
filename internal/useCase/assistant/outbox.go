@@ -195,6 +195,10 @@ func (u *UseCase) handleRequest(ctx context.Context, seq int64, f brain.Frame) e
 	} else {
 		refusal = &AnswerError{Code: codeUnsupportedRequest, Message: "this request type is not supported"}
 	}
+	if refusal == answerLater {
+		// The handler persisted the request as claimed and answers it itself: the stream goes on.
+		return u.cursor.SetOutboxSeq(ctx, u.endpoint(), seq)
+	}
 	if err := u.answer(ctx, req.ID, result, refusal); err != nil {
 		return fmt.Errorf("answer request %s: %w", req.ID, err)
 	}

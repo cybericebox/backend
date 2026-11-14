@@ -10,11 +10,14 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/cybericebox/daemon/internal/delivery/infrastructure/brain/brainfake"
 	"github.com/cybericebox/daemon/internal/delivery/repository/assistantRunRepo"
 	assistantModel "github.com/cybericebox/daemon/internal/model/assistant"
 	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	"github.com/cybericebox/daemon/internal/model/rbac"
+	userModel "github.com/cybericebox/daemon/internal/model/user"
 	"github.com/cybericebox/daemon/internal/useCase/assistant"
 	exerciseUseCase "github.com/cybericebox/daemon/internal/useCase/exercise"
 )
@@ -37,7 +40,7 @@ func (m *memRuns) Create(_ context.Context, run assistantModel.Run, _ time.Time)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for _, r := range m.runs {
-		if r.VariantID == run.VariantID && r.State.Active() {
+		if run.Role == assistantModel.RoleGrader && r.Role == assistantModel.RoleGrader && r.VariantID == run.VariantID && r.State.Active() {
 			return assistantRunRepo.ErrActive
 		}
 	}
@@ -226,6 +229,33 @@ func (m *memRuns) UserOfSubject(_ context.Context, subject uuid.UUID) (uuid.UUID
 	return u, ok, nil
 }
 
+func (m *memRuns) LabOfRequest(_ context.Context, requestID string) (assistantModel.Run, bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, r := range m.runs {
+		if r.Role == assistantModel.RoleLab && r.RequestID == requestID {
+			return r, true, nil
+		}
+	}
+	return assistantModel.Run{}, false, nil
+}
+func (m *memRuns) SetAnswered(_ context.Context, id uuid.UUID, _ time.Time) error {
+	m.update(id, func(r *assistantModel.Run) bool { r.Answered = true; return true })
+	return nil
+}
+
+func (m *memRuns) LabCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	n := 0
+	for _, r := range m.runs {
+		if r.Role == assistantModel.RoleLab {
+			n++
+		}
+	}
+	return n
+}
+
 func (m *memRuns) state(id uuid.UUID) assistantModel.Run {
 	r, _, _ := m.Get(context.Background(), id)
 	return r
@@ -241,6 +271,7 @@ type fakeLabs struct {
 	looks       int
 	failed      bool
 	gone        bool
+	authorized  []exerciseUseCase.Actor
 	mintErr     error
 	judged      map[string]string // subtask ref -> the value that is right
 	calls       []string
@@ -253,6 +284,7 @@ type fakeLabs struct {
 
 func newFakeLabs() *fakeLabs { return &fakeLabs{hasLab: true, judged: map[string]string{}} }
 
+func (f *fakeLabs) lookCount() int { f.mu.Lock(); defer f.mu.Unlock(); return f.looks }
 func (f *fakeLabs) record(call string) { f.mu.Lock(); f.calls = append(f.calls, call); f.mu.Unlock() }
 func (f *fakeLabs) called() []string {
 	f.mu.Lock()
@@ -268,8 +300,11 @@ func (f *fakeLabs) count(call string) int {
 	}
 	return n
 }
-func (f *fakeLabs) AuthorizeTestDeploy(context.Context, exerciseUseCase.Actor, uuid.UUID, uuid.UUID, uuid.UUID) error {
-	f.record("authorize")
+func (f *fakeLabs) AuthorizeTestDeploy(_ context.Context, actor exerciseUseCase.Actor, _, _, _ uuid.UUID) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = append(f.calls, "authorize")
+	f.authorized = append(f.authorized, actor)
 	return f.authErr
 }
 func (f *fakeLabs) DeployVariantTest(_ context.Context, owner, _, _ uuid.UUID, length time.Duration) (exerciseModel.DeployHandle, error) {
@@ -330,7 +365,23 @@ var (
 	runActor    = exerciseUseCase.Actor{UserID: uuid.Must(uuid.NewV7())}
 )
 
+// memUsers is the user store: the role the authorization needs.
+type memUsers struct {
+	mu    sync.Mutex
+	users map[uuid.UUID]userModel.User
+}
+
+func (m *memUsers) GetByID(_ context.Context, id uuid.UUID) (userModel.User, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if u, ok := m.users[id]; ok {
+		return u, nil
+	}
+	return userModel.User{}, pgx.ErrNoRows
+}
+
 type runRig struct {
+	users *memUsers
 	*rig
 	runs *memRuns
 	labs *fakeLabs
@@ -340,8 +391,9 @@ type runRig struct {
 func newRunRig(t *testing.T, mutate func(*assistant.Dependencies)) *runRig {
 	t.Helper()
 	runs, labs := newMemRuns(), newFakeLabs()
+	users := &memUsers{users: map[uuid.UUID]userModel.User{runActor.UserID: {ID: runActor.UserID, Role: rbac.RoleUser, Status: userModel.UserStatusActive}}}
 	r := newRig(t, func(d *assistant.Dependencies) {
-		d.Runs, d.Labs = runs, labs
+		d.Runs, d.Labs, d.Users = runs, labs, users
 		d.RunPoll, d.RunPause = 3*time.Millisecond, time.Millisecond
 		d.RunGrace, d.RunMaxDuration = time.Minute, time.Hour
 		if mutate != nil {
@@ -353,7 +405,7 @@ func newRunRig(t *testing.T, mutate func(*assistant.Dependencies)) *runRig {
 	}
 	brn := brainfake.NewRuns()
 	r.fake.Runs = brn
-	return &runRig{rig: r, runs: runs, labs: labs, brn: brn}
+	return &runRig{rig: r, runs: runs, labs: labs, brn: brn, users: users}
 }
 
 func (r *runRig) start(t *testing.T) assistantModel.Run {

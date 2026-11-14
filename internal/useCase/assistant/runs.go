@@ -32,6 +32,8 @@ type (
 	RunStore interface {
 		Create(ctx context.Context, run assistantModel.Run, now time.Time) error
 		Get(ctx context.Context, id uuid.UUID) (assistantModel.Run, bool, error)
+		LabOfRequest(ctx context.Context, requestID string) (assistantModel.Run, bool, error)
+		SetAnswered(ctx context.Context, id uuid.UUID, now time.Time) error
 		OfVariant(ctx context.Context, variant uuid.UUID, limit int) ([]assistantModel.Run, error)
 		Active(ctx context.Context, limit int) ([]assistantModel.Run, error)
 		CountActiveOf(ctx context.Context, actor uuid.UUID) (int, error)

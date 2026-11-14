@@ -44,6 +44,8 @@ type AssistantRun struct {
 	EndState        string             `json:"end_state"`
 	FailureReason   string             `json:"failure_reason"`
 	AccessClient    string             `json:"access_client"`
+	RequestID       string             `json:"request_id"`
+	Answered        bool               `json:"answered"`
 	LastSeq         int64              `json:"last_seq"`
 	StreamDownSince pgtype.Timestamptz `json:"stream_down_since"`
 	Measurement     []byte             `json:"measurement"`

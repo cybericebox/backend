@@ -22,6 +22,9 @@ CREATE TABLE assistant_runs
     failure_reason    text        NOT NULL DEFAULT '',
     -- the WireGuard client made for this run or lab (revoked at teardown); empty until it exists
     access_client     text        NOT NULL DEFAULT '',
+    -- for a lab the brain asked for: the outbox request it answers, and whether the answer was delivered
+    request_id        text        NOT NULL DEFAULT '',
+    answered          boolean     NOT NULL DEFAULT false,
     -- the last brain event sequence number that was stored
     last_seq          bigint      NOT NULL DEFAULT 0,
     -- since when the brain's event stream cannot be read; null while it is
@@ -37,6 +40,7 @@ CREATE TABLE assistant_runs
 );
 
 CREATE UNIQUE INDEX assistant_runs_one_active_per_variant ON assistant_runs (variant_id) WHERE role = 'grader' AND state IN ('starting', 'running', 'closing');
+CREATE UNIQUE INDEX assistant_runs_lab_request ON assistant_runs (request_id) WHERE request_id <> '';
 CREATE INDEX assistant_runs_variant ON assistant_runs (variant_id, created_at DESC);
 CREATE INDEX assistant_runs_actor_active ON assistant_runs (actor_id) WHERE state IN ('starting', 'running', 'closing');
 

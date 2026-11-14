@@ -627,6 +627,10 @@ func (d *runDriver) sendUnsent(ctx context.Context, run assistantModel.Run) {
 // the lab is destroyed. A step that fails is tried again; nothing is skipped, so a lab is never left behind.
 func (d *runDriver) closing(ctx context.Context, run assistantModel.Run) time.Duration {
 	u := d.u
+	// A lab whose request was not answered yet answers it first: the brain is waiting for it.
+	if run.Role == assistantModel.RoleLab && run.RequestID != "" && !run.Answered && !d.refuseLab(ctx, run) {
+		return d.backoff()
+	}
 	if !d.stopSent && run.Role == assistantModel.RoleGrader && !run.StartedAt.IsZero() && run.EndState != assistantModel.RunFinished {
 		d.stopAtBrain(ctx, run)
 		d.stopSent = true
@@ -670,18 +674,34 @@ func (d *runDriver) stopAtBrain(ctx context.Context, run assistantModel.Run) {
 	log.Warn().Err(err).Msg("The brain was not told to stop a run; the lab is torn down anyway")
 }
 
-// lab follows a lab the brain asked for until the lab is gone: the outbox request that made it owns it while it starts
-// (a row left behind by a request that died is closed), and at the end its VPN client is revoked and the lab destroyed.
+// lab follows a lab the brain asked for: it waits for the lab, makes the WireGuard client and answers the outbox request,
+// then follows the lab until it is gone; at the end the client is revoked and the lab destroyed. A request that cannot
+// be served (the lab fails, or is not ready in time) is answered with the refusal. Everything is in the row, so a new
+// leader goes on: a lab that was not answered yet gets its client made again (the old one is replaced) and the answer.
 func (d *runDriver) lab(ctx context.Context, run assistantModel.Run) time.Duration {
 	u, now := d.u, d.u.now()
 	switch run.State {
 	case assistantModel.RunStarting:
-		if now.Sub(run.CreatedAt) > labReadyTimeout+time.Minute {
+		if now.Sub(run.CreatedAt) > labReadyTimeout {
 			d.close(ctx, run, assistantModel.RunFailed, assistantModel.FailureLabNotReady)
 			return 0
 		}
-		return u.runPoll
+		state, err := u.labs.TestLabState(ctx, run.Actor, run.DeployID)
+		switch {
+		case err != nil:
+			log.Warn().Err(err).Msg("Reading the lab of the brain failed")
+			return d.backoff()
+		case state.Gone || state.Failed:
+			d.close(ctx, run, assistantModel.RunFailed, assistantModel.FailureLabFailed)
+			return 0
+		case !state.Ready:
+			return u.runPoll
+		}
+		return d.labReady(ctx, run)
 	case assistantModel.RunRunning:
+		if !run.Answered && run.RequestID != "" {
+			return d.labAnswer(ctx, run)
+		}
 		state, err := u.labs.TestLabState(ctx, run.Actor, run.DeployID)
 		switch {
 		case err != nil:
@@ -696,4 +716,77 @@ func (d *runDriver) lab(ctx context.Context, run assistantModel.Run) time.Durati
 	default:
 		return d.closing(ctx, run)
 	}
+}
+
+// labReady makes the lab's client and marks the lab running; the answer follows.
+func (d *runDriver) labReady(ctx context.Context, run assistantModel.Run) time.Duration {
+	u := d.u
+	client := run.AccessClient
+	if client == "" {
+		client = runClientName(run.ID)
+		// Recorded before it is made, so a crash leaves a client that is known and gets revoked.
+		if err := u.runs.SetAccessClient(ctx, run.ID, client, u.now().UTC()); err != nil {
+			log.Warn().Err(err).Msg("Recording the VPN client of a lab failed")
+			return d.backoff()
+		}
+	}
+	if err := d.mint(ctx, run, client); err != nil {
+		d.mintFails++
+		log.Warn().Err(err).Int("attempt", d.mintFails).Msg("Making the VPN client of a lab failed")
+		if d.mintFails >= mintAttempts {
+			d.close(ctx, run, assistantModel.RunFailed, assistantModel.FailureLabFailed)
+			return 0
+		}
+		return d.backoff()
+	}
+	if _, err := u.runs.SetRunning(ctx, run.ID, u.now().UTC()); err != nil {
+		log.Warn().Err(err).Msg("Marking a lab as running failed")
+		return d.backoff()
+	}
+	return 0
+}
+
+func (d *runDriver) mint(ctx context.Context, run assistantModel.Run, client string) error {
+	if d.config != "" {
+		return nil
+	}
+	config, err := d.u.labs.MintLabClient(ctx, run.Actor, run.DeployID, client)
+	if err != nil {
+		return err
+	}
+	d.config = config
+	return nil
+}
+
+// labAnswer sends the result of the request the lab was made for, and records it as delivered.
+func (d *runDriver) labAnswer(ctx context.Context, run assistantModel.Run) time.Duration {
+	u := d.u
+	if err := d.mint(ctx, run, run.AccessClient); err != nil {
+		log.Warn().Err(err).Msg("Making the VPN client of a lab again failed")
+		return d.backoff()
+	}
+	result := map[string]any{"device_ref": run.DeployID.String(), "access": assistantModel.VPNAccess(d.config)}
+	if err := u.answer(ctx, run.RequestID, result, nil); err != nil {
+		log.Warn().Err(err).Msg("Answering a lab request failed; trying again")
+		return d.backoff()
+	}
+	if err := u.runs.SetAnswered(ctx, run.ID, u.now().UTC()); err != nil {
+		log.Warn().Err(err).Msg("Recording an answered lab request failed")
+		return d.backoff()
+	}
+	d.pause = 0
+	return 0
+}
+
+// refuseLab answers the request of a lab that ended before it was answered.
+func (d *runDriver) refuseLab(ctx context.Context, run assistantModel.Run) bool {
+	if err := d.u.answer(ctx, run.RequestID, nil, labRefusal(run.FailureReason)); err != nil {
+		log.Warn().Err(err).Msg("Refusing a lab request failed; trying again")
+		return false
+	}
+	if err := d.u.runs.SetAnswered(ctx, run.ID, d.u.now().UTC()); err != nil {
+		log.Warn().Err(err).Msg("Recording a refused lab request failed")
+		return false
+	}
+	return true
 }

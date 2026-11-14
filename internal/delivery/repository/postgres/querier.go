@@ -494,6 +494,8 @@ type Querier interface {
 	GetActiveChannels(ctx context.Context, arg GetActiveChannelsParams) ([]string, error)
 	// The screen's one working link (unrevoked and not expired).
 	GetActiveEventLiveScreenLink(ctx context.Context, arg GetActiveEventLiveScreenLinkParams) (EventLiveScreenLink, error)
+	// The lab kept for an outbox request (a request seen again finds its lab instead of making another).
+	GetAssistantLabByRequest(ctx context.Context, requestID string) (AssistantRun, error)
 	GetAssistantRun(ctx context.Context, id uuid.UUID) (AssistantRun, error)
 	GetAssistantRunAnswer(ctx context.Context, arg GetAssistantRunAnswerParams) (GetAssistantRunAnswerRow, error)
 	// The save of this session by this author: its state, the task (empty until done), the import job, whether the brain
@@ -2133,6 +2135,8 @@ type Querier interface {
 	// The WireGuard client made for the run, recorded before the run is started so a crash leaves a revocable record.
 	SetAssistantRunAccessClient(ctx context.Context, arg SetAssistantRunAccessClientParams) (int64, error)
 	SetAssistantRunAnswerSent(ctx context.Context, arg SetAssistantRunAnswerSentParams) (int64, error)
+	// The brain was answered the outbox request this lab was made for.
+	SetAssistantRunAnswered(ctx context.Context, arg SetAssistantRunAnsweredParams) (int64, error)
 	// The final aggregate the brain sent with run_finished.
 	SetAssistantRunMeasurement(ctx context.Context, arg SetAssistantRunMeasurementParams) (int64, error)
 	// The brain accepted the run.

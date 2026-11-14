@@ -4207,6 +4207,21 @@ func (mr *MockQuerierMockRecorder) GetActiveEventLiveScreenLink(ctx, arg any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveEventLiveScreenLink", reflect.TypeOf((*MockQuerier)(nil).GetActiveEventLiveScreenLink), ctx, arg)
 }
 
+// GetAssistantLabByRequest mocks base method.
+func (m *MockQuerier) GetAssistantLabByRequest(ctx context.Context, requestID string) (postgres.AssistantRun, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAssistantLabByRequest", ctx, requestID)
+	ret0, _ := ret[0].(postgres.AssistantRun)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAssistantLabByRequest indicates an expected call of GetAssistantLabByRequest.
+func (mr *MockQuerierMockRecorder) GetAssistantLabByRequest(ctx, requestID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAssistantLabByRequest", reflect.TypeOf((*MockQuerier)(nil).GetAssistantLabByRequest), ctx, requestID)
+}
+
 // GetAssistantRun mocks base method.
 func (m *MockQuerier) GetAssistantRun(ctx context.Context, id uuid.UUID) (postgres.AssistantRun, error) {
 	m.ctrl.T.Helper()
@@ -14330,6 +14345,21 @@ func (m *MockQuerier) SetAssistantRunAnswerSent(ctx context.Context, arg postgre
 func (mr *MockQuerierMockRecorder) SetAssistantRunAnswerSent(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAssistantRunAnswerSent", reflect.TypeOf((*MockQuerier)(nil).SetAssistantRunAnswerSent), ctx, arg)
+}
+
+// SetAssistantRunAnswered mocks base method.
+func (m *MockQuerier) SetAssistantRunAnswered(ctx context.Context, arg postgres.SetAssistantRunAnsweredParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetAssistantRunAnswered", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SetAssistantRunAnswered indicates an expected call of SetAssistantRunAnswered.
+func (mr *MockQuerierMockRecorder) SetAssistantRunAnswered(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAssistantRunAnswered", reflect.TypeOf((*MockQuerier)(nil).SetAssistantRunAnswered), ctx, arg)
 }
 
 // SetAssistantRunMeasurement mocks base method.

@@ -20,6 +20,8 @@ import (
 type Queries interface {
 	CreateAssistantRun(context.Context, postgres.CreateAssistantRunParams) error
 	GetAssistantRun(context.Context, uuid.UUID) (postgres.AssistantRun, error)
+	GetAssistantLabByRequest(context.Context, string) (postgres.AssistantRun, error)
+	SetAssistantRunAnswered(context.Context, postgres.SetAssistantRunAnsweredParams) (int64, error)
 	ListAssistantRunsOfVariant(context.Context, postgres.ListAssistantRunsOfVariantParams) ([]postgres.AssistantRun, error)
 	ListActiveAssistantRuns(context.Context, int32) ([]postgres.AssistantRun, error)
 	CountActiveAssistantRunsOfActor(context.Context, uuid.UUID) (int64, error)
@@ -59,7 +61,7 @@ func toRun(r postgres.AssistantRun) assistantModel.Run {
 	return assistantModel.Run{
 		ID: r.ID, ExerciseID: r.ExerciseID, VersionID: r.VersionID, VariantID: r.VariantID, DeployID: r.DeployID, Actor: r.ActorID,
 		Role: r.Role, State: assistantModel.RunState(r.State), EndState: assistantModel.RunState(r.EndState), FailureReason: r.FailureReason,
-		AccessClient: r.AccessClient, LastSeq: r.LastSeq, StreamDownSince: timeOf(r.StreamDownSince), Measurement: r.Measurement,
+		AccessClient: r.AccessClient, RequestID: r.RequestID, Answered: r.Answered, LastSeq: r.LastSeq, StreamDownSince: timeOf(r.StreamDownSince), Measurement: r.Measurement,
 		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, StartedAt: timeOf(r.StartedAt), FinishedAt: timeOf(r.FinishedAt), ExpiresAt: r.ExpiresAt,
 	}
 }
@@ -76,7 +78,7 @@ func toRuns(rows []postgres.AssistantRun) []assistantModel.Run {
 func (r *Repository) Create(ctx context.Context, run assistantModel.Run, now time.Time) error {
 	err := r.q.CreateAssistantRun(ctx, postgres.CreateAssistantRunParams{
 		ID: run.ID, ExerciseID: run.ExerciseID, VersionID: run.VersionID, VariantID: run.VariantID, DeployID: run.DeployID,
-		ActorID: run.Actor, Role: run.Role, Now: now, ExpiresAt: run.ExpiresAt,
+		ActorID: run.Actor, Role: run.Role, RequestID: run.RequestID, Now: now, ExpiresAt: run.ExpiresAt,
 	})
 	if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == pgerrcode.UniqueViolation {
 		return ErrActive
@@ -94,6 +96,24 @@ func (r *Repository) Get(ctx context.Context, id uuid.UUID) (assistantModel.Run,
 		return assistantModel.Run{}, false, err
 	}
 	return toRun(row), true, nil
+}
+
+// LabOfRequest finds the lab kept for an outbox request; found is false when there is none.
+func (r *Repository) LabOfRequest(ctx context.Context, requestID string) (assistantModel.Run, bool, error) {
+	row, err := r.q.GetAssistantLabByRequest(ctx, requestID)
+	if err != nil {
+		if repositoryTools.IsObjectNotFoundError(err) {
+			return assistantModel.Run{}, false, nil
+		}
+		return assistantModel.Run{}, false, err
+	}
+	return toRun(row), true, nil
+}
+
+// SetAnswered records that the brain was answered the request the lab was made for.
+func (r *Repository) SetAnswered(ctx context.Context, id uuid.UUID, now time.Time) error {
+	_, err := r.q.SetAssistantRunAnswered(ctx, postgres.SetAssistantRunAnsweredParams{ID: id, Now: now})
+	return err
 }
 
 // OfVariant lists the runs of a variant, newest first.
