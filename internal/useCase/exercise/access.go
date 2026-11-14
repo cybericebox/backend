@@ -160,14 +160,15 @@ func WithoutFlags(v VersionView) VersionView {
 	return v
 }
 
-// WithoutNotes is the version with the internal notes blanked (AdminNote, every Variants[].Note): they are for full
-// access only, i.e. admins and the owner event's owners/managers (Access.Flags). The view's own variants are never
-// mutated.
+// WithoutNotes is the version with the internal notes blanked (AdminNote, every Variants[].Note) and the opponents of
+// every variant taken out (author content for the Academy): they are for full access only, i.e. admins and the owner
+// event's owners/managers (Access.Flags). The view's own variants are never mutated.
 func WithoutNotes(v VersionView) VersionView {
 	variants := make([]exerciseModel.Variant, len(v.Variants))
 	copy(variants, v.Variants)
 	for i := range variants {
 		variants[i].Note = ""
+		variants[i].Opponents = nil
 	}
 	v.AdminNote, v.Variants = "", variants
 	return v

@@ -238,3 +238,19 @@ func TestWithoutNotes(t *testing.T) {
 		t.Fatalf("original changed: %+v", v)
 	}
 }
+
+// The opponents are author content for the Academy: a reader without full access never gets them, and the original view
+// keeps them.
+func TestWithoutNotesAlsoTakesTheOpponentsOut(t *testing.T) {
+	opponents := []exerciseModel.Opponent{{Role: exerciseModel.OpponentAttack, Band: 3, Goal: []string{"root"}, Brief: "secret brief"}}
+	v := exercise.VersionView{Variants: []exerciseModel.Variant{{Opponents: opponents}, {}}}
+	out := exercise.WithoutNotes(exercise.WithoutFlags(v))
+	for i, variant := range out.Variants {
+		if variant.Opponents != nil {
+			t.Fatalf("variant %d still has opponents: %+v", i, variant.Opponents)
+		}
+	}
+	if len(v.Variants[0].Opponents) != 1 || v.Variants[0].Opponents[0].Brief != "secret brief" {
+		t.Fatalf("original changed: %+v", v.Variants[0].Opponents)
+	}
+}

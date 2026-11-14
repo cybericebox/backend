@@ -372,6 +372,9 @@ func TestExampleArchive_EveryKeyHasEndOfLineComment(t *testing.T) {
 // the key, its path or the object it belongs to. versions and variants carry the attachments, so without them
 // the first error is the file nothing links to any more.
 var requiredKeyErrors = map[string]string{
+	"versions[1].variants[1].opponents[1].role": "opponent of the variant is invalid",
+	"versions[1].variants[1].opponents[1].band": "opponent of the variant is invalid",
+	"versions[1].variants[1].opponents[1].goal": "opponent of the variant is invalid",
 	"schema":                                "schema",
 	"exercise":                              "exercise name",
 	"exercise.name":                         "exercise name",

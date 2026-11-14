@@ -158,3 +158,23 @@ func TestSnapshotCarriesTheAnswerOptionsAndNeverTheValue(t *testing.T) {
 		t.Fatalf("flag compare: %+v", old)
 	}
 }
+
+// An event board carries the snapshot of a task, never the opponents of its variant: they are author content for the
+// Academy, and an event ignores them.
+func TestTheSnapshotOfATaskNeverCarriesTheOpponentsOfItsVariant(t *testing.T) {
+	variant := exerciseModel.Variant{
+		Tasks: []exerciseModel.Task{{Key: "root", Name: "Root", Check: exerciseModel.Check{Answer: &exerciseModel.AnswerCheck{Type: exerciseModel.AnswerTypeFlag, Values: []string{"ICE{x}"}}}}},
+		Opponents: []exerciseModel.Opponent{{
+			Role: exerciseModel.OpponentDefense, Band: 5, Goal: []string{"root"}, Operates: []string{"web"}, Brief: "SECRET-OPPONENT-BRIEF",
+		}},
+	}
+	snapshot, err := eventChallengeModel.SnapshotForTask(variant.Tasks[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, leak := range []string{"SECRET-OPPONENT-BRIEF", "opponent", "operates", "goal", "attack"} {
+		if strings.Contains(strings.ToLower(string(snapshot)), strings.ToLower(leak)) {
+			t.Fatalf("the snapshot carries %q: %s", leak, snapshot)
+		}
+	}
+}

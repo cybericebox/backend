@@ -71,6 +71,9 @@ func (v Variant) ValidateDocument() error {
 	if err := requiresCycle(v.Tasks, keys); err != nil {
 		return err
 	}
+	if err := v.ValidateOpponents(); err != nil {
+		return err
+	}
 	return v.ValidateSubstitutions()
 }
 

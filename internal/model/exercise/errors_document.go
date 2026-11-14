@@ -117,6 +117,13 @@ var (
 	ErrTestDeployNoConsole = err.ErrObjectNotFound.WithObjectCode(model.ExerciseDocumentObjectCode).
 				WithMessage("The console of the device is not available").
 				WithDetailCode(18)
+	// ErrOpponentInvalid: an opponent of a variant is wrong; field is its path under the variant with 1-based
+	// positions (opponents[2].operates[1]) and reason says what is wrong: too_many, role, band, goal_empty,
+	// goal_unknown, goal_repeated, start_unknown, operates_required, operates_forbidden, operates_unknown,
+	// operates_repeated, brief_too_long, or forbidden_field (the image, toolset, key or budget are the platform's).
+	ErrOpponentInvalid = err.ErrInvalidData.WithObjectCode(model.ExerciseDocumentObjectCode).
+				WithMessage("An opponent of the variant is invalid").
+				WithDetailCode(25)
 	ErrBootstrapTooLarge = err.ErrInvalidData.WithObjectCode(model.ExerciseDocumentObjectCode).
 				WithMessage("A bootstrap file is over 256 KiB, or the script and files of a device are over 512 KiB").
 				WithDetailCode(17)

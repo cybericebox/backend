@@ -609,6 +609,21 @@ type variantDTO struct {
 	CopyOf   *uuid.UUID  `json:"CopyOf,omitempty"`
 	Tasks    []taskDTO   `json:"Tasks"`
 	Topology topologyDTO `json:"Topology"`
+	// Opponents are the Academy's automated attackers and defenders of the variant: author content, in the responses
+	// for the authors of the exercise only (a request that omits them removes them). A linked variant takes its base's.
+	Opponents []opponentDTO `json:"Opponents,omitempty"`
+}
+
+// opponentDTO is one opponent of a variant. Goal and StartAfter name tasks of the variant by Key; Operates names devices
+// of its topology; an empty StartAfter starts the opponent with the lab. The image, the toolset, the keys and the budget
+// are the platform's and have no field here.
+type opponentDTO struct {
+	Role       string   `json:"Role"`
+	Band       int      `json:"Band"`
+	Goal       []string `json:"Goal"`
+	StartAfter string   `json:"StartAfter,omitempty"`
+	Operates   []string `json:"Operates,omitempty"`
+	Brief      string   `json:"Brief,omitempty"`
 }
 
 // imageOverrideDTO is a linked variant's own image for one device of its base.
@@ -890,6 +905,12 @@ func (d variantDTO) toDomain() exerciseModel.Variant {
 	out := exerciseModel.Variant{Index: d.Index, Note: d.Note, Weight: weightFromDTO(d.Weight), Tasks: tasks, Topology: d.Topology.toDomain()}
 	for _, override := range d.ImageOverrides {
 		out.ImageOverrides = append(out.ImageOverrides, exerciseModel.ImageOverride{DeviceID: override.DeviceID, Image: override.Image})
+	}
+	for _, o := range d.Opponents {
+		out.Opponents = append(out.Opponents, exerciseModel.Opponent{
+			Role: exerciseModel.OpponentRole(o.Role), Band: o.Band, Goal: o.Goal, Start: exerciseModel.OpponentStart{After: o.StartAfter},
+			Operates: o.Operates, Brief: o.Brief,
+		})
 	}
 	if d.ID != nil {
 		out.ID = *d.ID
@@ -1242,6 +1263,11 @@ func variantToDTO(v exerciseModel.Variant) variantDTO {
 	}
 	for _, t := range v.Tasks {
 		d.Tasks = append(d.Tasks, taskToDTO(t))
+	}
+	for _, o := range v.Opponents {
+		d.Opponents = append(d.Opponents, opponentDTO{
+			Role: string(o.Role), Band: o.Band, Goal: o.Goal, StartAfter: o.Start.After, Operates: o.Operates, Brief: o.Brief,
+		})
 	}
 	return d
 }
