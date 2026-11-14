@@ -270,6 +270,7 @@ func Run(cfg *config.Config) {
 	journalDone := make(chan struct{})
 
 	bootstrapAgent(ctx, cfg.Infrastructure.Agent, ucs.AgentsUseCase)
+	bootstrapBrain(ctx, cfg.Brain, ucs.Assistant)
 
 	if err := startupdefaults.Seed(ctx, repo.Queries); err != nil {
 		log.Error().Err(err).Msg("Failed to seed the startup notification defaults")
