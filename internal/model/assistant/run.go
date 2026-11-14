@@ -106,6 +106,16 @@ func VPNAccess(entry string) Access {
 	return Access{"vpn": raw}
 }
 
+// EDAAccess is the access of a run that drives a device out of band: the address of the device's grpc channel and the bearer
+// token to present there, written {"eda": {"url": ..., "token": ...}}. The token is a secret.
+func EDAAccess(url, token string) Access {
+	raw, _ := json.Marshal(struct {
+		URL   string `json:"url"`
+		Token string `json:"token"`
+	}{URL: url, Token: token})
+	return Access{"eda": raw}
+}
+
 // NoAccess is the access of a run that joins no lab: a task with nothing to reach (only its materials and answers). It is
 // one more kind of the open union, written {"none": {}}.
 func NoAccess() Access { return Access{"none": json.RawMessage(`{}`)} }

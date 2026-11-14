@@ -180,3 +180,68 @@ func (i *Issuer) Issue(sk SigningKey, s Session, now time.Time) (Link, error) {
 	link := url.URL{Scheme: origin.Scheme, Host: origin.Host, Path: AuthPath, RawQuery: query.Encode()}
 	return Link{URL: link.String(), Token: signed, ExpiresAt: end}, nil
 }
+
+// Bearer is a token an automated actor presents to the laboratory proxy as `authorization: Bearer <jwt>` to reach one
+// device's grpc access. It is the same signed token as a handoff link's (EdDSA by the tenant's access key, audience
+// laboratory-proxy), but it names the run it is for and lives for the whole run instead of one minute.
+type Bearer struct {
+	// Group is the lab group of the device, Client the per-run client inside it (the token's subject).
+	Group, Client string
+	// AccessURL is the device's grpc address from the lab status; its first host label is the token's host.
+	AccessURL string
+	// Run is the run the token is for (claim `run`).
+	Run string
+	// ExpiresAt is the end of the token: the end of the run's window plus a grace.
+	ExpiresAt time.Time
+}
+
+// BearerToken is a signed token with the address to dial and when it ends.
+type BearerToken struct {
+	// URL is the device's grpc address (the AccessURL as given), Token the signed JWT.
+	URL       string
+	Token     string
+	ExpiresAt time.Time
+}
+
+type bearerClaims struct {
+	GroupID string `json:"group_id"`
+	Host    string `json:"host"`
+	Run     string `json:"run"`
+	jwt.RegisteredClaims
+}
+
+// IssueBearer signs a run's bearer token. The end is capped by what the tenant's proxy keeps a session (when it reports
+// one); a token that would end before it starts is refused.
+func (i *Issuer) IssueBearer(sk SigningKey, b Bearer, now time.Time) (BearerToken, error) {
+	if sk.Tenant == "" || sk.KeyID == "" || len(sk.Key) != ed25519.PrivateKeySize {
+		return BearerToken{}, errors.New("labaccess: no signing key")
+	}
+	if b.Group == "" || b.Client == "" || b.Run == "" {
+		return BearerToken{}, errors.New("labaccess: incomplete bearer")
+	}
+	origin, err := url.Parse(b.AccessURL)
+	if err != nil || origin.Hostname() == "" {
+		return BearerToken{}, errors.New("labaccess: the device has no grpc address")
+	}
+	end := b.ExpiresAt
+	if sk.MaxSessionTTL > 0 && end.After(now.Add(sk.MaxSessionTTL)) {
+		end = now.Add(sk.MaxSessionTTL)
+	}
+	if !end.After(now) {
+		return BearerToken{}, errors.New("labaccess: the bearer would end before it starts")
+	}
+	host := strings.SplitN(origin.Hostname(), ".", 2)[0]
+	token := jwt.NewWithClaims(jwt.SigningMethodEdDSA, bearerClaims{
+		GroupID: b.Group, Host: host, Run: b.Run,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer: sk.Tenant, Subject: b.Client, Audience: jwt.ClaimStrings{Audience},
+			IssuedAt: jwt.NewNumericDate(now), NotBefore: jwt.NewNumericDate(now), ExpiresAt: jwt.NewNumericDate(end),
+		},
+	})
+	token.Header["kid"] = sk.KeyID
+	signed, err := token.SignedString(sk.Key)
+	if err != nil {
+		return BearerToken{}, fmt.Errorf("sign lab bearer token: %w", err)
+	}
+	return BearerToken{URL: b.AccessURL, Token: signed, ExpiresAt: end}, nil
+}

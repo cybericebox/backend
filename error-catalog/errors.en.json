@@ -361,6 +361,7 @@
   "32818": "The uploaded layer was not found",
   "33304": "Passkey not found",
   "33518": "The console of the device is not available",
+  "33526": "The grpc access of the device is not available",
   "33605": "Assistant session not found",
   "33607": "The assistant session is over",
   "33612": "Event not found",
