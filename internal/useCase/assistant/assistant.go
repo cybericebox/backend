@@ -72,9 +72,8 @@ type (
 		// Importer saves a finished task into the catalog; nil without exercises (tests).
 		Importer Importer
 		Files    FileStore
-		// Saves remembers the task a session was saved as; Lock serializes saves of one session (an advisory lock).
+		// Saves remembers how a session was saved.
 		Saves  SaveStore
-		Lock   Locker
 		Enroll Enroller
 		Now    func() time.Time
 		// NamesImages tells whether a task archive names device image files (those import in the background);
@@ -92,7 +91,6 @@ type (
 		importer Importer
 		files    FileStore
 		saves    SaveStore
-		lock     Locker
 
 		namesImages func(archive []byte, lim exerciseModel.ArchiveLimits) bool
 
@@ -108,7 +106,7 @@ type (
 // New builds the use case. It reads nothing and dials nothing.
 func New(d Dependencies) *UseCase {
 	u := &UseCase{
-		store: d.Store, cipher: d.Cipher, cfg: d.Config, enroll: d.Enroll, now: d.Now, importer: d.Importer, files: d.Files, saves: d.Saves, lock: d.Lock,
+		store: d.Store, cipher: d.Cipher, cfg: d.Config, enroll: d.Enroll, now: d.Now, importer: d.Importer, files: d.Files, saves: d.Saves,
 		namesImages: d.NamesImages,
 	}
 	if u.namesImages == nil {

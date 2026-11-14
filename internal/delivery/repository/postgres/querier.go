@@ -49,6 +49,9 @@ type Querier interface {
 	BlobExists(ctx context.Context, contentHash string) (bool, error)
 	// Only a running broadcast can be canceled; the sender stops queuing recipients.
 	CancelNotificationBroadcast(ctx context.Context, id uuid.UUID) (int64, error)
+	// Claims the save for one request: a new row, a failed one, or a pending one without an import job whose claim is older
+	// than the lease (its request died). 0 rows: another request holds it.
+	ClaimAssistantSave(ctx context.Context, arg ClaimAssistantSaveParams) (int64, error)
 	// Records the file as the task's copy of its content and returns the task's canonical file. On conflict the
 	// stored file stays canonical while the GC would keep it; a GC-eligible one is replaced by the given file.
 	ClaimExerciseFile(ctx context.Context, arg ClaimExerciseFileParams) (uuid.UUID, error)
@@ -66,6 +69,8 @@ type Querier interface {
 	// When, in which lab group, the live telemetry (raw rows and current state) of the events gave which IP to the client
 	// (under its real name or its pseudonym): the first and the last observation.
 	CollectLabClientIPWindows(ctx context.Context, arg CollectLabClientIPWindowsParams) ([]CollectLabClientIPWindowsRow, error)
+	// The task exists: the save is done.
+	CompleteAssistantSave(ctx context.Context, arg CompleteAssistantSaveParams) (int64, error)
 	CompleteEventFormDelivery(ctx context.Context, arg CompleteEventFormDeliveryParams) (int64, error)
 	CompleteRequestIdempotency(ctx context.Context, arg CompleteRequestIdempotencyParams) (int64, error)
 	CompleteSignalHookExecution(ctx context.Context, arg CompleteSignalHookExecutionParams) (int64, error)
@@ -171,8 +176,6 @@ type Querier interface {
 	// field's own filter empty). field: role, status, emailConfirmed or signIn (a user counts once per method).
 	CountUsersFacet(ctx context.Context, arg CountUsersFacetParams) ([]CountUsersFacetRow, error)
 	CreateAdminAuditLog(ctx context.Context, arg CreateAdminAuditLogParams) error
-	// Records a save: the imported task, or the queued import job. A row that is already there stays (0 rows).
-	CreateAssistantSave(ctx context.Context, arg CreateAssistantSaveParams) (int64, error)
 	// A freshly enrolled connection. Two replicas enrolling at once: the first row stays (0 rows for the second).
 	CreateBrainConnection(ctx context.Context, arg CreateBrainConnectionParams) (int64, error)
 	CreateChallengeAttempt(ctx context.Context, arg CreateChallengeAttemptParams) (ChallengeAttempt, error)
@@ -303,8 +306,6 @@ type Querier interface {
 	// removed from the unopened barrier at once.
 	DeclineEventLabRevealTeam(ctx context.Context, arg DeclineEventLabRevealTeamParams) error
 	DeleteAllUserTablePrefs(ctx context.Context, userID uuid.UUID) (int64, error)
-	// A failed import leaves nothing behind: the next save starts again.
-	DeleteAssistantSave(ctx context.Context, arg DeleteAssistantSaveParams) (int64, error)
 	// Guarded delete: refuses when the blob got re-referenced between the S3
 	// removal decision and this call.
 	DeleteBlob(ctx context.Context, contentHash string) (int64, error)
@@ -450,6 +451,8 @@ type Querier interface {
 	// Counts of the test lab table per value of one field (status, author or exercise) under the other filters: the
 	// filter of the field itself is ignored.
 	FacetPlatformTestLabs(ctx context.Context, arg FacetPlatformTestLabsParams) ([]FacetPlatformTestLabsRow, error)
+	// The import failed: the next save claims the row again.
+	FailAssistantSave(ctx context.Context, arg FailAssistantSaveParams) (int64, error)
 	// Final disposal follows a persisted exact tombstone and retired children,
 	// never a names-only command result or an absent monitoring frame.
 	FinalizeRetiredLabGroupPlacement(ctx context.Context, arg FinalizeRetiredLabGroupPlacementParams) (int64, error)
@@ -479,8 +482,8 @@ type Querier interface {
 	GetActiveChannels(ctx context.Context, arg GetActiveChannelsParams) ([]string, error)
 	// The screen's one working link (unrevoked and not expired).
 	GetActiveEventLiveScreenLink(ctx context.Context, arg GetActiveEventLiveScreenLinkParams) (EventLiveScreenLink, error)
-	// The save of this session by this author: the task (empty while its background import runs), the import job and whether
-	// the brain was told.
+	// The save of this session by this author: its state, the task (empty until done), the import job, whether the brain
+	// was told and when it was claimed.
 	GetAssistantSave(ctx context.Context, arg GetAssistantSaveParams) (GetAssistantSaveRow, error)
 	// The stored connection to one brain endpoint.
 	GetBrainConnection(ctx context.Context, endpoint string) (BrainConnection, error)
@@ -1669,7 +1672,7 @@ type Querier interface {
 	// an old short tag makes one) is never a candidate: removing that tag could remove what serves the other digest; its
 	// rows stay until the other digest's row goes. At most 500 rows a pass; the rest wait for the next one.
 	ListUnreferencedPlatformImages(ctx context.Context, before time.Time) ([]PlatformImage, error)
-	// The saves the leader still has to finish: an import job to follow, or a task the brain was not told yet. Rows older
+	// The saves the leader still has to finish: a queued import to follow, or a task the brain was not told yet. Rows older
 	// than the cutoff are left alone.
 	ListUnsettledAssistantSaves(ctx context.Context, arg ListUnsettledAssistantSavesParams) ([]ListUnsettledAssistantSavesRow, error)
 	// (a part holding back a shrink is sent again: the admin may force it, or the labs may be gone.)
@@ -2079,8 +2082,8 @@ type Querier interface {
 	// person's names (the real one and the pseudonym).
 	ScrubRawLabObservations(ctx context.Context, arg ScrubRawLabObservationsParams) (int64, error)
 	SelectEventStageRetainedLab(ctx context.Context, arg SelectEventStageRetainedLabParams) error
-	// The background import finished: the task it created.
-	SetAssistantSaveExercise(ctx context.Context, arg SetAssistantSaveExerciseParams) (int64, error)
+	// The claim's background import was queued.
+	SetAssistantSaveJob(ctx context.Context, arg SetAssistantSaveJobParams) (int64, error)
 	// The brain was told the task.
 	SetAssistantSaveNotified(ctx context.Context, arg SetAssistantSaveNotifiedParams) (int64, error)
 	// A renewed client certificate with its new key (the tenant is the certificate CN and stays).

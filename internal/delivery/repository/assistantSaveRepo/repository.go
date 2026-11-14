@@ -1,6 +1,6 @@
-// Package assistantSaveRepo remembers how a finished assistant session was saved: the catalog task (or the background
-// import job that is making it) and whether the brain was told. The primary key (session, author) is the guard against
-// two saves at once.
+// Package assistantSaveRepo remembers how a finished assistant session was saved: claimed first (pending), then done
+// with the catalog task or failed, and whether the brain was told. The primary key (session, author) makes one request
+// the owner of a claim.
 package assistantSaveRepo
 
 import (
@@ -16,10 +16,11 @@ import (
 
 type Queries interface {
 	GetAssistantSave(context.Context, postgres.GetAssistantSaveParams) (postgres.GetAssistantSaveRow, error)
-	CreateAssistantSave(context.Context, postgres.CreateAssistantSaveParams) (int64, error)
-	SetAssistantSaveExercise(context.Context, postgres.SetAssistantSaveExerciseParams) (int64, error)
+	ClaimAssistantSave(context.Context, postgres.ClaimAssistantSaveParams) (int64, error)
+	SetAssistantSaveJob(context.Context, postgres.SetAssistantSaveJobParams) (int64, error)
+	CompleteAssistantSave(context.Context, postgres.CompleteAssistantSaveParams) (int64, error)
+	FailAssistantSave(context.Context, postgres.FailAssistantSaveParams) (int64, error)
 	SetAssistantSaveNotified(context.Context, postgres.SetAssistantSaveNotifiedParams) (int64, error)
-	DeleteAssistantSave(context.Context, postgres.DeleteAssistantSaveParams) (int64, error)
 	ListUnsettledAssistantSaves(context.Context, postgres.ListUnsettledAssistantSavesParams) ([]postgres.ListUnsettledAssistantSavesRow, error)
 }
 
@@ -27,13 +28,18 @@ type Repository struct{ q Queries }
 
 func New(q Queries) *Repository { return &Repository{q: q} }
 
-func nullID(id uuid.UUID) uuid.NullUUID { return uuid.NullUUID{UUID: id, Valid: id != uuid.Nil} }
-
 func idOf(n uuid.NullUUID) uuid.UUID {
 	if !n.Valid {
 		return uuid.Nil
 	}
 	return n.UUID
+}
+
+func toSave(session string, author uuid.UUID, state string, exercise, job uuid.NullUUID, notified bool, claimed time.Time) assistantModel.Save {
+	return assistantModel.Save{
+		Session: session, Author: author, State: assistantModel.SaveState(state), ExerciseID: idOf(exercise), JobID: idOf(job),
+		Notified: notified, ClaimedAt: claimed,
+	}
 }
 
 // Get reads the save of the session by the author; found is false when there is none.
@@ -45,20 +51,33 @@ func (r *Repository) Get(ctx context.Context, session string, author uuid.UUID) 
 		}
 		return assistantModel.Save{}, false, err
 	}
-	return assistantModel.Save{Session: session, Author: author, ExerciseID: idOf(row.ExerciseID), JobID: idOf(row.JobID), Notified: row.Notified}, true, nil
+	return toSave(session, author, row.State, row.ExerciseID, row.JobID, row.Notified, row.ClaimedAt.Time), true, nil
 }
 
-// Create records a save (a task, or a queued import job). It reports false when the row is already there (it stays).
-func (r *Repository) Create(ctx context.Context, s assistantModel.Save, at time.Time) (bool, error) {
-	n, err := r.q.CreateAssistantSave(ctx, postgres.CreateAssistantSaveParams{
-		SessionID: s.Session, AuthorID: s.Author, ExerciseID: nullID(s.ExerciseID), JobID: nullID(s.JobID), CreatedAt: at,
+// Claim makes the caller the owner of the save: a new row, a failed one, or a pending one without a job claimed before
+// staleBefore. It reports false when another request holds it.
+func (r *Repository) Claim(ctx context.Context, session string, author uuid.UUID, archiveHash string, now, staleBefore time.Time) (bool, error) {
+	n, err := r.q.ClaimAssistantSave(ctx, postgres.ClaimAssistantSaveParams{
+		SessionID: session, AuthorID: author, ArchiveHash: archiveHash, Now: now, StaleBefore: staleBefore,
 	})
 	return n > 0, err
 }
 
-// SetExercise stores the task a finished background import created.
-func (r *Repository) SetExercise(ctx context.Context, session string, author, exercise uuid.UUID) error {
-	_, err := r.q.SetAssistantSaveExercise(ctx, postgres.SetAssistantSaveExerciseParams{SessionID: session, AuthorID: author, ExerciseID: exercise})
+// SetJob records the background import queued for the claim.
+func (r *Repository) SetJob(ctx context.Context, session string, author, job uuid.UUID) error {
+	_, err := r.q.SetAssistantSaveJob(ctx, postgres.SetAssistantSaveJobParams{SessionID: session, AuthorID: author, JobID: job})
+	return err
+}
+
+// Complete stores the task and ends the claim (done). It reports false when the save was not pending.
+func (r *Repository) Complete(ctx context.Context, session string, author, exercise uuid.UUID) (bool, error) {
+	n, err := r.q.CompleteAssistantSave(ctx, postgres.CompleteAssistantSaveParams{SessionID: session, AuthorID: author, ExerciseID: exercise})
+	return n > 0, err
+}
+
+// Fail ends the claim as failed: the next save claims the row again.
+func (r *Repository) Fail(ctx context.Context, session string, author uuid.UUID) error {
+	_, err := r.q.FailAssistantSave(ctx, postgres.FailAssistantSaveParams{SessionID: session, AuthorID: author})
 	return err
 }
 
@@ -68,13 +87,7 @@ func (r *Repository) SetNotified(ctx context.Context, session string, author uui
 	return err
 }
 
-// Delete removes the save (a failed import), so the next save starts again.
-func (r *Repository) Delete(ctx context.Context, session string, author uuid.UUID) error {
-	_, err := r.q.DeleteAssistantSave(ctx, postgres.DeleteAssistantSaveParams{SessionID: session, AuthorID: author})
-	return err
-}
-
-// Unsettled lists the saves newer than since that still wait for an import to finish or for the brain to be told.
+// Unsettled lists the saves newer than since that wait for a queued import or for the brain to be told.
 func (r *Repository) Unsettled(ctx context.Context, since time.Time, limit int) ([]assistantModel.Save, error) {
 	rows, err := r.q.ListUnsettledAssistantSaves(ctx, postgres.ListUnsettledAssistantSavesParams{Since: since, MaxRows: int32(limit)})
 	if err != nil {
@@ -82,7 +95,7 @@ func (r *Repository) Unsettled(ctx context.Context, since time.Time, limit int) 
 	}
 	out := make([]assistantModel.Save, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, assistantModel.Save{Session: row.SessionID, Author: row.AuthorID, ExerciseID: idOf(row.ExerciseID), JobID: idOf(row.JobID), Notified: row.Notified})
+		out = append(out, toSave(row.SessionID, row.AuthorID, row.State, row.ExerciseID, row.JobID, row.Notified, row.ClaimedAt.Time))
 	}
 	return out, nil
 }
