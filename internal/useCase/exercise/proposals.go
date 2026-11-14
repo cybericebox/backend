@@ -262,7 +262,7 @@ func uniqueIDs(ids []uuid.UUID) []uuid.UUID {
 }
 
 // AuthorizeTestDeploy: write access to the exercise, the version belongs to
-// it, and an event exercise's owner event allows infrastructure. A static variant (no devices) runs no
+// it, the variant belongs to the version, and an event exercise's owner event allows infrastructure. A static variant (no devices) runs no
 // laboratory, so the infrastructure check does not apply to it.
 func (u *ExerciseUseCase) AuthorizeTestDeploy(ctx context.Context, actor Actor, exerciseID, versionID, variantID uuid.UUID) error {
 	if _, err := u.AuthorizeExercise(ctx, actor, exerciseID, ActionWrite); err != nil {
@@ -272,10 +272,19 @@ func (u *ExerciseUseCase) AuthorizeTestDeploy(ctx context.Context, actor Actor, 
 	if err != nil {
 		return err
 	}
-	for _, v := range version.Variants {
-		if v.ID == variantID && !v.Topology.HasLab() {
-			return nil
+	// The variant belongs to the version (a variant of another version or exercise is not found, never tested).
+	var variant *exerciseModel.Variant
+	for i := range version.Variants {
+		if version.Variants[i].ID == variantID {
+			variant = &version.Variants[i]
+			break
 		}
+	}
+	if variant == nil {
+		return exerciseModel.ErrExerciseVersionNotFound.Err()
+	}
+	if !variant.Topology.HasLab() {
+		return nil
 	}
 	e, err := u.exercises.GetByID(ctx, exerciseID)
 	if err != nil {
