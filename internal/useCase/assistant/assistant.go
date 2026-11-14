@@ -94,6 +94,17 @@ type (
 		// NamesImages tells whether a task archive names device image files (those import in the background);
 		// nil: the exercise use case's reader. A test seam.
 		NamesImages func(archive []byte, lim exerciseModel.ArchiveLimits) bool
+		// Runs keeps the runs and Labs gives them their test lab (nil: runs are unavailable). RunMaxDuration is the longest
+		// a run lasts, RunGrace how long an unreachable brain is waited for, MaxActiveRuns how many runs a user may have at
+		// once, RunPoll how often the leader looks at the runs and RunPause the first pause between retries (zero: the
+		// defaults, 2s and 1s).
+		Runs           RunStore
+		Labs           LabRunner
+		RunMaxDuration time.Duration
+		RunGrace       time.Duration
+		MaxActiveRuns  int
+		RunPoll        time.Duration
+		RunPause       time.Duration
 	}
 
 	// UseCase is the assistant.
@@ -115,6 +126,12 @@ type (
 
 		namesImages func(archive []byte, lim exerciseModel.ArchiveLimits) bool
 
+		runs              RunStore
+		labs              LabRunner
+		runMax, runGrace  time.Duration
+		maxActive         int
+		runPoll, runPause time.Duration
+
 		subjects     SubjectStore
 		subjectCache sync.Map // user id -> subject: a pseudonym never changes while the account lives
 
@@ -131,6 +148,12 @@ func New(d Dependencies) *UseCase {
 		store: d.Store, cipher: d.Cipher, cfg: d.Config, enroll: d.Enroll, now: d.Now, importer: d.Importer, files: d.Files, saves: d.Saves, subjects: d.Subjects, audit: d.Audit, cursor: d.Cursor, stats: d.Stats, statsAdmin: d.StatsAdmin,
 		watchMin: orDefault(d.WatchMin, watchBackoffMin), watchMax: orDefault(d.WatchMax, watchBackoffMax), answerPause: orDefault(d.AnswerPause, 200*time.Millisecond),
 		namesImages: d.NamesImages,
+		runs:        d.Runs, labs: d.Labs, maxActive: d.MaxActiveRuns,
+		runMax: orDefault(d.RunMaxDuration, DefaultRunMaxDuration), runGrace: orDefault(d.RunGrace, DefaultRunGrace),
+		runPoll: orDefault(d.RunPoll, 2*time.Second), runPause: orDefault(d.RunPause, time.Second),
+	}
+	if u.maxActive <= 0 {
+		u.maxActive = DefaultMaxActiveRuns
 	}
 	if u.namesImages == nil {
 		u.namesImages = func(archive []byte, lim exerciseModel.ArchiveLimits) bool {

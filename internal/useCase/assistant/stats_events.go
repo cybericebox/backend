@@ -39,8 +39,9 @@ type EventStatsStore interface {
 
 // EventsSource is the statistics source of the events. A task is reported from the events whose mode (their own, else the
 // platform default of the source) is continuous, or final once the event has ended. Hidden teams and moderators never
-// count; a participant filter (consent) leaves teams out. A grader's run is not a team, so today there is nothing to
-// leave out; the place for excluding grader runs (phase 3) is the facts query.
+// count; a participant filter (consent) leaves teams out. A grader's run is not a team: its lab is a test deploy, which
+// no event owns, and the facts below are read from event teams only, so a run cannot enter them. assistantModel.ExcludeRun
+// states that for every run role, and the test of this source pins that the runs' tables are never read here.
 type EventsSource struct {
 	Store     EventStatsStore
 	Exclusion ParticipantFilter

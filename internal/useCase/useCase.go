@@ -9,6 +9,7 @@ import (
 	"github.com/cybericebox/daemon/internal/advisory"
 	"github.com/cybericebox/daemon/internal/config"
 	"github.com/cybericebox/daemon/internal/delivery/repository"
+	"github.com/cybericebox/daemon/internal/delivery/repository/assistantRunRepo"
 	"github.com/cybericebox/daemon/internal/delivery/repository/assistantSaveRepo"
 	"github.com/cybericebox/daemon/internal/delivery/repository/assistantStatsRepo"
 	"github.com/cybericebox/daemon/internal/delivery/repository/assistantSubjectRepo"
@@ -556,6 +557,17 @@ func NewUseCase(deps Dependencies) *UseCase {
 
 	adminAuditUC := adminAuditUseCase.New(deps.Repo)
 	statsRepo := assistantStatsRepo.New(deps.Repo)
+	assistantUC := assistantUseCase.New(assistantUseCase.Dependencies{
+		Store: brainConnectionRepo.New(deps.Repo), Cursor: brainConnectionRepo.New(deps.Repo), Cipher: deps.PlatformCipher,
+		Config:     assistantUseCase.Config{Endpoint: deps.Brain.Endpoint, EnrollmentToken: deps.Brain.EnrollmentToken, CAFile: deps.Brain.CAFile},
+		Stats:      assistantUseCase.MultiSource{assistantUseCase.EventsSource{Store: statsRepo, Exclusion: assistantUseCase.NoExclusion{}}},
+		StatsAdmin: statsRepo,
+		Importer:   exerciseUC, Files: mediaUC, Saves: assistantSaveRepo.New(deps.Repo), Subjects: assistantSubjectRepo.New(deps.Repo), Audit: adminAuditUC.RecordAdminAction,
+		// The grader runs: a test lab of the variant, a VPN client of its own, and the checker of the lab's flags.
+		Runs: assistantRunRepo.New(deps.Repo), Labs: exerciseUC, RunGrace: deps.Brain.RunGrace, RunMaxDuration: deps.Brain.RunMaxDuration,
+	})
+	// A test lab's group policy keeps the clients of the active runs, or a run would lose its lab when the author deploys another.
+	exerciseUC.SetLabClientSource(assistantUC.LabClients)
 	return &UseCase{
 		authUC,
 		adminAuditUC,
@@ -605,12 +617,6 @@ func NewUseCase(deps Dependencies) *UseCase {
 		),
 		imageRegistryUC,
 		inboxRequests,
-		assistantUseCase.New(assistantUseCase.Dependencies{
-			Store: brainConnectionRepo.New(deps.Repo), Cursor: brainConnectionRepo.New(deps.Repo), Cipher: deps.PlatformCipher,
-			Config:     assistantUseCase.Config{Endpoint: deps.Brain.Endpoint, EnrollmentToken: deps.Brain.EnrollmentToken, CAFile: deps.Brain.CAFile},
-			Stats:      assistantUseCase.MultiSource{assistantUseCase.EventsSource{Store: statsRepo, Exclusion: assistantUseCase.NoExclusion{}}},
-			StatsAdmin: statsRepo,
-			Importer:   exerciseUC, Files: mediaUC, Saves: assistantSaveRepo.New(deps.Repo), Subjects: assistantSubjectRepo.New(deps.Repo), Audit: adminAuditUC.RecordAdminAction,
-		}),
+		assistantUC,
 	}
 }

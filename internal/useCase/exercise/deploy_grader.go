@@ -199,13 +199,15 @@ type RunTarget struct {
 	ExerciseID uuid.UUID
 	VersionID  uuid.UUID
 	VariantsJS []byte
+	// HasLab: the variant has devices, so a test of it is a lab a run can join (a variant without devices has none).
+	HasLab bool
 	// Lease is the run length to ask for a lab that lasts at least the wanted time (the longest allowed when none does).
 	Lease time.Duration
 }
 
 // RunTarget reads the version a variant belongs to and picks the lab length for a run of the wanted time.
 func (u *ExerciseUseCase) RunTarget(ctx context.Context, versionID, variantID uuid.UUID, want time.Duration) (RunTarget, error) {
-	exerciseID, _, _, err := u.loadVersionVariant(ctx, versionID, variantID)
+	exerciseID, variant, _, err := u.loadVersionVariant(ctx, versionID, variantID)
 	if err != nil {
 		return RunTarget{}, err
 	}
@@ -219,7 +221,7 @@ func (u *ExerciseUseCase) RunTarget(ctx context.Context, versionID, variantID uu
 	}
 	allowed, _ := u.TestRunLengths(ctx)
 	lease := pickLease(allowed, want)
-	return RunTarget{ExerciseID: exerciseID, VersionID: versionID, VariantsJS: raw, Lease: lease}, nil
+	return RunTarget{ExerciseID: exerciseID, VersionID: versionID, VariantsJS: raw, HasLab: len(variant.Topology.Devices) > 0, Lease: lease}, nil
 }
 
 // pickLease is the shortest allowed length (in minutes) that is at least want, else the longest allowed; zero when none is

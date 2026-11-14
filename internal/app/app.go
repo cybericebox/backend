@@ -330,6 +330,15 @@ func Run(cfg *config.Config) {
 				defer loops.Done()
 				ucs.Journal.Watch(ctx)
 			}()
+			// cyber-brain: the certificate upkeep, the saves and statistics, the outbox, and the runs with their labs. All
+			// of them keep their state in the database, so the next leader resumes them; each is a no-op without a brain.
+			for _, loop := range []func(context.Context){ucs.Assistant.MaintainBrain, ucs.Assistant.WatchOutbox, ucs.Assistant.DriveRuns} {
+				loops.Add(1)
+				go func() {
+					defer loops.Done()
+					loop(ctx)
+				}()
+			}
 			agentManager.Lead(ctx)
 			loops.Wait()
 		})
