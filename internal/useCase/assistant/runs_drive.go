@@ -110,6 +110,7 @@ type runDriver struct {
 	config    string
 	mintFails int
 	stopSent  bool
+	refused   bool
 	// materialsSent: the materials of this run are with the brain (kept for this leadership; a new leader sends them again).
 	materialsSent bool
 	revoked       bool
@@ -702,27 +703,40 @@ func (d *runDriver) sendUnsent(ctx context.Context, run assistantModel.Run) {
 	}
 }
 
-// closing tears the run down: the brain is told to stop (unless it said it finished), the run's VPN client is revoked and
-// the lab is destroyed. A step that fails is tried again; nothing is skipped, so a lab is never left behind.
+// labAnswerWindow is how long a lab whose answer does not get through is kept before it is closed.
+const labAnswerWindow = labReadyTimeout
+
+// bestEffort bounds a call to the brain that the teardown must not wait on.
+const bestEffort = 15 * time.Second
+
+// closing tears the run down. Nothing here depends on the brain: the brain is told to stop and a refusal is sent for a lab
+// request that was not answered, each at most once and within bestEffort, and whatever they say the run's VPN client is
+// revoked and the lab destroyed. A step that fails on the platform's side is tried again on the next pass (the other
+// step is still tried), so a lab or a key is never kept alive by a brain that is down.
 func (d *runDriver) closing(ctx context.Context, run assistantModel.Run) time.Duration {
 	u := d.u
-	// A lab whose request was not answered yet answers it first: the brain is waiting for it.
-	if run.Role == assistantModel.RoleLab && run.RequestID != "" && !run.Answered && !d.refuseLab(ctx, run) {
-		return d.backoff()
+	if run.Role == assistantModel.RoleLab && run.RequestID != "" && !run.Answered && !d.refused {
+		d.refused = true
+		d.refuseLab(ctx, run)
 	}
 	if !d.stopSent && run.Role == assistantModel.RoleGrader && !run.StartedAt.IsZero() && run.EndState != assistantModel.RunFinished {
-		d.stopAtBrain(ctx, run)
 		d.stopSent = true
+		d.stopAtBrain(ctx, run)
 	}
+	failed := false
 	if !d.revoked {
 		if err := u.labs.RevokeLabClient(ctx, run.Actor, run.DeployID, run.AccessClient); err != nil {
 			log.Warn().Err(err).Msg("Revoking the VPN client of a run failed; trying again")
-			return d.backoff()
+			failed = true
+		} else {
+			d.revoked = true
 		}
-		d.revoked = true
 	}
 	if err := u.labs.DestroyDeployTest(ctx, run.Actor, run.DeployID); err != nil && !errors.Is(err, exerciseModel.ErrTestDeployNotFound.Err()) {
 		log.Warn().Err(err).Msg("Destroying the lab of a run failed; trying again")
+		failed = true
+	}
+	if failed {
 		return d.backoff()
 	}
 	if _, err := u.runs.Finish(ctx, run.ID, u.now().UTC()); err != nil {
@@ -735,6 +749,8 @@ func (d *runDriver) closing(ctx context.Context, run assistantModel.Run) time.Du
 // stopAtBrain sends StopRun best effort: an unreachable brain must not hold the lab, so it is tried a few times and then
 // left (the brain ends the run itself when its stream is not read).
 func (d *runDriver) stopAtBrain(ctx context.Context, run assistantModel.Run) {
+	ctx, cancel := context.WithTimeout(ctx, bestEffort)
+	defer cancel()
 	c, err := d.u.client(ctx)
 	if err != nil {
 		return
@@ -778,17 +794,24 @@ func (d *runDriver) lab(ctx context.Context, run assistantModel.Run) time.Durati
 		}
 		return d.labReady(ctx, run)
 	case assistantModel.RunRunning:
-		if !run.Answered && run.RequestID != "" {
-			return d.labAnswer(ctx, run)
+		// The end of the lab comes first, whatever the brain does: an expired lab, or one whose answer has been trying for
+		// longer than the lab may take to come up, is closed (its request is then refused once, best effort).
+		unanswered := !run.Answered && run.RequestID != ""
+		if !now.Before(run.ExpiresAt) || unanswered && now.Sub(run.StartedAt) > labAnswerWindow {
+			d.close(ctx, run, assistantModel.RunFailed, assistantModel.FailureLabNotReady)
+			return 0
 		}
 		state, err := u.labs.TestLabState(ctx, run.Actor, run.DeployID)
 		switch {
 		case err != nil:
 			log.Warn().Err(err).Msg("Reading the lab of the brain failed")
 			return d.backoff()
-		case state.Gone || state.Failed || !now.Before(run.ExpiresAt):
+		case state.Gone || state.Failed:
 			d.close(ctx, run, assistantModel.RunFinished, "")
 			return 0
+		}
+		if unanswered {
+			return d.labAnswer(ctx, run)
 		}
 		d.pause = 0
 		return u.runPoll
@@ -857,15 +880,16 @@ func (d *runDriver) labAnswer(ctx context.Context, run assistantModel.Run) time.
 	return 0
 }
 
-// refuseLab answers the request of a lab that ended before it was answered.
-func (d *runDriver) refuseLab(ctx context.Context, run assistantModel.Run) bool {
+// refuseLab answers the request of a lab that ended before it was answered, once and within bestEffort: the teardown does
+// not wait for the brain. A refusal that did not get through leaves the request unanswered; the brain asks again.
+func (d *runDriver) refuseLab(ctx context.Context, run assistantModel.Run) {
+	ctx, cancel := context.WithTimeout(ctx, bestEffort)
+	defer cancel()
 	if err := d.u.answer(ctx, run.RequestID, nil, labRefusal(run.FailureReason)); err != nil {
-		log.Warn().Err(err).Msg("Refusing a lab request failed; trying again")
-		return false
+		log.Warn().Err(err).Msg("Refusing a lab request failed; the lab is torn down anyway")
+		return
 	}
 	if err := d.u.runs.SetAnswered(ctx, run.ID, d.u.now().UTC()); err != nil {
 		log.Warn().Err(err).Msg("Recording a refused lab request failed")
-		return false
 	}
-	return true
 }
