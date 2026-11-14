@@ -113,7 +113,7 @@ type Link struct {
 }
 
 // claims: iss = the tenant, sub = the LabGroupClient, aud = laboratory-proxy, iat/nbf/exp and
-// group_id (the lab group id), host (<device>-<code>) and sess (the unix end of the session).
+// group_id (the lab group id), host (the full host of the device access, <device>-<code><letter>.<base>) and sess (the unix end of the session).
 type claims struct {
 	GroupID string `json:"group_id"`
 	Host    string `json:"host"`
@@ -158,7 +158,7 @@ func (i *Issuer) Issue(sk SigningKey, s Session, now time.Time) (Link, error) {
 	if err != nil || origin.Scheme == "" || origin.Hostname() == "" {
 		return Link{}, errors.New("labaccess: the device has no web address")
 	}
-	host := strings.SplitN(origin.Hostname(), ".", 2)[0]
+	host := strings.ToLower(origin.Hostname()) // the full host of the device access: the proxy requires exact equality
 	end := now.Add(i.sessionTTL)
 	if s.ExpiresAt.After(now) {
 		end = s.ExpiresAt
@@ -187,7 +187,7 @@ func (i *Issuer) Issue(sk SigningKey, s Session, now time.Time) (Link, error) {
 	if s.Next != "" {
 		query.Set("next", s.Next)
 	}
-	link := url.URL{Scheme: origin.Scheme, Host: origin.Host, Path: AuthPath, RawQuery: query.Encode()}
+	link := url.URL{Scheme: origin.Scheme, Host: strings.ToLower(origin.Host), Path: AuthPath, RawQuery: query.Encode()}
 	return Link{URL: link.String(), Token: signed, ExpiresAt: end}, nil
 }
 
@@ -243,7 +243,7 @@ func (i *Issuer) IssueBearer(sk SigningKey, b Bearer, now time.Time) (BearerToke
 	if !end.After(now) {
 		return BearerToken{}, errors.New("labaccess: the bearer would end before it starts")
 	}
-	host := strings.SplitN(origin.Hostname(), ".", 2)[0]
+	host := strings.ToLower(origin.Hostname()) // the full host of the device access: the proxy requires exact equality
 	token := jwt.NewWithClaims(jwt.SigningMethodEdDSA, bearerClaims{
 		TokenUse: TokenUseGRPC, Kind: KindGRPC, GroupID: b.Group, Host: host, Run: b.Run,
 		RegisteredClaims: jwt.RegisteredClaims{
