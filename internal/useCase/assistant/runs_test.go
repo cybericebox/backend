@@ -918,3 +918,35 @@ func TestAnswerDelayFollowsTheParticipantLimits(t *testing.T) {
 		t.Fatalf("the limit over all tasks must hold: %v", d)
 	}
 }
+
+// The routes authorize for the exercise in the path; a run, a version or a variant of another exercise is not found on
+// every route, however the ids are mixed.
+func TestAnotherExercisesIdsAreNotFoundOnEveryMeasureRoute(t *testing.T) {
+	r := newRunRig(t, nil)
+	run := r.start(t)
+	other := uuid.Must(uuid.NewV7())
+	ctx := context.Background()
+	notFound := assistantModel.ErrAssistantRunNotFound.Err()
+
+	if _, err := r.uc.GraderRun(ctx, runActor, other, runVersion, runVariant, run.ID); !errors.Is(err, notFound) {
+		t.Errorf("get: %v", err)
+	}
+	if _, err := r.uc.StopGraderRun(ctx, runActor, other, runVersion, runVariant, run.ID); !errors.Is(err, notFound) {
+		t.Errorf("stop: %v", err)
+	}
+	if _, err := r.uc.GraderRunEvents(ctx, runActor, other, runVersion, runVariant, run.ID); !errors.Is(err, notFound) {
+		t.Errorf("events: %v", err)
+	}
+	if listed, err := r.uc.GraderRuns(ctx, runActor, other, runVersion, runVariant); err != nil || len(listed) != 0 {
+		t.Errorf("list must show nothing of another exercise: %v %v", listed, err)
+	}
+	if _, err := r.uc.StartGraderRun(ctx, runActor, other, runVersion, runVariant); !errors.Is(err, exerciseModel.ErrExerciseVersionNotFound.Err()) {
+		t.Errorf("start: %v", err)
+	}
+	if r.runs.state(run.ID).State != assistantModel.RunStarting {
+		t.Fatal("a stop with the wrong exercise must not touch the run")
+	}
+	if r.labs.deployCount != 1 {
+		t.Fatalf("a start with the wrong exercise must not deploy a lab: %d", r.labs.deployCount)
+	}
+}
