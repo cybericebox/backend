@@ -12,6 +12,7 @@ import (
 
 	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
 	assistantModel "github.com/cybericebox/daemon/internal/model/assistant"
+	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
 	userModel "github.com/cybericebox/daemon/internal/model/user"
 	exerciseUseCase "github.com/cybericebox/daemon/internal/useCase/exercise"
 	pkgerr "github.com/cybericebox/daemon/pkg/err"
@@ -59,6 +60,12 @@ var answerLater = &AnswerError{Code: "answer_later"}
 // joins it with and answers {device_ref, access:{vpn:{entry}}} (or the refusal if the lab fails). The outbox is never held:
 // a request seen again after a restart finds its row and goes on waiting. A lab from a draft is not provided yet.
 func (u *UseCase) provideLab(ctx context.Context, req OutboxRequest) (any, *AnswerError) {
+	return u.provideTaskLab(ctx, req, false)
+}
+
+// provideTaskLab is provideLab, and with tools the lab of provide_device for the tools device: the task's lab with the
+// platform tools device in it (role tools; the answer carries the eda access of that device instead of the VPN one).
+func (u *UseCase) provideTaskLab(ctx context.Context, req OutboxRequest, tools bool) (any, *AnswerError) {
 	var in provideLabRequest
 	if err := json.Unmarshal(req.Raw, &in); err != nil {
 		return nil, &AnswerError{Code: codeInvalidRequest, Message: "the request could not be read"}
@@ -110,7 +117,14 @@ func (u *UseCase) provideLab(ctx context.Context, req OutboxRequest) (any, *Answ
 	if err != nil || n >= u.maxActive {
 		return nil, &AnswerError{Code: codeLabUnavailable, Message: "the user has too many labs or runs"}
 	}
-	handle, err := u.labs.DeployVariantTest(ctx, user, version, target.VariantID, 0)
+	deploy, role := u.labs.DeployVariantTest, assistantModel.RoleLab
+	if tools {
+		deploy, role = u.labs.DeployVariantTestWithTools, assistantModel.RoleTools
+	}
+	handle, err := deploy(ctx, user, version, target.VariantID, 0)
+	if errors.Is(err, exerciseModel.ErrToolsNoImage) || errors.Is(err, exerciseModel.ErrToolsNoVPN) {
+		return nil, &AnswerError{Code: codeNotSupportedYet, Message: "the tools device is not available for this lab"}
+	}
 	if err != nil {
 		log.Warn().Err(err).Msg("A lab the brain asked for was refused")
 		return nil, &AnswerError{Code: codeLabUnavailable, Message: "the lab could not be provided"}
@@ -122,7 +136,7 @@ func (u *UseCase) provideLab(ctx context.Context, req OutboxRequest) (any, *Answ
 	now := u.now().UTC()
 	lab := assistantModel.Run{
 		ID: uuid.Must(uuid.NewV7()), ExerciseID: exercise, VersionID: version, VariantID: target.VariantID, DeployID: deployID, Actor: user,
-		Role: assistantModel.RoleLab, RequestID: req.ID, State: assistantModel.RunStarting, CreatedAt: now, UpdatedAt: now, ExpiresAt: now.Add(labLeaseCap),
+		Role: role, RequestID: req.ID, State: assistantModel.RunStarting, CreatedAt: now, UpdatedAt: now, ExpiresAt: now.Add(labLeaseCap),
 	}
 	if err = u.runs.Create(ctx, lab, now); err != nil {
 		u.dropLab(ctx, user, deployID)

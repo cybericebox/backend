@@ -342,6 +342,16 @@ func (s LabDeployStatus) WebURL(device string, port int32) (string, bool) {
 // EntryURL is the address of one kind of access to a device: the url the laboratory put in the entry of that kind. An http
 // entry is told by its port (and a protocol of http or https); every other kind (terminal now, vnc and rdp later) has one
 // entry per device and is told by its protocol alone. No entry, or one with no url yet, gives false.
+// GRPCDevice is the device the lab publishes a grpc access for (the tools device of a run's lab).
+func (s LabDeployStatus) GRPCDevice() (string, bool) {
+	for _, a := range s.Access {
+		if a.Protocol == string(AccessGRPC) && a.URL != "" {
+			return a.Device, true
+		}
+	}
+	return "", false
+}
+
 func (s LabDeployStatus) EntryURL(device string, kind AccessKind, port int32) (string, bool) {
 	for _, a := range s.Access {
 		if a.Device != device || a.URL == "" {

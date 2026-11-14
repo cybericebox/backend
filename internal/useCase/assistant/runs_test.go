@@ -286,6 +286,11 @@ type fakeLabs struct {
 	destroyErr  error
 	revokeErr   error
 	deployOwner uuid.UUID
+	toolsErr    error
+	edaErr      error
+	edaUntil    time.Time
+	edaRun      string
+	edaDevice   string
 }
 
 func newFakeLabs() *fakeLabs { return &fakeLabs{hasLab: true, judged: map[string]string{}} }
@@ -324,6 +329,27 @@ func (f *fakeLabs) DeployVariantTest(_ context.Context, owner, _, _ uuid.UUID, l
 		return exerciseModel.DeployHandle{}, f.deployErr
 	}
 	return exerciseModel.DeployHandle{Group: runDeploy.String(), Lab: "l-lab"}, nil
+}
+func (f *fakeLabs) DeployVariantTestWithTools(ctx context.Context, owner, version, variant uuid.UUID, length time.Duration) (exerciseModel.DeployHandle, error) {
+	f.mu.Lock()
+	toolsErr := f.toolsErr
+	f.mu.Unlock()
+	if toolsErr != nil {
+		f.record("deploy-tools-refused")
+		return exerciseModel.DeployHandle{}, toolsErr
+	}
+	f.record("deploy-tools")
+	return f.DeployVariantTest(ctx, owner, version, variant, length)
+}
+func (f *fakeLabs) MintEDAAccess(_ context.Context, _, _ uuid.UUID, device, client, run string, until time.Time) (exerciseUseCase.EDAAccess, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = append(f.calls, "eda:"+client)
+	f.edaUntil, f.edaRun, f.edaDevice = until, run, device
+	if f.edaErr != nil {
+		return exerciseUseCase.EDAAccess{}, f.edaErr
+	}
+	return exerciseUseCase.EDAAccess{URL: "https://proxy.example/tools", Token: "secret-bearer", ExpiresAt: until}, nil
 }
 func (f *fakeLabs) DestroyDeployTest(context.Context, uuid.UUID, uuid.UUID) error {
 	f.record("destroy")

@@ -85,10 +85,23 @@ func (u *UseCase) handlers() map[string]requestHandler {
 	}
 }
 
-// provideDevice answers provide_device: a tools or host device needs the laboratory phase, so it is not supported yet.
-// provide_lab (provideLab) is served.
-func (u *UseCase) provideDevice(context.Context, OutboxRequest) (any, *AnswerError) {
-	return nil, &AnswerError{Code: codeNotSupportedYet, Message: "provisioning labs and devices for the brain is not supported yet"}
+// toolsDeviceType is the neutral device type of the platform tools device; configured_host (a host the author set up)
+// is not provided yet.
+const toolsDeviceType = "tools"
+
+// provideDevice answers provide_device. The tools device is provided as the task's lab with the platform tools device in
+// it (see provideTaskLab); a configured host, a draft, or a platform without a tools image is not_supported_yet.
+func (u *UseCase) provideDevice(ctx context.Context, req OutboxRequest) (any, *AnswerError) {
+	var in struct {
+		DeviceType string `json:"device_type"`
+	}
+	if err := json.Unmarshal(req.Raw, &in); err != nil {
+		return nil, &AnswerError{Code: codeInvalidRequest, Message: "the request could not be read"}
+	}
+	if in.DeviceType != toolsDeviceType {
+		return nil, &AnswerError{Code: codeNotSupportedYet, Message: "this device type is not supported yet"}
+	}
+	return u.provideTaskLab(ctx, req, true)
 }
 
 const (

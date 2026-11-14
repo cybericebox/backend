@@ -28,7 +28,7 @@ type EDAAccess struct {
 
 // MintEDAAccess gives a run the grpc access of one device of the owner's test lab. The address is the one the laboratory
 // reports for the device's grpc entry in the lab status; the token names the lab group, the device's host, the per-run client
-// and the run, and ends at `until` (the end of the run's window plus a grace).
+// and the run, and ends at `until`. An empty device is the one device of the lab with a grpc access (the end of the run's window plus a grace).
 func (u *ExerciseUseCase) MintEDAAccess(ctx context.Context, owner, deployID uuid.UUID, device, client, run string, until time.Time) (EDAAccess, error) {
 	deploy, err := u.ownedLab(ctx, owner, deployID)
 	if err != nil {
@@ -41,6 +41,9 @@ func (u *ExerciseUseCase) MintEDAAccess(ctx context.Context, owner, deployID uui
 	status, err := u.infra.LabStatus(ctx, deploy.GroupName, deploy.LabName)
 	if err != nil {
 		return EDAAccess{}, model.ErrPlatform.WithError(err).WithMessage("Failed to read deploy status").Err()
+	}
+	if device == "" { // the lab's own grpc device: the tools device of a run's lab
+		device, _ = status.GRPCDevice()
 	}
 	address, found := status.EntryURL(device, exerciseModel.AccessGRPC, 0)
 	if !found {

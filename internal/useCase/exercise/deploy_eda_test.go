@@ -93,3 +93,15 @@ func TestMintEDAAccess_Refusals(t *testing.T) {
 		}
 	})
 }
+
+func TestMintEDAAccess_AnEmptyDeviceIsTheLabsGRPCDevice(t *testing.T) {
+	signer := &bearerSessions{}
+	uc, owner, deployID := edaFixture(t, signer, []exerciseModel.LabAccess{
+		{Device: "web", Port: 80, Protocol: "http", URL: "https://web-abc.lab.example.com"},
+		{Device: "tools-2", Port: 9099, Protocol: "grpc", URL: "https://tools-2-abc.lab.example.com:443"},
+	})
+	got, err := uc.MintEDAAccess(context.Background(), owner, deployID, "", "g-run1", "run-1", time.Now().Add(time.Hour))
+	if err != nil || got.URL != "https://tools-2-abc.lab.example.com:443" {
+		t.Fatalf("%+v %v", got, err)
+	}
+}
