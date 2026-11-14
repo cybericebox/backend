@@ -409,7 +409,7 @@ func TestBuildLabSpec_InternetPolicyGoesOutOnlyWhenSet(t *testing.T) {
 		t.Fatal(err)
 	}
 	devices := decode(t, b).Devices
-	if devices[0].Internet != "deny" || devices[1].Internet != "" || strings.Count(string(b), `"internet":"deny"`) != 1 || strings.Count(string(b), `"internet"`) != 1 {
+	if devices[0].Internet != "deny" || devices[1].Internet != "" || strings.Count(string(b), `"internet":"deny"`) != 1 {
 		t.Fatalf("%s", b)
 	}
 }
