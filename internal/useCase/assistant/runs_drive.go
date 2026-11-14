@@ -474,6 +474,7 @@ func (d *runDriver) running(ctx context.Context, run assistantModel.Run) time.Du
 	readCtx, cancel := context.WithDeadline(ctx, run.ExpiresAt)
 	defer cancel()
 	// A stop, or any other decision about the run, must not wait for a quiet stream to end: the read is cut at once.
+	labLooked := time.Now() // the wall clock: the pace of a poll, not a moment of the platform's record
 	go func() {
 		t := time.NewTicker(u.runPoll)
 		defer t.Stop()
@@ -489,6 +490,16 @@ func (d *runDriver) running(ctx context.Context, run assistantModel.Run) time.Du
 				if r, found, err := u.runs.Get(readCtx, run.ID); err == nil && (!found || r.State != assistantModel.RunRunning) {
 					cancel()
 					return
+				}
+				// A lab that is gone (destroyed by its author, its lease over, failed) ends the run: its client is revoked and
+				// whatever is left of it destroyed now, not when the run's own window ends.
+				if time.Since(labLooked) >= labWatchPolls*u.runPoll {
+					labLooked = time.Now()
+					if state, err := u.labs.TestLabState(readCtx, run.Actor, run.DeployID); err == nil && (state.Gone || state.Failed) {
+						d.close(ctx, run, assistantModel.RunFailed, assistantModel.FailureLabFailed)
+						cancel()
+						return
+					}
 				}
 				// The state subtasks are judged by the lab: a pass is told as soon as it is seen.
 				d.judgeStateTasks(readCtx, run, false)
@@ -762,6 +773,9 @@ func (d *runDriver) sendUnsent(ctx context.Context, run assistantModel.Run) {
 		d.sendVerdict(ctx, run, a)
 	}
 }
+
+// labWatchPolls is how many polls pass between two looks of a running run at its lab (to see that it is still there).
+const labWatchPolls = 5
 
 // labAnswerWindow is how long a lab whose answer does not get through is kept before it is closed.
 const labAnswerWindow = labReadyTimeout
