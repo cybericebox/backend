@@ -75,8 +75,10 @@ type (
 		// Importer saves a finished task into the catalog; nil without exercises (tests).
 		Importer Importer
 		Files    FileStore
-		// Cursor keeps the last answered outbox request of the brain.
+		// Cursor keeps the last answered outbox request of the brain; Stats gives the statistics aggregates (nil: collection
+		// is off everywhere).
 		Cursor OutboxCursor
+		Stats  StatsSource
 		// WatchMin and WatchMax bound the reconnect backoff of the outbox stream; AnswerPause is the first pause between
 		// answer attempts (zero: 1s, 1min and 200ms).
 		WatchMin, WatchMax, AnswerPause time.Duration
@@ -103,6 +105,7 @@ type (
 		files    FileStore
 		saves    SaveStore
 		cursor   OutboxCursor
+		stats    StatsSource
 
 		watchMin, watchMax, answerPause time.Duration
 		audit                           func(ctx context.Context, entry adminAuditUseCase.Entry) error
@@ -122,7 +125,7 @@ type (
 // New builds the use case. It reads nothing and dials nothing.
 func New(d Dependencies) *UseCase {
 	u := &UseCase{
-		store: d.Store, cipher: d.Cipher, cfg: d.Config, enroll: d.Enroll, now: d.Now, importer: d.Importer, files: d.Files, saves: d.Saves, subjects: d.Subjects, audit: d.Audit, cursor: d.Cursor,
+		store: d.Store, cipher: d.Cipher, cfg: d.Config, enroll: d.Enroll, now: d.Now, importer: d.Importer, files: d.Files, saves: d.Saves, subjects: d.Subjects, audit: d.Audit, cursor: d.Cursor, stats: d.Stats,
 		watchMin: orDefault(d.WatchMin, watchBackoffMin), watchMax: orDefault(d.WatchMax, watchBackoffMax), answerPause: orDefault(d.AnswerPause, 200*time.Millisecond),
 		namesImages: d.NamesImages,
 	}
@@ -446,10 +449,17 @@ func (u *UseCase) MaintainBrain(ctx context.Context) {
 			log.Error().Err(err).Msg("Following the assistant saves failed")
 		}
 	}
+	push := func() {
+		if err := u.PushStatistics(ctx); err != nil {
+			log.Error().Err(err).Msg("Pushing the statistics to the brain failed")
+		}
+	}
 	t := time.NewTicker(MaintainInterval)
 	defer t.Stop()
 	s := time.NewTicker(SettleInterval)
 	defer s.Stop()
+	p := time.NewTicker(StatsInterval)
+	defer p.Stop()
 	for {
 		select {
 		case <-ctx.Done():
@@ -458,6 +468,8 @@ func (u *UseCase) MaintainBrain(ctx context.Context) {
 			run()
 		case <-s.C:
 			settle()
+		case <-p.C:
+			push()
 		}
 	}
 }
