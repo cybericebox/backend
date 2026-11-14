@@ -91,3 +91,32 @@ func TestAccessKeyIsEd25519WithAnAgentAcceptableID(t *testing.T) {
 		t.Fatal("ids must be random")
 	}
 }
+
+func TestCSRForKeyIsForTheSameKey(t *testing.T) {
+	key, err := NewClientKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	csrPEM, err := CSRForKey(key.KeyPEM)
+	if err != nil {
+		t.Fatal(err)
+	}
+	read := func(p, kind string) []byte {
+		block, _ := pem.Decode([]byte(p))
+		if block == nil || block.Type != kind {
+			t.Fatalf("not a %s", kind)
+		}
+		return block.Bytes
+	}
+	csr, err := x509.ParseCertificateRequest(read(csrPEM, "CERTIFICATE REQUEST"))
+	if err != nil || csr.CheckSignature() != nil {
+		t.Fatalf("%v", err)
+	}
+	priv, err := x509.ParseECPrivateKey(read(key.KeyPEM, "EC PRIVATE KEY"))
+	if err != nil || !priv.PublicKey.Equal(csr.PublicKey) {
+		t.Fatalf("the request is for another key: %v", err)
+	}
+	if _, err = CSRForKey("not a key"); err == nil {
+		t.Fatal("a non-PEM key must be refused")
+	}
+}

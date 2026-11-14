@@ -72,6 +72,13 @@ func modelServer(t *testing.T, step string) *httptest.Server {
 // startBrain builds and starts the real brain on loopback with the measuring seat on the fake model.
 func startBrain(t *testing.T, dir, modelURL string) *url.URL {
 	t.Helper()
+	u, _ := url.Parse("http://" + startBrainArgs(t, dir, modelURL))
+	return u
+}
+
+// startBrainArgs is startBrain with more flags of the brain; it returns the address the brain listens on.
+func startBrainArgs(t *testing.T, dir, modelURL string, extra ...string) string {
+	t.Helper()
 	bin := filepath.Join(t.TempDir(), "brain")
 	build := exec.Command("go", "build", "-o", bin, "./cmd/brain")
 	build.Dir, build.Env = dir, append(os.Environ(), "GOWORK=off")
@@ -79,7 +86,12 @@ func startBrain(t *testing.T, dir, modelURL string) *url.URL {
 		t.Skipf("the brain does not build here: %v\n%s", err, out)
 	}
 	addr := freeAddr(t)
-	cmd := exec.Command(bin, "-addr", addr, "-measure-seat", "solver", "-measure-actions", "5", "-measure-runs", "1")
+	if len(extra) > 0 {
+		// The brain's own CA puts the host of -addr into its server certificate as a DNS name only, so an IP literal would
+		// never verify: the mutual-TLS mode is reached by the name localhost.
+		addr = strings.Replace(addr, "127.0.0.1", "localhost", 1)
+	}
+	cmd := exec.Command(bin, append([]string{"-addr", addr, "-measure-seat", "solver", "-measure-actions", "5", "-measure-runs", "1"}, extra...)...)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "GOWORK=off", "INFERENCE_BASE_URL="+modelURL, "INFERENCE_MODEL=m", "INFERENCE_PROTOCOL=openai", "INFERENCE_API_KEY=x", "BRAIN_TOKEN=")
 	var logs strings.Builder
@@ -99,8 +111,7 @@ func startBrain(t *testing.T, dir, modelURL string) *url.URL {
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
-	u, _ := url.Parse("http://" + addr)
-	return u
+	return addr
 }
 
 func TestAGraderRunAgainstTheRealBrain(t *testing.T) {
@@ -112,12 +123,23 @@ func TestAGraderRunAgainstTheRealBrain(t *testing.T) {
 	proxy := httputil.NewSingleHostReverseProxy(brainURL)
 	proxy.FlushInterval = -1
 	r.fake.RunsBackend = proxy
+	staticMaterials(r)
+	staticGraderRun(t, r)
+}
+
+// staticMaterials makes the rig's lab a static task with one flag subtask the fake model solves.
+func staticMaterials(r *runRig) {
 	r.labs.hasLab = false // a static task: access none, only materials
 	r.labs.judged["login"] = "ICE{real}"
 	r.labs.materials = &exerciseUseCase.Materials{
 		Task:  []byte(`{"title":"Find it","description":"","subtasks":[{"key":"login","title":"Find it","prompt":"The flag is in notes.txt.","answer_kind":"flag"}]}`),
 		Files: []exerciseUseCase.MaterialFile{{Name: "notes.txt", ContentType: "text/plain", Data: []byte("the flag is ICE{real}")}},
 	}
+}
+
+// staticGraderRun runs one grader run of the static task to its end and checks it as the platform sees it.
+func staticGraderRun(t *testing.T, r *runRig) {
+	t.Helper()
 	run := r.start(t)
 	r.drive(t)
 

@@ -403,7 +403,7 @@ func (u *UseCase) buildClient(conn assistantModel.Connection) (*brain.Client, er
 	return c, nil
 }
 
-// RenewBrainCertificate gets a new client certificate for a fresh key over the current mutual-TLS connection when the
+// RenewBrainCertificate gets a new client certificate for the same key over the current mutual-TLS connection when the
 // stored one is past two thirds of its lifetime. It reports whether it renewed. The certificate must name the same
 // tenant. Only the leader replica runs it (Maintain).
 func (u *UseCase) RenewBrainCertificate(ctx context.Context) (bool, error) {
@@ -422,9 +422,15 @@ func (u *UseCase) RenewBrainCertificate(ctx context.Context) (bool, error) {
 		return false, err
 	}
 	defer current.Close()
-	key, err := agentcrypto.NewClientKey()
+	// The brain renews a certificate only for the key it was issued to (a stolen certificate cannot be rolled to a new key),
+	// so the request is made for the stored key.
+	keyPEM, err := u.cipher.DecryptWithContext(conn.KeyCiphertext, assistantModel.SecretContext(conn.Endpoint, "key"))
 	if err != nil {
-		return false, fmt.Errorf("generate the client key: %w", err)
+		return false, model.ErrPlatform.WithError(err).WithMessage("Failed to open the cyber-brain client key").Err()
+	}
+	key := agentcrypto.ClientKey{KeyPEM: string(keyPEM)}
+	if key.CSRPEM, err = agentcrypto.CSRForKey(key.KeyPEM); err != nil {
+		return false, err
 	}
 	out, err := current.Renew(ctx, key.CSRPEM)
 	if err != nil {
