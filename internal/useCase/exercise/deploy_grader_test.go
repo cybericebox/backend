@@ -346,3 +346,55 @@ func gws(pairs ...string) []exerciseModel.LabDeployedGateway {
 	}
 	return out
 }
+
+func TestRunTarget_ALinkedVariantTakesTheOpponentsOfItsBase(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	q := postgresMocks.NewMockQuerier(ctrl)
+	versionID, exerciseID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	base, linked, own := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	device := []exerciseModel.Device{{Name: "web", Image: "nginx:1"}}
+	opponent := exerciseModel.Opponent{Role: exerciseModel.OpponentAttack, Band: 3, Goal: []string{"root"}}
+	variants, _ := json.Marshal([]exerciseModel.Variant{
+		{ID: base, Topology: exerciseModel.Topology{Devices: device}, Opponents: []exerciseModel.Opponent{opponent}},
+		{ID: linked, LinkedTo: uuid.NullUUID{UUID: base, Valid: true}, Topology: exerciseModel.Topology{Devices: device}},
+		{ID: own, Topology: exerciseModel.Topology{Devices: device}},
+	})
+	q.EXPECT().GetExerciseVersionByID(gomock.Any(), versionID).Return(postgres.ExerciseVersion{ID: versionID, ExerciseID: exerciseID, Variants: variants}, nil).AnyTimes()
+	uc := exercise.NewExerciseUseCase(exercise.Dependencies{Repo: q})
+	for id, want := range map[uuid.UUID]int{base: 1, linked: 1, own: 0} {
+		got, err := uc.RunTarget(context.Background(), versionID, id, 0)
+		if err != nil || len(got.Opponents) != want || want == 1 && (got.Opponents[0].Band != 3 || got.Opponents[0].Goal[0] != "root") {
+			t.Errorf("%s: %+v %v", id, got.Opponents, err)
+		}
+	}
+}
+
+func TestRunSolvedSubtasks_StatePassedAndAnswersFoundInTheLab(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	q := postgresMocks.NewMockQuerier(ctrl)
+	owner, deployID, versionID, variantID, device := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	flagID, otherID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	variants, _ := json.Marshal([]exerciseModel.Variant{{ID: variantID, Tasks: []exerciseModel.Task{
+		{ID: flagID, Key: "flag", Check: exerciseModel.Check{Answer: &exerciseModel.AnswerCheck{Type: exerciseModel.AnswerTypeFlag}}},
+		{ID: otherID, Key: "other", Check: exerciseModel.Check{Answer: &exerciseModel.AnswerCheck{Type: exerciseModel.AnswerTypeFlag}}},
+		{ID: uuid.Must(uuid.NewV7()), Key: "service", Check: exerciseModel.Check{State: &exerciseModel.StateCheck{Conditions: []exerciseModel.Condition{{DeviceID: device}}}}},
+	}}})
+	solved, _ := json.Marshal([]uuid.UUID{flagID})
+	row := graderRow(owner, deployID)
+	row.VersionID, row.VariantID, row.Solved = versionID, variantID, solved
+	q.EXPECT().GetOwnedExerciseTestDeploy(gomock.Any(), gomock.Any()).Return(row, nil).AnyTimes()
+	q.EXPECT().GetExerciseVersionByID(gomock.Any(), versionID).Return(postgres.ExerciseVersion{ID: versionID, Variants: variants}, nil).AnyTimes()
+	checks := &fakeLabChecks{}
+	uc := exercise.NewExerciseUseCase(exercise.Dependencies{Repo: q, Infra: &fakeInfra{}})
+	uc.SetLabChecks(checks)
+
+	got, err := uc.RunSolvedSubtasks(context.Background(), owner, deployID)
+	if err != nil || len(got) != 1 || !got["flag"] {
+		t.Fatalf("only the answer the author found: %v %v", got, err)
+	}
+	first := time.Now().Add(-time.Minute)
+	checks.results = []labCheckModel.Result{{CheckID: exerciseModel.CheckID("service", 1), State: labCheckModel.StatePassed, FirstPassedAt: &first, ChangedAt: first}}
+	if got, err = uc.RunSolvedSubtasks(context.Background(), owner, deployID); err != nil || len(got) != 2 || !got["flag"] || !got["service"] || got["other"] {
+		t.Fatalf("%v %v", got, err)
+	}
+}

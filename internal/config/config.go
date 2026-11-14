@@ -76,6 +76,11 @@ type (
 		// the runner, reached over the grpc access). It has no default: unset, provide_device for tools and the opponent runs
 		// answer not_supported_yet.
 		ToolsImage string `env:"TOOLS_IMAGE"`
+		// OpponentActions, OpponentTokens and OpponentSeconds are the budget every opponent run gets (the author never sets
+		// one): how many actions and tokens it may spend and for how long (seconds).
+		OpponentActions int `env:"OPPONENT_ACTIONS" envDefault:"100"`
+		OpponentTokens  int `env:"OPPONENT_TOKENS" envDefault:"500000"`
+		OpponentSeconds int `env:"OPPONENT_SECONDS" envDefault:"1200"`
 	}
 
 	// TelegramConfig is the one bot of the platform's operator notifications (the error journal).
@@ -752,6 +757,9 @@ func (c BrainConfig) Validate() error {
 	host, port, err := net.SplitHostPort(strings.TrimSpace(c.Endpoint))
 	if err != nil || host == "" || port == "" {
 		return errors.New("cyber-brain: BRAIN_ENDPOINT must be host:port")
+	}
+	if c.OpponentActions < 0 || c.OpponentTokens < 0 || c.OpponentSeconds < 0 {
+		return errors.New("cyber-brain: BRAIN_OPPONENT_ACTIONS, BRAIN_OPPONENT_TOKENS and BRAIN_OPPONENT_SECONDS must not be negative")
 	}
 	if c.RunGrace < 0 || c.RunMaxDuration < 0 {
 		return errors.New("cyber-brain: BRAIN_RUN_GRACE and BRAIN_RUN_MAX_DURATION must not be negative")

@@ -61,3 +61,25 @@ func (u *UseCase) StopGraderRun(ctx context.Context, actor exerciseUseCase.Actor
 func (u *UseCase) GraderRunEvents(ctx context.Context, actor exerciseUseCase.Actor, exerciseID, versionID, variantID, runID uuid.UUID) (func(ctx context.Context, after int64, limit int) ([]assistantModel.RunEvent, assistantModel.RunState, error), error) {
 	return u.Assistant.GraderRunEvents(ctx, actor, exerciseID, versionID, variantID, runID)
 }
+
+// The opponent runs of a variant (the HTTP handler's port): authorized like the variant's test deploy.
+
+func (u *UseCase) StartOpponentRun(ctx context.Context, actor exerciseUseCase.Actor, exerciseID, versionID, variantID uuid.UUID, index int) (assistantModel.Run, error) {
+	return u.Assistant.StartOpponentRun(ctx, actor, exerciseID, versionID, variantID, index)
+}
+
+func (u *UseCase) OpponentRuns(ctx context.Context, actor exerciseUseCase.Actor, exerciseID, versionID, variantID uuid.UUID, index int) ([]assistantModel.Run, error) {
+	return u.Assistant.OpponentRuns(ctx, actor, exerciseID, versionID, variantID, index)
+}
+
+func (u *UseCase) OpponentRun(ctx context.Context, actor exerciseUseCase.Actor, exerciseID, versionID, variantID uuid.UUID, index int, runID uuid.UUID) (assistantUseCase.RunView, error) {
+	return u.Assistant.OpponentRun(ctx, actor, exerciseID, versionID, variantID, index, runID)
+}
+
+func (u *UseCase) StopOpponentRun(ctx context.Context, actor exerciseUseCase.Actor, exerciseID, versionID, variantID uuid.UUID, index int, runID uuid.UUID) (assistantModel.Run, error) {
+	return u.Assistant.StopOpponentRun(ctx, actor, exerciseID, versionID, variantID, index, runID)
+}
+
+func (u *UseCase) OpponentRunEvents(ctx context.Context, actor exerciseUseCase.Actor, exerciseID, versionID, variantID uuid.UUID, index int, runID uuid.UUID) (func(ctx context.Context, after int64, limit int) ([]assistantModel.RunEvent, assistantModel.RunState, error), error) {
+	return u.Assistant.OpponentRunEvents(ctx, actor, exerciseID, versionID, variantID, index, runID)
+}

@@ -7411,6 +7411,21 @@ func (mr *MockQuerierMockRecorder) ListApprovedExerciseResourceElevations(ctx, e
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListApprovedExerciseResourceElevations", reflect.TypeOf((*MockQuerier)(nil).ListApprovedExerciseResourceElevations), ctx, exerciseIds)
 }
 
+// ListAssistantOpponentRunsOfVariant mocks base method.
+func (m *MockQuerier) ListAssistantOpponentRunsOfVariant(ctx context.Context, arg postgres.ListAssistantOpponentRunsOfVariantParams) ([]postgres.AssistantRun, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListAssistantOpponentRunsOfVariant", ctx, arg)
+	ret0, _ := ret[0].([]postgres.AssistantRun)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListAssistantOpponentRunsOfVariant indicates an expected call of ListAssistantOpponentRunsOfVariant.
+func (mr *MockQuerierMockRecorder) ListAssistantOpponentRunsOfVariant(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAssistantOpponentRunsOfVariant", reflect.TypeOf((*MockQuerier)(nil).ListAssistantOpponentRunsOfVariant), ctx, arg)
+}
+
 // ListAssistantRunAnswers mocks base method.
 func (m *MockQuerier) ListAssistantRunAnswers(ctx context.Context, runID uuid.UUID) ([]postgres.ListAssistantRunAnswersRow, error) {
 	m.ctrl.T.Helper()

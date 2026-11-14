@@ -87,6 +87,12 @@ definitions:
         items:
           type: integer
         type: array
+      Opponent:
+        description: Opponent is the 1-based position of the opponent in the variant's
+          manifest (an opponent run only), Role its role.
+        type: integer
+      Role:
+        type: string
       StartedAt:
         type: string
       State:
@@ -120,6 +126,12 @@ definitions:
         items:
           type: integer
         type: array
+      Opponent:
+        description: Opponent is the 1-based position of the opponent in the variant's
+          manifest (an opponent run only), Role its role.
+        type: integer
+      Role:
+        type: string
       StartedAt:
         type: string
       State:
@@ -26904,6 +26916,84 @@ paths:
                   $ref: '#/definitions/assistant.runResponse'
               type: object
       summary: Stop a grader run; its lab is torn down
+      tags:
+      - exercises
+  /exercises/{id}/versions/{versionID}/variants/{variantID}/opponents/{index}/try:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/assistant.runResponse'
+                  type: array
+              type: object
+      summary: The runs of an opponent of a variant, newest first
+      tags:
+      - exercises
+    post:
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/assistant.runResponse'
+              type: object
+      summary: Try an opponent of a variant against its test lab
+      tags:
+      - exercises
+  /exercises/{id}/versions/{versionID}/variants/{variantID}/opponents/{index}/try/{runID}:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/assistant.runDetailResponse'
+              type: object
+      summary: One run of an opponent with its judged answers
+      tags:
+      - exercises
+  /exercises/{id}/versions/{versionID}/variants/{variantID}/opponents/{index}/try/{runID}/events:
+    get:
+      produces:
+      - text/event-stream
+      responses: {}
+      summary: The events of a run of an opponent, from storage (resume with ?after=
+        or Last-Event-ID)
+      tags:
+      - exercises
+  /exercises/{id}/versions/{versionID}/variants/{variantID}/opponents/{index}/try/{runID}/stop:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/assistant.runResponse'
+              type: object
+      summary: Stop a run of an opponent; its lab and tools device are torn down
       tags:
       - exercises
   /exercises/access:

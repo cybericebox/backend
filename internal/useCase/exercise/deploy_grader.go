@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/netip"
+	"slices"
 	"strings"
 	"time"
 
@@ -214,6 +215,8 @@ type RunTarget struct {
 	VariantsJS []byte
 	// HasLab: the variant has devices, so a test of it is a lab a run can join (a variant without devices has none).
 	HasLab bool
+	// Opponents are the opponents of the chosen variant (those of its base when it is linked), in the manifest's order.
+	Opponents []exerciseModel.Opponent
 	// Lease is the run length to ask for a lab that lasts at least the wanted time (the longest allowed when none does).
 	Lease time.Duration
 }
@@ -248,8 +251,56 @@ func (u *ExerciseUseCase) RunTarget(ctx context.Context, versionID, variantID uu
 	allowed, _ := u.TestRunLengths(ctx)
 	return RunTarget{
 		ExerciseID: version.ExerciseID, VersionID: versionID, VariantID: chosen.ID, VariantsJS: raw,
-		HasLab: len(chosen.Topology.Devices) > 0, Lease: pickLease(allowed, want),
+		HasLab: len(chosen.Topology.Devices) > 0, Lease: pickLease(allowed, want), Opponents: opponentsOf(version.Variants, chosen),
 	}, nil
+}
+
+// opponentsOf is the opponents of a variant: its own, or its base's when it is linked to one.
+func opponentsOf(variants []exerciseModel.Variant, v *exerciseModel.Variant) []exerciseModel.Opponent {
+	if len(v.Opponents) > 0 || !v.LinkedTo.Valid {
+		return slices.Clone(v.Opponents)
+	}
+	for _, base := range variants {
+		if base.ID == v.LinkedTo.UUID {
+			return slices.Clone(base.Opponents)
+		}
+	}
+	return nil
+}
+
+// RunSolvedSubtasks gives the keys of the subtasks of the variant of the owner's test lab that are solved in it: the ones
+// checked by the lab's state that have passed, and the ones whose answer the author found in that lab.
+func (u *ExerciseUseCase) RunSolvedSubtasks(ctx context.Context, owner, deployID uuid.UUID) (map[string]bool, error) {
+	state, err := u.RunStateTasks(ctx, owner, deployID)
+	if err != nil {
+		return nil, err
+	}
+	solved := map[string]bool{}
+	for _, task := range state {
+		if task.Passed {
+			solved[task.Key] = true
+		}
+	}
+	deploy, err := u.testDeploys.GetOwned(ctx, deployID, owner)
+	if err != nil {
+		if repositoryTools.IsObjectNotFoundError(err) {
+			return nil, exerciseModel.ErrTestDeployNotFound.Err()
+		}
+		return nil, model.ErrPlatform.WithError(err).WithMessage("Failed to load test deploy").Err()
+	}
+	if len(deploy.Solved) > 0 {
+		_, variant, _, loadErr := u.loadVersionVariant(ctx, deploy.VersionID, deploy.VariantID)
+		if loadErr != nil {
+			return nil, loadErr
+		}
+		keys := variant.TaskKeyByID()
+		for _, id := range deploy.Solved {
+			if key := keys[id]; key != "" {
+				solved[key] = true
+			}
+		}
+	}
+	return solved, nil
 }
 
 // pickLease is the shortest allowed length (in minutes) that is at least want, else the longest allowed; zero when none is

@@ -107,6 +107,8 @@ type (
 		MaxActiveRuns  int
 		RunPoll        time.Duration
 		RunPause       time.Duration
+		// OpponentBudget is what every opponent run may spend (the author never sets one); zero fields take the defaults.
+		OpponentBudget assistantModel.RunBudget
 	}
 
 	// UseCase is the assistant.
@@ -132,6 +134,7 @@ type (
 		users             UserLookup
 		labs              LabRunner
 		runMax, runGrace  time.Duration
+		oppBudget         assistantModel.RunBudget
 		maxActive         int
 		runPoll, runPause time.Duration
 
@@ -153,7 +156,7 @@ func New(d Dependencies) *UseCase {
 		namesImages: d.NamesImages,
 		runs:        d.Runs, users: d.Users, labs: d.Labs, maxActive: d.MaxActiveRuns,
 		runMax: orDefault(d.RunMaxDuration, DefaultRunMaxDuration), runGrace: orDefault(d.RunGrace, DefaultRunGrace),
-		runPoll: orDefault(d.RunPoll, 2*time.Second), runPause: orDefault(d.RunPause, time.Second),
+		oppBudget: d.OpponentBudget, runPoll: orDefault(d.RunPoll, 2*time.Second), runPause: orDefault(d.RunPause, time.Second),
 	}
 	if u.maxActive <= 0 {
 		u.maxActive = DefaultMaxActiveRuns

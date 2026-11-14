@@ -366,6 +366,7 @@
   "33607": "The assistant session is over",
   "33612": "Event not found",
   "33613": "Assistant run not found",
+  "33616": "The variant has no such opponent",
   "40211": "Event already has its own template for this notification type",
   "40903": "Exercise with this name already exists",
   "41102": "Event with this tag already exists",
@@ -587,5 +588,6 @@
   "73609": "The finished task could not be imported",
   "73610": "The finished task is still being imported",
   "73614": "The variant already has an active run",
-  "73615": "Too many active runs"
+  "73615": "Too many active runs",
+  "73617": "Opponents cannot be run in this lab"
 }

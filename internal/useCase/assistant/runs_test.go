@@ -47,6 +47,9 @@ func (m *memRuns) Create(_ context.Context, run assistantModel.Run, _ time.Time)
 		if run.Role == assistantModel.RoleGrader && r.Role == assistantModel.RoleGrader && r.VariantID == run.VariantID && r.State.Active() {
 			return assistantRunRepo.ErrActive
 		}
+		if run.Opponent > 0 && r.Opponent == run.Opponent && r.VariantID == run.VariantID && r.State.Active() {
+			return assistantRunRepo.ErrActive
+		}
 	}
 	m.runs[run.ID] = run
 	m.order = append(m.order, run.ID)
@@ -64,6 +67,17 @@ func (m *memRuns) OfVariant(_ context.Context, variant uuid.UUID, _ int) ([]assi
 	var out []assistantModel.Run
 	for i := len(m.order) - 1; i >= 0; i-- {
 		if r := m.runs[m.order[i]]; r.VariantID == variant {
+			out = append(out, r)
+		}
+	}
+	return out, nil
+}
+func (m *memRuns) OpponentsOfVariant(_ context.Context, variant uuid.UUID, _ int) ([]assistantModel.Run, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var out []assistantModel.Run
+	for i := len(m.order) - 1; i >= 0; i-- {
+		if r := m.runs[m.order[i]]; r.VariantID == variant && r.Opponent > 0 {
 			out = append(out, r)
 		}
 	}
@@ -237,7 +251,7 @@ func (m *memRuns) LabOfRequest(_ context.Context, requestID string) (assistantMo
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for _, r := range m.runs {
-		if r.Role == assistantModel.RoleLab && r.RequestID == requestID {
+		if assistantModel.IsLabRole(r.Role) && r.RequestID == requestID {
 			return r, true, nil
 		}
 	}
@@ -287,6 +301,8 @@ type fakeLabs struct {
 	revokeErr   error
 	deployOwner uuid.UUID
 	toolsErr    error
+	opponents   []exerciseModel.Opponent
+	solved      map[string]bool
 	edaErr      error
 	edaUntil    time.Time
 	edaRun      string
@@ -400,6 +416,23 @@ func (f *fakeLabs) RunStateTasks(context.Context, uuid.UUID, uuid.UUID) ([]exerc
 	defer f.mu.Unlock()
 	return append([]exerciseUseCase.StateSubtask(nil), f.stateTasks...), nil
 }
+func (f *fakeLabs) RunSolvedSubtasks(context.Context, uuid.UUID, uuid.UUID) (map[string]bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := map[string]bool{}
+	for k, v := range f.solved {
+		out[k] = v
+	}
+	return out, nil
+}
+func (f *fakeLabs) setSolved(key string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.solved == nil {
+		f.solved = map[string]bool{}
+	}
+	f.solved[key] = true
+}
 func (f *fakeLabs) setStatePassed(key string, passed bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -411,7 +444,9 @@ func (f *fakeLabs) setStatePassed(key string, passed bool) {
 }
 func (f *fakeLabs) RunTarget(_ context.Context, runVersion, _ uuid.UUID, want time.Duration) (exerciseUseCase.RunTarget, error) {
 	variants := `[{"topology":{"devices":[{"image":"nginx:1"},{"image":"redis:7"}]}}]`
-	return exerciseUseCase.RunTarget{ExerciseID: runExercise, VersionID: runVersion, VariantsJS: []byte(variants), HasLab: f.hasLab, Lease: want}, nil
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return exerciseUseCase.RunTarget{ExerciseID: runExercise, VersionID: runVersion, VariantID: runVariant, VariantsJS: []byte(variants), HasLab: f.hasLab, Lease: want, Opponents: f.opponents}, nil
 }
 
 var (

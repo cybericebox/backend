@@ -54,6 +54,7 @@ type AssistantRun struct {
 	StartedAt       pgtype.Timestamptz `json:"started_at"`
 	FinishedAt      pgtype.Timestamptz `json:"finished_at"`
 	ExpiresAt       time.Time          `json:"expires_at"`
+	Opponent        int32              `json:"opponent"`
 }
 
 type BrainConnection struct {

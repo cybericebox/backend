@@ -2,6 +2,7 @@ package useCase
 
 import (
 	"context"
+	assistantModel "github.com/cybericebox/daemon/internal/model/assistant"
 	"time"
 
 	"github.com/gofrs/uuid"
@@ -566,6 +567,7 @@ func NewUseCase(deps Dependencies) *UseCase {
 		Importer:   exerciseUC, Files: mediaUC, Saves: assistantSaveRepo.New(deps.Repo), Subjects: assistantSubjectRepo.New(deps.Repo), Audit: adminAuditUC.RecordAdminAction,
 		// The grader runs: a test lab of the variant, a VPN client of its own, and the checker of the lab's flags.
 		Runs: assistantRunRepo.New(deps.Repo), Users: userRepo.New(deps.Repo), Labs: exerciseUC, RunGrace: deps.Brain.RunGrace, RunMaxDuration: deps.Brain.RunMaxDuration,
+		OpponentBudget: assistantModel.RunBudget{Actions: deps.Brain.OpponentActions, Tokens: deps.Brain.OpponentTokens, Time: deps.Brain.OpponentSeconds},
 	})
 	// A test lab's group policy keeps the clients of the active runs, or a run would lose its lab when the author deploys another.
 	exerciseUC.SetLabClientSource(assistantUC.LabClients)

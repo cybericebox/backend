@@ -238,6 +238,9 @@ func (d *runDriver) starting(ctx context.Context, run assistantModel.Run) time.D
 		log.Warn().Err(err).Msg("Reading the task of a run failed")
 		return d.backoff()
 	}
+	if run.Opponent > 0 {
+		return d.startingOpponent(ctx, run, target)
+	}
 	// A variant without devices has no lab to join: no client, the run gets its materials and answers only.
 	if target.HasLab {
 		if wait, done := d.access(ctx, run); !done {
@@ -257,11 +260,17 @@ func (d *runDriver) starting(ctx context.Context, run assistantModel.Run) time.D
 		}
 		d.materialsSent = true
 	}
-	body := d.startBody(run, target)
+	return d.started(ctx, run, d.startBody(run, target))
+}
+
+// started sends StartRun and acts on the answer: accepted marks the run running, a refusal fails it, anything else is tried
+// again within the grace.
+func (d *runDriver) started(ctx context.Context, run assistantModel.Run, body assistantModel.StartRun) time.Duration {
+	u := d.u
 	switch outcome := u.startAtBrain(ctx, body); outcome {
 	case startAccepted:
 		d.reachable(ctx, run)
-		if _, err = u.runs.SetRunning(ctx, run.ID, u.now().UTC()); err != nil {
+		if _, err := u.runs.SetRunning(ctx, run.ID, u.now().UTC()); err != nil {
 			log.Warn().Err(err).Msg("Marking a run as running failed")
 			return d.backoff()
 		}
@@ -276,6 +285,50 @@ func (d *runDriver) starting(ctx context.Context, run assistantModel.Run) time.D
 		}
 		return d.backoff()
 	}
+}
+
+// startingOpponent is starting for a run of an opponent of the manifest: the lab is ready (with the tools device in it). The
+// run gets a client of its own (its token names it), waits for the subtask its opponent starts after to be solved in the lab,
+// and is started with the manifest's role, band, goal and operates, the platform's budget and the eda access of the tools
+// device. It gets no materials: an opponent plays against the lab, it does not read the participant's task.
+func (d *runDriver) startingOpponent(ctx context.Context, run assistantModel.Run, target exerciseUseCase.RunTarget) time.Duration {
+	u := d.u
+	if run.Opponent > len(target.Opponents) {
+		d.close(ctx, run, assistantModel.RunFailed, assistantModel.FailureStartRefused)
+		return 0
+	}
+	opponent := target.Opponents[run.Opponent-1]
+	if wait, done := d.access(ctx, run); !done {
+		return wait
+	}
+	if !opponent.Start.Immediate() {
+		solved, err := u.labs.RunSolvedSubtasks(ctx, run.Actor, run.DeployID)
+		if err != nil {
+			log.Warn().Err(err).Msg("Reading the solved subtasks of a lab failed")
+			return d.backoff()
+		}
+		if !solved[opponent.Start.After] {
+			return u.runPoll // the run is not started until the platform sees that subtask solved (ExpiresAt bounds the wait)
+		}
+	}
+	// The token ends with the run's window (plus the grace); a retry mints it again, so it is never stale when it is sent.
+	eda, err := u.labs.MintEDAAccess(ctx, run.Actor, run.DeployID, "", run.AccessClient, run.ID.String(), run.ExpiresAt.Add(u.runGrace))
+	if err != nil {
+		d.edaFails++
+		log.Warn().Err(err).Int("attempt", d.edaFails).Msg("Making the access of the tools device of a run failed")
+		if d.edaFails >= mintAttempts {
+			d.close(ctx, run, assistantModel.RunFailed, assistantModel.FailureLabFailed)
+			return 0
+		}
+		return d.backoff()
+	}
+	image, _ := imageAndKind(target.VariantsJS)
+	body := assistantModel.StartRun{
+		RunID: run.ID.String(), Role: string(opponent.Role), TaskRef: run.ExerciseID.String(), Version: run.VersionID.String(),
+		Image: image, Access: assistantModel.EDAAccess(eda.URL, eda.Token), Start: json.RawMessage(`"immediate"`),
+		Band: opponent.Band, Goal: opponent.Goal, Operates: opponent.Operates, Brief: opponent.Brief, Budget: u.opponentBudget(),
+	}
+	return d.started(ctx, run, body)
 }
 
 // access gives the run its own VPN client (recorded before it is made, so a crash leaves a client that is known and gets
@@ -726,7 +779,7 @@ func (d *runDriver) closing(ctx context.Context, run assistantModel.Run) time.Du
 		d.refused = true
 		d.refuseLab(ctx, run)
 	}
-	if !d.stopSent && run.Role == assistantModel.RoleGrader && !run.StartedAt.IsZero() && run.EndState != assistantModel.RunFinished {
+	if !d.stopSent && !assistantModel.IsLabRole(run.Role) && !run.StartedAt.IsZero() && run.EndState != assistantModel.RunFinished {
 		d.stopSent = true
 		d.stopAtBrain(ctx, run)
 	}

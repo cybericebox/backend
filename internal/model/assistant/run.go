@@ -60,7 +60,9 @@ type Run struct {
 	DeployID   uuid.UUID
 	Actor      uuid.UUID
 	Role       string
-	State      RunState
+	// Opponent is the 1-based position of the opponent in the variant's manifest for an opponent run, 0 for any other run.
+	Opponent int
+	State    RunState
 	// EndState is how a closing run ends ("" otherwise).
 	EndState      RunState
 	FailureReason string
@@ -142,14 +144,29 @@ func ExcludeRun(role string) bool {
 // StartRun is the body of `POST /v1/runs` for a run the platform originates: the grader has no band and no budget (the
 // brain applies its own reference configuration) and no goal. Access is the one entry point; Start is "immediate" or
 // {"after": "<ref>"}.
+//
+// An opponent run also carries what its manifest entry says (Band, Goal, Operates, Brief) and the platform's budget; the
+// grader sends none of them.
 type StartRun struct {
-	RunID   string          `json:"run_id"`
-	Role    string          `json:"role"`
-	TaskRef string          `json:"task_ref"`
-	Version string          `json:"version"`
-	Image   string          `json:"image"`
-	Access  Access          `json:"access"`
-	Start   json.RawMessage `json:"start"`
+	RunID    string          `json:"run_id"`
+	Role     string          `json:"role"`
+	TaskRef  string          `json:"task_ref"`
+	Version  string          `json:"version"`
+	Image    string          `json:"image"`
+	Access   Access          `json:"access"`
+	Start    json.RawMessage `json:"start"`
+	Band     int             `json:"band,omitempty"`
+	Goal     []string        `json:"goal,omitempty"`
+	Operates []string        `json:"operates,omitempty"`
+	Brief    string          `json:"brief,omitempty"`
+	Budget   *RunBudget      `json:"budget,omitempty"`
+}
+
+// RunBudget is what an opponent may spend: actions and tokens, and a time in whole seconds (omitted when zero).
+type RunBudget struct {
+	Actions int `json:"actions"`
+	Tokens  int `json:"tokens"`
+	Time    int `json:"time,omitempty"`
 }
 
 // Verdict is the body of `POST /v1/runs/{id}/verdict`: whether the answer was right and when it was judged. Never the

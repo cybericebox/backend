@@ -878,6 +878,8 @@ type Querier interface {
 	ListAdminAuditLog(ctx context.Context, arg ListAdminAuditLogParams) ([]AdminAuditLog, error)
 	// The approved values of every approved elevation of the given exercises.
 	ListApprovedExerciseResourceElevations(ctx context.Context, exerciseIds []uuid.UUID) ([]ListApprovedExerciseResourceElevationsRow, error)
+	// The opponent runs of a variant (any role of the manifest, never the grader or a lab), newest first.
+	ListAssistantOpponentRunsOfVariant(ctx context.Context, arg ListAssistantOpponentRunsOfVariantParams) ([]AssistantRun, error)
 	ListAssistantRunAnswers(ctx context.Context, runID uuid.UUID) ([]ListAssistantRunAnswersRow, error)
 	ListAssistantRunEvents(ctx context.Context, arg ListAssistantRunEventsParams) ([]ListAssistantRunEventsRow, error)
 	// The grader runs of a variant, newest first (the labs the brain asked for are not runs).

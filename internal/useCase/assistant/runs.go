@@ -35,6 +35,7 @@ type (
 		LabOfRequest(ctx context.Context, requestID string) (assistantModel.Run, bool, error)
 		SetAnswered(ctx context.Context, id uuid.UUID, now time.Time) error
 		OfVariant(ctx context.Context, variant uuid.UUID, limit int) ([]assistantModel.Run, error)
+		OpponentsOfVariant(ctx context.Context, variant uuid.UUID, limit int) ([]assistantModel.Run, error)
 		Active(ctx context.Context, limit int) ([]assistantModel.Run, error)
 		CountActiveOf(ctx context.Context, actor uuid.UUID) (int, error)
 		SetAccessClient(ctx context.Context, id uuid.UUID, client string, now time.Time) error
@@ -69,6 +70,7 @@ type (
 		RunTarget(ctx context.Context, versionID, variantID uuid.UUID, want time.Duration) (exerciseUseCase.RunTarget, error)
 		RunMaterials(ctx context.Context, owner, deployID uuid.UUID) (exerciseUseCase.Materials, error)
 		RunStateTasks(ctx context.Context, owner, deployID uuid.UUID) ([]exerciseUseCase.StateSubtask, error)
+		RunSolvedSubtasks(ctx context.Context, owner, deployID uuid.UUID) (map[string]bool, error)
 	}
 
 	// RunView is a run with the answers it submitted and how they were judged.
@@ -165,6 +167,11 @@ func (u *UseCase) dropLab(ctx context.Context, owner, deployID uuid.UUID) {
 
 // loadRun authorizes the actor for the variant like for its test deploy and returns the run if it belongs to that variant.
 func (u *UseCase) loadRun(ctx context.Context, actor exerciseUseCase.Actor, exerciseID, versionID, variantID, runID uuid.UUID) (assistantModel.Run, error) {
+	return u.loadRunOf(ctx, actor, exerciseID, versionID, variantID, 0, runID)
+}
+
+// loadRunOf is loadRun for the grader runs (opponent 0) or the runs of one opponent of the variant (its 1-based position).
+func (u *UseCase) loadRunOf(ctx context.Context, actor exerciseUseCase.Actor, exerciseID, versionID, variantID uuid.UUID, opponent int, runID uuid.UUID) (assistantModel.Run, error) {
 	if err := u.runsReady(); err != nil {
 		return assistantModel.Run{}, err
 	}
@@ -175,10 +182,18 @@ func (u *UseCase) loadRun(ctx context.Context, actor exerciseUseCase.Actor, exer
 	if err != nil {
 		return assistantModel.Run{}, model.ErrPlatform.WithError(err).WithMessage("Failed to read the run").Err()
 	}
-	if !found || run.Role != assistantModel.RoleGrader || run.ExerciseID != exerciseID || run.VariantID != variantID || run.VersionID != versionID {
+	if !found || !isRunOf(run, opponent) || run.ExerciseID != exerciseID || run.VariantID != variantID || run.VersionID != versionID {
 		return assistantModel.Run{}, assistantModel.ErrAssistantRunNotFound.Err()
 	}
 	return run, nil
+}
+
+// isRunOf says a row is a grader run (opponent 0) or a run of that opponent. A lab the brain asked for is neither.
+func isRunOf(run assistantModel.Run, opponent int) bool {
+	if opponent == 0 {
+		return run.Role == assistantModel.RoleGrader && run.Opponent == 0
+	}
+	return run.Opponent == opponent && !assistantModel.IsLabRole(run.Role) && run.Role != assistantModel.RoleGrader
 }
 
 // GraderRuns lists the runs of a variant, newest first.
@@ -238,6 +253,11 @@ func (u *UseCase) GraderRunEvents(ctx context.Context, actor exerciseUseCase.Act
 	if _, err := u.loadRun(ctx, actor, exerciseID, versionID, variantID, runID); err != nil {
 		return nil, err
 	}
+	return u.runEventReader(runID), nil
+}
+
+// runEventReader reads the stored events of a run (the caller has authorized the actor for it).
+func (u *UseCase) runEventReader(runID uuid.UUID) func(ctx context.Context, after int64, limit int) ([]assistantModel.RunEvent, assistantModel.RunState, error) {
 	return func(ctx context.Context, after int64, limit int) ([]assistantModel.RunEvent, assistantModel.RunState, error) {
 		// The state is read first: a run that is over by then has all its events stored, so the page may stop after them.
 		run, found, err := u.runs.Get(ctx, runID)
@@ -252,7 +272,7 @@ func (u *UseCase) GraderRunEvents(ctx context.Context, actor exerciseUseCase.Act
 			return nil, "", model.ErrPlatform.WithError(err).WithMessage("Failed to read the events of the run").Err()
 		}
 		return events, run.State, nil
-	}, nil
+	}
 }
 
 // LabClients lists the WireGuard clients of the active runs of an owner, for the group policy of their test labs.
