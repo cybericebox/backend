@@ -28,6 +28,13 @@ type (
 		QueueArchiveImport(ctx context.Context, in exerciseUseCase.QueueImportInput) (uuid.UUID, error)
 		ArchiveImportJob(ctx context.Context, id, user uuid.UUID) (exerciseUseCase.ImportJobView, error)
 	}
+	// SaveStore remembers which task a session was saved as.
+	SaveStore interface {
+		Get(ctx context.Context, session string, author uuid.UUID) (uuid.UUID, bool, error)
+		Put(ctx context.Context, session string, author, exercise uuid.UUID, at time.Time) (bool, error)
+	}
+	// Locker serializes the saves of one session across replicas; release ends the exclusion.
+	Locker func(ctx context.Context, key string) (release func(), err error)
 	// FileStore stores the archive for a background import (the media use case).
 	FileStore interface {
 		UploadFile(ctx context.Context, name, contentType string, r io.Reader, createdBy uuid.UUID) (mediaModel.File, error)
@@ -41,21 +48,21 @@ type (
 //  2. import it through the authorized import path (catalog target, the caller is the author),
 //  3. POST the new exercise id to the brain.
 //
+// The task a session was imported as is stored with its author. A repeated save of the same session by the same author
+// skips steps 1 and 2 and tells the brain the stored id again (the brain's save is idempotent). Saves of one session
+// run one at a time, so two clicks at once import once.
+//
 // An import that fails is the platform's own error and the brain is not told anything. An archive that names device
 // image files imports in the background; the call waits for that job (bounded) and the brain is told once it is done.
 func (u *UseCase) SaveSession(ctx context.Context, actor exerciseUseCase.Actor, sessionID string) error {
-	if u.importer == nil {
+	if u.importer == nil || u.saves == nil || u.lock == nil {
 		return assistantModel.ErrAssistantUnavailable.Err()
 	}
-	archive, err := u.fetchArchive(ctx, actor.UserID, sessionID)
+	exerciseID, err := u.importOnce(ctx, actor, sessionID)
 	if err != nil {
 		return err
 	}
-	exerciseID, err := u.importFinished(ctx, actor, archive)
-	if err != nil {
-		return err
-	}
-	body, err := json.Marshal(map[string]string{"ExerciseID": exerciseID.String()})
+	body, err := json.Marshal(map[string]string{"exercise_id": exerciseID.String()})
 	if err != nil {
 		return err
 	}
@@ -68,6 +75,35 @@ func (u *UseCase) SaveSession(ctx context.Context, actor exerciseUseCase.Actor, 
 	}
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
 	return resp.Body.Close()
+}
+
+// importOnce returns the task the session was saved as, importing it first when this author has not saved it yet.
+func (u *UseCase) importOnce(ctx context.Context, actor exerciseUseCase.Actor, sessionID string) (uuid.UUID, error) {
+	release, err := u.lock(ctx, "assistant-save:"+sessionID)
+	if err != nil {
+		return uuid.Nil, model.ErrPlatform.WithError(err).WithMessage("Failed to lock the assistant save").Err()
+	}
+	defer release()
+	stored, found, err := u.saves.Get(ctx, sessionID, actor.UserID)
+	if err != nil {
+		return uuid.Nil, model.ErrPlatform.WithError(err).WithMessage("Failed to read the assistant save").Err()
+	}
+	if found {
+		return stored, nil
+	}
+	archive, err := u.fetchArchive(ctx, actor.UserID, sessionID)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	exerciseID, err := u.importFinished(ctx, actor, archive)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	if _, err = u.saves.Put(ctx, sessionID, actor.UserID, exerciseID, u.now().UTC()); err != nil {
+		// The task exists but the repeat guard does not: say so, a retry would import it again.
+		return uuid.Nil, model.ErrPlatform.WithError(err).WithMessage("Failed to record the assistant save").Err()
+	}
+	return exerciseID, nil
 }
 
 func (u *UseCase) fetchArchive(ctx context.Context, user uuid.UUID, sessionID string) ([]byte, error) {

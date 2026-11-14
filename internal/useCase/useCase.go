@@ -9,6 +9,7 @@ import (
 	"github.com/cybericebox/daemon/internal/advisory"
 	"github.com/cybericebox/daemon/internal/config"
 	"github.com/cybericebox/daemon/internal/delivery/repository"
+	"github.com/cybericebox/daemon/internal/delivery/repository/assistantSaveRepo"
 	"github.com/cybericebox/daemon/internal/delivery/repository/autoRecreateRepo"
 	"github.com/cybericebox/daemon/internal/delivery/repository/brainConnectionRepo"
 	"github.com/cybericebox/daemon/internal/delivery/repository/dashboardRepo"
@@ -603,7 +604,14 @@ func NewUseCase(deps Dependencies) *UseCase {
 		assistantUseCase.New(assistantUseCase.Dependencies{
 			Store: brainConnectionRepo.New(deps.Repo), Cipher: deps.PlatformCipher,
 			Config:   assistantUseCase.Config{Endpoint: deps.Brain.Endpoint, EnrollmentToken: deps.Brain.EnrollmentToken, CAFile: deps.Brain.CAFile},
-			Importer: exerciseUC, Files: mediaUC,
+			Importer: exerciseUC, Files: mediaUC, Saves: assistantSaveRepo.New(deps.Repo),
+			Lock: func(ctx context.Context, key string) (func(), error) {
+				held, err := advisory.Lock(ctx, deps.Repo.Pool(), advisory.Key("assistant-save", key))
+				if err != nil {
+					return nil, err
+				}
+				return held.Release, nil
+			},
 		}),
 	}
 }
