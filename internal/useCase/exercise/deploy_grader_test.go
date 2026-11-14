@@ -19,6 +19,11 @@ import (
 	"github.com/cybericebox/daemon/internal/useCase/exercise"
 )
 
+// agentConfig is the client config the laboratory agent returns: the peer's AllowedIPs is what the agent chose.
+func agentConfig(allowed string) string {
+	return "[Interface]\nPrivateKey = real\nAddress = 10.8.3.9\n\n[Peer]\nPublicKey = server\nEndpoint = vpn.example:51820\nAllowedIPs = " + allowed + "\nPersistentKeepalive = 15\n"
+}
+
 func graderRow(owner, deployID uuid.UUID) postgres.ExerciseTestDeployment {
 	return postgres.ExerciseTestDeployment{ID: deployID, CreatedBy: owner, GroupName: "tu-group", LabName: "l-lab", ExpiresAt: time.Now().Add(time.Hour)}
 }
@@ -29,7 +34,7 @@ func TestMintLabClient_OwnClientReachesOnlyItsLabAndKeepsTheAuthorsPolicy(t *tes
 	owner, deployID, other := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 	q.EXPECT().GetOwnedExerciseTestDeploy(gomock.Any(), gomock.Any()).Return(graderRow(owner, deployID), nil)
 	q.EXPECT().ListOwnedExerciseTestDeploys(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
-	infra := &fakeInfra{status: exerciseModel.LabDeployStatus{VPNConfig: "[Interface]\nPrivateKey = real\n"}}
+	infra := &fakeInfra{status: exerciseModel.LabDeployStatus{VPNConfig: agentConfig("10.8.0.0/10"), Gateways: gws("vpn", "10.8.3.0/24")}}
 	uc := exercise.NewExerciseUseCase(exercise.Dependencies{Repo: q, Infra: infra})
 	uc.SetLabClientSource(func(_ context.Context, o uuid.UUID) []exercise.LabClient {
 		if o != owner {
@@ -39,8 +44,8 @@ func TestMintLabClient_OwnClientReachesOnlyItsLabAndKeepsTheAuthorsPolicy(t *tes
 	})
 
 	config, err := uc.MintLabClient(context.Background(), owner, deployID, "g-run")
-	if err != nil || config != "[Interface]\nPrivateKey = real\n" {
-		t.Fatalf("%q %v", config, err)
+	if err != nil || config != agentConfig("10.8.3.0/24") {
+		t.Fatalf("the profile routes the lab's own network only: %q %v", config, err)
 	}
 	if infra.client != "g-run" || infra.ensured != 1 {
 		t.Fatalf("the run's own client is made once, never the author's: %q %d", infra.client, infra.ensured)
@@ -283,4 +288,61 @@ func TestJudgeAnswer_TextAnswersFollowTheTasksCompareOptions(t *testing.T) {
 			t.Errorf("%s %q = %v %v, want %v", c.ref, c.value, got, err, c.want)
 		}
 	}
+}
+
+// The run's profile never carries a default route and never more than its lab's network, whatever the agent wrote.
+func TestMintLabClient_TheProfileRoutesTheLabNetworkOnly(t *testing.T) {
+	for name, agentWrote := range map[string]string{"the platform's base network": "10.8.0.0/10", "a default route": "0.0.0.0/0", "two routes": "10.8.0.0/10, 0.0.0.0/0, ::/0"} {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			q := postgresMocks.NewMockQuerier(ctrl)
+			owner, deployID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+			q.EXPECT().GetOwnedExerciseTestDeploy(gomock.Any(), gomock.Any()).Return(graderRow(owner, deployID), nil)
+			q.EXPECT().ListOwnedExerciseTestDeploys(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+			infra := &fakeInfra{status: exerciseModel.LabDeployStatus{VPNConfig: agentConfig(agentWrote), Gateways: gws("vpn", "10.8.3.0/24")}}
+			uc := exercise.NewExerciseUseCase(exercise.Dependencies{Repo: q, Infra: infra})
+			config, err := uc.MintLabClient(context.Background(), owner, deployID, "g-run")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(config, "AllowedIPs = 10.8.3.0/24\n") || strings.Contains(config, "0.0.0.0/0") || strings.Contains(config, "::/0") || strings.Count(config, "AllowedIPs") != 1 {
+				t.Fatalf("%s", config)
+			}
+			for _, kept := range []string{"PrivateKey = real", "Endpoint = vpn.example:51820", "PersistentKeepalive = 15"} {
+				if !strings.Contains(config, kept) {
+					t.Fatalf("the rest of the profile is as the agent wrote it: %s", config)
+				}
+			}
+		})
+	}
+	for name, status := range map[string]exerciseModel.LabDeployStatus{
+		"the lab has no network yet":         {VPNConfig: agentConfig("10.8.0.0/10")},
+		"the lab network is a default route": {VPNConfig: agentConfig("10.8.0.0/10"), Gateways: gws("vpn", "0.0.0.0/0")},
+		"the config has no AllowedIPs":       {VPNConfig: "[Interface]\nPrivateKey = real\n", Gateways: gws("vpn", "10.8.3.0/24")},
+	} {
+		t.Run("refused: "+name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			q := postgresMocks.NewMockQuerier(ctrl)
+			owner, deployID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+			q.EXPECT().GetOwnedExerciseTestDeploy(gomock.Any(), gomock.Any()).Return(graderRow(owner, deployID), nil)
+			q.EXPECT().ListOwnedExerciseTestDeploys(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+			infra := &fakeInfra{status: status}
+			uc := exercise.NewExerciseUseCase(exercise.Dependencies{Repo: q, Infra: infra})
+			if config, err := uc.MintLabClient(context.Background(), owner, deployID, "g-run"); err == nil || config != "" {
+				t.Fatalf("a profile that cannot be narrowed is not handed out: %q %v", config, err)
+			}
+			if len(infra.deletedClients) != 1 || infra.deletedClients[0] != "tu-group/g-run" {
+				t.Fatalf("the client that was made is removed again: %v", infra.deletedClients)
+			}
+		})
+	}
+}
+
+// gws makes the gateways of a lab status from name, cidr pairs; the kind of each is vpn.
+func gws(pairs ...string) []exerciseModel.LabDeployedGateway {
+	var out []exerciseModel.LabDeployedGateway
+	for i := 0; i+1 < len(pairs); i += 2 {
+		out = append(out, exerciseModel.LabDeployedGateway{Name: pairs[i], Kind: "vpn", CIDR: pairs[i+1], Ready: true})
+	}
+	return out
 }

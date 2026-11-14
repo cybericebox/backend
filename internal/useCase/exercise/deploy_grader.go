@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/netip"
 	"strings"
 	"time"
 
@@ -100,6 +101,17 @@ func (u *ExerciseUseCase) MintLabClient(ctx context.Context, owner, deployID uui
 		}
 		if made == "" || strings.Contains(made, wgPrivateKeyPlaceholder) {
 			return false, errors.New("the laboratory agent returned a VPN config without the private key")
+		}
+		// The run's profile routes the lab's own network only: the agent writes the whole VPN base network of the platform
+		// there, and a profile must never carry a default route (no internet for the run, as for a participant of a task
+		// that is given none). A config that cannot be narrowed is not handed out, and its client is removed again.
+		status, statusErr := u.infra.LabStatus(ctx, deploy.GroupName, deploy.LabName)
+		if statusErr == nil {
+			made, statusErr = restrictAllowedIPs(made, firstVPNGatewayCIDR(status))
+		}
+		if statusErr != nil {
+			_ = u.infra.DeleteLabClient(context.WithoutCancel(ctx), deploy.GroupName, client)
+			return false, statusErr
 		}
 		config = made
 		return false, u.refreshTestGroupAccess(ctx, repo, deploy, "")
@@ -296,4 +308,35 @@ func (u *ExerciseUseCase) RunStateTasks(ctx context.Context, owner, deployID uui
 		out[i].Passed = state.Solved || state.FirstSolvedAt != nil
 	}
 	return out, nil
+}
+
+// restrictAllowedIPs sets the AllowedIPs of the peer in a WireGuard client config to the one network of the lab. The
+// network must be a real IPv4 subnet, never a default route. A config with no AllowedIPs line is refused.
+func restrictAllowedIPs(config, cidr string) (string, error) {
+	prefix, err := netip.ParsePrefix(strings.TrimSpace(cidr))
+	if err != nil || !prefix.Addr().Is4() || prefix.Bits() == 0 {
+		return "", errors.New("the lab has no VPN network to route the run's profile to")
+	}
+	lines := strings.Split(config, "\n")
+	replaced := false
+	for i, line := range lines {
+		if key, _, found := strings.Cut(line, "="); found && strings.EqualFold(strings.TrimSpace(key), "AllowedIPs") {
+			lines[i] = "AllowedIPs = " + prefix.Masked().String()
+			replaced = true
+		}
+	}
+	if !replaced {
+		return "", errors.New("the VPN config has no AllowedIPs to restrict")
+	}
+	return strings.Join(lines, "\n"), nil
+}
+
+// firstVPNGatewayCIDR is the /24 of the first VPN gateway of the lab that has one.
+func firstVPNGatewayCIDR(status exerciseModel.LabDeployStatus) string {
+	for _, g := range status.Gateways {
+		if g.Kind == "vpn" && g.CIDR != "" {
+			return g.CIDR
+		}
+	}
+	return ""
 }
