@@ -9,3 +9,9 @@ WHERE user_id = sqlc.arg(user_id);
 INSERT INTO assistant_subjects (user_id, subject, created_at)
 VALUES (sqlc.arg(user_id), sqlc.arg(subject), sqlc.arg(created_at))
 ON CONFLICT DO NOTHING;
+
+-- name: GetAssistantSubjectUser :one
+-- The user a pseudonym belongs to (the brain's requests name the pseudonym only).
+SELECT user_id
+FROM assistant_subjects
+WHERE subject = sqlc.arg(subject);

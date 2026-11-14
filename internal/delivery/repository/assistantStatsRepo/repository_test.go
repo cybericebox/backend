@@ -7,7 +7,6 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
 	assistantModel "github.com/cybericebox/daemon/internal/model/assistant"
@@ -95,7 +94,7 @@ func TestDefaultsReadAsModesAndAnUnknownValueIsOff(t *testing.T) {
 
 func TestFactsMapAndEmptyListsAreEmptyArraysNotNull(t *testing.T) {
 	f := &fake{factRows: []postgres.ListAssistantStatsTeamFactsRow{
-		{Subtasks: 2, Attempts: 3, SolvedSubtasks: 2, SolveSeconds: pgtype.Float8{Float64: 42, Valid: true}, Hints: 1},
+		{Subtasks: 2, Attempts: 3, SolvedSubtasks: 2, SolveSeconds: 42, HasSolveSeconds: true, Hints: 1},
 		{Subtasks: 2, Attempts: 1},
 	}}
 	got, err := New(f).TeamFacts(context.Background(), assistantModel.StatsModeContinuous, time.Unix(5, 0), nil, nil)

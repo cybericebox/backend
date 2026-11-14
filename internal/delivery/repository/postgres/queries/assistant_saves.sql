@@ -10,7 +10,7 @@ WHERE session_id = sqlc.arg(session_id)
 -- Claims the save for one request: a new row, a failed one, or a pending one without an import job whose claim is older
 -- than the lease (its request died). 0 rows: another request holds it.
 INSERT INTO assistant_saves (session_id, author_id, state, archive_hash, claimed_at, created_at)
-VALUES (sqlc.arg(session_id), sqlc.arg(author_id), 'pending', sqlc.arg(archive_hash), sqlc.arg(now), sqlc.arg(now))
+VALUES (sqlc.arg(session_id), sqlc.arg(author_id), 'pending', sqlc.arg(archive_hash), sqlc.arg(now)::timestamptz, sqlc.arg(now)::timestamptz)
 ON CONFLICT (session_id, author_id) DO UPDATE
     SET state        = 'pending',
         archive_hash = EXCLUDED.archive_hash,
@@ -20,12 +20,12 @@ ON CONFLICT (session_id, author_id) DO UPDATE
         notified     = false,
         failure_code = 0
 WHERE assistant_saves.state = 'failed'
-   OR (assistant_saves.state = 'pending' AND assistant_saves.job_id IS NULL AND assistant_saves.claimed_at < sqlc.arg(stale_before));
+   OR (assistant_saves.state = 'pending' AND assistant_saves.job_id IS NULL AND assistant_saves.claimed_at < sqlc.arg(stale_before)::timestamptz);
 
 -- name: SetAssistantSaveJob :execrows
 -- The claim's background import was queued.
 UPDATE assistant_saves
-SET job_id = sqlc.arg(job_id)
+SET job_id = sqlc.arg(job_id)::uuid
 WHERE session_id = sqlc.arg(session_id)
   AND author_id = sqlc.arg(author_id)
   AND state = 'pending';
@@ -34,7 +34,7 @@ WHERE session_id = sqlc.arg(session_id)
 -- The task exists: the save is done.
 UPDATE assistant_saves
 SET state       = 'done',
-    exercise_id = sqlc.arg(exercise_id)
+    exercise_id = sqlc.arg(exercise_id)::uuid
 WHERE session_id = sqlc.arg(session_id)
   AND author_id = sqlc.arg(author_id)
   AND state = 'pending';

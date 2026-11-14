@@ -87,6 +87,21 @@ func (mr *MockQuerierMockRecorder) AddFileReference(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddFileReference", reflect.TypeOf((*MockQuerier)(nil).AddFileReference), ctx, arg)
 }
 
+// AdvanceAssistantRunSeq mocks base method.
+func (m *MockQuerier) AdvanceAssistantRunSeq(ctx context.Context, arg postgres.AdvanceAssistantRunSeqParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AdvanceAssistantRunSeq", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AdvanceAssistantRunSeq indicates an expected call of AdvanceAssistantRunSeq.
+func (mr *MockQuerierMockRecorder) AdvanceAssistantRunSeq(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AdvanceAssistantRunSeq", reflect.TypeOf((*MockQuerier)(nil).AdvanceAssistantRunSeq), ctx, arg)
+}
+
 // AdvanceEventResultRevision mocks base method.
 func (m *MockQuerier) AdvanceEventResultRevision(ctx context.Context, arg postgres.AdvanceEventResultRevisionParams) (postgres.AdvanceEventResultRevisionRow, error) {
 	m.ctrl.T.Helper()
@@ -414,6 +429,21 @@ func (mr *MockQuerierMockRecorder) ClearReturnedInactivityWarnings(ctx any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearReturnedInactivityWarnings", reflect.TypeOf((*MockQuerier)(nil).ClearReturnedInactivityWarnings), ctx)
 }
 
+// CloseAssistantRun mocks base method.
+func (m *MockQuerier) CloseAssistantRun(ctx context.Context, arg postgres.CloseAssistantRunParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CloseAssistantRun", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CloseAssistantRun indicates an expected call of CloseAssistantRun.
+func (mr *MockQuerierMockRecorder) CloseAssistantRun(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloseAssistantRun", reflect.TypeOf((*MockQuerier)(nil).CloseAssistantRun), ctx, arg)
+}
+
 // CollectLabClientIPWindows mocks base method.
 func (m *MockQuerier) CollectLabClientIPWindows(ctx context.Context, arg postgres.CollectLabClientIPWindowsParams) ([]postgres.CollectLabClientIPWindowsRow, error) {
 	m.ctrl.T.Helper()
@@ -588,6 +618,21 @@ func (m *MockQuerier) CopyEventSettings(ctx context.Context, arg postgres.CopyEv
 func (mr *MockQuerierMockRecorder) CopyEventSettings(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CopyEventSettings", reflect.TypeOf((*MockQuerier)(nil).CopyEventSettings), ctx, arg)
+}
+
+// CountActiveAssistantRunsOfActor mocks base method.
+func (m *MockQuerier) CountActiveAssistantRunsOfActor(ctx context.Context, actorID uuid.UUID) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountActiveAssistantRunsOfActor", ctx, actorID)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountActiveAssistantRunsOfActor indicates an expected call of CountActiveAssistantRunsOfActor.
+func (mr *MockQuerierMockRecorder) CountActiveAssistantRunsOfActor(ctx, actorID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountActiveAssistantRunsOfActor", reflect.TypeOf((*MockQuerier)(nil).CountActiveAssistantRunsOfActor), ctx, actorID)
 }
 
 // CountActiveExerciseTestDeploys mocks base method.
@@ -1427,6 +1472,20 @@ func (m *MockQuerier) CreateAdminAuditLog(ctx context.Context, arg postgres.Crea
 func (mr *MockQuerierMockRecorder) CreateAdminAuditLog(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAdminAuditLog", reflect.TypeOf((*MockQuerier)(nil).CreateAdminAuditLog), ctx, arg)
+}
+
+// CreateAssistantRun mocks base method.
+func (m *MockQuerier) CreateAssistantRun(ctx context.Context, arg postgres.CreateAssistantRunParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateAssistantRun", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CreateAssistantRun indicates an expected call of CreateAssistantRun.
+func (mr *MockQuerierMockRecorder) CreateAssistantRun(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAssistantRun", reflect.TypeOf((*MockQuerier)(nil).CreateAssistantRun), ctx, arg)
 }
 
 // CreateAssistantSubject mocks base method.
@@ -4015,6 +4074,21 @@ func (mr *MockQuerierMockRecorder) FindEventTeamsByLabGroup(ctx, labGroupName an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindEventTeamsByLabGroup", reflect.TypeOf((*MockQuerier)(nil).FindEventTeamsByLabGroup), ctx, labGroupName)
 }
 
+// FinishAssistantRun mocks base method.
+func (m *MockQuerier) FinishAssistantRun(ctx context.Context, arg postgres.FinishAssistantRunParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FinishAssistantRun", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FinishAssistantRun indicates an expected call of FinishAssistantRun.
+func (mr *MockQuerierMockRecorder) FinishAssistantRun(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FinishAssistantRun", reflect.TypeOf((*MockQuerier)(nil).FinishAssistantRun), ctx, arg)
+}
+
 // FinishErrorNotification mocks base method.
 func (m *MockQuerier) FinishErrorNotification(ctx context.Context, arg postgres.FinishErrorNotificationParams) (int64, error) {
 	m.ctrl.T.Helper()
@@ -4133,6 +4207,36 @@ func (mr *MockQuerierMockRecorder) GetActiveEventLiveScreenLink(ctx, arg any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveEventLiveScreenLink", reflect.TypeOf((*MockQuerier)(nil).GetActiveEventLiveScreenLink), ctx, arg)
 }
 
+// GetAssistantRun mocks base method.
+func (m *MockQuerier) GetAssistantRun(ctx context.Context, id uuid.UUID) (postgres.AssistantRun, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAssistantRun", ctx, id)
+	ret0, _ := ret[0].(postgres.AssistantRun)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAssistantRun indicates an expected call of GetAssistantRun.
+func (mr *MockQuerierMockRecorder) GetAssistantRun(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAssistantRun", reflect.TypeOf((*MockQuerier)(nil).GetAssistantRun), ctx, id)
+}
+
+// GetAssistantRunAnswer mocks base method.
+func (m *MockQuerier) GetAssistantRunAnswer(ctx context.Context, arg postgres.GetAssistantRunAnswerParams) (postgres.GetAssistantRunAnswerRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAssistantRunAnswer", ctx, arg)
+	ret0, _ := ret[0].(postgres.GetAssistantRunAnswerRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAssistantRunAnswer indicates an expected call of GetAssistantRunAnswer.
+func (mr *MockQuerierMockRecorder) GetAssistantRunAnswer(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAssistantRunAnswer", reflect.TypeOf((*MockQuerier)(nil).GetAssistantRunAnswer), ctx, arg)
+}
+
 // GetAssistantSave mocks base method.
 func (m *MockQuerier) GetAssistantSave(ctx context.Context, arg postgres.GetAssistantSaveParams) (postgres.GetAssistantSaveRow, error) {
 	m.ctrl.T.Helper()
@@ -4161,6 +4265,21 @@ func (m *MockQuerier) GetAssistantSubject(ctx context.Context, userID uuid.UUID)
 func (mr *MockQuerierMockRecorder) GetAssistantSubject(ctx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAssistantSubject", reflect.TypeOf((*MockQuerier)(nil).GetAssistantSubject), ctx, userID)
+}
+
+// GetAssistantSubjectUser mocks base method.
+func (m *MockQuerier) GetAssistantSubjectUser(ctx context.Context, subject uuid.UUID) (uuid.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAssistantSubjectUser", ctx, subject)
+	ret0, _ := ret[0].(uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAssistantSubjectUser indicates an expected call of GetAssistantSubjectUser.
+func (mr *MockQuerierMockRecorder) GetAssistantSubjectUser(ctx, subject any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAssistantSubjectUser", reflect.TypeOf((*MockQuerier)(nil).GetAssistantSubjectUser), ctx, subject)
 }
 
 // GetBrainConnection mocks base method.
@@ -6818,6 +6937,36 @@ func (mr *MockQuerierMockRecorder) InboxSubjectExists(ctx, subjectRef any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InboxSubjectExists", reflect.TypeOf((*MockQuerier)(nil).InboxSubjectExists), ctx, subjectRef)
 }
 
+// InsertAssistantRunAnswer mocks base method.
+func (m *MockQuerier) InsertAssistantRunAnswer(ctx context.Context, arg postgres.InsertAssistantRunAnswerParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertAssistantRunAnswer", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertAssistantRunAnswer indicates an expected call of InsertAssistantRunAnswer.
+func (mr *MockQuerierMockRecorder) InsertAssistantRunAnswer(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAssistantRunAnswer", reflect.TypeOf((*MockQuerier)(nil).InsertAssistantRunAnswer), ctx, arg)
+}
+
+// InsertAssistantRunEvent mocks base method.
+func (m *MockQuerier) InsertAssistantRunEvent(ctx context.Context, arg postgres.InsertAssistantRunEventParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertAssistantRunEvent", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertAssistantRunEvent indicates an expected call of InsertAssistantRunEvent.
+func (mr *MockQuerierMockRecorder) InsertAssistantRunEvent(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAssistantRunEvent", reflect.TypeOf((*MockQuerier)(nil).InsertAssistantRunEvent), ctx, arg)
+}
+
 // InsertErrorSample mocks base method.
 func (m *MockQuerier) InsertErrorSample(ctx context.Context, arg postgres.InsertErrorSampleParams) error {
 	m.ctrl.T.Helper()
@@ -7097,6 +7246,21 @@ func (mr *MockQuerierMockRecorder) IssueEventLiveScreenLink(ctx, arg any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IssueEventLiveScreenLink", reflect.TypeOf((*MockQuerier)(nil).IssueEventLiveScreenLink), ctx, arg)
 }
 
+// ListActiveAssistantRuns mocks base method.
+func (m *MockQuerier) ListActiveAssistantRuns(ctx context.Context, maxRows int32) ([]postgres.AssistantRun, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListActiveAssistantRuns", ctx, maxRows)
+	ret0, _ := ret[0].([]postgres.AssistantRun)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListActiveAssistantRuns indicates an expected call of ListActiveAssistantRuns.
+func (mr *MockQuerierMockRecorder) ListActiveAssistantRuns(ctx, maxRows any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListActiveAssistantRuns", reflect.TypeOf((*MockQuerier)(nil).ListActiveAssistantRuns), ctx, maxRows)
+}
+
 // ListActiveBannersByUser mocks base method.
 func (m *MockQuerier) ListActiveBannersByUser(ctx context.Context, arg postgres.ListActiveBannersByUserParams) ([]postgres.ListActiveBannersByUserRow, error) {
 	m.ctrl.T.Helper()
@@ -7230,6 +7394,51 @@ func (m *MockQuerier) ListApprovedExerciseResourceElevations(ctx context.Context
 func (mr *MockQuerierMockRecorder) ListApprovedExerciseResourceElevations(ctx, exerciseIds any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListApprovedExerciseResourceElevations", reflect.TypeOf((*MockQuerier)(nil).ListApprovedExerciseResourceElevations), ctx, exerciseIds)
+}
+
+// ListAssistantRunAnswers mocks base method.
+func (m *MockQuerier) ListAssistantRunAnswers(ctx context.Context, runID uuid.UUID) ([]postgres.ListAssistantRunAnswersRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListAssistantRunAnswers", ctx, runID)
+	ret0, _ := ret[0].([]postgres.ListAssistantRunAnswersRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListAssistantRunAnswers indicates an expected call of ListAssistantRunAnswers.
+func (mr *MockQuerierMockRecorder) ListAssistantRunAnswers(ctx, runID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAssistantRunAnswers", reflect.TypeOf((*MockQuerier)(nil).ListAssistantRunAnswers), ctx, runID)
+}
+
+// ListAssistantRunEvents mocks base method.
+func (m *MockQuerier) ListAssistantRunEvents(ctx context.Context, arg postgres.ListAssistantRunEventsParams) ([]postgres.ListAssistantRunEventsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListAssistantRunEvents", ctx, arg)
+	ret0, _ := ret[0].([]postgres.ListAssistantRunEventsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListAssistantRunEvents indicates an expected call of ListAssistantRunEvents.
+func (mr *MockQuerierMockRecorder) ListAssistantRunEvents(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAssistantRunEvents", reflect.TypeOf((*MockQuerier)(nil).ListAssistantRunEvents), ctx, arg)
+}
+
+// ListAssistantRunsOfVariant mocks base method.
+func (m *MockQuerier) ListAssistantRunsOfVariant(ctx context.Context, arg postgres.ListAssistantRunsOfVariantParams) ([]postgres.AssistantRun, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListAssistantRunsOfVariant", ctx, arg)
+	ret0, _ := ret[0].([]postgres.AssistantRun)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListAssistantRunsOfVariant indicates an expected call of ListAssistantRunsOfVariant.
+func (mr *MockQuerierMockRecorder) ListAssistantRunsOfVariant(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAssistantRunsOfVariant", reflect.TypeOf((*MockQuerier)(nil).ListAssistantRunsOfVariant), ctx, arg)
 }
 
 // ListAssistantStatsDefaults mocks base method.
@@ -11012,6 +11221,21 @@ func (mr *MockQuerierMockRecorder) ListPublishedVariantDevices(ctx, ids any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListPublishedVariantDevices", reflect.TypeOf((*MockQuerier)(nil).ListPublishedVariantDevices), ctx, ids)
 }
 
+// ListRecentAssistantRunAnswers mocks base method.
+func (m *MockQuerier) ListRecentAssistantRunAnswers(ctx context.Context, arg postgres.ListRecentAssistantRunAnswersParams) ([]postgres.ListRecentAssistantRunAnswersRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListRecentAssistantRunAnswers", ctx, arg)
+	ret0, _ := ret[0].([]postgres.ListRecentAssistantRunAnswersRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListRecentAssistantRunAnswers indicates an expected call of ListRecentAssistantRunAnswers.
+func (mr *MockQuerierMockRecorder) ListRecentAssistantRunAnswers(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListRecentAssistantRunAnswers", reflect.TypeOf((*MockQuerier)(nil).ListRecentAssistantRunAnswers), ctx, arg)
+}
+
 // ListReferencedPlatformImages mocks base method.
 func (m *MockQuerier) ListReferencedPlatformImages(ctx context.Context) ([]string, error) {
 	m.ctrl.T.Helper()
@@ -11535,6 +11759,21 @@ func (m *MockQuerier) ListUnreferencedPlatformImages(ctx context.Context, before
 func (mr *MockQuerierMockRecorder) ListUnreferencedPlatformImages(ctx, before any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListUnreferencedPlatformImages", reflect.TypeOf((*MockQuerier)(nil).ListUnreferencedPlatformImages), ctx, before)
+}
+
+// ListUnsentAssistantRunAnswers mocks base method.
+func (m *MockQuerier) ListUnsentAssistantRunAnswers(ctx context.Context, runID uuid.UUID) ([]postgres.ListUnsentAssistantRunAnswersRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListUnsentAssistantRunAnswers", ctx, runID)
+	ret0, _ := ret[0].([]postgres.ListUnsentAssistantRunAnswersRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListUnsentAssistantRunAnswers indicates an expected call of ListUnsentAssistantRunAnswers.
+func (mr *MockQuerierMockRecorder) ListUnsentAssistantRunAnswers(ctx, runID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListUnsentAssistantRunAnswers", reflect.TypeOf((*MockQuerier)(nil).ListUnsentAssistantRunAnswers), ctx, runID)
 }
 
 // ListUnsettledAssistantSaves mocks base method.
@@ -14061,6 +14300,81 @@ func (m *MockQuerier) SelectEventStageRetainedLab(ctx context.Context, arg postg
 func (mr *MockQuerierMockRecorder) SelectEventStageRetainedLab(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectEventStageRetainedLab", reflect.TypeOf((*MockQuerier)(nil).SelectEventStageRetainedLab), ctx, arg)
+}
+
+// SetAssistantRunAccessClient mocks base method.
+func (m *MockQuerier) SetAssistantRunAccessClient(ctx context.Context, arg postgres.SetAssistantRunAccessClientParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetAssistantRunAccessClient", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SetAssistantRunAccessClient indicates an expected call of SetAssistantRunAccessClient.
+func (mr *MockQuerierMockRecorder) SetAssistantRunAccessClient(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAssistantRunAccessClient", reflect.TypeOf((*MockQuerier)(nil).SetAssistantRunAccessClient), ctx, arg)
+}
+
+// SetAssistantRunAnswerSent mocks base method.
+func (m *MockQuerier) SetAssistantRunAnswerSent(ctx context.Context, arg postgres.SetAssistantRunAnswerSentParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetAssistantRunAnswerSent", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SetAssistantRunAnswerSent indicates an expected call of SetAssistantRunAnswerSent.
+func (mr *MockQuerierMockRecorder) SetAssistantRunAnswerSent(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAssistantRunAnswerSent", reflect.TypeOf((*MockQuerier)(nil).SetAssistantRunAnswerSent), ctx, arg)
+}
+
+// SetAssistantRunMeasurement mocks base method.
+func (m *MockQuerier) SetAssistantRunMeasurement(ctx context.Context, arg postgres.SetAssistantRunMeasurementParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetAssistantRunMeasurement", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SetAssistantRunMeasurement indicates an expected call of SetAssistantRunMeasurement.
+func (mr *MockQuerierMockRecorder) SetAssistantRunMeasurement(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAssistantRunMeasurement", reflect.TypeOf((*MockQuerier)(nil).SetAssistantRunMeasurement), ctx, arg)
+}
+
+// SetAssistantRunRunning mocks base method.
+func (m *MockQuerier) SetAssistantRunRunning(ctx context.Context, arg postgres.SetAssistantRunRunningParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetAssistantRunRunning", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SetAssistantRunRunning indicates an expected call of SetAssistantRunRunning.
+func (mr *MockQuerierMockRecorder) SetAssistantRunRunning(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAssistantRunRunning", reflect.TypeOf((*MockQuerier)(nil).SetAssistantRunRunning), ctx, arg)
+}
+
+// SetAssistantRunStreamDown mocks base method.
+func (m *MockQuerier) SetAssistantRunStreamDown(ctx context.Context, arg postgres.SetAssistantRunStreamDownParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetAssistantRunStreamDown", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SetAssistantRunStreamDown indicates an expected call of SetAssistantRunStreamDown.
+func (mr *MockQuerierMockRecorder) SetAssistantRunStreamDown(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAssistantRunStreamDown", reflect.TypeOf((*MockQuerier)(nil).SetAssistantRunStreamDown), ctx, arg)
 }
 
 // SetAssistantSaveJob mocks base method.

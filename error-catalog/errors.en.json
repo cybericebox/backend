@@ -364,6 +364,7 @@
   "33605": "Assistant session not found",
   "33607": "The assistant session is over",
   "33612": "Event not found",
+  "33613": "Assistant run not found",
   "40211": "Event already has its own template for this notification type",
   "40903": "Exercise with this name already exists",
   "41102": "Event with this tag already exists",
@@ -583,5 +584,7 @@
   "73603": "The authoring assistant service failed",
   "73606": "The assistant session is not in the right state for this action",
   "73609": "The finished task could not be imported",
-  "73610": "The finished task is still being imported"
+  "73610": "The finished task is still being imported",
+  "73614": "The variant already has an active run",
+  "73615": "Too many active runs"
 }

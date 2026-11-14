@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const clearEventAssistantStatsMode = `-- name: ClearEventAssistantStatsMode :execrows
@@ -63,10 +62,7 @@ func (q *Queries) ListAssistantStatsDefaults(ctx context.Context) ([]ListAssista
 	items := []ListAssistantStatsDefaultsRow{}
 	for rows.Next() {
 		var i ListAssistantStatsDefaultsRow
-		if err := rows.Scan(
-			&i.Source,
-			&i.Mode,
-		); err != nil {
+		if err := rows.Scan(&i.Source, &i.Mode); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -107,10 +103,7 @@ func (q *Queries) ListAssistantStatsEnabledEventTasks(ctx context.Context, arg L
 	items := []ListAssistantStatsEnabledEventTasksRow{}
 	for rows.Next() {
 		var i ListAssistantStatsEnabledEventTasksRow
-		if err := rows.Scan(
-			&i.ExerciseID,
-			&i.ExerciseVersionID,
-		); err != nil {
+		if err := rows.Scan(&i.ExerciseID, &i.ExerciseVersionID); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -142,10 +135,7 @@ func (q *Queries) ListAssistantStatsTaskVersions(ctx context.Context, versionIds
 	items := []ListAssistantStatsTaskVersionsRow{}
 	for rows.Next() {
 		var i ListAssistantStatsTaskVersionsRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Variants,
-		); err != nil {
+		if err := rows.Scan(&i.ID, &i.Variants); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -227,8 +217,9 @@ SELECT tasks.exercise_id,
        tasks.subtasks::bigint                                                      AS subtasks,
        COALESCE(at.attempts, 0)::bigint                                            AS attempts,
        COALESCE(so.solved, 0)::bigint                                              AS solved_subtasks,
-       CASE WHEN so.solved = tasks.subtasks AND op.opened_at IS NOT NULL AND op.opened_at <= so.done_at
-                THEN EXTRACT(EPOCH FROM (so.done_at - op.opened_at)) END::float8   AS solve_seconds,
+       COALESCE(CASE WHEN so.solved = tasks.subtasks AND op.opened_at IS NOT NULL AND op.opened_at <= so.done_at
+                         THEN EXTRACT(EPOCH FROM (so.done_at - op.opened_at)) END, 0)::float8 AS solve_seconds,
+       COALESCE(so.solved = tasks.subtasks AND op.opened_at IS NOT NULL AND op.opened_at <= so.done_at, false)::bool AS has_solve_seconds,
        COALESCE(hi.hints, 0)::bigint                                               AS hints
 FROM tasks
          JOIN teams ON teams.event_id = tasks.event_id
@@ -249,13 +240,14 @@ type ListAssistantStatsTeamFactsParams struct {
 }
 
 type ListAssistantStatsTeamFactsRow struct {
-	ExerciseID        uuid.UUID     `json:"exercise_id"`
-	ExerciseVersionID uuid.UUID     `json:"exercise_version_id"`
-	Subtasks          int64         `json:"subtasks"`
-	Attempts          int64         `json:"attempts"`
-	SolvedSubtasks    int64         `json:"solved_subtasks"`
-	SolveSeconds      pgtype.Float8 `json:"solve_seconds"`
-	Hints             int64         `json:"hints"`
+	ExerciseID        uuid.UUID `json:"exercise_id"`
+	ExerciseVersionID uuid.UUID `json:"exercise_version_id"`
+	Subtasks          int64     `json:"subtasks"`
+	Attempts          int64     `json:"attempts"`
+	SolvedSubtasks    int64     `json:"solved_subtasks"`
+	SolveSeconds      float64   `json:"solve_seconds"`
+	HasSolveSeconds   bool      `json:"has_solve_seconds"`
+	Hints             int64     `json:"hints"`
 }
 
 // What each engaged team did with each task of the events whose collection is on and due: continuous while the event has
@@ -263,7 +255,12 @@ type ListAssistantStatsTeamFactsRow struct {
 // (no moderators, no hidden teams, no team with a member in excluded_users: the participants who refused). Times are
 // seconds from the team's first opening of the task to its last solved subtask, NULL when it did not solve all of them.
 func (q *Queries) ListAssistantStatsTeamFacts(ctx context.Context, arg ListAssistantStatsTeamFactsParams) ([]ListAssistantStatsTeamFactsRow, error) {
-	rows, err := q.db.Query(ctx, listAssistantStatsTeamFacts, arg.AsOf, arg.DefaultMode, arg.ExcludedUsers, arg.ExerciseIds)
+	rows, err := q.db.Query(ctx, listAssistantStatsTeamFacts,
+		arg.AsOf,
+		arg.DefaultMode,
+		arg.ExcludedUsers,
+		arg.ExerciseIds,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -278,6 +275,7 @@ func (q *Queries) ListAssistantStatsTeamFacts(ctx context.Context, arg ListAssis
 			&i.Attempts,
 			&i.SolvedSubtasks,
 			&i.SolveSeconds,
+			&i.HasSolveSeconds,
 			&i.Hints,
 		); err != nil {
 			return nil, err

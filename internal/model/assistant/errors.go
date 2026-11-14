@@ -7,7 +7,7 @@ import (
 	"github.com/cybericebox/daemon/pkg/err"
 )
 
-// next free detail code: 13
+// next free detail code: 16
 
 var (
 	// ErrAssistantUnavailable: the assistant is off (no BRAIN_ENDPOINT), not enrolled yet, or the platform secrets
@@ -77,4 +77,19 @@ var (
 	ErrAssistantStatsEventNotFound = err.ErrObjectNotFound.WithObjectCode(model.AssistantObjectCode).
 					WithMessage("Event not found").
 					WithDetailCode(12)
+
+	// ErrAssistantRunNotFound: the run does not exist (or belongs to another variant).
+	ErrAssistantRunNotFound = err.ErrObjectNotFound.WithObjectCode(model.AssistantObjectCode).
+				WithMessage("Assistant run not found").
+				WithDetailCode(13)
+
+	// ErrAssistantRunActive: the variant already has an active run; a variant has at most one.
+	ErrAssistantRunActive = err.ErrConflict.WithObjectCode(model.AssistantObjectCode).
+				WithMessage("The variant already has an active run").
+				WithDetailCode(14)
+
+	// ErrAssistantRunLimit: the user already has the most active runs they may have.
+	ErrAssistantRunLimit = err.ErrConflict.WithObjectCode(model.AssistantObjectCode).
+				WithMessage("Too many active runs").
+				WithDetailCode(15)
 )

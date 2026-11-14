@@ -18,6 +18,7 @@ type Querier interface {
 	// An email image is owned by its draft as soon as it is uploaded. Inserting
 	// one link avoids a read/replace race when uploads finish concurrently.
 	AddFileReference(ctx context.Context, arg AddFileReferenceParams) error
+	AdvanceAssistantRunSeq(ctx context.Context, arg AdvanceAssistantRunSeqParams) (int64, error)
 	AdvanceEventResultRevision(ctx context.Context, arg AdvanceEventResultRevisionParams) (AdvanceEventResultRevisionRow, error)
 	// A chunk is accepted only as the next one in order; zero rows means the client is out of step (it reads the
 	// status and continues from chunks_received). Every accepted chunk moves the expiry forward.
@@ -68,6 +69,8 @@ type Querier interface {
 	// A warned user who signed in again is active: forget the warning so the
 	// deletion never fires and a later inactivity period warns afresh.
 	ClearReturnedInactivityWarnings(ctx context.Context) (int64, error)
+	// Decides how the run ends; the teardown follows and then FinishAssistantRun. Only the first decision counts.
+	CloseAssistantRun(ctx context.Context, arg CloseAssistantRunParams) (int64, error)
 	// When, in which lab group, the live telemetry (raw rows and current state) of the events gave which IP to the client
 	// (under its real name or its pseudonym): the first and the last observation.
 	CollectLabClientIPWindows(ctx context.Context, arg CollectLabClientIPWindowsParams) ([]CollectLabClientIPWindowsRow, error)
@@ -87,6 +90,7 @@ type Querier interface {
 	CopyEventPages(ctx context.Context, arg CopyEventPagesParams) error
 	// Copy of an event into a new one (docs/specs/ADMIN.md §2): settings, theme, pages, never people or results.
 	CopyEventSettings(ctx context.Context, arg CopyEventSettingsParams) error
+	CountActiveAssistantRunsOfActor(ctx context.Context, actorID uuid.UUID) (int64, error)
 	CountActiveExerciseTestDeploys(ctx context.Context, arg CountActiveExerciseTestDeploysParams) (int64, error)
 	// How many journal rows the filters match (no cursor, no limit).
 	CountAdminAuditLog(ctx context.Context, arg CountAdminAuditLogParams) (int64, error)
@@ -178,6 +182,8 @@ type Querier interface {
 	// field's own filter empty). field: role, status, emailConfirmed or signIn (a user counts once per method).
 	CountUsersFacet(ctx context.Context, arg CountUsersFacetParams) ([]CountUsersFacetRow, error)
 	CreateAdminAuditLog(ctx context.Context, arg CreateAdminAuditLogParams) error
+	// A run that is starting. The partial unique index refuses a second active run of the variant.
+	CreateAssistantRun(ctx context.Context, arg CreateAssistantRunParams) error
 	// Gives the user a pseudonym on first use. Two requests at once: the first row stays (0 rows for the second).
 	CreateAssistantSubject(ctx context.Context, arg CreateAssistantSubjectParams) (int64, error)
 	// A freshly enrolled connection. Two replicas enrolling at once: the first row stays (0 rows for the second).
@@ -469,6 +475,8 @@ type Querier interface {
 	// Every event team bound to the lab group, whatever the event lifecycle: the
 	// current state must already be there when an event becomes active.
 	FindEventTeamsByLabGroup(ctx context.Context, labGroupName string) ([]FindEventTeamsByLabGroupRow, error)
+	// The teardown is done: the run takes its end state.
+	FinishAssistantRun(ctx context.Context, arg FinishAssistantRunParams) (int64, error)
 	FinishErrorNotification(ctx context.Context, arg FinishErrorNotificationParams) (int64, error)
 	FinishEventLabUsageRollup(ctx context.Context, arg FinishEventLabUsageRollupParams) error
 	FinishNotificationBroadcast(ctx context.Context, arg FinishNotificationBroadcastParams) error
@@ -486,11 +494,15 @@ type Querier interface {
 	GetActiveChannels(ctx context.Context, arg GetActiveChannelsParams) ([]string, error)
 	// The screen's one working link (unrevoked and not expired).
 	GetActiveEventLiveScreenLink(ctx context.Context, arg GetActiveEventLiveScreenLinkParams) (EventLiveScreenLink, error)
+	GetAssistantRun(ctx context.Context, id uuid.UUID) (AssistantRun, error)
+	GetAssistantRunAnswer(ctx context.Context, arg GetAssistantRunAnswerParams) (GetAssistantRunAnswerRow, error)
 	// The save of this session by this author: its state, the task (empty until done), the import job, whether the brain
 	// was told and when it was claimed.
 	GetAssistantSave(ctx context.Context, arg GetAssistantSaveParams) (GetAssistantSaveRow, error)
 	// The user's pseudonym at the brain.
 	GetAssistantSubject(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
+	// The user a pseudonym belongs to (the brain's requests name the pseudonym only).
+	GetAssistantSubjectUser(ctx context.Context, subject uuid.UUID) (uuid.UUID, error)
 	// The stored connection to one brain endpoint.
 	GetBrainConnection(ctx context.Context, endpoint string) (BrainConnection, error)
 	// The last outbox request that was answered.
@@ -808,6 +820,10 @@ type Querier interface {
 	HasIncompleteRequiredEventFormDelivery(ctx context.Context, arg HasIncompleteRequiredEventFormDeliveryParams) (bool, error)
 	// Whether any notification (open or closed) was ever delivered for the subject: an alert raised once per subject.
 	InboxSubjectExists(ctx context.Context, subjectRef string) (bool, error)
+	// The judgement of one answer event; an answer seen again is ignored (the judgement stays).
+	InsertAssistantRunAnswer(ctx context.Context, arg InsertAssistantRunAnswerParams) (int64, error)
+	// Stores one brain frame verbatim; a frame seen again (a resumed stream) is ignored.
+	InsertAssistantRunEvent(ctx context.Context, arg InsertAssistantRunEventParams) (int64, error)
 	InsertErrorSample(ctx context.Context, arg InsertErrorSampleParams) error
 	InsertEventRegistrySecret(ctx context.Context, arg InsertEventRegistrySecretParams) error
 	// The first lifecycle transition captures the population. A retry must return
@@ -835,6 +851,8 @@ type Querier interface {
 	// Creation and regeneration in one statement: any unrevoked link of the
 	// screen (active or expired) is revoked and the new one inserted.
 	IssueEventLiveScreenLink(ctx context.Context, arg IssueEventLiveScreenLinkParams) error
+	// The runs the leader drives: starting, running or closing.
+	ListActiveAssistantRuns(ctx context.Context, maxRows int32) ([]AssistantRun, error)
 	ListActiveBannersByUser(ctx context.Context, arg ListActiveBannersByUserParams) ([]ListActiveBannersByUserRow, error)
 	// The working links of all screens of the event (at most one per screen).
 	ListActiveEventLiveScreenLinks(ctx context.Context, arg ListActiveEventLiveScreenLinksParams) ([]EventLiveScreenLink, error)
@@ -858,6 +876,10 @@ type Querier interface {
 	ListAdminAuditLog(ctx context.Context, arg ListAdminAuditLogParams) ([]AdminAuditLog, error)
 	// The approved values of every approved elevation of the given exercises.
 	ListApprovedExerciseResourceElevations(ctx context.Context, exerciseIds []uuid.UUID) ([]ListApprovedExerciseResourceElevationsRow, error)
+	ListAssistantRunAnswers(ctx context.Context, runID uuid.UUID) ([]ListAssistantRunAnswersRow, error)
+	ListAssistantRunEvents(ctx context.Context, arg ListAssistantRunEventsParams) ([]ListAssistantRunEventsRow, error)
+	// The runs of a variant, newest first.
+	ListAssistantRunsOfVariant(ctx context.Context, arg ListAssistantRunsOfVariantParams) ([]AssistantRun, error)
 	// The platform default mode of every source that has one set (the others are off).
 	ListAssistantStatsDefaults(ctx context.Context) ([]ListAssistantStatsDefaultsRow, error)
 	// The tasks (exercise and pinned version) of the events whose collection is on (final or continuous), whether or not
@@ -1601,6 +1623,8 @@ type Querier interface {
 	// What the resource totals of a page of exercises need from their published versions: per variant its id and
 	// the container-device fields that decide a device's size (never the image, env vars or secrets).
 	ListPublishedVariantDevices(ctx context.Context, ids []uuid.UUID) ([]ListPublishedVariantDevicesRow, error)
+	// The judged answers of the run since a moment, oldest first (the answer rate limit).
+	ListRecentAssistantRunAnswers(ctx context.Context, arg ListRecentAssistantRunAnswersParams) ([]ListRecentAssistantRunAnswersRow, error)
 	// Every distinct platform:<name>@<digest> a device of any exercise version (draft, published, any status) names.
 	// `images migrate-uploads` copies each of them into the own registry under exactly that name.
 	ListReferencedPlatformImages(ctx context.Context) ([]string, error)
@@ -1694,6 +1718,8 @@ type Querier interface {
 	// an old short tag makes one) is never a candidate: removing that tag could remove what serves the other digest; its
 	// rows stay until the other digest's row goes. At most 500 rows a pass; the rest wait for the next one.
 	ListUnreferencedPlatformImages(ctx context.Context, before time.Time) ([]PlatformImage, error)
+	// The judged answers whose verdict the brain was not told yet.
+	ListUnsentAssistantRunAnswers(ctx context.Context, runID uuid.UUID) ([]ListUnsentAssistantRunAnswersRow, error)
 	// The saves the leader still has to finish: a queued import to follow, or an outcome (task or failure) the brain was not
 	// told yet. Rows older than the cutoff are left alone.
 	ListUnsettledAssistantSaves(ctx context.Context, arg ListUnsettledAssistantSavesParams) ([]ListUnsettledAssistantSavesRow, error)
@@ -2104,6 +2130,15 @@ type Querier interface {
 	// person's names (the real one and the pseudonym).
 	ScrubRawLabObservations(ctx context.Context, arg ScrubRawLabObservationsParams) (int64, error)
 	SelectEventStageRetainedLab(ctx context.Context, arg SelectEventStageRetainedLabParams) error
+	// The WireGuard client made for the run, recorded before the run is started so a crash leaves a revocable record.
+	SetAssistantRunAccessClient(ctx context.Context, arg SetAssistantRunAccessClientParams) (int64, error)
+	SetAssistantRunAnswerSent(ctx context.Context, arg SetAssistantRunAnswerSentParams) (int64, error)
+	// The final aggregate the brain sent with run_finished.
+	SetAssistantRunMeasurement(ctx context.Context, arg SetAssistantRunMeasurementParams) (int64, error)
+	// The brain accepted the run.
+	SetAssistantRunRunning(ctx context.Context, arg SetAssistantRunRunningParams) (int64, error)
+	// Since when the event stream cannot be read (a zero time clears it).
+	SetAssistantRunStreamDown(ctx context.Context, arg SetAssistantRunStreamDownParams) (int64, error)
 	// The claim's background import was queued.
 	SetAssistantSaveJob(ctx context.Context, arg SetAssistantSaveJobParams) (int64, error)
 	// The brain was told the task.

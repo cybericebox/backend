@@ -111,7 +111,7 @@ func (r *Repository) TeamFacts(ctx context.Context, platformDefault assistantMod
 	for _, row := range rows {
 		out = append(out, Fact{
 			Task: Task{ExerciseID: row.ExerciseID, VersionID: row.ExerciseVersionID}, Subtasks: row.Subtasks, Attempts: row.Attempts,
-			SolvedSubtasks: row.SolvedSubtasks, SolveSeconds: row.SolveSeconds.Float64, HasSolveSeconds: row.SolveSeconds.Valid, Hints: row.Hints,
+			SolvedSubtasks: row.SolvedSubtasks, SolveSeconds: row.SolveSeconds, HasSolveSeconds: row.HasSolveSeconds, Hints: row.Hints,
 		})
 	}
 	return out, nil

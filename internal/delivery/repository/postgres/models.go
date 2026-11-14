@@ -32,6 +32,28 @@ type AppSetting struct {
 	RequiredPermission string    `json:"required_permission"`
 }
 
+type AssistantRun struct {
+	ID              uuid.UUID          `json:"id"`
+	ExerciseID      uuid.UUID          `json:"exercise_id"`
+	VersionID       uuid.UUID          `json:"version_id"`
+	VariantID       uuid.UUID          `json:"variant_id"`
+	DeployID        uuid.UUID          `json:"deploy_id"`
+	ActorID         uuid.UUID          `json:"actor_id"`
+	Role            string             `json:"role"`
+	State           string             `json:"state"`
+	EndState        string             `json:"end_state"`
+	FailureReason   string             `json:"failure_reason"`
+	AccessClient    string             `json:"access_client"`
+	LastSeq         int64              `json:"last_seq"`
+	StreamDownSince pgtype.Timestamptz `json:"stream_down_since"`
+	Measurement     []byte             `json:"measurement"`
+	CreatedAt       time.Time          `json:"created_at"`
+	UpdatedAt       time.Time          `json:"updated_at"`
+	StartedAt       pgtype.Timestamptz `json:"started_at"`
+	FinishedAt      pgtype.Timestamptz `json:"finished_at"`
+	ExpiresAt       time.Time          `json:"expires_at"`
+}
+
 type BrainConnection struct {
 	Endpoint            string    `json:"endpoint"`
 	Tenant              string    `json:"tenant"`

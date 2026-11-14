@@ -15,7 +15,7 @@ import (
 
 const claimAssistantSave = `-- name: ClaimAssistantSave :execrows
 INSERT INTO assistant_saves (session_id, author_id, state, archive_hash, claimed_at, created_at)
-VALUES ($1, $2, 'pending', $3, $4, $4)
+VALUES ($1, $2, 'pending', $3, $4::timestamptz, $4::timestamptz)
 ON CONFLICT (session_id, author_id) DO UPDATE
     SET state        = 'pending',
         archive_hash = EXCLUDED.archive_hash,
@@ -25,7 +25,7 @@ ON CONFLICT (session_id, author_id) DO UPDATE
         notified     = false,
         failure_code = 0
 WHERE assistant_saves.state = 'failed'
-   OR (assistant_saves.state = 'pending' AND assistant_saves.job_id IS NULL AND assistant_saves.claimed_at < $5)
+   OR (assistant_saves.state = 'pending' AND assistant_saves.job_id IS NULL AND assistant_saves.claimed_at < $5::timestamptz)
 `
 
 type ClaimAssistantSaveParams struct {
@@ -55,7 +55,7 @@ func (q *Queries) ClaimAssistantSave(ctx context.Context, arg ClaimAssistantSave
 const completeAssistantSave = `-- name: CompleteAssistantSave :execrows
 UPDATE assistant_saves
 SET state       = 'done',
-    exercise_id = $1
+    exercise_id = $1::uuid
 WHERE session_id = $2
   AND author_id = $3
   AND state = 'pending'
@@ -195,7 +195,7 @@ func (q *Queries) ListUnsettledAssistantSaves(ctx context.Context, arg ListUnset
 
 const setAssistantSaveJob = `-- name: SetAssistantSaveJob :execrows
 UPDATE assistant_saves
-SET job_id = $1
+SET job_id = $1::uuid
 WHERE session_id = $2
   AND author_id = $3
   AND state = 'pending'
