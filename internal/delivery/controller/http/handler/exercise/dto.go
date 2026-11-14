@@ -500,7 +500,7 @@ type bootstrapFileDTO struct {
 	Mode    string         `json:"Mode,omitempty"`
 }
 
-// accessDTO is one way to reach the device in the browser. Kind is http, terminal, vnc or rdp; at most one entry per kind.
+// accessDTO is one way to reach the device in the browser. Kind is http, terminal, vnc, rdp or grpc; at most one entry per kind. grpc is the runner channel of an automated actor (Port empty = 9099).
 // http: Port (1-65535) and Protocol (http | https, empty = http). terminal: Command (default /bin/sh) and User (default the
 // user of the image). vnc and rdp: Port; reserved, stored but not served yet (a lab that needs them is refused).
 type accessDTO struct {

@@ -60,7 +60,7 @@ type (
 		SecurityPreset string         `json:"securityPreset,omitempty"`
 		Resources      *labResources  `json:"resources,omitempty"`
 		Interfaces     []labInterface `json:"interfaces,omitempty"`
-		// Access is the ways to reach the device in the browser (http, terminal, vnc, rdp), one entry per kind.
+		// Access is the ways to reach the device in the browser (http, terminal, vnc, rdp, grpc), one entry per kind.
 		Access []labAccess `json:"access,omitempty"`
 		// Persistence is the per-device state-persistence request; immutable once the lab exists.
 		Persistence *labPersistence `json:"persistence,omitempty"`
@@ -78,7 +78,7 @@ type (
 		WorkingDir string   `json:"workingDir,omitempty"`
 	}
 
-	// labAccess is one entry of the device's access list: kind http | terminal | vnc | rdp. http, vnc and rdp take a port
+	// labAccess is one entry of the device's access list: kind http | terminal | vnc | rdp | grpc. http, vnc, rdp and grpc take a port (grpc: empty = the runner default)
 	// (http also a protocol); terminal takes a command (empty = /bin/sh) and a user (empty = the image's user).
 	labAccess struct {
 		Kind     string   `json:"kind"`
