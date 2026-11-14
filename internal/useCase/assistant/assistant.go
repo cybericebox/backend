@@ -6,9 +6,6 @@ package assistant
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -23,6 +20,7 @@ import (
 	"github.com/cybericebox/daemon/internal/model"
 	assistantModel "github.com/cybericebox/daemon/internal/model/assistant"
 	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	adminAuditUseCase "github.com/cybericebox/daemon/internal/useCase/adminAudit"
 	exerciseUseCase "github.com/cybericebox/daemon/internal/useCase/exercise"
 	"github.com/cybericebox/daemon/pkg/agentcrypto"
 	"github.com/cybericebox/daemon/pkg/secret"
@@ -37,9 +35,6 @@ const (
 	// connectionTTL is how long a replica trusts its loaded client before it reads the stored connection again: a
 	// certificate renewed by the leader reaches the other replicas within it.
 	connectionTTL = time.Minute
-
-	subjectPurpose = "assistant.subject.v1"
-	subjectInfo    = "cybericebox/assistant/subject/v1"
 )
 
 type (
@@ -48,6 +43,12 @@ type (
 		Get(ctx context.Context, endpoint string) (assistantModel.Connection, bool, error)
 		Create(ctx context.Context, c assistantModel.Connection) (bool, error)
 		SetCertificate(ctx context.Context, endpoint, tenant, certPEM, keyCiphertext, caPEM string, notAfter, at time.Time) (bool, error)
+	}
+
+	// SubjectStore keeps the random pseudonym of each user.
+	SubjectStore interface {
+		Get(ctx context.Context, user uuid.UUID) (uuid.UUID, bool, error)
+		Create(ctx context.Context, user, subject uuid.UUID, at time.Time) (bool, error)
 	}
 
 	// Config is what the deployment says about the brain.
@@ -72,8 +73,11 @@ type (
 		// Importer saves a finished task into the catalog; nil without exercises (tests).
 		Importer Importer
 		Files    FileStore
-		// Saves remembers how a session was saved.
-		Saves  SaveStore
+		// Saves remembers how a session was saved; Subjects keeps the users' pseudonyms.
+		Saves    SaveStore
+		Subjects SubjectStore
+		// Audit records the admin audit entry of a task the assistant saved; nil: none.
+		Audit  func(ctx context.Context, entry adminAuditUseCase.Entry) error
 		Enroll Enroller
 		Now    func() time.Time
 		// NamesImages tells whether a task archive names device image files (those import in the background);
@@ -91,10 +95,12 @@ type (
 		importer Importer
 		files    FileStore
 		saves    SaveStore
+		audit    func(ctx context.Context, entry adminAuditUseCase.Entry) error
 
 		namesImages func(archive []byte, lim exerciseModel.ArchiveLimits) bool
 
-		subjectKey []byte
+		subjects     SubjectStore
+		subjectCache sync.Map // user id -> subject: a pseudonym never changes while the account lives
 
 		mu       sync.Mutex
 		cached   *brain.Client
@@ -106,7 +112,7 @@ type (
 // New builds the use case. It reads nothing and dials nothing.
 func New(d Dependencies) *UseCase {
 	u := &UseCase{
-		store: d.Store, cipher: d.Cipher, cfg: d.Config, enroll: d.Enroll, now: d.Now, importer: d.Importer, files: d.Files, saves: d.Saves,
+		store: d.Store, cipher: d.Cipher, cfg: d.Config, enroll: d.Enroll, now: d.Now, importer: d.Importer, files: d.Files, saves: d.Saves, subjects: d.Subjects, audit: d.Audit,
 		namesImages: d.NamesImages,
 	}
 	if u.namesImages == nil {
@@ -120,33 +126,36 @@ func New(d Dependencies) *UseCase {
 	if u.now == nil {
 		u.now = time.Now
 	}
-	if d.Cipher != nil {
-		u.subjectKey = subjectKey(d.Cipher)
-	}
 	return u
 }
 
-// subjectKey derives the key of the user pseudonyms from the platform secrets key: the purpose-separated HMAC key of
-// the cipher, then HKDF with a fixed info string. The raw platform key never leaves the cipher.
-func subjectKey(c *secret.Cipher) []byte {
-	derived := c.DeriveKeys(subjectPurpose)[0]
-	key, err := hkdfKey(derived[:], subjectInfo)
+// Subject is the opaque pseudonym of a user the brain binds its sessions to: a random 128-bit id made on the user's
+// first use and stored, so it does not depend on any key and survives key rotation. It is not the platform id.
+// Deleting the account deletes the row, which cuts the link. Never log it next to the user id.
+func (u *UseCase) Subject(ctx context.Context, user uuid.UUID) (string, error) {
+	if u.subjects == nil {
+		return "", assistantModel.ErrAssistantUnavailable.Err()
+	}
+	if cached, ok := u.subjectCache.Load(user); ok {
+		if subject, isString := cached.(string); isString {
+			return subject, nil
+		}
+	}
+	subject, found, err := u.subjects.Get(ctx, user)
+	if err == nil && !found {
+		if _, err = u.subjects.Create(ctx, user, uuid.Must(uuid.NewV4()), u.now().UTC()); err == nil {
+			// Two requests at once: the first row stays, both read it.
+			subject, found, err = u.subjects.Get(ctx, user)
+		}
+	}
 	if err != nil {
-		return nil
+		return "", model.ErrPlatform.WithError(err).WithMessage("Failed to read the assistant subject").Err()
 	}
-	return key
-}
-
-// Subject is the opaque, stable pseudonym of a user the brain binds its sessions to: HMAC-SHA256 over the user id,
-// hex encoded. It is not the platform id and cannot be turned back into it without the platform key. Empty when the
-// platform secrets key is not configured. Never log it next to the user id.
-func (u *UseCase) Subject(user uuid.UUID) string {
-	if len(u.subjectKey) == 0 {
-		return ""
+	if !found {
+		return "", model.ErrPlatform.WithMessage("The assistant subject was not stored").Err()
 	}
-	mac := hmac.New(sha256.New, u.subjectKey)
-	mac.Write(user.Bytes())
-	return hex.EncodeToString(mac.Sum(nil))
+	u.subjectCache.Store(user, subject.String())
+	return subject.String(), nil
 }
 
 // Enabled reports whether the assistant is configured: a brain endpoint and the platform secrets key. It does not say

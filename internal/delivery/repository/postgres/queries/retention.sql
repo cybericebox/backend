@@ -262,6 +262,9 @@ WITH batch AS (
     DELETE FROM sessions WHERE user_id IN (SELECT id FROM batch)
 ), providers AS (
     DELETE FROM user_providers WHERE user_id IN (SELECT id FROM batch)
+), assistant_subject AS (
+    -- The pseudonym at the authoring assistant's brain: with it gone the brain's data is no longer linked to the person.
+    DELETE FROM assistant_subjects WHERE user_id IN (SELECT id FROM batch)
 ), avatars AS (
     DELETE FROM file_references WHERE ref_type = 'user_avatar' AND ref_id IN (SELECT id FROM batch)
 ), signals AS (

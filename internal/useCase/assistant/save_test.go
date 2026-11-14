@@ -21,6 +21,7 @@ import (
 	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
 	mediaModel "github.com/cybericebox/daemon/internal/model/media"
 	"github.com/cybericebox/daemon/internal/model/rbac"
+	adminAuditUseCase "github.com/cybericebox/daemon/internal/useCase/adminAudit"
 	"github.com/cybericebox/daemon/internal/useCase/assistant"
 	exerciseUseCase "github.com/cybericebox/daemon/internal/useCase/exercise"
 )
@@ -218,12 +219,32 @@ func (m *memSaves) row(session string) (assistantModel.Save, bool) {
 	return r, ok
 }
 
+// auditLog records the admin audit entries the use case writes.
+type auditLog struct {
+	mu      sync.Mutex
+	entries []adminAuditUseCase.Entry
+}
+
+func (a *auditLog) record(_ context.Context, e adminAuditUseCase.Entry) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.entries = append(a.entries, e)
+	return nil
+}
+
+func (a *auditLog) list() []adminAuditUseCase.Entry {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return append([]adminAuditUseCase.Entry(nil), a.entries...)
+}
+
 type saveRig struct {
 	*rig
 	line     *timeline
 	importer *fakeImporter
 	files    *fakeFiles
 	saves    *memSaves
+	audit    *auditLog
 	mu       sync.Mutex // guards saved and subjects: the brain handler runs on server goroutines
 	saved    []string   // bodies of the brain's /save
 	subjects []string
@@ -237,9 +258,9 @@ func newSaveRig(t *testing.T, images bool) *saveRig {
 	line := &timeline{}
 	imp := &fakeImporter{line: line, start: exerciseUseCase.ArchiveImportStart{Exercises: []exerciseUseCase.ExerciseView{{ID: taskID}}}}
 	files := &fakeFiles{line: line}
-	s := &saveRig{line: line, importer: imp, files: files, saves: &memSaves{rows: map[string]assistantModel.Save{}, hash: map[string]string{}}}
+	s := &saveRig{line: line, importer: imp, files: files, saves: &memSaves{rows: map[string]assistantModel.Save{}, hash: map[string]string{}}, audit: &auditLog{}}
 	s.rig = enrolledRig(t, func(d *assistant.Dependencies) {
-		d.Saves = s.saves
+		d.Saves, d.Audit = s.saves, s.audit.record
 		d.Importer, d.Files = imp, files
 		d.NamesImages = func([]byte, exerciseModel.ArchiveLimits) bool { return images }
 	})
@@ -316,7 +337,7 @@ func TestSaveFetchesImportsThenTellsTheBrainTheExerciseID(t *testing.T) {
 		t.Fatalf("stored save: %+v %v", r, ok)
 	}
 	for _, subject := range s.subjects {
-		if subject != s.uc.Subject(userOne) {
+		if subject != subjectOf(t, s.uc, userOne) {
 			t.Fatalf("every brain call carries the caller's subject, got %q", subject)
 		}
 	}
@@ -700,5 +721,68 @@ func TestAJobThatIsGoneCountsAsFailed(t *testing.T) {
 	}
 	if r, _ := s.saves.row("s1"); r.State != assistantModel.SaveFailed {
 		t.Fatalf("a vanished job must fail the save: %+v", r)
+	}
+}
+
+func TestASavedTaskIsAuditedOnceLikeAnImport(t *testing.T) {
+	s := newSaveRig(t, false)
+	for range 3 {
+		if _, err := s.save(t); err != nil {
+			t.Fatal(err)
+		}
+	}
+	entries := s.audit.list()
+	if len(entries) != 1 {
+		t.Fatalf("one entry for one task, got %d", len(entries))
+	}
+	e := entries[0]
+	if e.ActorID != userOne || e.Target != "exercise:"+taskID.String()+" source:assistant" || e.Method != http.MethodPost || e.ResponseStatus != http.StatusOK ||
+		e.Route != "/api/assistant/sessions/:id/save" || e.Permission != string(rbac.PermSelf) {
+		t.Fatalf("entry: %+v", e)
+	}
+}
+
+func TestNoAuditEntryForAFailedImportAndOneWhenTheLeaderFinishesAnImageImport(t *testing.T) {
+	failing := newSaveRig(t, false)
+	failing.importer.err = exerciseModel.ErrExerciseForbidden.Err()
+	_, _ = failing.save(t)
+	if len(failing.audit.list()) != 0 {
+		t.Fatal("a failed import is not a saved task")
+	}
+
+	s := newSaveRig(t, true)
+	s.importer.setJob(running())
+	if _, err := s.save(t); err != nil {
+		t.Fatal(err)
+	}
+	if len(s.audit.list()) != 0 {
+		t.Fatal("no task yet")
+	}
+	s.importer.setJob(done())
+	for range 2 {
+		if err := s.uc.SettleSaves(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := s.save(t); err != nil {
+		t.Fatal(err)
+	}
+	entries := s.audit.list()
+	if len(entries) != 1 || entries[0].ActorID != userOne || !strings.Contains(entries[0].Target, taskID.String()) {
+		t.Fatalf("entries: %+v", entries)
+	}
+}
+
+func TestSavesAtOnceWriteOneAuditEntry(t *testing.T) {
+	s := newSaveRig(t, false)
+	s.importer.delay = 30 * time.Millisecond
+	var wg sync.WaitGroup
+	for range 6 {
+		wg.Add(1)
+		go func() { defer wg.Done(); _, _ = s.save(t) }()
+	}
+	wg.Wait()
+	if n := len(s.audit.list()); n != 1 {
+		t.Fatalf("audit entries = %d", n)
 	}
 }

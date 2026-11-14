@@ -10,6 +10,7 @@ import (
 	"github.com/cybericebox/daemon/internal/config"
 	"github.com/cybericebox/daemon/internal/delivery/repository"
 	"github.com/cybericebox/daemon/internal/delivery/repository/assistantSaveRepo"
+	"github.com/cybericebox/daemon/internal/delivery/repository/assistantSubjectRepo"
 	"github.com/cybericebox/daemon/internal/delivery/repository/autoRecreateRepo"
 	"github.com/cybericebox/daemon/internal/delivery/repository/brainConnectionRepo"
 	"github.com/cybericebox/daemon/internal/delivery/repository/dashboardRepo"
@@ -552,9 +553,10 @@ func NewUseCase(deps Dependencies) *UseCase {
 		},
 	})
 
+	adminAuditUC := adminAuditUseCase.New(deps.Repo)
 	return &UseCase{
 		authUC,
-		adminAuditUseCase.New(deps.Repo),
+		adminAuditUC,
 		platformSettingsUC,
 		notificationDispatcher,
 		inboxUC,
@@ -604,7 +606,7 @@ func NewUseCase(deps Dependencies) *UseCase {
 		assistantUseCase.New(assistantUseCase.Dependencies{
 			Store: brainConnectionRepo.New(deps.Repo), Cipher: deps.PlatformCipher,
 			Config:   assistantUseCase.Config{Endpoint: deps.Brain.Endpoint, EnrollmentToken: deps.Brain.EnrollmentToken, CAFile: deps.Brain.CAFile},
-			Importer: exerciseUC, Files: mediaUC, Saves: assistantSaveRepo.New(deps.Repo),
+			Importer: exerciseUC, Files: mediaUC, Saves: assistantSaveRepo.New(deps.Repo), Subjects: assistantSubjectRepo.New(deps.Repo), Audit: adminAuditUC.RecordAdminAction,
 		}),
 	}
 }

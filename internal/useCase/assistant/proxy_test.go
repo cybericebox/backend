@@ -49,7 +49,7 @@ func TestProxyForwardsTheCallWithTheSubjectAndNeverTheCallersOwn(t *testing.T) {
 	if gotPath != "/v1/assistant/sessions/s1/messages" || gotBody != body || string(out) != `{"ID":"s1"}` {
 		t.Fatalf("path=%q body=%q out=%q", gotPath, gotBody, out)
 	}
-	if subject := got.Get(assistant.SubjectHeader); subject != r.uc.Subject(userOne) || subject == "spoofed" || strings.Contains(subject, userOne.String()) {
+	if subject := got.Get(assistant.SubjectHeader); subject != subjectOf(t, r.uc, userOne) || subject == "spoofed" || strings.Contains(subject, userOne.String()) {
 		t.Fatalf("subject header = %q", subject)
 	}
 	if got.Get("Content-Type") != "application/json" {

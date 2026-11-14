@@ -110,7 +110,7 @@ func newRig(t *testing.T, mutate func(*assistant.Dependencies)) *rig {
 		t.Fatal(err)
 	}
 	d := assistant.Dependencies{
-		Store: r.store, Cipher: cipher(t, keyA),
+		Store: r.store, Cipher: cipher(t, keyA), Subjects: newMemSubjects(),
 		// The fake's CA is not in the system roots: BRAIN_CA_FILE names it.
 		Config: assistant.Config{Endpoint: f.Endpoint(), EnrollmentToken: brainfake.Token, CAFile: caFile},
 		Now:    r.clock.now,
@@ -122,25 +122,98 @@ func newRig(t *testing.T, mutate func(*assistant.Dependencies)) *rig {
 	return r
 }
 
-func TestSubjectIsStableOpaqueAndPerUser(t *testing.T) {
-	uc := assistant.New(assistant.Dependencies{Cipher: cipher(t, keyA)})
-	a1, a2, b := uc.Subject(userOne), uc.Subject(userOne), uc.Subject(userTwo)
+// memSubjects is the pseudonym store in memory.
+type memSubjects struct {
+	mu    sync.Mutex
+	rows  map[uuid.UUID]uuid.UUID
+	delay time.Duration
+}
+
+func newMemSubjects() *memSubjects { return &memSubjects{rows: map[uuid.UUID]uuid.UUID{}} }
+
+func (m *memSubjects) Get(_ context.Context, user uuid.UUID) (uuid.UUID, bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	s, ok := m.rows[user]
+	return s, ok, nil
+}
+
+func (m *memSubjects) Create(_ context.Context, user, subject uuid.UUID, _ time.Time) (bool, error) {
+	time.Sleep(m.delay)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, ok := m.rows[user]; ok {
+		return false, nil
+	}
+	m.rows[user] = subject
+	return true, nil
+}
+
+func subjectOf(t *testing.T, uc *assistant.UseCase, user uuid.UUID) string {
+	t.Helper()
+	s, err := uc.Subject(context.Background(), user)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return s
+}
+
+func TestSubjectIsARandomStoredPseudonymPerUser(t *testing.T) {
+	store := newMemSubjects()
+	uc := assistant.New(assistant.Dependencies{Subjects: store})
+	a1, a2, b := subjectOf(t, uc, userOne), subjectOf(t, uc, userOne), subjectOf(t, uc, userTwo)
 	if a1 == "" || a1 != a2 || a1 == b {
 		t.Fatalf("subjects: %q %q %q", a1, a2, b)
 	}
-	if len(a1) != 64 || strings.Contains(a1, strings.ReplaceAll(userOne.String(), "-", "")) || strings.Contains(a1, userOne.String()) {
-		t.Fatalf("the subject must be opaque hex, got %q", a1)
+	if _, err := uuid.FromString(a1); err != nil || strings.Contains(a1, userOne.String()) || strings.Contains(a1, uuidHex(userOne)) {
+		t.Fatalf("the subject must be an opaque random id, got %q", a1)
 	}
-	other := assistant.New(assistant.Dependencies{Cipher: cipher(t, keyB)})
-	if other.Subject(userOne) == a1 {
-		t.Fatal("another platform key must give another pseudonym")
+	// Not derived from the user id: the same user in another store gets another pseudonym.
+	if other := subjectOf(t, assistant.New(assistant.Dependencies{Subjects: newMemSubjects()}), userOne); other == a1 {
+		t.Fatal("a pseudonym must be random, not a function of the user id")
 	}
-	if assistant.New(assistant.Dependencies{}).Subject(userOne) != "" {
-		t.Fatal("without the platform key there is no subject")
+}
+
+func TestSubjectSurvivesKeyRotationAndRestartButNotDeletionOfTheRow(t *testing.T) {
+	store := newMemSubjects()
+	before := subjectOf(t, assistant.New(assistant.Dependencies{Subjects: store, Cipher: cipher(t, keyA)}), userOne)
+	// Another platform key and a fresh process (empty cache): the stored pseudonym is the same.
+	after := subjectOf(t, assistant.New(assistant.Dependencies{Subjects: store, Cipher: cipher(t, keyB)}), userOne)
+	if before != after {
+		t.Fatalf("rotation changed the pseudonym: %q %q", before, after)
 	}
-	// The subject key is purpose separated: it is not the HMAC of the plain purpose-less data.
-	if a1 == uuidHex(userOne) {
-		t.Fatal("subject is the bare user id")
+	// The account's personal data was purged: the row is gone, a later use starts a new pseudonym, unlinked.
+	delete(store.rows, userOne)
+	if again := subjectOf(t, assistant.New(assistant.Dependencies{Subjects: store}), userOne); again == before {
+		t.Fatal("after the row was deleted the old pseudonym must not come back")
+	}
+}
+
+func TestSubjectNeedsNoSecretsKey(t *testing.T) {
+	if subjectOf(t, assistant.New(assistant.Dependencies{Subjects: newMemSubjects()}), userOne) == "" {
+		t.Fatal("no secrets key, still a subject")
+	}
+	if _, err := assistant.New(assistant.Dependencies{}).Subject(context.Background(), userOne); err == nil {
+		t.Fatal("without a store there is no subject")
+	}
+}
+
+func TestFirstUseAtOnceGivesEveryRequestTheSameSubject(t *testing.T) {
+	store := newMemSubjects()
+	store.delay = 20 * time.Millisecond
+	uc := assistant.New(assistant.Dependencies{Subjects: store})
+	results := make(chan string, 8)
+	for range 8 {
+		go func() {
+			s, _ := uc.Subject(context.Background(), userOne)
+			results <- s
+		}()
+	}
+	first := <-results
+	for range 7 {
+		if got := <-results; got != first || got == "" {
+			t.Fatalf("two subjects for one user: %q %q", first, got)
+		}
 	}
 }
 

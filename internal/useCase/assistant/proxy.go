@@ -32,9 +32,12 @@ type Call struct {
 // Proxy sends the call to the brain as the user and returns the 2xx response with its body open (the caller closes
 // it). Every other outcome is a typed error: the platform's own credentials never produce a 401 for the page.
 func (u *UseCase) Proxy(ctx context.Context, user uuid.UUID, call Call) (*http.Response, error) {
-	subject := u.Subject(user)
-	if subject == "" {
+	if !u.Enabled() {
 		return nil, assistantModel.ErrAssistantUnavailable.Err()
+	}
+	subject, err := u.Subject(ctx, user)
+	if err != nil {
+		return nil, err
 	}
 	c, err := u.client(ctx)
 	if err != nil {
