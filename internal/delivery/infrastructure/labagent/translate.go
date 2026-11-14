@@ -304,6 +304,9 @@ func buildAccess(d exerciseModel.Device) []labAccess {
 	var out []labAccess
 	for _, a := range d.Access {
 		entry := labAccess{Kind: string(a.Kind), Port: a.Port, Protocol: a.Protocol, User: a.User}
+		if a.Kind == exerciseModel.AccessGRPC && a.Port == 0 {
+			entry.Port = exerciseModel.DefaultGRPCPort // the laboratory has no default: the port is always written
+		}
 		if a.Command != "" {
 			entry.Command = []string{a.Command}
 		}
