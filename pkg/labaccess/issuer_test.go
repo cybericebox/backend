@@ -229,10 +229,18 @@ func TestIssueBearerSignsARunTokenTheProxyCanVerify(t *testing.T) {
 	}
 	var claim bearerClaims
 	parsed, err := jwt.ParseWithClaims(got.Token, &claim, func(*jwt.Token) (any, error) { return sk.Key.Public(), nil },
-		jwt.WithValidMethods([]string{"EdDSA"}), jwt.WithIssuer("platform"), jwt.WithAudience(Audience),
+		jwt.WithValidMethods([]string{"EdDSA"}), jwt.WithIssuer("platform"), jwt.WithAudience(GRPCAudience),
 		jwt.WithTimeFunc(func() time.Time { return now.Add(30 * time.Minute) }))
 	if err != nil || !parsed.Valid || parsed.Header["kid"] != "k-1" {
 		t.Fatalf("the proxy could not verify the token: %v", err)
+	}
+	if claim.TokenUse != "grpc" || claim.Kind != "grpc" {
+		t.Fatalf("the token says what it is for: %+v", claim)
+	}
+	// it is not a handoff token: the audience of /_auth does not match, so it cannot buy a browser cookie
+	if _, err = jwt.ParseWithClaims(got.Token, &bearerClaims{}, func(*jwt.Token) (any, error) { return sk.Key.Public(), nil },
+		jwt.WithAudience(Audience), jwt.WithTimeFunc(func() time.Time { return now })); err == nil {
+		t.Fatal("a run's token must not carry the handoff audience")
 	}
 	if claim.GroupID != "tu-0190" || claim.Host != "runner-abc123g" || claim.Subject != "g-0192" || claim.Run != "run-1" || claim.ExpiresAt == nil || !claim.ExpiresAt.Time.Equal(end) {
 		t.Fatalf("claims = %+v", claim)
@@ -268,5 +276,21 @@ func TestIssueBearerRefusals(t *testing.T) {
 	got, err := issuer.IssueBearer(capped, ok, now)
 	if err != nil || got.ExpiresAt.After(now.Add(10*time.Minute)) {
 		t.Fatalf("%+v %v", got, err)
+	}
+}
+
+func TestAHandoffTokenIsNotAGRPCToken(t *testing.T) {
+	sk := testSigningKey(t)
+	issuer, _ := New(Config{})
+	now := time.Date(2026, 11, 14, 12, 0, 0, 0, time.UTC)
+	link, err := issuer.Issue(sk, Session{Group: "tu-0190", Client: "c", AccessURL: "https://web-abc123g.challenges.example.com", ExpiresAt: now.Add(time.Minute)}, now)
+	if err != nil {
+		t.Skipf("issue API differs: %v", err)
+	}
+	var claim bearerClaims
+	_, err = jwt.ParseWithClaims(link.Token, &claim, func(*jwt.Token) (any, error) { return sk.Key.Public(), nil },
+		jwt.WithAudience(GRPCAudience), jwt.WithTimeFunc(func() time.Time { return now }))
+	if err == nil || claim.TokenUse == TokenUseGRPC {
+		t.Fatalf("a handoff token has neither the grpc audience nor token_use: %v %+v", err, claim)
 	}
 }

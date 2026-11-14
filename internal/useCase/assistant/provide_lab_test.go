@@ -444,7 +444,7 @@ func TestProvideDeviceToolsAnswersTheEDAAccessOfTheDevice(t *testing.T) {
 	if err := json.Unmarshal([]byte(p.answeredOnce(t, "r1")), &got); err != nil {
 		t.Fatal(err)
 	}
-	if got.Result.DeviceRef != runDeploy.String() || got.Result.Access["eda"]["url"] != "https://proxy.example/tools" || got.Result.Access["eda"]["token"] != "secret-bearer" {
+	if got.Result.DeviceRef != runDeploy.String() || got.Result.Access["eda"]["url"] != "https://proxy.example/tools" || got.Result.Access["eda"]["lab_access_token"] != "secret-bearer" {
 		t.Fatalf("%v", p.brain.answered("r1"))
 	}
 	if _, vpn := got.Result.Access["vpn"]; vpn {

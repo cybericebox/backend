@@ -46,6 +46,16 @@ const (
 // Audience is the token's aud: the proxy accepts only tokens meant for it.
 const Audience = "laboratory-proxy"
 
+// GRPCAudience is the aud of the long-lived token of a run's grpc access. It differs from Audience on purpose: the 60 s
+// handoff token is accepted at /_auth (it buys a browser cookie), a run's token must never be.
+const GRPCAudience = "laboratory-proxy-grpc"
+
+// The claims that mark a grpc token next to its audience.
+const (
+	TokenUseGRPC = "grpc"
+	KindGRPC     = "grpc"
+)
+
 // Config sets how long a token can be opened.
 type Config struct {
 	// TokenTTL is how long a token can be opened (default one minute). The proxy of each agent states
@@ -181,9 +191,10 @@ func (i *Issuer) Issue(sk SigningKey, s Session, now time.Time) (Link, error) {
 	return Link{URL: link.String(), Token: signed, ExpiresAt: end}, nil
 }
 
-// Bearer is a token an automated actor presents to the laboratory proxy as `authorization: Bearer <jwt>` to reach one
-// device's grpc access. It is the same signed token as a handoff link's (EdDSA by the tenant's access key, audience
-// laboratory-proxy), but it names the run it is for and lives for the whole run instead of one minute.
+// Bearer is the token an automated actor presents to the laboratory proxy, in the metadata header `x-lab-access`, to reach
+// one device's grpc access. It is signed like a handoff link's (EdDSA by the tenant's access key) but has its own audience
+// (laboratory-proxy-grpc) and token_use/kind grpc, so it cannot be used at /_auth; it names the run it is for and lives for
+// the whole run instead of one minute.
 type Bearer struct {
 	// Group is the lab group of the device, Client the per-run client inside it (the token's subject).
 	Group, Client string
@@ -204,9 +215,11 @@ type BearerToken struct {
 }
 
 type bearerClaims struct {
-	GroupID string `json:"group_id"`
-	Host    string `json:"host"`
-	Run     string `json:"run"`
+	TokenUse string `json:"token_use"`
+	Kind     string `json:"kind"`
+	GroupID  string `json:"group_id"`
+	Host     string `json:"host"`
+	Run      string `json:"run"`
 	jwt.RegisteredClaims
 }
 
@@ -232,9 +245,9 @@ func (i *Issuer) IssueBearer(sk SigningKey, b Bearer, now time.Time) (BearerToke
 	}
 	host := strings.SplitN(origin.Hostname(), ".", 2)[0]
 	token := jwt.NewWithClaims(jwt.SigningMethodEdDSA, bearerClaims{
-		GroupID: b.Group, Host: host, Run: b.Run,
+		TokenUse: TokenUseGRPC, Kind: KindGRPC, GroupID: b.Group, Host: host, Run: b.Run,
 		RegisteredClaims: jwt.RegisteredClaims{
-			Issuer: sk.Tenant, Subject: b.Client, Audience: jwt.ClaimStrings{Audience},
+			Issuer: sk.Tenant, Subject: b.Client, Audience: jwt.ClaimStrings{GRPCAudience},
 			IssuedAt: jwt.NewNumericDate(now), NotBefore: jwt.NewNumericDate(now), ExpiresAt: jwt.NewNumericDate(end),
 		},
 	})
