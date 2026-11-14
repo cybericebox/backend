@@ -79,6 +79,8 @@ type (
 		// is off everywhere).
 		Cursor OutboxCursor
 		Stats  StatsSource
+		// StatsAdmin keeps the statistics collection modes (the platform defaults and the events').
+		StatsAdmin StatsAdminStore
 		// WatchMin and WatchMax bound the reconnect backoff of the outbox stream; AnswerPause is the first pause between
 		// answer attempts (zero: 1s, 1min and 200ms).
 		WatchMin, WatchMax, AnswerPause time.Duration
@@ -96,16 +98,17 @@ type (
 
 	// UseCase is the assistant.
 	UseCase struct {
-		store    Store
-		cipher   *secret.Cipher
-		cfg      Config
-		enroll   Enroller
-		now      func() time.Time
-		importer Importer
-		files    FileStore
-		saves    SaveStore
-		cursor   OutboxCursor
-		stats    StatsSource
+		store      Store
+		cipher     *secret.Cipher
+		cfg        Config
+		enroll     Enroller
+		now        func() time.Time
+		importer   Importer
+		files      FileStore
+		saves      SaveStore
+		cursor     OutboxCursor
+		stats      StatsSource
+		statsAdmin StatsAdminStore
 
 		watchMin, watchMax, answerPause time.Duration
 		audit                           func(ctx context.Context, entry adminAuditUseCase.Entry) error
@@ -125,7 +128,7 @@ type (
 // New builds the use case. It reads nothing and dials nothing.
 func New(d Dependencies) *UseCase {
 	u := &UseCase{
-		store: d.Store, cipher: d.Cipher, cfg: d.Config, enroll: d.Enroll, now: d.Now, importer: d.Importer, files: d.Files, saves: d.Saves, subjects: d.Subjects, audit: d.Audit, cursor: d.Cursor, stats: d.Stats,
+		store: d.Store, cipher: d.Cipher, cfg: d.Config, enroll: d.Enroll, now: d.Now, importer: d.Importer, files: d.Files, saves: d.Saves, subjects: d.Subjects, audit: d.Audit, cursor: d.Cursor, stats: d.Stats, statsAdmin: d.StatsAdmin,
 		watchMin: orDefault(d.WatchMin, watchBackoffMin), watchMax: orDefault(d.WatchMax, watchBackoffMax), answerPause: orDefault(d.AnswerPause, 200*time.Millisecond),
 		namesImages: d.NamesImages,
 	}

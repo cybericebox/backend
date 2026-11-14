@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -24,11 +25,53 @@ const maxStatsBatch = 500
 // moderators never count in them; ExcludeRun in the implementation is the place to leave out grader runs. It returns
 // aggregates only: nothing in them identifies a person, a team or an address.
 type StatsSource interface {
+	// Name is the source's key in the platform defaults ("events"; the Academy will be another).
+	Name() string
 	// Aggregates are the cumulative figures per (task, version, image) as of now. refs nil: every task with collection on;
 	// else only those refs.
 	Aggregates(ctx context.Context, refs []assistantModel.TaskRef, asOf time.Time) ([]assistantModel.Aggregate, error)
 	// CollectionOn says, for each ref, whether collection is on for it (an event that uses the task has it on).
 	CollectionOn(ctx context.Context, refs []assistantModel.TaskRef) (map[assistantModel.TaskRef]bool, error)
+}
+
+// MultiSource combines the statistics sources; each reports its own tasks and has its own platform default.
+type MultiSource []StatsSource
+
+// Names are the keys of the sources.
+func (m MultiSource) Names() []string {
+	names := make([]string, 0, len(m))
+	for _, s := range m {
+		names = append(names, s.Name())
+	}
+	return names
+}
+
+func (m MultiSource) Name() string { return strings.Join(m.Names(), ",") }
+
+func (m MultiSource) Aggregates(ctx context.Context, refs []assistantModel.TaskRef, asOf time.Time) ([]assistantModel.Aggregate, error) {
+	var out []assistantModel.Aggregate
+	for _, s := range m {
+		part, err := s.Aggregates(ctx, refs, asOf)
+		if err != nil {
+			return nil, fmt.Errorf("statistics source %s: %w", s.Name(), err)
+		}
+		out = append(out, part...)
+	}
+	return out, nil
+}
+
+func (m MultiSource) CollectionOn(ctx context.Context, refs []assistantModel.TaskRef) (map[assistantModel.TaskRef]bool, error) {
+	out := make(map[assistantModel.TaskRef]bool, len(refs))
+	for _, s := range m {
+		part, err := s.CollectionOn(ctx, refs)
+		if err != nil {
+			return nil, fmt.Errorf("statistics source %s: %w", s.Name(), err)
+		}
+		for ref, on := range part {
+			out[ref] = out[ref] || on
+		}
+	}
+	return out, nil
 }
 
 // provideData answers the brain's pull request: the aggregates of the requested tasks, or collection_disabled when

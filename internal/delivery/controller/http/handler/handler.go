@@ -60,6 +60,7 @@ type (
 		mailHandler.IUseCase
 		imageRegistryHandler.IUseCase
 		assistantHandler.IUseCase
+		assistantHandler.IStatsUseCase
 
 		// ResolveEventByTag backs the participant-route tenant-resolution
 		// middleware (see Init) — the aggregator builds
@@ -110,6 +111,7 @@ func (h *Handler) Init(router *gin.Engine) {
 
 		exerciseHandler.NewExerciseAPIHandler(h.useCase, h.prot).Init(baseAPI)
 		assistantHandler.New(h.useCase, h.prot).Init(baseAPI)
+		assistantHandler.NewStats(h.useCase, h.prot).Init(baseAPI)
 
 		eventHandler.NewEventAPIHandler(h.useCase, h.prot).Init(baseAPI)
 		eventAnalyticsHandler.NewEventAnalyticsAPIHandler(h.useCase, h.prot).Init(baseAPI)

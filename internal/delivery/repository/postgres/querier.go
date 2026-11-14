@@ -60,6 +60,8 @@ type Querier interface {
 	ClaimLabGroupPlacement(ctx context.Context, arg ClaimLabGroupPlacementParams) (uuid.UUID, error)
 	ClaimSignalHookExecution(ctx context.Context, arg ClaimSignalHookExecutionParams) (SignalHookExecution, error)
 	ClaimSignalOutboxBatch(ctx context.Context, arg ClaimSignalOutboxBatchParams) ([]SignalOutbox, error)
+	// The event follows the platform default again.
+	ClearEventAssistantStatsMode(ctx context.Context, eventID uuid.UUID) (int64, error)
 	// A member may only be detached from the exact current team selected by the
 	// use case. Captains need an explicit transfer or disband operation instead.
 	ClearEventParticipantTeam(ctx context.Context, arg ClearEventParticipantTeamParams) (int64, error)
@@ -513,6 +515,8 @@ type Querier interface {
 	GetEventAnalyticsOverview(ctx context.Context, arg GetEventAnalyticsOverviewParams) (GetEventAnalyticsOverviewRow, error)
 	GetEventAnalyticsRollupState(ctx context.Context, eventID uuid.UUID) (GetEventAnalyticsRollupStateRow, error)
 	GetEventAnswerFile(ctx context.Context, fileID uuid.UUID) (EventAnswerFile, error)
+	// The event's own mode; no row: it follows the platform default.
+	GetEventAssistantStatsMode(ctx context.Context, eventID uuid.UUID) (int16, error)
 	// Cheap change marker for the moderators' live journal: attempts, decisions
 	// and opened hints.
 	GetEventAttemptsStamp(ctx context.Context, eventID uuid.UUID) (GetEventAttemptsStampRow, error)
@@ -854,6 +858,18 @@ type Querier interface {
 	ListAdminAuditLog(ctx context.Context, arg ListAdminAuditLogParams) ([]AdminAuditLog, error)
 	// The approved values of every approved elevation of the given exercises.
 	ListApprovedExerciseResourceElevations(ctx context.Context, exerciseIds []uuid.UUID) ([]ListApprovedExerciseResourceElevationsRow, error)
+	// The platform default mode of every source that has one set (the others are off).
+	ListAssistantStatsDefaults(ctx context.Context) ([]ListAssistantStatsDefaultsRow, error)
+	// The tasks (exercise and pinned version) of the events whose collection is on (final or continuous), whether or not
+	// they have anything to send yet. exercise_ids empty: all of them.
+	ListAssistantStatsEnabledEventTasks(ctx context.Context, arg ListAssistantStatsEnabledEventTasksParams) ([]ListAssistantStatsEnabledEventTasksRow, error)
+	// The variants (their topologies name the images) of the versions that are about to be reported.
+	ListAssistantStatsTaskVersions(ctx context.Context, versionIds []uuid.UUID) ([]ListAssistantStatsTaskVersionsRow, error)
+	// What each engaged team did with each task of the events whose collection is on and due: continuous while the event has
+	// started, final once it has ended. One row per (task, team); the team is not in the row, and only ranked teams count
+	// (no moderators, no hidden teams, no team with a member in excluded_users: the participants who refused). Times are
+	// seconds from the team's first opening of the task to its last solved subtask, NULL when it did not solve all of them.
+	ListAssistantStatsTeamFacts(ctx context.Context, arg ListAssistantStatsTeamFactsParams) ([]ListAssistantStatsTeamFactsRow, error)
 	// One row per recipient and channel target of the broadcast (recipients still
 	// waiting for their first attempt have a NULL channel). status_filter is
 	// '' (all), 'error', 'done' or 'waiting' (no attempt yet).
@@ -2099,6 +2115,8 @@ type Querier interface {
 	SetDispatchStatus(ctx context.Context, arg SetDispatchStatusParams) error
 	SetErrorGroupStatus(ctx context.Context, arg SetErrorGroupStatusParams) (ErrorGroup, error)
 	SetErrorTelegramChatFailing(ctx context.Context, arg SetErrorTelegramChatFailingParams) error
+	// Sets the event's own mode (0 rows: no such event).
+	SetEventAssistantStatsMode(ctx context.Context, arg SetEventAssistantStatsModeParams) (int64, error)
 	SetEventCapacityEstimate(ctx context.Context, arg SetEventCapacityEstimateParams) (int64, error)
 	SetEventChallengeBoardOrder(ctx context.Context, arg SetEventChallengeBoardOrderParams) (int64, error)
 	// A move to another group places the challenge after that group's ordered
@@ -2275,6 +2293,8 @@ type Querier interface {
 	// (immutable). updated_at comes from the domain (touch), not now().
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (int64, error)
 	UpdateUserLastSeen(ctx context.Context, arg UpdateUserLastSeenParams) (int64, error)
+	// Sets the platform default mode of a source.
+	UpsertAssistantStatsDefault(ctx context.Context, arg UpsertAssistantStatsDefaultParams) (int64, error)
 	// attempts is the real number of delivery attempts of this run (dispatcher
 	// rounds plus an SMTP fallback), added to any earlier run of the same target.
 	UpsertDispatchTarget(ctx context.Context, arg UpsertDispatchTargetParams) error
