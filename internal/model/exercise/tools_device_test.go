@@ -42,6 +42,12 @@ func TestWithToolsDeviceBehindANode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if tools.Internet != InternetDeny {
+		t.Fatalf("the tools device is denied the internet explicitly: %q", tools.Internet)
+	}
+	if tools.Internet != InternetDeny {
+		t.Fatalf("the tools device is denied the internet explicitly: %q", tools.Internet)
+	}
 	if tools.Name != "tools" || len(tools.Access) != 1 || tools.Access[0].Kind != AccessGRPC || tools.Image != "tools:1" {
 		t.Fatalf("tools = %+v", tools)
 	}
@@ -159,4 +165,20 @@ func TestWithToolsDevicePlacement(t *testing.T) {
 			t.Fatalf("%v %+v", err, tools.Bootstrap)
 		}
 	})
+}
+
+func TestAnInternetPolicyIsAllowOrDenyAndNotForASwitch(t *testing.T) {
+	topo, _, _ := toolsBase(t, nil)
+	topo.Devices[1].Internet = "sometimes"
+	if err := topo.validateStructure(); err == nil {
+		t.Fatal("an unknown policy must be refused")
+	}
+	topo.Devices[1].Internet = InternetDeny
+	if err := topo.validateStructure(); err != nil {
+		t.Fatal(err)
+	}
+	topo.Devices = append(topo.Devices, Device{ID: uuid.Must(uuid.NewV7()), Name: "sw", Type: DeviceTypeUnmanagedSwitch, Internet: InternetDeny})
+	if err := topo.validateStructure(); err == nil {
+		t.Fatal("a switch has no internet policy")
+	}
 }

@@ -55,11 +55,13 @@ type (
 		Type string `json:"type"`
 		// Profile is how the device runs: absent is the container; microvm runs it in a microVM. Only for type
 		// container (a node).
-		Profile        string         `json:"profile,omitempty"`
-		Image          string         `json:"image,omitempty"`
-		SecurityPreset string         `json:"securityPreset,omitempty"`
-		Resources      *labResources  `json:"resources,omitempty"`
-		Interfaces     []labInterface `json:"interfaces,omitempty"`
+		Profile        string `json:"profile,omitempty"`
+		Image          string `json:"image,omitempty"`
+		SecurityPreset string `json:"securityPreset,omitempty"`
+		// Internet is allow (empty) or deny: a denied device is never on the broadcast domain of an Internet gateway.
+		Internet   string         `json:"internet,omitempty"`
+		Resources  *labResources  `json:"resources,omitempty"`
+		Interfaces []labInterface `json:"interfaces,omitempty"`
 		// Access is the ways to reach the device in the browser (http, terminal, vnc, rdp, grpc), one entry per kind.
 		Access []labAccess `json:"access,omitempty"`
 		// Persistence is the per-device state-persistence request; immutable once the lab exists.
@@ -261,6 +263,7 @@ func buildDevice(d exerciseModel.Device, labName string) labDevice {
 		Profile:        wireProfile(d),
 		Image:          d.Image,
 		SecurityPreset: string(d.SecurityPreset),
+		Internet:       d.Internet,
 		WaitReadyFile:  d.WaitReadyFile,
 	}
 	if d.Resources != nil {

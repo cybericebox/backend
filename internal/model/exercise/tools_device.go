@@ -48,6 +48,12 @@ func (t Topology) vpnGatewayWithDHCP() (Device, bool) {
 	return Device{}, false
 }
 
+// The values of Device.Internet.
+const (
+	InternetAllow = "allow"
+	InternetDeny  = "deny"
+)
+
 // Names of the values a tools device is given to check the credentials of its callers.
 const (
 	// EnvEDATrustCA is the brain's CA (PEM): the runner verifies the brain's own credential against it.
@@ -99,8 +105,11 @@ func (t Topology) WithToolsDevice(image string, place ToolsPlacement) (Topology,
 		// The extended preset: the tools scan and probe, which needs raw sockets.
 		SecurityPreset: SecurityPresetExtended,
 		Interfaces:     []Interface{{Name: "eth0", IP: IPConfig{Type: IPConfigTypeDHCPPreset}}},
-		Access:         []Access{{Kind: AccessGRPC}},
-		Bootstrap:      Bootstrap{Env: slices.Clone(place.Env)},
+		// No internet link exists for it, and it is denied explicitly as well (defense in depth: the laboratory then refuses a lab
+		// in which it would share a broadcast domain with an Internet gateway).
+		Internet:  InternetDeny,
+		Access:    []Access{{Kind: AccessGRPC}},
+		Bootstrap: Bootstrap{Env: slices.Clone(place.Env)},
 	}
 	toolsEnd := Endpoint{Kind: EndpointDevice, DeviceID: tools.ID, Interface: "eth0"}
 
