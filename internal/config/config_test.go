@@ -237,14 +237,19 @@ func TestAgentBootstrapConfig(t *testing.T) {
 func TestBrainConfig_DefaultsEnvAndRejectsInvalidEndpoint(t *testing.T) {
 	t.Setenv("RECAPTCHA_SECRET", "rsecret")
 	off := MustGetConfig().Brain
-	if off != (BrainConfig{}) || off.Validate() != nil {
+	if off != (BrainConfig{RunGrace: time.Minute, RunMaxDuration: 30 * time.Minute}) || off.Validate() != nil {
 		t.Fatalf("the brain is off by default: %+v", off)
 	}
 
 	t.Setenv("BRAIN_ENDPOINT", "brain.example.test:8443")
 	t.Setenv("BRAIN_ENROLLMENT_TOKEN", "one-time")
 	t.Setenv("BRAIN_CA_FILE", "/ca/brain.crt")
+	t.Setenv("BRAIN_RUN_GRACE", "90s")
+	t.Setenv("BRAIN_RUN_MAX_DURATION", "45m")
 	got := MustGetConfig().Brain
+	if got.RunGrace != 90*time.Second || got.RunMaxDuration != 45*time.Minute {
+		t.Fatalf("the run settings come from the environment: %+v", got)
+	}
 	if got.Endpoint != "brain.example.test:8443" || got.EnrollmentToken != "one-time" || got.CAFile != "/ca/brain.crt" {
 		t.Fatalf("brain config from env: %+v", got)
 	}
@@ -253,6 +258,9 @@ func TestBrainConfig_DefaultsEnvAndRejectsInvalidEndpoint(t *testing.T) {
 		if (BrainConfig{Endpoint: bad}).Validate() == nil {
 			t.Fatalf("accepted endpoint %q", bad)
 		}
+	}
+	if (BrainConfig{Endpoint: "brain.example.test:443", RunGrace: -time.Second}).Validate() == nil {
+		t.Fatal("accepted a negative grace")
 	}
 	if (BrainConfig{Endpoint: "[::1]:443"}).Validate() != nil {
 		t.Fatal("rejected an IPv6 endpoint")
