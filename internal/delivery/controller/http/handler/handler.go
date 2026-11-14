@@ -5,6 +5,7 @@ import (
 	"time"
 
 	adminAuditHandler "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/adminAudit"
+	assistantHandler "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/assistant"
 	dashboardHandler "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/dashboard"
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
@@ -58,6 +59,7 @@ type (
 		errorJournalHandler.IUseCase
 		mailHandler.IUseCase
 		imageRegistryHandler.IUseCase
+		assistantHandler.IUseCase
 
 		// ResolveEventByTag backs the participant-route tenant-resolution
 		// middleware (see Init) — the aggregator builds
@@ -107,6 +109,7 @@ func (h *Handler) Init(router *gin.Engine) {
 		messagingHandler.NewMessagingAPIHandler(h.useCase, h.prot).Init(baseAPI)
 
 		exerciseHandler.NewExerciseAPIHandler(h.useCase, h.prot).Init(baseAPI)
+		assistantHandler.New(h.useCase, h.prot).Init(baseAPI)
 
 		eventHandler.NewEventAPIHandler(h.useCase, h.prot).Init(baseAPI)
 		eventAnalyticsHandler.NewEventAnalyticsAPIHandler(h.useCase, h.prot).Init(baseAPI)

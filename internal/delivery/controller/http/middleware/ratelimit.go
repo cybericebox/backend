@@ -157,6 +157,8 @@ func (l *RateLimiter) allowUser(user uuid.UUID) (bool, time.Duration) {
 var exemptFromRateLimit = map[string]bool{
 	"/api/health":              true,
 	"/api/admin/errors/stream": true,
+	// the authoring assistant's event stream: one long GET per session, bounded per user by the stream limiter
+	"/api/assistant/sessions/:id/events":            true,
 	"/api/events/:id/manage/solution-attempts/live": true,
 	"/api/events/:id/results/live":                  true,
 	"/api/events/self/live-screen/results/live":     true,

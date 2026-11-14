@@ -45,9 +45,11 @@ func TransferRoutes() []string {
 		"/api/exercises/import/uploaded",
 		"/api/exercises/uploads/:uploadID/complete",
 		"/api/exercises/uploads/:uploadID/chunks/:index",
+		"/api/assistant/sessions/:id/attachments",
 		// file downloads
 		"/api/exercises/files/:fileID",
 		"/api/exercises/files/:fileID/chunks/:index",
+		"/api/assistant/sessions/:id/archive",
 		"/api/events/self/answer-files/:fileID",
 		"/api/events/:id/manage/answer-files/:fileID",
 		"/api/events/:id/teams/challenges/:challengeID/files/:fileID",

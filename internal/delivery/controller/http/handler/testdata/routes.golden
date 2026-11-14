@@ -27,6 +27,17 @@ GET    /api/analytics/tasks/table | gate: analytics.read | layers: -
 GET    /api/analytics/users | gate: analytics.read | layers: -
 GET    /api/analytics/users/export.csv | gate: analytics.read | layers: -
 GET    /api/analytics/users/people | gate: analytics.users.read | layers: -
+GET    /api/assistant/ideas | gate: self | layers: assistant.author
+POST   /api/assistant/sessions | gate: self | layers: assistant.author
+DELETE /api/assistant/sessions/:id | gate: self | layers: assistant.author
+GET    /api/assistant/sessions/:id/archive | gate: self | layers: assistant.author
+POST   /api/assistant/sessions/:id/attachments | gate: self | layers: assistant.author
+DELETE /api/assistant/sessions/:id/attachments/:aid | gate: self | layers: assistant.author
+GET    /api/assistant/sessions/:id/events | gate: self | layers: assistant.author
+POST   /api/assistant/sessions/:id/messages | gate: self | layers: assistant.author
+POST   /api/assistant/sessions/:id/save | gate: self | layers: download.LongOperation.func,assistant.author
+POST   /api/assistant/sessions/:id/start | gate: self | layers: assistant.author
+POST   /api/assistant/sessions/:id/stop | gate: self | layers: assistant.author
 DELETE /api/auth/account | gate: self | layers: -
 GET    /api/auth/account | gate: self | layers: -
 DELETE /api/auth/account/avatar | gate: self | layers: -

@@ -10,6 +10,7 @@ import (
 	"github.com/cybericebox/daemon/internal/config"
 	"github.com/cybericebox/daemon/internal/delivery/repository"
 	"github.com/cybericebox/daemon/internal/delivery/repository/autoRecreateRepo"
+	"github.com/cybericebox/daemon/internal/delivery/repository/brainConnectionRepo"
 	"github.com/cybericebox/daemon/internal/delivery/repository/dashboardRepo"
 	"github.com/cybericebox/daemon/internal/delivery/repository/emailTemplateRepo"
 	"github.com/cybericebox/daemon/internal/delivery/repository/errorJournalRepo"
@@ -51,6 +52,7 @@ import (
 	"github.com/cybericebox/daemon/internal/session"
 	adminAuditUseCase "github.com/cybericebox/daemon/internal/useCase/adminAudit"
 	adminDashboardUseCase "github.com/cybericebox/daemon/internal/useCase/adminDashboard"
+	assistantUseCase "github.com/cybericebox/daemon/internal/useCase/assistant"
 	authUseCase "github.com/cybericebox/daemon/internal/useCase/auth"
 	errorJournalUseCase "github.com/cybericebox/daemon/internal/useCase/errorJournal"
 	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
@@ -115,6 +117,8 @@ type (
 		*imageRegistryUseCase.ImageRegistryUseCase
 		// InboxRequests raises the staff inbox requests that come from the monitoring (the CPU throttling alert).
 		InboxRequests *inboxUseCase.RequestRouter
+		// Assistant is the authoring assistant: the connection to cyber-brain and the chat pass-through.
+		Assistant *assistantUseCase.UseCase
 	}
 	Dependencies struct {
 		Repo            *repository.Repository
@@ -158,6 +162,9 @@ type (
 		// ErrorJournal tunes the platform error journal; Telegram is its bot (nil or disabled: no Telegram messages).
 		ErrorJournal errorJournalUseCase.Config
 		Telegram     errorJournalUseCase.Telegram
+		// Brain is the connection to cyber-brain (BRAIN_*); an empty endpoint switches the assistant off. It uses
+		// PlatformCipher to seal its client key.
+		Brain config.BrainConfig
 	}
 )
 
@@ -593,5 +600,10 @@ func NewUseCase(deps Dependencies) *UseCase {
 		),
 		imageRegistryUC,
 		inboxRequests,
+		assistantUseCase.New(assistantUseCase.Dependencies{
+			Store: brainConnectionRepo.New(deps.Repo), Cipher: deps.PlatformCipher,
+			Config:   assistantUseCase.Config{Endpoint: deps.Brain.Endpoint, EnrollmentToken: deps.Brain.EnrollmentToken, CAFile: deps.Brain.CAFile},
+			Importer: exerciseUC, Files: mediaUC,
+		}),
 	}
 }
