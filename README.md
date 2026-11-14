@@ -248,6 +248,16 @@ What a laboratory offers is not configured here: each agent reports it (device s
 
 The variables `AGENT_TLS_*`, `AGENT_ACCESS_PRIVATE_KEY`, `AGENT_ACCESS_KEY_ID` and `LAB_ACCESS_PRIVATE_KEY` were removed and have no replacement: keys are per agent and stored in the database.
 
+### Authoring assistant (cyber-brain)
+
+The authoring chat of the exercises site is served by cyber-brain, a separate service. The daemon is its client: it enrolls once with a token and a certificate request, keeps the client certificate (and its key, sealed with `PLATFORM_SECRETS_KEY`) in the database, renews it after two thirds of its lifetime (on the replica that holds the leadership lock) and proxies `/api/assistant/*` to the brain over mutual TLS. Without `BRAIN_ENDPOINT`, or without `PLATFORM_SECRETS_KEY`, the feature is off and the routes answer 503.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `BRAIN_ENDPOINT` | none | `host:port` of cyber-brain (HTTPS). Empty switches the assistant off. |
+| `BRAIN_ENROLLMENT_TOKEN` | none | One-time enrollment token (used once; ignored once the connection is stored). |
+| `BRAIN_CA_FILE` | none | CA of the brain's server certificate; empty means the system roots. |
+
 ### Exercises and stands
 
 | Variable | Default | Purpose |

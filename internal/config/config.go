@@ -52,6 +52,20 @@ type (
 		Keys           KeysConfig           `                                   envPrefix:""`
 		ErrorJournal   ErrorJournalConfig   `                                   envPrefix:"ERROR_JOURNAL_"`
 		Telegram       TelegramConfig       `                                   envPrefix:"TELEGRAM_"`
+		Brain          BrainConfig          `                                   envPrefix:"BRAIN_"`
+	}
+
+	// BrainConfig connects the platform to cyber-brain, the external service behind the authoring assistant. The
+	// connection lives in the database like a lab agent: with Endpoint and EnrollmentToken set and no stored
+	// connection for that endpoint, the daemon enrolls once at start-up. The token is ignored afterwards. Without an
+	// Endpoint the assistant is off and its routes answer 503.
+	BrainConfig struct {
+		// Endpoint is host:port of cyber-brain (HTTPS). Empty switches the feature off.
+		Endpoint string `env:"ENDPOINT"`
+		// EnrollmentToken is the one-time enrollment token of the platform's tenant at the brain.
+		EnrollmentToken string `env:"ENROLLMENT_TOKEN"`
+		// CAFile verifies the brain's server certificate; empty means the system roots.
+		CAFile string `env:"CA_FILE"`
 	}
 
 	// TelegramConfig is the one bot of the platform's operator notifications (the error journal).
@@ -720,6 +734,18 @@ func (c FlagRateLimitConfig) Validate() error {
 	return nil
 }
 
+// Validate checks the endpoint is host:port when the feature is on. Without an endpoint the other settings are unused.
+func (c BrainConfig) Validate() error {
+	if strings.TrimSpace(c.Endpoint) == "" {
+		return nil
+	}
+	host, port, err := net.SplitHostPort(strings.TrimSpace(c.Endpoint))
+	if err != nil || host == "" || port == "" {
+		return errors.New("cyber-brain: BRAIN_ENDPOINT must be host:port")
+	}
+	return nil
+}
+
 var instanceIDPattern = regexp.MustCompile(`^[A-Za-z0-9]([-A-Za-z0-9_.]{0,61}[A-Za-z0-9])?$`)
 
 // Validate checks the instance id is a valid Kubernetes label value: it is used as one.
@@ -1211,6 +1237,9 @@ func MustGetConfig() *Config {
 	}
 	if err = instance.Infrastructure.Agent.Validate(); err != nil {
 		log.Fatal().Err(err).Msg("Config: invalid infrastructure agent configuration")
+	}
+	if err = instance.Brain.Validate(); err != nil {
+		log.Fatal().Err(err).Msg("Config: invalid cyber-brain configuration")
 	}
 	if err = instance.Retention.Policy().Validate(); err != nil {
 		log.Fatal().Err(err).Msg("Config: invalid retention configuration")
