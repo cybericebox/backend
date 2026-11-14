@@ -22297,6 +22297,143 @@ const docTemplate = `{
                 }
             }
         },
+        "/exercises/{id}/versions/{versionID}/variants/{variantID}/measure": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "exercises"
+                ],
+                "summary": "The grader runs of a variant, newest first",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/assistant.runResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "exercises"
+                ],
+                "summary": "Start a grader run on a variant",
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/assistant.runResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/exercises/{id}/versions/{versionID}/variants/{variantID}/measure/{runID}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "exercises"
+                ],
+                "summary": "One grader run with its judged answers",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/assistant.runDetailResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/exercises/{id}/versions/{versionID}/variants/{variantID}/measure/{runID}/events": {
+            "get": {
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "exercises"
+                ],
+                "summary": "The events of a grader run, from storage (resume with ?after= or Last-Event-ID)",
+                "responses": {}
+            }
+        },
+        "/exercises/{id}/versions/{versionID}/variants/{variantID}/measure/{runID}/stop": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "exercises"
+                ],
+                "summary": "Stop a grader run; its lab is torn down",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/assistant.runResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/infrastructure/agents": {
             "get": {
                 "description": "The enrolled agents (Source admin: added in the admin; env: bootstrapped from AGENT_ENDPOINT and the enrollment token), with live state, held lab groups, capacity and the certificate expiry. Requires infrastructure.read (super_admin only).",
@@ -29482,6 +29619,123 @@ const docTemplate = `{
                 "Total": {
                     "description": "Total is how many entries the filters match; set on the first page (no cursor) only.",
                     "type": "integer"
+                }
+            }
+        },
+        "assistant.answerResponse": {
+            "type": "object",
+            "properties": {
+                "At": {
+                    "type": "string"
+                },
+                "Correct": {
+                    "type": "boolean"
+                },
+                "Seq": {
+                    "type": "integer"
+                },
+                "SubtaskRef": {
+                    "type": "string"
+                }
+            }
+        },
+        "assistant.runDetailResponse": {
+            "type": "object",
+            "properties": {
+                "Answers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/assistant.answerResponse"
+                    }
+                },
+                "CreatedAt": {
+                    "type": "string"
+                },
+                "DeployID": {
+                    "description": "DeployID is the test lab of the run (it shows with the author's other test labs).",
+                    "type": "string"
+                },
+                "ExpiresAt": {
+                    "type": "string"
+                },
+                "FailureReason": {
+                    "type": "string"
+                },
+                "FinishedAt": {
+                    "type": "string"
+                },
+                "ID": {
+                    "type": "string"
+                },
+                "LastSeq": {
+                    "type": "integer"
+                },
+                "Measurement": {
+                    "description": "Measurement is the brain's final aggregate, as it sent it.",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "StartedAt": {
+                    "type": "string"
+                },
+                "State": {
+                    "description": "State is starting, running, closing, finished, failed or stopped.",
+                    "type": "string"
+                },
+                "VariantID": {
+                    "type": "string"
+                },
+                "VersionID": {
+                    "type": "string"
+                }
+            }
+        },
+        "assistant.runResponse": {
+            "type": "object",
+            "properties": {
+                "CreatedAt": {
+                    "type": "string"
+                },
+                "DeployID": {
+                    "description": "DeployID is the test lab of the run (it shows with the author's other test labs).",
+                    "type": "string"
+                },
+                "ExpiresAt": {
+                    "type": "string"
+                },
+                "FailureReason": {
+                    "type": "string"
+                },
+                "FinishedAt": {
+                    "type": "string"
+                },
+                "ID": {
+                    "type": "string"
+                },
+                "LastSeq": {
+                    "type": "integer"
+                },
+                "Measurement": {
+                    "description": "Measurement is the brain's final aggregate, as it sent it.",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "StartedAt": {
+                    "type": "string"
+                },
+                "State": {
+                    "description": "State is starting, running, closing, finished, failed or stopped.",
+                    "type": "string"
+                },
+                "VariantID": {
+                    "type": "string"
+                },
+                "VersionID": {
+                    "type": "string"
                 }
             }
         },
@@ -41735,6 +41989,35 @@ const docTemplate = `{
                 }
             }
         },
+        "exercise.opponentDTO": {
+            "type": "object",
+            "properties": {
+                "Band": {
+                    "type": "integer"
+                },
+                "Brief": {
+                    "type": "string"
+                },
+                "Goal": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "Operates": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "Role": {
+                    "type": "string"
+                },
+                "StartAfter": {
+                    "type": "string"
+                }
+            }
+        },
         "exercise.pendingElevationCountResponse": {
             "type": "object",
             "properties": {
@@ -42398,6 +42681,13 @@ const docTemplate = `{
                 },
                 "Note": {
                     "type": "string"
+                },
+                "Opponents": {
+                    "description": "Opponents are the Academy's automated attackers and defenders of the variant: author content, in the responses\nfor the authors of the exercise only (a request that omits them removes them). A linked variant takes its base's.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/exercise.opponentDTO"
+                    }
                 },
                 "Tasks": {
                     "type": "array",

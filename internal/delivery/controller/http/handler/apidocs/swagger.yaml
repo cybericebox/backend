@@ -49,6 +49,87 @@ definitions:
           page (no cursor) only.
         type: integer
     type: object
+  assistant.answerResponse:
+    properties:
+      At:
+        type: string
+      Correct:
+        type: boolean
+      Seq:
+        type: integer
+      SubtaskRef:
+        type: string
+    type: object
+  assistant.runDetailResponse:
+    properties:
+      Answers:
+        items:
+          $ref: '#/definitions/assistant.answerResponse'
+        type: array
+      CreatedAt:
+        type: string
+      DeployID:
+        description: DeployID is the test lab of the run (it shows with the author's
+          other test labs).
+        type: string
+      ExpiresAt:
+        type: string
+      FailureReason:
+        type: string
+      FinishedAt:
+        type: string
+      ID:
+        type: string
+      LastSeq:
+        type: integer
+      Measurement:
+        description: Measurement is the brain's final aggregate, as it sent it.
+        items:
+          type: integer
+        type: array
+      StartedAt:
+        type: string
+      State:
+        description: State is starting, running, closing, finished, failed or stopped.
+        type: string
+      VariantID:
+        type: string
+      VersionID:
+        type: string
+    type: object
+  assistant.runResponse:
+    properties:
+      CreatedAt:
+        type: string
+      DeployID:
+        description: DeployID is the test lab of the run (it shows with the author's
+          other test labs).
+        type: string
+      ExpiresAt:
+        type: string
+      FailureReason:
+        type: string
+      FinishedAt:
+        type: string
+      ID:
+        type: string
+      LastSeq:
+        type: integer
+      Measurement:
+        description: Measurement is the brain's final aggregate, as it sent it.
+        items:
+          type: integer
+        type: array
+      StartedAt:
+        type: string
+      State:
+        description: State is starting, running, closing, finished, failed or stopped.
+        type: string
+      VariantID:
+        type: string
+      VersionID:
+        type: string
+    type: object
   auth.accountResponse:
     properties:
       CreatedAt:
@@ -8488,6 +8569,25 @@ definitions:
       Gateway:
         type: string
     type: object
+  exercise.opponentDTO:
+    properties:
+      Band:
+        type: integer
+      Brief:
+        type: string
+      Goal:
+        items:
+          type: string
+        type: array
+      Operates:
+        items:
+          type: string
+        type: array
+      Role:
+        type: string
+      StartAfter:
+        type: string
+    type: object
   exercise.pendingElevationCountResponse:
     properties:
       Pending:
@@ -8963,6 +9063,13 @@ definitions:
         type: string
       Note:
         type: string
+      Opponents:
+        description: |-
+          Opponents are the Academy's automated attackers and defenders of the variant: author content, in the responses
+          for the authors of the exercise only (a request that omits them removes them). A linked variant takes its base's.
+        items:
+          $ref: '#/definitions/exercise.opponentDTO'
+        type: array
       Tasks:
         items:
           $ref: '#/definitions/exercise.taskDTO'
@@ -26720,6 +26827,83 @@ paths:
           schema:
             $ref: '#/definitions/response.Response'
       summary: Deploy a variant's topology for testing
+      tags:
+      - exercises
+  /exercises/{id}/versions/{versionID}/variants/{variantID}/measure:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/assistant.runResponse'
+                  type: array
+              type: object
+      summary: The grader runs of a variant, newest first
+      tags:
+      - exercises
+    post:
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/assistant.runResponse'
+              type: object
+      summary: Start a grader run on a variant
+      tags:
+      - exercises
+  /exercises/{id}/versions/{versionID}/variants/{variantID}/measure/{runID}:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/assistant.runDetailResponse'
+              type: object
+      summary: One grader run with its judged answers
+      tags:
+      - exercises
+  /exercises/{id}/versions/{versionID}/variants/{variantID}/measure/{runID}/events:
+    get:
+      produces:
+      - text/event-stream
+      responses: {}
+      summary: The events of a grader run, from storage (resume with ?after= or Last-Event-ID)
+      tags:
+      - exercises
+  /exercises/{id}/versions/{versionID}/variants/{variantID}/measure/{runID}/stop:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/assistant.runResponse'
+              type: object
+      summary: Stop a grader run; its lab is torn down
       tags:
       - exercises
   /exercises/access:
