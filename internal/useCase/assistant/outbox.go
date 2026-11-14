@@ -57,6 +57,24 @@ type (
 // requestIDPattern is what a request id may look like in a path.
 var requestIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._~-]{0,127}$`)
 
+// requestIDField finds a request_id in a payload that is not valid JSON.
+var requestIDField = regexp.MustCompile(`"request_id"\s*:\s*"([A-Za-z0-9][A-Za-z0-9._~-]{0,127})"`)
+
+// readableRequestID is the request id of a payload, read leniently: from the JSON when it parses, else from the text.
+// Empty when there is none.
+func readableRequestID(data []byte) string {
+	var probe struct {
+		ID string `json:"request_id"`
+	}
+	if json.Unmarshal(data, &probe) == nil && requestIDPattern.MatchString(probe.ID) {
+		return probe.ID
+	}
+	if m := requestIDField.FindSubmatch(data); m != nil {
+		return string(m[1])
+	}
+	return ""
+}
+
 // handlers maps the request types the platform knows to their handlers. A type that is not here is answered with
 // unsupported_request.
 func (u *UseCase) handlers() map[string]requestHandler {
@@ -154,8 +172,17 @@ func (u *UseCase) watchOnce(ctx context.Context) error {
 func (u *UseCase) handleRequest(ctx context.Context, seq int64, f brain.Frame) error {
 	req := OutboxRequest{Seq: seq, Raw: json.RawMessage(f.Data)}
 	if err := json.Unmarshal(f.Data, &req); err != nil || !requestIDPattern.MatchString(req.ID) {
-		// Nothing to answer to: not a request. Move on.
-		log.Warn().Int64("seq", seq).Msg("An unreadable cyber-brain outbox request was skipped")
+		// A broken request still gets its answer when its id can be read, or the brain would keep it open for ever.
+		id := readableRequestID(f.Data)
+		if id == "" {
+			log.Warn().Int64("seq", seq).Msg("A cyber-brain outbox request without a readable request_id was skipped")
+			return u.cursor.SetOutboxSeq(ctx, u.endpoint(), seq)
+		}
+		log.Warn().Int64("seq", seq).Str("request", id).Msg("A malformed cyber-brain outbox request is answered as invalid")
+		refusal := &AnswerError{Code: codeInvalidRequest, Message: "the request could not be read"}
+		if err = u.answer(ctx, id, nil, refusal); err != nil {
+			return fmt.Errorf("answer request %s: %w", id, err)
+		}
 		return u.cursor.SetOutboxSeq(ctx, u.endpoint(), seq)
 	}
 	if req.Type == "" {

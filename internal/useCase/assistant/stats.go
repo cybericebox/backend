@@ -91,10 +91,12 @@ func (u *UseCase) provideData(ctx context.Context, req OutboxRequest) (any, *Ans
 		log.Error().Err(err).Msg("Reading the statistics collection switches failed")
 		return nil, &AnswerError{Code: codeInternal, Message: "the platform could not read the statistics settings"}
 	}
-	var enabled []assistantModel.TaskRef
+	var enabled, disabled []assistantModel.TaskRef
 	for _, ref := range in.TaskRefs {
 		if on[ref] {
 			enabled = append(enabled, ref)
+		} else {
+			disabled = append(disabled, ref)
 		}
 	}
 	if len(enabled) == 0 {
@@ -105,10 +107,15 @@ func (u *UseCase) provideData(ctx context.Context, req OutboxRequest) (any, *Ans
 		log.Error().Err(err).Msg("Reading the statistics aggregates failed")
 		return nil, &AnswerError{Code: codeInternal, Message: "the platform could not read the statistics"}
 	}
-	if aggregates == nil {
-		aggregates = []assistantModel.Aggregate{}
+	// The tasks whose collection is off are listed with the code, so the brain can tell "off" from "no data yet".
+	entries := make([]any, 0, len(aggregates)+len(disabled))
+	for _, a := range aggregates {
+		entries = append(entries, a)
 	}
-	return map[string]any{"aggregates": aggregates}, nil
+	for _, ref := range disabled {
+		entries = append(entries, assistantModel.Unavailable{TaskRef: ref, Error: codeCollectionDisabled})
+	}
+	return map[string]any{"aggregates": entries}, nil
 }
 
 // PushStatistics sends the aggregates of every task whose collection is on to the brain (`POST /v1/data`), in batches.

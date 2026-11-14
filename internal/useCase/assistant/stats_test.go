@@ -118,18 +118,31 @@ func TestProvideDataWithCollectionOffIsCollectionDisabledNotAnEmptyResult(t *tes
 	}
 }
 
-func TestProvideDataForSomeTasksReturnsOnlyThoseWithCollectionOn(t *testing.T) {
+func TestProvideDataForSomeTasksListsTheOffOnesWithTheCode(t *testing.T) {
 	stats := &fakeStats{on: map[assistantModel.TaskRef]bool{refB: true}}
 	o := newStatsRig(t, stats, provideDataFrame(1, "d1", refA, refB))
 	o.run(t)
 	eventually(t, "answered", func() bool { return o.cursor.get() == 1 })
 	var got struct {
-		Result struct{ Aggregates []assistantModel.Aggregate }
+		Result struct {
+			Aggregates []struct {
+				assistantModel.TaskRef
+				Solves int64  `json:"solves"`
+				Error  string `json:"error"`
+			}
+		}
 	}
-	_ = json.Unmarshal([]byte(o.brain.answered("d1")[0]), &got)
-	if len(got.Result.Aggregates) != 1 || got.Result.Aggregates[0].TaskRef != refB {
-		t.Fatalf("answer: %v", o.brain.answered("d1"))
+	if err := json.Unmarshal([]byte(o.brain.answered("d1")[0]), &got); err != nil || len(got.Result.Aggregates) != 2 {
+		t.Fatalf("answer: %v %v", o.brain.answered("d1"), err)
 	}
+	data, off := got.Result.Aggregates[0], got.Result.Aggregates[1]
+	if data.TaskRef != refB || data.Error != "" || data.Solves != 7 {
+		t.Fatalf("the collected task has its figures: %+v", data)
+	}
+	if off.TaskRef != refA || off.Error != "collection_disabled" || off.Solves != 0 {
+		t.Fatalf("the off task says so and carries no figures: %+v", off)
+	}
+	checkKeys(t, "partial ProvideData answer", []byte(o.brain.answered("d1")[0]))
 }
 
 func TestProvideDataWithoutTaskRefsIsAnInvalidRequest(t *testing.T) {
@@ -244,7 +257,7 @@ var allowedKeys = map[string]bool{
 	"aggregates": true, "result": true,
 	"task_ref": true, "version": true, "image": true, "solves": true, "attempts": true, "solve_rate": true,
 	"time": true, "median": true, "p25": true, "p75": true, "hints_used": true, "hints": true, "teams": true,
-	"modality": true, "as_of": true,
+	"modality": true, "as_of": true, "error": true,
 }
 
 var identifying = regexp.MustCompile(`(?i)user|team_id|team_name|member|captain|participant|email|name|ip|addr|client|session|account|login|login`)

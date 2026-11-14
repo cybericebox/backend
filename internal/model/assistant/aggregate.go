@@ -36,3 +36,10 @@ type Aggregate struct {
 	Modality  string       `json:"modality"`
 	AsOf      time.Time    `json:"as_of"`
 }
+
+// Unavailable stands in the answer of a pull request for a task whose statistics are not collected: the code says so, so
+// that "off" is not mistaken for "no data yet".
+type Unavailable struct {
+	TaskRef
+	Error string `json:"error"`
+}
