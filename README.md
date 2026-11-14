@@ -256,7 +256,7 @@ The authoring chat of the exercises site is served by cyber-brain, a separate se
 | --- | --- | --- |
 | `BRAIN_ENDPOINT` | none | `host:port` of cyber-brain (HTTPS). Empty switches the assistant off. |
 | `BRAIN_ENROLLMENT_TOKEN` | none | One-time enrollment token (used once; ignored once the connection is stored). |
-| `BRAIN_CA_FILE` | none | CA of the brain's server certificate; empty means the system roots. |
+| `BRAIN_CA_FILE` | none | CA that verifies the brain's server certificate for the first enrollment only; empty means the system roots. The brain's own CA, returned at enrollment, is then pinned for every later call (a renewal may rotate it). |
 
 ### Exercises and stands
 

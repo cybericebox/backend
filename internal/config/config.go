@@ -64,7 +64,8 @@ type (
 		Endpoint string `env:"ENDPOINT"`
 		// EnrollmentToken is the one-time enrollment token of the platform's tenant at the brain.
 		EnrollmentToken string `env:"ENROLLMENT_TOKEN"`
-		// CAFile verifies the brain's server certificate; empty means the system roots.
+		// CAFile verifies the brain's server certificate for the first enrollment only; empty means the system roots. The
+		// CA the brain returns is then pinned for every later call and renewal.
 		CAFile string `env:"CA_FILE"`
 	}
 

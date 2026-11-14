@@ -6,6 +6,8 @@ package assistant
 
 import (
 	"context"
+	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"os"
@@ -202,13 +204,21 @@ func (u *UseCase) BootstrapBrain(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	// BRAIN_CA_FILE (or the system roots) was trusted for this one call. From now on the brain's own CA, which signs both
+	// its server certificate and our client certificate, is the one pinned trust anchor.
+	if strings.TrimSpace(out.CAPEM) == "" {
+		return false, errors.New("cyber-brain returned no CA to pin")
+	}
+	if err = verifyIssuedBy(out.CertPEM, out.CAPEM, u.now()); err != nil {
+		return false, err
+	}
 	sealed, err := u.sealKey(endpoint, key.KeyPEM)
 	if err != nil {
 		return false, err
 	}
 	now := u.now().UTC()
 	stored, err := u.store.Create(ctx, assistantModel.Connection{
-		Endpoint: endpoint, Tenant: cert.Tenant, CertPEM: out.CertPEM, KeyCiphertext: sealed, CAPEM: string(ca),
+		Endpoint: endpoint, Tenant: cert.Tenant, CertPEM: out.CertPEM, KeyCiphertext: sealed, CAPEM: out.CAPEM,
 		CertNotAfter: cert.NotAfter, CreatedAt: now, UpdatedAt: now,
 	})
 	if err != nil {
@@ -228,6 +238,43 @@ func (u *UseCase) operatorCA() ([]byte, error) {
 		return nil, fmt.Errorf("cannot read BRAIN_CA_FILE: %w", err)
 	}
 	return raw, nil
+}
+
+// verifyIssuedBy checks the client certificate chains to the CA (as a client certificate) at the given time.
+func verifyIssuedBy(certPEM, caPEM string, at time.Time) error {
+	roots := x509.NewCertPool()
+	if !roots.AppendCertsFromPEM([]byte(caPEM)) {
+		return errors.New("cyber-brain returned a CA that holds no certificate")
+	}
+	var leaf *x509.Certificate
+	inter := x509.NewCertPool()
+	rest := []byte(certPEM)
+	for {
+		var block *pem.Block
+		block, rest = pem.Decode(rest)
+		if block == nil {
+			break
+		}
+		if block.Type != "CERTIFICATE" {
+			continue
+		}
+		c, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return fmt.Errorf("cyber-brain returned an unreadable certificate: %w", err)
+		}
+		if leaf == nil {
+			leaf = c
+		} else {
+			inter.AddCert(c)
+		}
+	}
+	if leaf == nil {
+		return errors.New("cyber-brain returned no certificate")
+	}
+	if _, err := leaf.Verify(x509.VerifyOptions{Roots: roots, Intermediates: inter, CurrentTime: at, KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}}); err != nil {
+		return fmt.Errorf("the client certificate does not chain to the CA cyber-brain returned: %w", err)
+	}
+	return nil
 }
 
 func checkCertificate(certPEM, keyPEM string) (agentcrypto.Certificate, error) {
@@ -287,6 +334,9 @@ func (u *UseCase) buildClient(conn assistantModel.Connection) (*brain.Client, er
 	if err != nil {
 		return nil, model.ErrPlatform.WithError(err).WithMessage("Failed to open the cyber-brain client key").Err()
 	}
+	if strings.TrimSpace(conn.CAPEM) == "" {
+		return nil, model.ErrPlatform.WithMessage("The stored cyber-brain connection has no pinned CA").Err()
+	}
 	c, err := brain.NewClient(conn.Endpoint, []byte(conn.CertPEM), key, []byte(conn.CAPEM))
 	if err != nil {
 		return nil, model.ErrPlatform.WithError(err).WithMessage("The stored cyber-brain connection is unusable").Err()
@@ -328,12 +378,19 @@ func (u *UseCase) RenewBrainCertificate(ctx context.Context) (bool, error) {
 	if cert.Tenant != conn.Tenant {
 		return false, fmt.Errorf("the renewed cyber-brain certificate names the tenant %q instead of %q", cert.Tenant, conn.Tenant)
 	}
+	// A renewal may bring a new CA (rotation): the new client certificate must chain to it before it replaces the pin.
+	pinned := conn.CAPEM
+	if strings.TrimSpace(out.CAPEM) != "" {
+		pinned = out.CAPEM
+	}
+	if err = verifyIssuedBy(out.CertPEM, pinned, u.now()); err != nil {
+		return false, err
+	}
 	sealed, err := u.sealKey(conn.Endpoint, key.KeyPEM)
 	if err != nil {
 		return false, err
 	}
-	// The server CA is the operator's setting and stays as stored.
-	ok, err := u.store.SetCertificate(ctx, conn.Endpoint, conn.Tenant, out.CertPEM, sealed, conn.CAPEM, cert.NotAfter, u.now().UTC())
+	ok, err := u.store.SetCertificate(ctx, conn.Endpoint, conn.Tenant, out.CertPEM, sealed, pinned, cert.NotAfter, u.now().UTC())
 	if err != nil {
 		return false, model.ErrPlatform.WithError(err).WithMessage("Failed to save the renewed cyber-brain certificate").Err()
 	}
