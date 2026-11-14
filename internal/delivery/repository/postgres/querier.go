@@ -171,7 +171,7 @@ type Querier interface {
 	// field's own filter empty). field: role, status, emailConfirmed or signIn (a user counts once per method).
 	CountUsersFacet(ctx context.Context, arg CountUsersFacetParams) ([]CountUsersFacetRow, error)
 	CreateAdminAuditLog(ctx context.Context, arg CreateAdminAuditLogParams) error
-	// Records the import of a session. A row that is already there stays (0 rows).
+	// Records a save: the imported task, or the queued import job. A row that is already there stays (0 rows).
 	CreateAssistantSave(ctx context.Context, arg CreateAssistantSaveParams) (int64, error)
 	// A freshly enrolled connection. Two replicas enrolling at once: the first row stays (0 rows for the second).
 	CreateBrainConnection(ctx context.Context, arg CreateBrainConnectionParams) (int64, error)
@@ -303,6 +303,8 @@ type Querier interface {
 	// removed from the unopened barrier at once.
 	DeclineEventLabRevealTeam(ctx context.Context, arg DeclineEventLabRevealTeamParams) error
 	DeleteAllUserTablePrefs(ctx context.Context, userID uuid.UUID) (int64, error)
+	// A failed import leaves nothing behind: the next save starts again.
+	DeleteAssistantSave(ctx context.Context, arg DeleteAssistantSaveParams) (int64, error)
 	// Guarded delete: refuses when the blob got re-referenced between the S3
 	// removal decision and this call.
 	DeleteBlob(ctx context.Context, contentHash string) (int64, error)
@@ -477,8 +479,9 @@ type Querier interface {
 	GetActiveChannels(ctx context.Context, arg GetActiveChannelsParams) ([]string, error)
 	// The screen's one working link (unrevoked and not expired).
 	GetActiveEventLiveScreenLink(ctx context.Context, arg GetActiveEventLiveScreenLinkParams) (EventLiveScreenLink, error)
-	// The task a session was already saved as by this author.
-	GetAssistantSave(ctx context.Context, arg GetAssistantSaveParams) (uuid.UUID, error)
+	// The save of this session by this author: the task (empty while its background import runs), the import job and whether
+	// the brain was told.
+	GetAssistantSave(ctx context.Context, arg GetAssistantSaveParams) (GetAssistantSaveRow, error)
 	// The stored connection to one brain endpoint.
 	GetBrainConnection(ctx context.Context, endpoint string) (BrainConnection, error)
 	GetClusterReservation(ctx context.Context, id uuid.UUID) (ClusterReservation, error)
@@ -1666,6 +1669,9 @@ type Querier interface {
 	// an old short tag makes one) is never a candidate: removing that tag could remove what serves the other digest; its
 	// rows stay until the other digest's row goes. At most 500 rows a pass; the rest wait for the next one.
 	ListUnreferencedPlatformImages(ctx context.Context, before time.Time) ([]PlatformImage, error)
+	// The saves the leader still has to finish: an import job to follow, or a task the brain was not told yet. Rows older
+	// than the cutoff are left alone.
+	ListUnsettledAssistantSaves(ctx context.Context, arg ListUnsettledAssistantSavesParams) ([]ListUnsettledAssistantSavesRow, error)
 	// (a part holding back a shrink is sent again: the admin may force it, or the labs may be gone.)
 	ListUnsyncedClusterReservationAgents(ctx context.Context) ([]uuid.UUID, error)
 	// The events a user is a member of, for the exercises app rights summary.
@@ -2073,6 +2079,10 @@ type Querier interface {
 	// person's names (the real one and the pseudonym).
 	ScrubRawLabObservations(ctx context.Context, arg ScrubRawLabObservationsParams) (int64, error)
 	SelectEventStageRetainedLab(ctx context.Context, arg SelectEventStageRetainedLabParams) error
+	// The background import finished: the task it created.
+	SetAssistantSaveExercise(ctx context.Context, arg SetAssistantSaveExerciseParams) (int64, error)
+	// The brain was told the task.
+	SetAssistantSaveNotified(ctx context.Context, arg SetAssistantSaveNotifiedParams) (int64, error)
 	// A renewed client certificate with its new key (the tenant is the certificate CN and stays).
 	SetBrainConnectionCertificate(ctx context.Context, arg SetBrainConnectionCertificateParams) (int64, error)
 	SetDispatchStatus(ctx context.Context, arg SetDispatchStatusParams) error

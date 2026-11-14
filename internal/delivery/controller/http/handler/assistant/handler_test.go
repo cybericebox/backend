@@ -25,6 +25,7 @@ import (
 	"github.com/cybericebox/daemon/internal/delivery/infrastructure/brain/brainfake"
 	assistantModel "github.com/cybericebox/daemon/internal/model/assistant"
 	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	mediaModel "github.com/cybericebox/daemon/internal/model/media"
 	"github.com/cybericebox/daemon/internal/model/rbac"
 	assistantUseCase "github.com/cybericebox/daemon/internal/useCase/assistant"
 	exerciseUseCase "github.com/cybericebox/daemon/internal/useCase/exercise"
@@ -65,21 +66,28 @@ func (s *memStore) SetCertificate(context.Context, string, string, string, strin
 
 type saves struct {
 	mu   sync.Mutex
-	rows map[string]uuid.UUID
+	rows map[string]assistantModel.Save
 }
 
-func (m *saves) Get(_ context.Context, s string, a uuid.UUID) (uuid.UUID, bool, error) {
+func (m *saves) Get(_ context.Context, s string, a uuid.UUID) (assistantModel.Save, bool, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	id, ok := m.rows[s+a.String()]
-	return id, ok, nil
+	r, ok := m.rows[s+a.String()]
+	return r, ok, nil
 }
 
-func (m *saves) Put(_ context.Context, s string, a, e uuid.UUID, _ time.Time) (bool, error) {
+func (m *saves) Create(_ context.Context, r assistantModel.Save, _ time.Time) (bool, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.rows[s+a.String()] = e
+	m.rows[r.Session+r.Author.String()] = r
 	return true, nil
+}
+
+func (m *saves) SetExercise(context.Context, string, uuid.UUID, uuid.UUID) error { return nil }
+func (m *saves) SetNotified(context.Context, string, uuid.UUID) error            { return nil }
+func (m *saves) Delete(context.Context, string, uuid.UUID) error                 { return nil }
+func (m *saves) Unsettled(context.Context, time.Time, int) ([]assistantModel.Save, error) {
+	return nil, nil
 }
 
 // importer records the import of the save route.
@@ -87,6 +95,7 @@ type importer struct {
 	mu      sync.Mutex
 	err     error
 	imports int
+	queues  int
 }
 
 func (i *importer) AuthorizeImport(context.Context, exerciseUseCase.Actor, *uuid.UUID) error {
@@ -102,10 +111,19 @@ func (i *importer) ImportRawArchive(context.Context, exerciseUseCase.Actor, exer
 	return exerciseUseCase.ArchiveImportStart{Exercises: []exerciseUseCase.ExerciseView{{ID: taskID}}}, i.err
 }
 func (i *importer) QueueArchiveImport(context.Context, exerciseUseCase.QueueImportInput) (uuid.UUID, error) {
-	return uuid.Nil, nil
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.queues++
+	return taskID, nil
 }
 func (i *importer) ArchiveImportJob(context.Context, uuid.UUID, uuid.UUID) (exerciseUseCase.ImportJobView, error) {
-	return exerciseUseCase.ImportJobView{}, nil
+	return exerciseUseCase.ImportJobView{State: exerciseModel.ImportJobRunning}, nil
+}
+
+type files struct{}
+
+func (files) UploadFile(context.Context, string, string, io.Reader, uuid.UUID) (mediaModel.File, error) {
+	return mediaModel.File{ID: taskID}, nil
 }
 
 // port is the handler's use case port over the real assistant use case. Only the author may author.
@@ -120,7 +138,7 @@ func (p port) RequireAuthor(_ context.Context, a exerciseUseCase.Actor) error {
 func (p port) AssistantProxy(ctx context.Context, u uuid.UUID, c assistantUseCase.Call) (*http.Response, error) {
 	return p.Proxy(ctx, u, c)
 }
-func (p port) AssistantSaveSession(ctx context.Context, a exerciseUseCase.Actor, id string) error {
+func (p port) AssistantSaveSession(ctx context.Context, a exerciseUseCase.Actor, id string) (bool, error) {
 	return p.SaveSession(ctx, a, id)
 }
 
@@ -162,10 +180,11 @@ func newRig(t *testing.T) *rig {
 	}
 	imp := &importer{}
 	uc := assistantUseCase.New(assistantUseCase.Dependencies{
-		Store: &memStore{conn: map[string]assistantModel.Connection{}}, Cipher: cipher, Importer: imp,
-		Saves:  &saves{rows: map[string]uuid.UUID{}},
-		Lock:   func(context.Context, string) (func(), error) { return func() {}, nil },
-		Config: assistantUseCase.Config{Endpoint: f.Endpoint(), EnrollmentToken: brainfake.Token, CAFile: caFile},
+		Store: &memStore{conn: map[string]assistantModel.Connection{}}, Cipher: cipher, Importer: imp, Files: files{},
+		NamesImages: func(a []byte, _ exerciseModel.ArchiveLimits) bool { return bytes.Equal(a, []byte("PK-with-images")) },
+		Saves:       &saves{rows: map[string]assistantModel.Save{}},
+		Lock:        func(context.Context, string) (func(), error) { return func() {}, nil },
+		Config:      assistantUseCase.Config{Endpoint: f.Endpoint(), EnrollmentToken: brainfake.Token, CAFile: caFile},
 	})
 	if _, err = uc.BootstrapBrain(context.Background()); err != nil {
 		t.Fatal(err)
@@ -283,6 +302,7 @@ func TestAttachmentUploadStreamsTheMultipartBodyAndMarksItForTheCSRFGuard(t *tes
 			b, _ := io.ReadAll(f)
 			gotFile, gotName = string(b), h.Filename
 		}
+		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"ID":"a-1"}`))
 	})
 	var body bytes.Buffer
@@ -312,7 +332,7 @@ func TestArchiveIsStreamedWithTheBrainsFileName(t *testing.T) {
 	})
 	resp := r.do(t, author, http.MethodGet, "/api/assistant/sessions/s1/archive", nil, nil)
 	if resp.StatusCode != 200 || read(t, resp) != "PK-bytes" ||
-		resp.Header.Get("Content-Type") != "application/zip" || resp.Header.Get("Content-Disposition") != `attachment; filename="task.cybericebox.zip"` {
+		resp.Header.Get("Content-Type") != "application/zip" || resp.Header.Get("Content-Disposition") != `attachment; filename=task.cybericebox.zip` {
 		t.Fatalf("archive: %d %v", resp.StatusCode, resp.Header)
 	}
 }
@@ -365,6 +385,7 @@ func TestSaveImportsThenTellsTheBrain(t *testing.T) {
 		switch {
 		case strings.HasSuffix(req.URL.Path, "/archive"):
 			order = append(order, "archive")
+			w.Header().Set("Content-Type", "application/zip")
 			_, _ = w.Write([]byte("PK-task"))
 		case strings.HasSuffix(req.URL.Path, "/save"):
 			order = append(order, "save")
@@ -387,6 +408,7 @@ func TestSaveWithAFailedImportAnswersTheImportsErrorAndSkipsTheBrain(t *testing.
 		if strings.HasSuffix(req.URL.Path, "/save") {
 			saved = true
 		}
+		w.Header().Set("Content-Type", "application/zip")
 		_, _ = w.Write([]byte("PK-task"))
 	})
 	resp := r.do(t, author, http.MethodPost, "/api/assistant/sessions/s1/save", strings.NewReader(`{}`), map[string]string{"Content-Type": "application/json"})
@@ -489,5 +511,111 @@ func TestEventsEndWhenTheClientLeaves(t *testing.T) {
 	case <-brainSawClose:
 	case <-time.After(5 * time.Second):
 		t.Fatal("the brain connection stayed open after the client left")
+	}
+}
+
+func TestSaveOfATaskWithImagesAnswers202AndDoesNotTellTheBrainYet(t *testing.T) {
+	r := newRig(t)
+	saved := false
+	r.fake.Assistant = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if strings.HasSuffix(req.URL.Path, "/save") {
+			saved = true
+		}
+		w.Header().Set("Content-Type", "application/zip")
+		_, _ = w.Write([]byte("PK-with-images"))
+	})
+	resp := r.do(t, author, http.MethodPost, "/api/assistant/sessions/s1/save", strings.NewReader(`{}`), map[string]string{"Content-Type": "application/json"})
+	if resp.StatusCode != http.StatusAccepted || saved || r.imp.queues != 1 || r.imp.imports != 0 {
+		t.Fatalf("status=%d told=%v queues=%d imports=%d", resp.StatusCode, saved, r.imp.queues, r.imp.imports)
+	}
+}
+
+// ── what the brain says about content types is not trusted ──────────────────
+
+func TestAJSONRouteAnswerOfAnotherTypeIsNotRelayed(t *testing.T) {
+	r := newRig(t)
+	r.fake.Assistant = http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = w.Write([]byte("<script>alert(1)</script>"))
+	})
+	for _, route := range []struct{ method, path string }{
+		{http.MethodGet, "/api/assistant/ideas"},
+		{http.MethodPost, "/api/assistant/sessions"},
+		{http.MethodPost, "/api/assistant/sessions/s1/attachments"},
+	} {
+		resp := r.do(t, author, route.method, route.path, strings.NewReader("{}"), map[string]string{"Content-Type": "application/json"})
+		body := read(t, resp)
+		if resp.StatusCode != http.StatusBadGateway || strings.Contains(body, "<script>") || strings.Contains(resp.Header.Get("Content-Type"), "html") {
+			t.Errorf("%s %s: %d %q %q", route.method, route.path, resp.StatusCode, resp.Header.Get("Content-Type"), body)
+		}
+	}
+}
+
+func TestJSONAnswersCarryTheFixedTypeAndNosniff(t *testing.T) {
+	r := newRig(t)
+	r.fake.Assistant = http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8; x=1")
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	})
+	resp := r.do(t, author, http.MethodGet, "/api/assistant/ideas", nil, nil)
+	if resp.StatusCode != 200 || !strings.HasPrefix(resp.Header.Get("Content-Type"), "application/json") || resp.Header.Get("X-Content-Type-Options") != "nosniff" {
+		t.Fatalf("%d %v", resp.StatusCode, resp.Header)
+	}
+}
+
+func TestArchiveTypeAndDispositionAreRebuiltNeverCopied(t *testing.T) {
+	r := newRig(t)
+	for header, want := range map[string]string{
+		`inline; filename="a.html"`:                    `attachment; filename=a.html`,
+		`attachment; filename="../../etc/pass wd.zip"`: `attachment; filename=pass-wd.zip`,
+		`attachment; filename="x\y<b>.zip"`:            `attachment; filename=y-b-.zip`,
+		`attachment`:                                   `attachment; filename=task.zip`,
+		`garbage;;;`:                                   `attachment; filename=task.zip`,
+		``:                                             `attachment; filename=task.zip`,
+	} {
+		r.fake.Assistant = http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/zip")
+			if header != "" {
+				w.Header().Set("Content-Disposition", header)
+			}
+			_, _ = w.Write([]byte("PK"))
+		})
+		resp := r.do(t, author, http.MethodGet, "/api/assistant/sessions/s1/archive", nil, nil)
+		if resp.StatusCode != 200 || resp.Header.Get("Content-Type") != "application/zip" || resp.Header.Get("X-Content-Type-Options") != "nosniff" ||
+			resp.Header.Get("Content-Disposition") != want {
+			t.Errorf("brain %q: %d type=%q disposition=%q want %q", header, resp.StatusCode, resp.Header.Get("Content-Type"), resp.Header.Get("Content-Disposition"), want)
+		}
+	}
+}
+
+func TestArchiveOfAnotherTypeIsNotRelayed(t *testing.T) {
+	r := newRig(t)
+	r.fake.Assistant = http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = w.Write([]byte("<script>alert(1)</script>"))
+	})
+	resp := r.do(t, author, http.MethodGet, "/api/assistant/sessions/s1/archive", nil, nil)
+	if resp.StatusCode != http.StatusBadGateway || strings.Contains(read(t, resp), "<script>") {
+		t.Fatalf("status %d", resp.StatusCode)
+	}
+}
+
+func TestEventsOfAnotherTypeAreNotRelayedAndStreamsAreNosniff(t *testing.T) {
+	r := newRig(t)
+	r.fake.Assistant = http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = w.Write([]byte("<script>alert(1)</script>"))
+	})
+	resp := r.do(t, author, http.MethodGet, "/api/assistant/sessions/s1/events", nil, nil)
+	if resp.StatusCode != http.StatusBadGateway || strings.Contains(read(t, resp), "<script>") {
+		t.Fatalf("status %d", resp.StatusCode)
+	}
+	r.fake.Assistant = http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
+		_, _ = w.Write([]byte("id: 1\nevent: status\ndata: {}\n\n"))
+	})
+	ok := r.do(t, author, http.MethodGet, "/api/assistant/sessions/s1/events", nil, nil)
+	if ok.StatusCode != 200 || !strings.HasPrefix(ok.Header.Get("Content-Type"), "text/event-stream") || ok.Header.Get("X-Content-Type-Options") != "nosniff" {
+		t.Fatalf("%d %v", ok.StatusCode, ok.Header)
 	}
 }

@@ -80,8 +80,6 @@ type (
 		// NamesImages tells whether a task archive names device image files (those import in the background);
 		// nil: the exercise use case's reader. A test seam.
 		NamesImages func(archive []byte, lim exerciseModel.ArchiveLimits) bool
-		// ImportPoll and ImportWait pace the wait for a background import (zero: 2s and 10min).
-		ImportPoll, ImportWait time.Duration
 	}
 
 	// UseCase is the assistant.
@@ -100,10 +98,6 @@ type (
 
 		subjectKey []byte
 
-		// importPoll and importWait pace the wait for a background import (tests shorten them).
-		importPoll time.Duration
-		importWait time.Duration
-
 		mu       sync.Mutex
 		cached   *brain.Client
 		loadedAt time.Time
@@ -115,13 +109,7 @@ type (
 func New(d Dependencies) *UseCase {
 	u := &UseCase{
 		store: d.Store, cipher: d.Cipher, cfg: d.Config, enroll: d.Enroll, now: d.Now, importer: d.Importer, files: d.Files, saves: d.Saves, lock: d.Lock,
-		importPoll: 2 * time.Second, importWait: 10 * time.Minute, namesImages: d.NamesImages,
-	}
-	if d.ImportPoll > 0 {
-		u.importPoll = d.ImportPoll
-	}
-	if d.ImportWait > 0 {
-		u.importWait = d.ImportWait
+		namesImages: d.NamesImages,
 	}
 	if u.namesImages == nil {
 		u.namesImages = func(archive []byte, lim exerciseModel.ArchiveLimits) bool {
@@ -366,8 +354,8 @@ func renewDue(conn assistantModel.Connection, now time.Time) bool {
 	return !now.Before(renewAt)
 }
 
-// MaintainBrain runs the periodic upkeep until ctx ends: the certificate is renewed when it is due. A failure is
-// logged and tried again at the next pass. It is meant for the leader replica only.
+// MaintainBrain runs the periodic upkeep until ctx ends: the certificate is renewed when it is due, and the saves
+// that wait for a background import are followed. A failure is logged and tried again at the next pass. It is meant for the leader replica only.
 func (u *UseCase) MaintainBrain(ctx context.Context) {
 	if !u.Enabled() {
 		return
@@ -380,14 +368,23 @@ func (u *UseCase) MaintainBrain(ctx context.Context) {
 		}
 	}
 	run()
+	settle := func() {
+		if err := u.SettleSaves(ctx); err != nil {
+			log.Error().Err(err).Msg("Following the assistant saves failed")
+		}
+	}
 	t := time.NewTicker(MaintainInterval)
 	defer t.Stop()
+	s := time.NewTicker(SettleInterval)
+	defer s.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-t.C:
 			run()
+		case <-s.C:
+			settle()
 		}
 	}
 }

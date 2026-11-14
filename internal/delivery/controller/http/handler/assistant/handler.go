@@ -10,10 +10,13 @@ import (
 	"context"
 	"errors"
 	"io"
+	"mime"
 	"net/http"
 	"net/url"
+	"path"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -25,6 +28,7 @@ import (
 	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
 	"github.com/cybericebox/daemon/internal/delivery/controller/http/sse"
 	"github.com/cybericebox/daemon/internal/limits"
+	assistantModel "github.com/cybericebox/daemon/internal/model/assistant"
 	"github.com/cybericebox/daemon/internal/model/rbac"
 	assistantUseCase "github.com/cybericebox/daemon/internal/useCase/assistant"
 	exerciseUseCase "github.com/cybericebox/daemon/internal/useCase/exercise"
@@ -56,7 +60,7 @@ type (
 		// RequireAuthor: whoever may author tasks somewhere (an admin, or a manager of an event) may use the assistant.
 		RequireAuthor(ctx context.Context, actor exerciseUseCase.Actor) error
 		AssistantProxy(ctx context.Context, user uuid.UUID, call assistantUseCase.Call) (*http.Response, error)
-		AssistantSaveSession(ctx context.Context, actor exerciseUseCase.Actor, sessionID string) error
+		AssistantSaveSession(ctx context.Context, actor exerciseUseCase.Actor, sessionID string) (done bool, err error)
 	}
 
 	Handler struct {
@@ -166,14 +170,25 @@ func (h *Handler) relayJSON(c *gin.Context, method, path string) {
 		response.AbortWithError(c, err)
 		return
 	}
+	relayAnswer(c, resp)
+}
+
+// relayAnswer sends a JSON answer of the brain under the fixed type application/json. An answer of another type is not
+// relayed: it is an upstream failure.
+func relayAnswer(c *gin.Context, resp *http.Response) {
 	defer func() { _ = resp.Body.Close() }()
 	answer, err := io.ReadAll(io.LimitReader(resp.Body, maxAnswerBody))
 	if err != nil {
 		response.AbortWithError(c, err)
 		return
 	}
+	if len(answer) > 0 && mediaType(resp.Header.Get("Content-Type")) != "application/json" {
+		response.AbortWithError(c, wrongType(resp))
+		return
+	}
 	privateNoStore(c)
-	c.Data(resp.StatusCode, contentTypeOr(resp, "application/json"), answer)
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.Data(resp.StatusCode, "application/json", answer)
 	c.Abort()
 }
 
@@ -197,15 +212,7 @@ func (h *Handler) uploadAttachment(c *gin.Context) {
 		response.AbortWithError(c, err)
 		return
 	}
-	defer func() { _ = resp.Body.Close() }()
-	answer, err := io.ReadAll(io.LimitReader(resp.Body, maxAnswerBody))
-	if err != nil {
-		response.AbortWithError(c, err)
-		return
-	}
-	privateNoStore(c)
-	c.Data(resp.StatusCode, contentTypeOr(resp, "application/json"), answer)
-	c.Abort()
+	relayAnswer(c, resp)
 }
 
 func (h *Handler) deleteAttachment(c *gin.Context) {
@@ -221,7 +228,8 @@ func (h *Handler) deleteAttachment(c *gin.Context) {
 	h.relayJSON(c, http.MethodDelete, path)
 }
 
-// save imports the finished task as the caller and tells the brain.
+// save imports the finished task as the caller and tells the brain: 200 when it did, 202 when the import of a task with
+// device images was queued (the brain is told when it is done).
 func (h *Handler) save(c *gin.Context) {
 	id := c.Param("id")
 	if !sessionIDPattern.MatchString(id) {
@@ -237,8 +245,15 @@ func (h *Handler) save(c *gin.Context) {
 		response.AbortWithBadRequest(c, err)
 		return
 	}
-	if err := h.useCase.AssistantSaveSession(c.Request.Context(), actor, id); err != nil {
+	done, err := h.useCase.AssistantSaveSession(c.Request.Context(), actor, id)
+	if err != nil {
 		response.AbortWithError(c, err)
+		return
+	}
+	if !done {
+		// The task archive names device images: its import runs in the background and the brain's `saved` event on the
+		// session stream says it is done.
+		response.AbortWithDataStatus(c, http.StatusAccepted, struct{}{})
 		return
 	}
 	response.AbortWithSuccess(c)
@@ -260,15 +275,55 @@ func (h *Handler) archive(c *gin.Context) {
 		return
 	}
 	defer func() { _ = resp.Body.Close() }()
-	if v := resp.Header.Get("Content-Disposition"); v != "" {
-		c.Header("Content-Disposition", v)
+	if t := mediaType(resp.Header.Get("Content-Type")); t != "application/zip" && t != "application/octet-stream" {
+		response.AbortWithError(c, wrongType(resp))
+		return
 	}
+	// The type and the disposition are the platform's: only a cleaned file name is taken from the brain.
+	c.Header("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": archiveName(resp.Header.Get("Content-Disposition"))}))
 	c.Header("X-Content-Type-Options", "nosniff")
 	privateNoStore(c)
+	c.Header("Content-Type", "application/zip")
 	c.Status(resp.StatusCode)
-	c.Header("Content-Type", contentTypeOr(resp, "application/zip"))
 	_, _ = io.Copy(c.Writer, resp.Body)
 	c.Abort()
+}
+
+const defaultArchiveName = "task.zip"
+
+var unsafeNameChars = regexp.MustCompile(`[^A-Za-z0-9._-]+`)
+
+// archiveName is the file name of a Content-Disposition header, cleaned to a safe base name.
+func archiveName(disposition string) string {
+	_, params, err := mime.ParseMediaType(disposition)
+	if err != nil {
+		return defaultArchiveName
+	}
+	name := strings.ReplaceAll(params["filename"], "\\", "/")
+	name = unsafeNameChars.ReplaceAllString(path.Base(name), "-")
+	name = strings.Trim(name, ".-_")
+	if len(name) > 100 {
+		name = name[len(name)-100:]
+		name = strings.Trim(name, ".-_")
+	}
+	if name == "" || name == "zip" {
+		return defaultArchiveName
+	}
+	return name
+}
+
+func mediaType(header string) string {
+	t, _, err := mime.ParseMediaType(header)
+	if err != nil {
+		return ""
+	}
+	return t
+}
+
+// wrongType is the error for a 2xx answer of a type the route does not take from the brain.
+func wrongType(resp *http.Response) error {
+	log.Warn().Str("type", mediaType(resp.Header.Get("Content-Type"))).Msg("Cyber-brain answered with an unexpected content type")
+	return assistantModel.ErrAssistantUpstream.Err()
 }
 
 // events relays the session's event stream frame by frame, as the brain wrote it.
@@ -310,6 +365,11 @@ func (h *Handler) events(c *gin.Context) {
 		return
 	}
 	defer func() { _ = resp.Body.Close() }()
+	if mediaType(resp.Header.Get("Content-Type")) != "text/event-stream" {
+		response.AbortWithError(c, wrongType(resp))
+		return
+	}
+	c.Header("X-Content-Type-Options", "nosniff")
 	sse.WriteHeaders(c)
 	frames := readFrames(streamCtx, resp.Body)
 	heartbeat := time.NewTicker(sse.HeartbeatInterval)
