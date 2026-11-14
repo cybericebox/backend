@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gofrs/uuid"
+
 	"github.com/cybericebox/daemon/internal/delivery/infrastructure/brain/brainfake"
 	"github.com/cybericebox/daemon/internal/useCase/assistant"
 )
@@ -171,8 +173,9 @@ func refusalCode(t *testing.T, body string) string {
 	return got.Error.Code
 }
 
-func TestProvideLabAndDeviceAreAnsweredNotSupportedYetAndTheCursorMoves(t *testing.T) {
-	o := newOutboxRig(t, req(1, "r1", "provide_lab"), req(2, "r2", "provide_device"))
+func TestALabFromADraftAndAnyDeviceAreAnsweredNotSupportedYetAndTheCursorMoves(t *testing.T) {
+	draft := outboxFrame{seq: 1, event: "provide_lab", data: `{"request_id":"r1","type":"provide_lab","subject":"` + uuid.Nil.String() + `","source":{"draft":"d-1"}}`}
+	o := newOutboxRig(t, draft, req(2, "r2", "provide_device"))
 	o.run(t)
 	eventually(t, "both answered and the cursor moved", func() bool { return o.cursor.get() == 2 })
 	for _, id := range []string{"r1", "r2"} {

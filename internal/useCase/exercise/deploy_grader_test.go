@@ -3,6 +3,8 @@ package exercise_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -165,3 +167,34 @@ func TestTestLabState(t *testing.T) {
 }
 
 func pgxNoRows() error { return pgx.ErrNoRows }
+
+func TestRunTarget_PicksTheVariantOrTheFirstOneWithDevices(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	q := postgresMocks.NewMockQuerier(ctrl)
+	versionID, exerciseID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	plain, withLab, second := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	variants, _ := json.Marshal([]exerciseModel.Variant{
+		{ID: plain},
+		{ID: withLab, Topology: exerciseModel.Topology{Devices: []exerciseModel.Device{{Name: "web", Image: "nginx:1"}}}},
+		{ID: second, Topology: exerciseModel.Topology{Devices: []exerciseModel.Device{{Name: "web", Image: "nginx:2"}}}},
+	})
+	q.EXPECT().GetExerciseVersionByID(gomock.Any(), versionID).Return(postgres.ExerciseVersion{ID: versionID, ExerciseID: exerciseID, Variants: variants}, nil).AnyTimes()
+	uc := exercise.NewExerciseUseCase(exercise.Dependencies{Repo: q})
+
+	got, err := uc.RunTarget(context.Background(), versionID, uuid.Nil, 0)
+	if err != nil || got.VariantID != withLab || !got.HasLab || got.ExerciseID != exerciseID || got.VersionID != versionID {
+		t.Fatalf("a lab asked for by task and version gets the first variant with devices: %+v %v", got, err)
+	}
+	if !strings.Contains(string(got.VariantsJS), "nginx:2") {
+		t.Fatalf("the fingerprint is of the whole version: %s", got.VariantsJS)
+	}
+	if got, err = uc.RunTarget(context.Background(), versionID, plain, 0); err != nil || got.VariantID != plain || got.HasLab {
+		t.Fatalf("a variant without devices has no lab: %+v %v", got, err)
+	}
+	if got, err = uc.RunTarget(context.Background(), versionID, second, 0); err != nil || got.VariantID != second || !got.HasLab {
+		t.Fatalf("%+v %v", got, err)
+	}
+	if _, err = uc.RunTarget(context.Background(), versionID, uuid.Must(uuid.NewV7()), 0); !errors.Is(err, exerciseModel.ErrExerciseVersionNotFound.Err()) {
+		t.Fatalf("%v", err)
+	}
+}

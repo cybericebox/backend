@@ -136,7 +136,7 @@ func (u *UseCase) requireRunRoom(ctx context.Context, user, variant uuid.UUID) e
 		return model.ErrPlatform.WithError(err).WithMessage("Failed to list the runs").Err()
 	}
 	for _, r := range of {
-		if r.State.Active() {
+		if r.Role == assistantModel.RoleGrader && r.State.Active() {
 			return assistantModel.ErrAssistantRunActive.Err()
 		}
 	}
@@ -172,7 +172,7 @@ func (u *UseCase) loadRun(ctx context.Context, actor exerciseUseCase.Actor, exer
 	if err != nil {
 		return assistantModel.Run{}, model.ErrPlatform.WithError(err).WithMessage("Failed to read the run").Err()
 	}
-	if !found || run.VariantID != variantID || run.VersionID != versionID {
+	if !found || run.Role != assistantModel.RoleGrader || run.VariantID != variantID || run.VersionID != versionID {
 		return assistantModel.Run{}, assistantModel.ErrAssistantRunNotFound.Err()
 	}
 	return run, nil
@@ -192,7 +192,7 @@ func (u *UseCase) GraderRuns(ctx context.Context, actor exerciseUseCase.Actor, e
 	}
 	out := runs[:0]
 	for _, r := range runs {
-		if r.VersionID == versionID {
+		if r.Role == assistantModel.RoleGrader && r.VersionID == versionID {
 			out = append(out, r)
 		}
 	}

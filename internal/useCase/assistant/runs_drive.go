@@ -148,6 +148,13 @@ func (d *runDriver) run(ctx context.Context) {
 			return
 		}
 		var wait time.Duration
+		if run.Role == assistantModel.RoleLab {
+			wait = d.lab(ctx, run)
+			if !sleep(ctx, wait) {
+				return
+			}
+			continue
+		}
 		switch run.State {
 		case assistantModel.RunStarting:
 			wait = d.starting(ctx, run)
@@ -620,7 +627,7 @@ func (d *runDriver) sendUnsent(ctx context.Context, run assistantModel.Run) {
 // the lab is destroyed. A step that fails is tried again; nothing is skipped, so a lab is never left behind.
 func (d *runDriver) closing(ctx context.Context, run assistantModel.Run) time.Duration {
 	u := d.u
-	if !d.stopSent && !run.StartedAt.IsZero() && run.EndState != assistantModel.RunFinished {
+	if !d.stopSent && run.Role == assistantModel.RoleGrader && !run.StartedAt.IsZero() && run.EndState != assistantModel.RunFinished {
 		d.stopAtBrain(ctx, run)
 		d.stopSent = true
 	}
@@ -661,4 +668,32 @@ func (d *runDriver) stopAtBrain(ctx context.Context, run assistantModel.Run) {
 		pause *= 2
 	}
 	log.Warn().Err(err).Msg("The brain was not told to stop a run; the lab is torn down anyway")
+}
+
+// lab follows a lab the brain asked for until the lab is gone: the outbox request that made it owns it while it starts
+// (a row left behind by a request that died is closed), and at the end its VPN client is revoked and the lab destroyed.
+func (d *runDriver) lab(ctx context.Context, run assistantModel.Run) time.Duration {
+	u, now := d.u, d.u.now()
+	switch run.State {
+	case assistantModel.RunStarting:
+		if now.Sub(run.CreatedAt) > labReadyTimeout+time.Minute {
+			d.close(ctx, run, assistantModel.RunFailed, assistantModel.FailureLabNotReady)
+			return 0
+		}
+		return u.runPoll
+	case assistantModel.RunRunning:
+		state, err := u.labs.TestLabState(ctx, run.Actor, run.DeployID)
+		switch {
+		case err != nil:
+			log.Warn().Err(err).Msg("Reading the lab of the brain failed")
+			return d.backoff()
+		case state.Gone || state.Failed || !now.Before(run.ExpiresAt):
+			d.close(ctx, run, assistantModel.RunFinished, "")
+			return 0
+		}
+		d.pause = 0
+		return u.runPoll
+	default:
+		return d.closing(ctx, run)
+	}
 }

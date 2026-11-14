@@ -878,7 +878,7 @@ type Querier interface {
 	ListApprovedExerciseResourceElevations(ctx context.Context, exerciseIds []uuid.UUID) ([]ListApprovedExerciseResourceElevationsRow, error)
 	ListAssistantRunAnswers(ctx context.Context, runID uuid.UUID) ([]ListAssistantRunAnswersRow, error)
 	ListAssistantRunEvents(ctx context.Context, arg ListAssistantRunEventsParams) ([]ListAssistantRunEventsRow, error)
-	// The runs of a variant, newest first.
+	// The grader runs of a variant, newest first (the labs the brain asked for are not runs).
 	ListAssistantRunsOfVariant(ctx context.Context, arg ListAssistantRunsOfVariantParams) ([]AssistantRun, error)
 	// The platform default mode of every source that has one set (the others are off).
 	ListAssistantStatsDefaults(ctx context.Context) ([]ListAssistantStatsDefaultsRow, error)
