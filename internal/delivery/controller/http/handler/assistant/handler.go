@@ -8,6 +8,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"mime"
@@ -173,8 +174,9 @@ func (h *Handler) relayJSON(c *gin.Context, method, path string) {
 	relayAnswer(c, resp)
 }
 
-// relayAnswer sends a JSON answer of the brain under the fixed type application/json. An answer of another type is not
-// relayed: it is an upstream failure.
+// relayAnswer sends a JSON answer of the brain in the platform's own envelope ({Status, Data}), built by the shared
+// response helpers, so the page unwraps it like any other answer. An empty answer is the same as our other empty
+// successes. An answer of another type, or one that is not JSON, is not relayed: it is an upstream failure.
 func relayAnswer(c *gin.Context, resp *http.Response) {
 	defer func() { _ = resp.Body.Close() }()
 	answer, err := io.ReadAll(io.LimitReader(resp.Body, maxAnswerBody))
@@ -182,14 +184,21 @@ func relayAnswer(c *gin.Context, resp *http.Response) {
 		response.AbortWithError(c, err)
 		return
 	}
-	if len(answer) > 0 && mediaType(resp.Header.Get("Content-Type")) != "application/json" {
+	privateNoStore(c)
+	c.Header("X-Content-Type-Options", "nosniff")
+	if len(bytes.TrimSpace(answer)) == 0 {
+		if resp.StatusCode == http.StatusNoContent {
+			response.AbortWithNoContent(c)
+			return
+		}
+		response.AbortWithSuccess(c)
+		return
+	}
+	if mediaType(resp.Header.Get("Content-Type")) != "application/json" || !json.Valid(answer) {
 		response.AbortWithError(c, wrongType(resp))
 		return
 	}
-	privateNoStore(c)
-	c.Header("X-Content-Type-Options", "nosniff")
-	c.Data(resp.StatusCode, "application/json", answer)
-	c.Abort()
+	response.AbortWithDataStatus(c, resp.StatusCode, json.RawMessage(answer))
 }
 
 // uploadAttachment streams the multipart body to the brain unparsed, with the marker header its CSRF guard asks for.

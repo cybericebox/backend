@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -29,6 +30,7 @@ import (
 	"github.com/cybericebox/daemon/internal/model/rbac"
 	assistantUseCase "github.com/cybericebox/daemon/internal/useCase/assistant"
 	exerciseUseCase "github.com/cybericebox/daemon/internal/useCase/exercise"
+	pkgerr "github.com/cybericebox/daemon/pkg/err"
 	"github.com/cybericebox/daemon/pkg/secret"
 )
 
@@ -241,6 +243,27 @@ func (r *rig) do(t *testing.T, user uuid.UUID, method, path string, body io.Read
 	return resp
 }
 
+// envelope is what the page unwraps: {Status: {Code, Message}, Data}.
+type envelope struct {
+	Status struct {
+		Code    int
+		Message string
+	}
+	Data json.RawMessage
+}
+
+// successCode is the Status.Code of every successful platform answer.
+var successCode = pkgerr.StatusCodeSuccess.FullCode()
+
+func decodeEnvelope(t *testing.T, resp *http.Response) envelope {
+	t.Helper()
+	var got envelope
+	if err := json.Unmarshal([]byte(read(t, resp)), &got); err != nil {
+		t.Fatalf("the answer is not the platform envelope: %v", err)
+	}
+	return got
+}
+
 func read(t *testing.T, resp *http.Response) string {
 	t.Helper()
 	b, err := io.ReadAll(resp.Body)
@@ -282,8 +305,9 @@ func TestJSONRoutesGoThroughWithTheSubjectAndTheAnswerComesBack(t *testing.T) {
 	json := map[string]string{"Content-Type": "application/json", assistantUseCase.SubjectHeader: "spoofed"}
 
 	resp := r.do(t, author, http.MethodPost, "/api/assistant/sessions", strings.NewReader(`{"ExerciseID":"e","VersionID":"v"}`), json)
-	if resp.StatusCode != 200 || read(t, resp) != `{"ID":"s1","extra":"kept"}` || !strings.HasPrefix(resp.Header.Get("Content-Type"), "application/json") {
-		t.Fatalf("create: %d", resp.StatusCode)
+	answer := decodeEnvelope(t, resp)
+	if resp.StatusCode != 200 || answer.Status.Code != successCode || string(answer.Data) != `{"ID":"s1","extra":"kept"}` || !strings.HasPrefix(resp.Header.Get("Content-Type"), "application/json") {
+		t.Fatalf("create: %d %+v %s", resp.StatusCode, answer.Status, answer.Data)
 	}
 	r.do(t, author, http.MethodPost, "/api/assistant/sessions/s1/messages", strings.NewReader(`{"Text":"hi"}`), json)
 	r.do(t, author, http.MethodPost, "/api/assistant/sessions/s1/start", nil, nil)
@@ -336,8 +360,8 @@ func TestAttachmentUploadStreamsTheMultipartBodyAndMarksItForTheCSRFGuard(t *tes
 	_ = mw.Close()
 
 	resp := r.do(t, author, http.MethodPost, "/api/assistant/sessions/s1/attachments", &body, map[string]string{"Content-Type": mw.FormDataContentType()})
-	if resp.StatusCode != 200 || read(t, resp) != `{"ID":"a-1"}` {
-		t.Fatalf("upload: %d", resp.StatusCode)
+	if got := decodeEnvelope(t, resp); resp.StatusCode != 200 || string(got.Data) != `{"ID":"a-1"}` {
+		t.Fatalf("upload: %d %s", resp.StatusCode, got.Data)
 	}
 	if mt, _, err := mime.ParseMediaType(gotCT); err != nil || mt != "multipart/form-data" {
 		t.Fatalf("content type at the brain: %q", gotCT)
@@ -641,5 +665,86 @@ func TestEventsOfAnotherTypeAreNotRelayedAndStreamsAreNosniff(t *testing.T) {
 	ok := r.do(t, author, http.MethodGet, "/api/assistant/sessions/s1/events", nil, nil)
 	if ok.StatusCode != 200 || !strings.HasPrefix(ok.Header.Get("Content-Type"), "text/event-stream") || ok.Header.Get("X-Content-Type-Options") != "nosniff" {
 		t.Fatalf("%d %v", ok.StatusCode, ok.Header)
+	}
+}
+
+func TestEverySuccessfulJSONRouteAnswersInTheEnvelopeWithTheBrainsPayloadInData(t *testing.T) {
+	r := newRig(t)
+	r.fake.Assistant = http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"Ideas":[{"ID":"i1","Title":"t"}]}`))
+	})
+	for _, route := range []struct{ method, path string }{
+		{http.MethodGet, "/api/assistant/ideas"},
+		{http.MethodPost, "/api/assistant/sessions"},
+		{http.MethodPost, "/api/assistant/sessions/s1/messages"},
+		{http.MethodPost, "/api/assistant/sessions/s1/start"},
+		{http.MethodPost, "/api/assistant/sessions/s1/stop"},
+		{http.MethodDelete, "/api/assistant/sessions/s1"},
+		{http.MethodDelete, "/api/assistant/sessions/s1/attachments/a-1"},
+	} {
+		resp := r.do(t, author, route.method, route.path, strings.NewReader("{}"), map[string]string{"Content-Type": "application/json"})
+		got := decodeEnvelope(t, resp)
+		if resp.StatusCode != 200 || got.Status.Code != successCode || string(got.Data) != `{"Ideas":[{"ID":"i1","Title":"t"}]}` {
+			t.Errorf("%s %s: %d %+v %s", route.method, route.path, resp.StatusCode, got.Status, got.Data)
+		}
+	}
+}
+
+func TestAnEmptySuccessIsTheSameAsOurOtherEmptySuccesses(t *testing.T) {
+	r := newRig(t)
+	r.fake.Assistant = http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+	resp := r.do(t, author, http.MethodDelete, "/api/assistant/sessions/s1", nil, nil)
+	got := decodeEnvelope(t, resp)
+	if resp.StatusCode != 200 || got.Status.Code != successCode || (len(got.Data) != 0 && string(got.Data) != "null") {
+		t.Fatalf("%d %+v %s", resp.StatusCode, got.Status, got.Data)
+	}
+	r.fake.Assistant = http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
+	if resp = r.do(t, author, http.MethodDelete, "/api/assistant/sessions/s1", nil, nil); resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("204: %d", resp.StatusCode)
+	}
+}
+
+func TestAJSONAnswerThatIsNotJSONIsNotRelayed(t *testing.T) {
+	r := newRig(t)
+	r.fake.Assistant = http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte("{not json"))
+	})
+	if resp := r.do(t, author, http.MethodGet, "/api/assistant/ideas", nil, nil); resp.StatusCode != http.StatusBadGateway {
+		t.Fatalf("%d", resp.StatusCode)
+	}
+}
+
+func TestErrorsAreOurEnvelopeWithTheCatalogCodeAndNeverTheBrainsBody(t *testing.T) {
+	r := newRig(t)
+	status := 0
+	r.fake.Assistant = http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(`{"error":"secret_code","message":"brain private text","extra":"leak"}`))
+	})
+	for brainStatus, want := range map[int]pkgerr.StatusCode{
+		400: assistantModel.ErrAssistantRejected.Err().StatusCode(),
+		403: assistantModel.ErrAssistantForbidden.Err().StatusCode(),
+		404: assistantModel.ErrAssistantNotFound.Err().StatusCode(),
+		409: assistantModel.ErrAssistantNotReady.Err().StatusCode(),
+		410: assistantModel.ErrAssistantGone.Err().StatusCode(),
+		401: assistantModel.ErrAssistantUpstream.Err().StatusCode(),
+		500: assistantModel.ErrAssistantUpstream.Err().StatusCode(),
+	} {
+		status = brainStatus
+		resp := r.do(t, author, http.MethodPost, "/api/assistant/sessions/s1/start", nil, nil)
+		raw := read(t, resp)
+		var got envelope
+		if err := json.Unmarshal([]byte(raw), &got); err != nil {
+			t.Fatalf("brain %d: not an envelope: %q", brainStatus, raw)
+		}
+		if got.Status.Code != want.FullCode() || resp.StatusCode != want.HTTPCode() {
+			t.Errorf("brain %d: code %d http %d, want code %d http %d", brainStatus, got.Status.Code, resp.StatusCode, want.FullCode(), want.HTTPCode())
+		}
+		if strings.Contains(raw, "secret_code") || strings.Contains(raw, "brain private text") || strings.Contains(raw, "leak") {
+			t.Errorf("brain %d: the brain's body reached the page: %s", brainStatus, raw)
+		}
 	}
 }
