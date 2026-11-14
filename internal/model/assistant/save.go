@@ -20,7 +20,7 @@ const (
 
 // Save is what the platform keeps of one save of a finished session by one author: its state, the catalog task (Nil
 // until done), the background import job (Nil for an import made inside the request), whether the brain was told the
-// task, and when the save was claimed.
+// outcome (the task, or the failure), when the save was claimed and, for a failed one, the error code.
 type Save struct {
 	Session    string
 	Author     uuid.UUID
@@ -29,6 +29,8 @@ type Save struct {
 	JobID      uuid.UUID
 	Notified   bool
 	ClaimedAt  time.Time
+	// FailureCode is the stable error code (the catalog's FullCode) a failed save ended with.
+	FailureCode int
 }
 
 // Pending says the task does not exist yet.

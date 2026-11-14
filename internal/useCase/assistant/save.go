@@ -40,7 +40,7 @@ type (
 		Claim(ctx context.Context, session string, author uuid.UUID, archiveHash string, now, staleBefore time.Time) (bool, error)
 		SetJob(ctx context.Context, session string, author, job uuid.UUID) error
 		Complete(ctx context.Context, session string, author, exercise uuid.UUID) (bool, error)
-		Fail(ctx context.Context, session string, author uuid.UUID) error
+		Fail(ctx context.Context, session string, author uuid.UUID, code int) error
 		SetNotified(ctx context.Context, session string, author uuid.UUID) error
 		Unsettled(ctx context.Context, since time.Time, limit int) ([]assistantModel.Save, error)
 	}
@@ -206,12 +206,84 @@ func (u *UseCase) retry(ctx context.Context, write func(context.Context) error) 
 	return err
 }
 
-// failed marks the claim failed (so the next save claims it again) and returns the error that ended it.
+// failed marks the claim failed with the error's stable code (so the next save claims it again), tells the brain
+// best-effort (so a second open tab sees it; the leader retries if this does not get through) and returns the error that
+// ended it.
 func (u *UseCase) failed(ctx context.Context, rec assistantModel.Save, cause error) error {
-	if err := u.saves.Fail(context.WithoutCancel(ctx), rec.Session, rec.Author); err != nil {
+	rec.FailureCode = failureCode(cause)
+	detached := context.WithoutCancel(ctx)
+	if err := u.saves.Fail(detached, rec.Session, rec.Author, rec.FailureCode); err != nil {
 		log.Error().Err(err).Msg("Failed to mark the assistant save as failed")
+		return cause
 	}
+	u.tellFailure(detached, rec)
 	return cause
+}
+
+// failureCode is the stable code of an error (our catalog's FullCode); a failure without one is a failed import.
+func failureCode(err error) int {
+	var typed appErr.Error
+	if errors.As(err, &typed) {
+		if code := typed.StatusCode().FullCode(); code != 0 {
+			return code
+		}
+	}
+	return importFailedCode()
+}
+
+func importFailedCode() int {
+	return assistantModel.ErrAssistantImportFailed.Err().StatusCode().FullCode()
+}
+
+// tellFailure is notifyFailed for a request that already has its answer: a failure to tell is only logged, the row stays
+// failed and unnotified for the leader.
+func (u *UseCase) tellFailure(ctx context.Context, rec assistantModel.Save) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if err := u.notifyFailed(ctx, rec); err != nil {
+		log.Warn().Err(err).Msg("The brain was not told that the assistant save failed; it is retried")
+	}
+}
+
+// notifyFailed tells the brain the save failed with its code (save_failed, idempotent, retried like save until it gets
+// through) and records that it did. The brain answering that the session has no archive, no longer exists, or does not
+// take the call is final: there is nothing more to tell it.
+func (u *UseCase) notifyFailed(ctx context.Context, rec assistantModel.Save) error {
+	code := rec.FailureCode
+	if code == 0 {
+		code = importFailedCode()
+	}
+	body, err := json.Marshal(map[string]int{"code": code})
+	if err != nil {
+		return err
+	}
+	resp, err := u.Proxy(ctx, rec.Author, Call{
+		Method: http.MethodPost, Path: "/v1/assistant/sessions/" + rec.Session + "/save_failed",
+		Header: http.Header{"Content-Type": {"application/json"}}, Body: bytes.NewReader(body), ContentLength: int64(len(body)),
+	})
+	if err == nil {
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
+		_ = resp.Body.Close()
+	} else if !finalForBrain(err) {
+		return err
+	}
+	if err = u.saves.SetNotified(ctx, rec.Session, rec.Author); err != nil {
+		return model.ErrPlatform.WithError(err).WithMessage("Failed to record that the brain was told").Err()
+	}
+	return nil
+}
+
+// finalForBrain says the brain's refusal will not change by asking again.
+func finalForBrain(err error) bool {
+	for _, final := range []appErr.ErrorCreator{
+		assistantModel.ErrAssistantRejected, assistantModel.ErrAssistantNotFound, assistantModel.ErrAssistantNotReady,
+		assistantModel.ErrAssistantGone, assistantModel.ErrAssistantForbidden,
+	} {
+		if errors.Is(err, final.Err()) {
+			return true
+		}
+	}
+	return false
 }
 
 // advance moves a stored save forward. A done save is announced to the brain (again when it was announced before: the
@@ -228,14 +300,14 @@ func (u *UseCase) advance(ctx context.Context, rec assistantModel.Save) (done, c
 	if rec.JobID == uuid.Nil {
 		return false, !u.now().Before(rec.ClaimedAt.Add(claimLease)), nil
 	}
-	state, ids, err := u.jobOutcome(ctx, rec)
+	state, ids, failure, err := u.jobOutcome(ctx, rec)
 	if err != nil {
 		return false, false, err
 	}
 	switch state {
 	case exerciseModel.ImportJobDone:
 		if len(ids) != 1 {
-			return false, true, u.saves.Fail(ctx, rec.Session, rec.Author)
+			return false, true, u.failJob(ctx, rec, importFailedCode())
 		}
 		rec.ExerciseID = ids[0]
 		if err = u.complete(ctx, rec); err != nil {
@@ -243,21 +315,39 @@ func (u *UseCase) advance(ctx context.Context, rec assistantModel.Save) (done, c
 		}
 		return true, false, u.notify(ctx, rec)
 	case exerciseModel.ImportJobFailed:
-		return false, true, u.saves.Fail(ctx, rec.Session, rec.Author)
+		return false, true, u.failJob(ctx, rec, failure)
 	}
 	return false, false, nil
 }
 
+// failJob marks a save whose background import failed (or vanished) as failed with its code and tells the brain; if that
+// does not get through the leader retries it.
+func (u *UseCase) failJob(ctx context.Context, rec assistantModel.Save, code int) error {
+	if code == 0 {
+		code = importFailedCode()
+	}
+	rec.FailureCode = code
+	if err := u.saves.Fail(ctx, rec.Session, rec.Author, code); err != nil {
+		return model.ErrPlatform.WithError(err).WithMessage("Failed to mark the assistant save as failed").Err()
+	}
+	u.tellFailure(ctx, rec)
+	return nil
+}
+
 // jobOutcome reads the state of the background import of a save as its author. A job that is gone counts as failed.
-func (u *UseCase) jobOutcome(ctx context.Context, rec assistantModel.Save) (exerciseModel.ImportJobState, []uuid.UUID, error) {
+// A failed job brings its own error code.
+func (u *UseCase) jobOutcome(ctx context.Context, rec assistantModel.Save) (state exerciseModel.ImportJobState, ids []uuid.UUID, failure int, err error) {
 	job, err := u.importer.ArchiveImportJob(ctx, rec.JobID, rec.Author)
 	if err != nil {
 		if errors.Is(err, exerciseModel.ErrImportJobNotFound.Err()) {
-			return exerciseModel.ImportJobFailed, nil, nil
+			return exerciseModel.ImportJobFailed, nil, importFailedCode(), nil
 		}
-		return "", nil, err
+		return "", nil, 0, err
 	}
-	return job.State, job.ExerciseIDs, nil
+	if job.Error != nil {
+		failure = job.Error.Code
+	}
+	return job.State, job.ExerciseIDs, failure, nil
 }
 
 // notify tells the brain the task of the save and records that it did.
@@ -290,8 +380,8 @@ const (
 )
 
 // SettleSaves finishes the saves that wait for the leader: it follows queued imports (a done job completes the save and
-// tells the brain, a failed one marks it failed so the page can save again) and announces tasks the brain was not told
-// yet. Every step is a compare-and-set on the save, so two replicas settling the same one do no harm. A failure of one
+// tells the brain, a failed one marks it failed with its code and tells the brain, so the page can save again) and
+// announces outcomes (tasks and failures) the brain was not told yet. Every step is a compare-and-set on the save, so two replicas settling the same one do no harm. A failure of one
 // save does not stop the others. Only the leader replica runs it.
 func (u *UseCase) SettleSaves(ctx context.Context) error {
 	if u.saves == nil || u.importer == nil || !u.Enabled() {
@@ -303,7 +393,13 @@ func (u *UseCase) SettleSaves(ctx context.Context) error {
 	}
 	var errs []error
 	for _, item := range list {
-		if _, _, err = u.advance(ctx, item); err != nil {
+		if item.State == assistantModel.SaveFailed {
+			// A failure the brain was not told yet.
+			err = u.notifyFailed(ctx, item)
+		} else {
+			_, _, err = u.advance(ctx, item)
+		}
+		if err != nil {
 			errs = append(errs, err)
 		}
 	}

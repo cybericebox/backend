@@ -1,7 +1,7 @@
 -- name: GetAssistantSave :one
 -- The save of this session by this author: its state, the task (empty until done), the import job, whether the brain
 -- was told and when it was claimed.
-SELECT state, exercise_id, job_id, notified, claimed_at
+SELECT state, exercise_id, job_id, notified, claimed_at, failure_code
 FROM assistant_saves
 WHERE session_id = sqlc.arg(session_id)
   AND author_id = sqlc.arg(author_id);
@@ -17,7 +17,8 @@ ON CONFLICT (session_id, author_id) DO UPDATE
         claimed_at   = EXCLUDED.claimed_at,
         exercise_id  = NULL,
         job_id       = NULL,
-        notified     = false
+        notified     = false,
+        failure_code = 0
 WHERE assistant_saves.state = 'failed'
    OR (assistant_saves.state = 'pending' AND assistant_saves.job_id IS NULL AND assistant_saves.claimed_at < sqlc.arg(stale_before));
 
@@ -39,9 +40,10 @@ WHERE session_id = sqlc.arg(session_id)
   AND state = 'pending';
 
 -- name: FailAssistantSave :execrows
--- The import failed: the next save claims the row again.
+-- The import failed with this error code: the next save claims the row again, the leader tells the brain.
 UPDATE assistant_saves
-SET state = 'failed'
+SET state        = 'failed',
+    failure_code = sqlc.arg(failure_code)
 WHERE session_id = sqlc.arg(session_id)
   AND author_id = sqlc.arg(author_id)
   AND state = 'pending';
@@ -54,11 +56,11 @@ WHERE session_id = sqlc.arg(session_id)
   AND author_id = sqlc.arg(author_id);
 
 -- name: ListUnsettledAssistantSaves :many
--- The saves the leader still has to finish: a queued import to follow, or a task the brain was not told yet. Rows older
--- than the cutoff are left alone.
-SELECT session_id, author_id, state, exercise_id, job_id, notified, claimed_at
+-- The saves the leader still has to finish: a queued import to follow, or an outcome (task or failure) the brain was not
+-- told yet. Rows older than the cutoff are left alone.
+SELECT session_id, author_id, state, exercise_id, job_id, notified, claimed_at, failure_code
 FROM assistant_saves
-WHERE ((state = 'pending' AND job_id IS NOT NULL) OR (state = 'done' AND NOT notified))
+WHERE ((state = 'pending' AND job_id IS NOT NULL) OR (state IN ('done', 'failed') AND NOT notified))
   AND created_at > sqlc.arg(since)
 ORDER BY created_at
 LIMIT sqlc.arg(max_rows);

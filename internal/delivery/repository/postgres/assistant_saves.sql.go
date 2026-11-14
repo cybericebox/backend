@@ -22,7 +22,8 @@ ON CONFLICT (session_id, author_id) DO UPDATE
         claimed_at   = EXCLUDED.claimed_at,
         exercise_id  = NULL,
         job_id       = NULL,
-        notified     = false
+        notified     = false,
+        failure_code = 0
 WHERE assistant_saves.state = 'failed'
    OR (assistant_saves.state = 'pending' AND assistant_saves.job_id IS NULL AND assistant_saves.claimed_at < $5)
 `
@@ -77,20 +78,22 @@ func (q *Queries) CompleteAssistantSave(ctx context.Context, arg CompleteAssista
 
 const failAssistantSave = `-- name: FailAssistantSave :execrows
 UPDATE assistant_saves
-SET state = 'failed'
-WHERE session_id = $1
-  AND author_id = $2
+SET state        = 'failed',
+    failure_code = $1
+WHERE session_id = $2
+  AND author_id = $3
   AND state = 'pending'
 `
 
 type FailAssistantSaveParams struct {
-	SessionID string    `json:"session_id"`
-	AuthorID  uuid.UUID `json:"author_id"`
+	FailureCode int32     `json:"failure_code"`
+	SessionID   string    `json:"session_id"`
+	AuthorID    uuid.UUID `json:"author_id"`
 }
 
-// The import failed: the next save claims the row again.
+// The import failed with this error code: the next save claims the row again, the leader tells the brain.
 func (q *Queries) FailAssistantSave(ctx context.Context, arg FailAssistantSaveParams) (int64, error) {
-	result, err := q.db.Exec(ctx, failAssistantSave, arg.SessionID, arg.AuthorID)
+	result, err := q.db.Exec(ctx, failAssistantSave, arg.FailureCode, arg.SessionID, arg.AuthorID)
 	if err != nil {
 		return 0, err
 	}
@@ -98,7 +101,7 @@ func (q *Queries) FailAssistantSave(ctx context.Context, arg FailAssistantSavePa
 }
 
 const getAssistantSave = `-- name: GetAssistantSave :one
-SELECT state, exercise_id, job_id, notified, claimed_at
+SELECT state, exercise_id, job_id, notified, claimed_at, failure_code
 FROM assistant_saves
 WHERE session_id = $1
   AND author_id = $2
@@ -110,11 +113,12 @@ type GetAssistantSaveParams struct {
 }
 
 type GetAssistantSaveRow struct {
-	State      string             `json:"state"`
-	ExerciseID uuid.NullUUID      `json:"exercise_id"`
-	JobID      uuid.NullUUID      `json:"job_id"`
-	Notified   bool               `json:"notified"`
-	ClaimedAt  pgtype.Timestamptz `json:"claimed_at"`
+	State       string             `json:"state"`
+	ExerciseID  uuid.NullUUID      `json:"exercise_id"`
+	JobID       uuid.NullUUID      `json:"job_id"`
+	Notified    bool               `json:"notified"`
+	ClaimedAt   pgtype.Timestamptz `json:"claimed_at"`
+	FailureCode int32              `json:"failure_code"`
 }
 
 // The save of this session by this author: its state, the task (empty until done), the import job, whether the brain
@@ -128,14 +132,15 @@ func (q *Queries) GetAssistantSave(ctx context.Context, arg GetAssistantSavePara
 		&i.JobID,
 		&i.Notified,
 		&i.ClaimedAt,
+		&i.FailureCode,
 	)
 	return i, err
 }
 
 const listUnsettledAssistantSaves = `-- name: ListUnsettledAssistantSaves :many
-SELECT session_id, author_id, state, exercise_id, job_id, notified, claimed_at
+SELECT session_id, author_id, state, exercise_id, job_id, notified, claimed_at, failure_code
 FROM assistant_saves
-WHERE ((state = 'pending' AND job_id IS NOT NULL) OR (state = 'done' AND NOT notified))
+WHERE ((state = 'pending' AND job_id IS NOT NULL) OR (state IN ('done', 'failed') AND NOT notified))
   AND created_at > $1
 ORDER BY created_at
 LIMIT $2
@@ -147,17 +152,18 @@ type ListUnsettledAssistantSavesParams struct {
 }
 
 type ListUnsettledAssistantSavesRow struct {
-	SessionID  string             `json:"session_id"`
-	AuthorID   uuid.UUID          `json:"author_id"`
-	State      string             `json:"state"`
-	ExerciseID uuid.NullUUID      `json:"exercise_id"`
-	JobID      uuid.NullUUID      `json:"job_id"`
-	Notified   bool               `json:"notified"`
-	ClaimedAt  pgtype.Timestamptz `json:"claimed_at"`
+	SessionID   string             `json:"session_id"`
+	AuthorID    uuid.UUID          `json:"author_id"`
+	State       string             `json:"state"`
+	ExerciseID  uuid.NullUUID      `json:"exercise_id"`
+	JobID       uuid.NullUUID      `json:"job_id"`
+	Notified    bool               `json:"notified"`
+	ClaimedAt   pgtype.Timestamptz `json:"claimed_at"`
+	FailureCode int32              `json:"failure_code"`
 }
 
-// The saves the leader still has to finish: a queued import to follow, or a task the brain was not told yet. Rows older
-// than the cutoff are left alone.
+// The saves the leader still has to finish: a queued import to follow, or an outcome (task or failure) the brain was not
+// told yet. Rows older than the cutoff are left alone.
 func (q *Queries) ListUnsettledAssistantSaves(ctx context.Context, arg ListUnsettledAssistantSavesParams) ([]ListUnsettledAssistantSavesRow, error) {
 	rows, err := q.db.Query(ctx, listUnsettledAssistantSaves, arg.Since, arg.MaxRows)
 	if err != nil {
@@ -175,6 +181,7 @@ func (q *Queries) ListUnsettledAssistantSaves(ctx context.Context, arg ListUnset
 			&i.JobID,
 			&i.Notified,
 			&i.ClaimedAt,
+			&i.FailureCode,
 		); err != nil {
 			return nil, err
 		}

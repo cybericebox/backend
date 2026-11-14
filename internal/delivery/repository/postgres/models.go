@@ -42,6 +42,7 @@ type AssistantSave struct {
 	State       string             `json:"state"`
 	ArchiveHash string             `json:"archive_hash"`
 	ClaimedAt   pgtype.Timestamptz `json:"claimed_at"`
+	FailureCode int32              `json:"failure_code"`
 }
 
 type AssistantSubject struct {
