@@ -55,7 +55,7 @@ func TestIssueSignsAHandoffLinkTheProxyCanVerify(t *testing.T) {
 	if parsed.Header["kid"] != "k-1" {
 		t.Fatalf("kid header = %v, want the key id the proxy picks the key by", parsed.Header["kid"])
 	}
-	if got.GroupID != session.Group || got.Host != "web-abc123w" || got.Subject != session.Client || got.Issuer != "platform" || got.NotBefore == nil || !got.NotBefore.Time.Equal(now) {
+	if got.GroupID != session.Group || got.Host != "web-abc123w.challenges.example.com" || got.Subject != session.Client || got.Issuer != "platform" || got.NotBefore == nil || !got.NotBefore.Time.Equal(now) {
 		t.Fatalf("claims = %+v", got)
 	}
 	if got.Session != now.Add(DefaultSessionTTL).Unix() || !link.ExpiresAt.Equal(now.Add(DefaultSessionTTL)) {
@@ -208,7 +208,7 @@ func TestConsoleLinkIsSignedForTheDeviceConsoleHost(t *testing.T) {
 	}
 	var got claims
 	if _, err = jwt.ParseWithClaims(link.Token, &got, func(*jwt.Token) (any, error) { return sk.Key.Public(), nil },
-		jwt.WithTimeFunc(func() time.Time { return now })); err != nil || got.Host != "db-1-abc123t" {
+		jwt.WithTimeFunc(func() time.Time { return now })); err != nil || got.Host != "db-1-abc123t.challenges.example.com" {
 		t.Fatalf("host claim = %q err = %v", got.Host, err)
 	}
 }
@@ -242,7 +242,7 @@ func TestIssueBearerSignsARunTokenTheProxyCanVerify(t *testing.T) {
 		jwt.WithAudience(Audience), jwt.WithTimeFunc(func() time.Time { return now })); err == nil {
 		t.Fatal("a run's token must not carry the handoff audience")
 	}
-	if claim.GroupID != "tu-0190" || claim.Host != "runner-abc123g" || claim.Subject != "g-0192" || claim.Run != "run-1" || claim.ExpiresAt == nil || !claim.ExpiresAt.Time.Equal(end) {
+	if claim.GroupID != "tu-0190" || claim.Host != "runner-abc123g.challenges.example.com" || claim.Subject != "g-0192" || claim.Run != "run-1" || claim.ExpiresAt == nil || !claim.ExpiresAt.Time.Equal(end) {
 		t.Fatalf("claims = %+v", claim)
 	}
 	// it is dead after the run window plus its grace
@@ -292,5 +292,26 @@ func TestAHandoffTokenIsNotAGRPCToken(t *testing.T) {
 		jwt.WithAudience(GRPCAudience), jwt.WithTimeFunc(func() time.Time { return now }))
 	if err == nil || claim.TokenUse == TokenUseGRPC {
 		t.Fatalf("a handoff token has neither the grpc audience nor token_use: %v %+v", err, claim)
+	}
+}
+
+func TestTheHostClaimIsTheHostOfTheLinkItOpens(t *testing.T) {
+	sk := testSigningKey(t)
+	issuer, _ := New(Config{})
+	now := time.Date(2026, 11, 14, 12, 0, 0, 0, time.UTC)
+	for _, access := range []string{"https://web-abc123w.challenges.example.com", "https://Web-abc123w.Challenges.Example.com:8443/app?x=1"} {
+		link, err := issuer.Issue(sk, Session{Group: "g", Client: "c", AccessURL: access, ExpiresAt: now.Add(time.Minute)}, now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var claim claims
+		if _, err = jwt.ParseWithClaims(link.Token, &claim, func(*jwt.Token) (any, error) { return sk.Key.Public(), nil },
+			jwt.WithTimeFunc(func() time.Time { return now })); err != nil {
+			t.Fatal(err)
+		}
+		opened, _ := url.Parse(link.URL)
+		if claim.Host != "web-abc123w.challenges.example.com" || claim.Host != opened.Hostname() {
+			t.Fatalf("host claim %q, link host %q", claim.Host, opened.Hostname())
+		}
 	}
 }
