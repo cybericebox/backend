@@ -288,7 +288,7 @@ type fakeLabs struct {
 
 func newFakeLabs() *fakeLabs { return &fakeLabs{hasLab: true, judged: map[string]string{}} }
 
-func (f *fakeLabs) deploys() int { f.mu.Lock(); defer f.mu.Unlock(); return f.deployCount }
+func (f *fakeLabs) deploys() int       { f.mu.Lock(); defer f.mu.Unlock(); return f.deployCount }
 func (f *fakeLabs) lookCount() int     { f.mu.Lock(); defer f.mu.Unlock(); return f.looks }
 func (f *fakeLabs) record(call string) { f.mu.Lock(); f.calls = append(f.calls, call); f.mu.Unlock() }
 func (f *fakeLabs) called() []string {
@@ -1085,4 +1085,53 @@ func TestOnlyTheMeasureEventIsTheMeasurement(t *testing.T) {
 	if string(done.Measurement) != `{"type":"measure","runs":3}` {
 		t.Fatalf("%s", done.Measurement)
 	}
+}
+
+func TestTeardownDoesNotWaitOnTheBrainOrOnARevocation(t *testing.T) {
+	t.Run("StopRun failing keeps nothing alive", func(t *testing.T) {
+		r := newRunRig(t, nil)
+		r.brn.SetStopStatus(503)
+		run := r.start(t)
+		r.drive(t)
+		r.waitState(t, run.ID, assistantModel.RunRunning)
+		if _, err := r.uc.StopGraderRun(context.Background(), runActor, runExercise, runVersion, runVariant, run.ID); err != nil {
+			t.Fatal(err)
+		}
+		got := r.waitState(t, run.ID, assistantModel.RunStopped)
+		if calls := r.labs.called(); indexOf(calls, "revoke:"+got.AccessClient) < 0 || r.labs.count("destroy") != 1 {
+			t.Fatalf("%v", calls)
+		}
+	})
+	t.Run("brain down and the run expires", func(t *testing.T) {
+		r := newRunRig(t, func(d *assistant.Dependencies) { d.RunMaxDuration = 10 * time.Minute })
+		run := r.start(t)
+		r.drive(t)
+		r.waitState(t, run.ID, assistantModel.RunRunning)
+		r.brn.SetEventsStatus(503)
+		r.brn.SetStopStatus(503)
+		r.brn.DropStreams()
+		r.clock.advance(11 * time.Minute)
+		got := r.waitState(t, run.ID, assistantModel.RunFailed)
+		if calls := r.labs.called(); indexOf(calls, "revoke:"+got.AccessClient) < 0 || r.labs.count("destroy") != 1 {
+			t.Fatalf("%v", calls)
+		}
+	})
+	t.Run("a revocation that fails does not stop the lab from being destroyed", func(t *testing.T) {
+		r := newRunRig(t, nil)
+		r.labs.revokeErr = errors.New("agent down")
+		run := r.start(t)
+		r.drive(t)
+		r.waitState(t, run.ID, assistantModel.RunRunning)
+		if _, err := r.uc.StopGraderRun(context.Background(), runActor, runExercise, runVersion, runVariant, run.ID); err != nil {
+			t.Fatal(err)
+		}
+		eventually(t, "the lab to be destroyed although the revocation fails", func() bool { return r.labs.count("destroy") >= 1 })
+		if r.runs.state(run.ID).State == assistantModel.RunStopped {
+			t.Fatal("the run is not over while its client is still alive")
+		}
+		r.labs.mu.Lock()
+		r.labs.revokeErr = nil
+		r.labs.mu.Unlock()
+		r.waitState(t, run.ID, assistantModel.RunStopped)
+	})
 }

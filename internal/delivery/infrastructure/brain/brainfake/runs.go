@@ -28,6 +28,7 @@ type Runs struct {
 	frames       map[string][]frame
 	opened       map[string]int // event stream connections per run
 	afters       map[string][]int64
+	stopStatus   int // when not 0, StopRun answers it with an error envelope
 	vFail        int // how many of the next verdicts are refused with vStatus
 	vStatus      int
 	closeAll     bool
@@ -113,6 +114,9 @@ func (r *Runs) Afters(runID string) []int64 {
 	return append([]int64(nil), r.afters[runID]...)
 }
 
+// SetStopStatus makes StopRun answer this status (0: normal); the call is still counted in Stops.
+func (r *Runs) SetStopStatus(status int) { r.mu.Lock(); defer r.mu.Unlock(); r.stopStatus = status }
+
 // FailVerdicts makes the next n verdict calls answer this status with an error envelope (they are not recorded).
 func (r *Runs) FailVerdicts(n, status int) {
 	r.mu.Lock()
@@ -135,7 +139,12 @@ func (r *Runs) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	case strings.HasSuffix(rest, "/stop") && req.Method == http.MethodPost:
 		r.mu.Lock()
 		r.stops = append(r.stops, strings.TrimSuffix(rest, "/stop"))
+		status := r.stopStatus
 		r.mu.Unlock()
+		if status != 0 {
+			Fail(w, status, "unavailable", "the brain is down")
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{}`))
 	case strings.HasSuffix(rest, "/verdict") && req.Method == http.MethodPost:

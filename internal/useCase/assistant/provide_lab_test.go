@@ -348,3 +348,66 @@ func TestTheUsersCapAlsoCountsTheirBrainLabs(t *testing.T) {
 		t.Fatal("the first request still waits for its lab")
 	}
 }
+
+// Teardown never depends on the brain: with the brain refusing every answer, a lab that is gone or expired is still
+// revoked and destroyed, and the row ends.
+func TestAnUnansweredLabIsClosedAndTornDownWhileTheBrainIsDown(t *testing.T) {
+	t.Run("the lab is gone", func(t *testing.T) {
+		p := newProvideRig(t, nil)
+		p.brain.answerCodes = repeatStatus(500, 200)
+		p.brain.frames = []outboxFrame{p.frame(1, "r1", p.task(p.subject, labImage()))}
+		p.serve(t)
+		p.drive(t)
+		eventually(t, "the lab to be running, unanswered", func() bool {
+			l := p.runs.LabCount() == 1 && p.lab(t).State == assistantModel.RunRunning
+			return l
+		})
+		id, client := p.lab(t).ID, p.lab(t).AccessClient
+		p.labs.mu.Lock()
+		p.labs.gone = true
+		p.labs.mu.Unlock()
+		p.waitState(t, id, assistantModel.RunFinished)
+		if calls := p.labs.called(); indexOf(calls, "revoke:"+client) < 0 || indexOf(calls, "destroy") < 0 {
+			t.Fatalf("the client is revoked and the lab destroyed: %v", calls)
+		}
+	})
+	t.Run("past its expiry the answer is no longer tried", func(t *testing.T) {
+		p := newProvideRig(t, nil)
+		p.brain.answerCodes = repeatStatus(500, 200)
+		p.brain.frames = []outboxFrame{p.frame(1, "r1", p.task(p.subject, labImage()))}
+		p.serve(t)
+		p.drive(t)
+		eventually(t, "the lab to be running, unanswered", func() bool {
+			return p.runs.LabCount() == 1 && p.lab(t).State == assistantModel.RunRunning
+		})
+		id := p.lab(t).ID
+		p.clock.advance(25 * time.Hour) // past the cap of a lab the brain asked for
+		p.waitState(t, id, assistantModel.RunFailed)
+		eventually(t, "the lab to go", func() bool { return p.labs.count("destroy") >= 1 })
+	})
+	t.Run("an answer that keeps failing is given up after the window", func(t *testing.T) {
+		p := newProvideRig(t, nil)
+		p.brain.answerCodes = repeatStatus(500, 400)
+		p.brain.frames = []outboxFrame{p.frame(1, "r1", p.task(p.subject, labImage()))}
+		p.serve(t)
+		p.drive(t)
+		eventually(t, "the lab to be running, unanswered", func() bool {
+			return p.runs.LabCount() == 1 && p.lab(t).State == assistantModel.RunRunning
+		})
+		id := p.lab(t).ID
+		p.clock.advance(11 * time.Minute)
+		got := p.waitState(t, id, assistantModel.RunFailed)
+		if got.FailureReason != assistantModel.FailureLabNotReady {
+			t.Fatalf("%+v", got)
+		}
+		eventually(t, "the lab to go", func() bool { return p.labs.count("destroy") >= 1 })
+	})
+}
+
+func repeatStatus(status, n int) []int {
+	out := make([]int, n)
+	for i := range out {
+		out[i] = status
+	}
+	return out
+}
