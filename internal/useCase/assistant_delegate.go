@@ -39,3 +39,25 @@ func (u *UseCase) AssistantEventStats(ctx context.Context, event uuid.UUID) (ass
 func (u *UseCase) AssistantSetEventStats(ctx context.Context, event uuid.UUID, mode assistantModel.StatsMode) error {
 	return u.Assistant.SetEventStats(ctx, event, mode)
 }
+
+// The grader runs of a variant (the HTTP handler's port): authorized like the variant's test deploy.
+
+func (u *UseCase) StartGraderRun(ctx context.Context, actor exerciseUseCase.Actor, exerciseID, versionID, variantID uuid.UUID) (assistantModel.Run, error) {
+	return u.Assistant.StartGraderRun(ctx, actor, exerciseID, versionID, variantID)
+}
+
+func (u *UseCase) GraderRuns(ctx context.Context, actor exerciseUseCase.Actor, exerciseID, versionID, variantID uuid.UUID) ([]assistantModel.Run, error) {
+	return u.Assistant.GraderRuns(ctx, actor, exerciseID, versionID, variantID)
+}
+
+func (u *UseCase) GraderRun(ctx context.Context, actor exerciseUseCase.Actor, exerciseID, versionID, variantID, runID uuid.UUID) (assistantUseCase.RunView, error) {
+	return u.Assistant.GraderRun(ctx, actor, exerciseID, versionID, variantID, runID)
+}
+
+func (u *UseCase) StopGraderRun(ctx context.Context, actor exerciseUseCase.Actor, exerciseID, versionID, variantID, runID uuid.UUID) (assistantModel.Run, error) {
+	return u.Assistant.StopGraderRun(ctx, actor, exerciseID, versionID, variantID, runID)
+}
+
+func (u *UseCase) GraderRunEvents(ctx context.Context, actor exerciseUseCase.Actor, exerciseID, versionID, variantID, runID uuid.UUID) (func(ctx context.Context, after int64, limit int) ([]assistantModel.RunEvent, assistantModel.RunState, error), error) {
+	return u.Assistant.GraderRunEvents(ctx, actor, exerciseID, versionID, variantID, runID)
+}

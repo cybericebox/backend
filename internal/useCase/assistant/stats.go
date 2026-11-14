@@ -22,7 +22,8 @@ const StatsInterval = time.Hour
 const maxStatsBatch = 500
 
 // StatsSource gives the aggregates of the tasks of the events whose statistics collection is on. Hidden teams and
-// moderators never count in them; ExcludeRun in the implementation is the place to leave out grader runs. It returns
+// moderators never count in them, and no run does: a run of the platform (the grader's, an opponent's) is left out by
+// assistantModel.ExcludeRun, which any source that reads run-shaped facts must call. It returns
 // aggregates only: nothing in them identifies a person, a team or an address.
 type StatsSource interface {
 	// Name is the source's key in the platform defaults ("events"; the Academy will be another).

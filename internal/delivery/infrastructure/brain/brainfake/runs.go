@@ -24,6 +24,9 @@ type Runs struct {
 	verdicts map[string][]json.RawMessage
 	frames   map[string][]frame
 	opened   map[string]int // event stream connections per run
+	afters   map[string][]int64
+	vFail    int // how many of the next verdicts are refused with vStatus
+	vStatus  int
 	closeAll bool
 	wake     chan struct{}
 }
@@ -36,7 +39,7 @@ type frame struct {
 
 // NewRuns makes an empty run side; set it as Fake.Runs.
 func NewRuns() *Runs {
-	return &Runs{verdicts: map[string][]json.RawMessage{}, frames: map[string][]frame{}, opened: map[string]int{}, wake: make(chan struct{})}
+	return &Runs{verdicts: map[string][]json.RawMessage{}, frames: map[string][]frame{}, opened: map[string]int{}, afters: map[string][]int64{}, wake: make(chan struct{})}
 }
 
 // Emit adds an event to the run's stream and returns its sequence number.
@@ -100,6 +103,20 @@ func (r *Runs) Verdicts(runID string) []json.RawMessage {
 	return append([]json.RawMessage(nil), r.verdicts[runID]...)
 }
 
+// Afters are the `after` values the run's event stream was opened with, in order.
+func (r *Runs) Afters(runID string) []int64 {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]int64(nil), r.afters[runID]...)
+}
+
+// FailVerdicts makes the next n verdict calls answer this status with an error envelope (they are not recorded).
+func (r *Runs) FailVerdicts(n, status int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.vFail, r.vStatus = n, status
+}
+
 // Opened is how many times the run's event stream was opened.
 func (r *Runs) Opened(runID string) int { r.mu.Lock(); defer r.mu.Unlock(); return r.opened[runID] }
 
@@ -120,6 +137,13 @@ func (r *Runs) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		id := strings.TrimSuffix(rest, "/verdict")
 		body, _ := io.ReadAll(req.Body)
 		r.mu.Lock()
+		if r.vFail > 0 {
+			r.vFail--
+			status := r.vStatus
+			r.mu.Unlock()
+			Fail(w, status, "unavailable", "try again")
+			return
+		}
 		r.verdicts[id] = append(r.verdicts[id], body)
 		r.mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
@@ -149,17 +173,18 @@ func (r *Runs) start(w http.ResponseWriter, req *http.Request) {
 }
 
 func (r *Runs) events(w http.ResponseWriter, req *http.Request, runID string) {
+	after, _ := strconv.ParseInt(req.URL.Query().Get("after"), 10, 64)
 	r.mu.Lock()
 	status := r.EventsStatus
 	if status == 0 {
 		r.opened[runID]++
+		r.afters[runID] = append(r.afters[runID], after)
 	}
 	r.mu.Unlock()
 	if status != 0 {
 		Fail(w, status, "unavailable", "the brain is down")
 		return
 	}
-	after, _ := strconv.ParseInt(req.URL.Query().Get("after"), 10, 64)
 	flusher, _ := w.(http.Flusher)
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.WriteHeader(http.StatusOK)

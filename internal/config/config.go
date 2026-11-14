@@ -67,6 +67,11 @@ type (
 		// CAFile verifies the brain's server certificate for the first enrollment only; empty means the system roots. The
 		// CA the brain returns is then pinned for every later call and renewal.
 		CAFile string `env:"CA_FILE"`
+		// RunGrace is how long the platform keeps trying to reopen the event stream of a run before it tears the run's lab
+		// down and marks the run failed (brain_unreachable).
+		RunGrace time.Duration `env:"RUN_GRACE" envDefault:"60s"`
+		// RunMaxDuration is the longest a run may last, the start of its lab included; then it is torn down as failed.
+		RunMaxDuration time.Duration `env:"RUN_MAX_DURATION" envDefault:"30m"`
 	}
 
 	// TelegramConfig is the one bot of the platform's operator notifications (the error journal).
@@ -743,6 +748,9 @@ func (c BrainConfig) Validate() error {
 	host, port, err := net.SplitHostPort(strings.TrimSpace(c.Endpoint))
 	if err != nil || host == "" || port == "" {
 		return errors.New("cyber-brain: BRAIN_ENDPOINT must be host:port")
+	}
+	if c.RunGrace < 0 || c.RunMaxDuration < 0 {
+		return errors.New("cyber-brain: BRAIN_RUN_GRACE and BRAIN_RUN_MAX_DURATION must not be negative")
 	}
 	return nil
 }

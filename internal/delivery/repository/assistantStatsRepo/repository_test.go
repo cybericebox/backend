@@ -2,6 +2,8 @@ package assistantStatsRepo
 
 import (
 	"context"
+	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -106,5 +108,19 @@ func TestFactsMapAndEmptyListsAreEmptyArraysNotNull(t *testing.T) {
 	}
 	if _, err = New(f).EnabledTasks(context.Background(), assistantModel.StatsModeOff, nil); err != nil || f.enabled.ExerciseIds == nil {
 		t.Fatalf("%v %+v", err, f.enabled)
+	}
+}
+
+// A grader's run is never a participant: the statistics read event teams only. The queries must not touch the tables of
+// the runs or of the test labs, which is how a run could slip into the figures.
+func TestTheStatisticsQueriesNeverReadRunsOrTestLabs(t *testing.T) {
+	raw, err := os.ReadFile("../postgres/queries/assistant_stats.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, table := range []string{"assistant_runs", "assistant_run_events", "assistant_run_answers", "exercise_test_deployments"} {
+		if strings.Contains(string(raw), table) {
+			t.Fatalf("the statistics queries read %s", table)
+		}
 	}
 }
