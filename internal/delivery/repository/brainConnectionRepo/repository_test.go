@@ -12,6 +12,9 @@ import (
 )
 
 type fakeQueries struct {
+	seq      int64
+	seqErr   error
+	lastSeq  postgres.SetBrainOutboxSeqParams
 	row      *postgres.BrainConnection
 	creates  int64
 	updates  int64
@@ -70,5 +73,27 @@ func TestSetCertificateFiltersByEndpointAndTenant(t *testing.T) {
 	ok, err := New(f).SetCertificate(context.Background(), "b:1", "tenant", "cert", "ct", "ca", time.Unix(10, 0), time.Unix(5, 0))
 	if err != nil || !ok || f.lastSet.Endpoint != "b:1" || f.lastSet.Tenant != "tenant" || f.lastSet.ClientKeyCiphertext != "ct" {
 		t.Fatalf("set: ok=%v err=%v params=%+v", ok, err, f.lastSet)
+	}
+}
+
+func (f *fakeQueries) GetBrainOutboxSeq(context.Context, string) (int64, error) {
+	return f.seq, f.seqErr
+}
+
+func (f *fakeQueries) SetBrainOutboxSeq(_ context.Context, p postgres.SetBrainOutboxSeqParams) (int64, error) {
+	f.lastSeq = p
+	return 1, nil
+}
+
+func TestOutboxCursor(t *testing.T) {
+	if seq, err := New(&fakeQueries{seq: 41}).OutboxSeq(context.Background(), "b:1"); err != nil || seq != 41 {
+		t.Fatalf("seq: %d %v", seq, err)
+	}
+	if seq, err := New(&fakeQueries{seqErr: pgx.ErrNoRows}).OutboxSeq(context.Background(), "b:1"); err != nil || seq != 0 {
+		t.Fatalf("no connection reads as 0: %d %v", seq, err)
+	}
+	f := &fakeQueries{}
+	if err := New(f).SetOutboxSeq(context.Background(), "b:1", 42); err != nil || f.lastSeq.OutboxSeq != 42 || f.lastSeq.Endpoint != "b:1" {
+		t.Fatalf("set: %v %+v", err, f.lastSeq)
 	}
 }

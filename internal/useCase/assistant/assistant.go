@@ -75,6 +75,11 @@ type (
 		// Importer saves a finished task into the catalog; nil without exercises (tests).
 		Importer Importer
 		Files    FileStore
+		// Cursor keeps the last answered outbox request of the brain.
+		Cursor OutboxCursor
+		// WatchMin and WatchMax bound the reconnect backoff of the outbox stream; AnswerPause is the first pause between
+		// answer attempts (zero: 1s, 1min and 200ms).
+		WatchMin, WatchMax, AnswerPause time.Duration
 		// Saves remembers how a session was saved; Subjects keeps the users' pseudonyms.
 		Saves    SaveStore
 		Subjects SubjectStore
@@ -97,7 +102,10 @@ type (
 		importer Importer
 		files    FileStore
 		saves    SaveStore
-		audit    func(ctx context.Context, entry adminAuditUseCase.Entry) error
+		cursor   OutboxCursor
+
+		watchMin, watchMax, answerPause time.Duration
+		audit                           func(ctx context.Context, entry adminAuditUseCase.Entry) error
 
 		namesImages func(archive []byte, lim exerciseModel.ArchiveLimits) bool
 
@@ -114,7 +122,8 @@ type (
 // New builds the use case. It reads nothing and dials nothing.
 func New(d Dependencies) *UseCase {
 	u := &UseCase{
-		store: d.Store, cipher: d.Cipher, cfg: d.Config, enroll: d.Enroll, now: d.Now, importer: d.Importer, files: d.Files, saves: d.Saves, subjects: d.Subjects, audit: d.Audit,
+		store: d.Store, cipher: d.Cipher, cfg: d.Config, enroll: d.Enroll, now: d.Now, importer: d.Importer, files: d.Files, saves: d.Saves, subjects: d.Subjects, audit: d.Audit, cursor: d.Cursor,
+		watchMin: orDefault(d.WatchMin, watchBackoffMin), watchMax: orDefault(d.WatchMax, watchBackoffMax), answerPause: orDefault(d.AnswerPause, 200*time.Millisecond),
 		namesImages: d.NamesImages,
 	}
 	if u.namesImages == nil {
@@ -451,4 +460,11 @@ func (u *UseCase) MaintainBrain(ctx context.Context) {
 			settle()
 		}
 	}
+}
+
+func orDefault(v, fallback time.Duration) time.Duration {
+	if v > 0 {
+		return v
+	}
+	return fallback
 }

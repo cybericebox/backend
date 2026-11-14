@@ -48,7 +48,7 @@ func (q *Queries) CreateBrainConnection(ctx context.Context, arg CreateBrainConn
 }
 
 const getBrainConnection = `-- name: GetBrainConnection :one
-SELECT endpoint, tenant, client_cert_pem, client_key_ciphertext, ca_pem, cert_not_after, created_at, updated_at
+SELECT endpoint, tenant, client_cert_pem, client_key_ciphertext, ca_pem, cert_not_after, created_at, updated_at, outbox_seq
 FROM brain_connections
 WHERE endpoint = $1
 `
@@ -66,6 +66,7 @@ func (q *Queries) GetBrainConnection(ctx context.Context, endpoint string) (Brai
 		&i.CertNotAfter,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OutboxSeq,
 	)
 	return i, err
 }
@@ -102,6 +103,41 @@ func (q *Queries) SetBrainConnectionCertificate(ctx context.Context, arg SetBrai
 		arg.Endpoint,
 		arg.Tenant,
 	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const getBrainOutboxSeq = `-- name: GetBrainOutboxSeq :one
+SELECT outbox_seq
+FROM brain_connections
+WHERE endpoint = $1
+`
+
+// The last outbox request that was answered.
+func (q *Queries) GetBrainOutboxSeq(ctx context.Context, endpoint string) (int64, error) {
+	row := q.db.QueryRow(ctx, getBrainOutboxSeq, endpoint)
+	var outbox_seq int64
+	err := row.Scan(&outbox_seq)
+	return outbox_seq, err
+}
+
+const setBrainOutboxSeq = `-- name: SetBrainOutboxSeq :execrows
+UPDATE brain_connections
+SET outbox_seq = $1
+WHERE endpoint = $2
+  AND outbox_seq < $1
+`
+
+type SetBrainOutboxSeqParams struct {
+	OutboxSeq int64  `json:"outbox_seq"`
+	Endpoint  string `json:"endpoint"`
+}
+
+// Moves the outbox cursor forward; it never goes back.
+func (q *Queries) SetBrainOutboxSeq(ctx context.Context, arg SetBrainOutboxSeqParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setBrainOutboxSeq, arg.OutboxSeq, arg.Endpoint)
 	if err != nil {
 		return 0, err
 	}
