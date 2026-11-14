@@ -276,3 +276,30 @@ func TestOpponentRunsAreBoundToTheirOpponentAndVariant(t *testing.T) {
 		t.Fatalf("its own events: %v", err)
 	}
 }
+
+func TestARunWhoseLabIsGoneIsTornDownAtOnceNotAtTheEndOfItsWindow(t *testing.T) {
+	for name, start := range map[string]func(r *runRig) assistantModel.Run{
+		"an opponent run": func(r *runRig) assistantModel.Run {
+			r.labs.opponents = []exerciseModel.Opponent{attacker()}
+			return r.tryOpponent(t, 1)
+		},
+		"a grader run": func(r *runRig) assistantModel.Run { return r.start(t) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			r := newRunRig(t, nil)
+			run := start(r)
+			r.drive(t)
+			r.waitState(t, run.ID, assistantModel.RunRunning)
+			r.labs.mu.Lock()
+			r.labs.gone = true // destroyed by its author, or its lease is over
+			r.labs.mu.Unlock()
+			got := r.waitState(t, run.ID, assistantModel.RunFailed)
+			if got.FailureReason != assistantModel.FailureLabFailed {
+				t.Fatalf("%+v", got)
+			}
+			if indexOf(r.labs.called(), "revoke:"+got.AccessClient) < 0 || len(r.brn.Stops()) != 1 {
+				t.Fatalf("the client is revoked and the brain told: %v %v", r.labs.called(), r.brn.Stops())
+			}
+		})
+	}
+}
