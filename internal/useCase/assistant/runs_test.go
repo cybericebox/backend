@@ -301,6 +301,7 @@ type fakeLabs struct {
 	revokeErr   error
 	deployOwner uuid.UUID
 	toolsErr    error
+	ctlErr      error
 	places      []exerciseModel.ToolsPlacement
 	opponents   []exerciseModel.Opponent
 	solved      map[string]bool
@@ -356,6 +357,15 @@ func (f *fakeLabs) DeployVariantTestWithTools(ctx context.Context, owner, versio
 	}
 	f.record("deploy-tools")
 	return f.DeployVariantTest(ctx, owner, version, variant, length)
+}
+func (f *fakeLabs) ControlAddress(context.Context, uuid.UUID, uuid.UUID) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = append(f.calls, "control-address")
+	if f.ctlErr != nil {
+		return "", f.ctlErr
+	}
+	return "10.8.4.10", nil
 }
 func (f *fakeLabs) DestroyDeployTest(context.Context, uuid.UUID, uuid.UUID) error {
 	f.record("destroy")
@@ -985,6 +995,21 @@ func TestRunEventsAreServedFromStorageAfterASequence(t *testing.T) {
 	events, state, err := read(context.Background(), 1, 10)
 	if err != nil || len(events) != 2 || events[0].Seq != 2 || state != assistantModel.RunStarting {
 		t.Fatalf("%v %+v %v", err, events, state)
+	}
+}
+
+func TestTheClientsOfBotsAreMarkedAndTheGradersAreNot(t *testing.T) {
+	r := opponentRig(t, attacker())
+	grader := r.start(t)
+	_ = r.runs.SetAccessClient(context.Background(), grader.ID, "g-grader", time.Now())
+	bot := r.tryOpponent(t, 1)
+	_ = r.runs.SetAccessClient(context.Background(), bot.ID, "g-bot", time.Now())
+	control := map[string]bool{}
+	for _, c := range r.uc.LabClients(context.Background(), runActor.UserID) {
+		control[c.Name] = c.Control
+	}
+	if len(control) != 2 || control["g-grader"] || !control["g-bot"] {
+		t.Fatalf("an opponent's client reaches the control gateway only, a grader's its lab: %v", control)
 	}
 }
 

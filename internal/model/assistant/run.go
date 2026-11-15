@@ -114,6 +114,18 @@ func VPNAccess(entry string) Access {
 	return Access{"vpn": raw}
 }
 
+// WithAddr adds the address of the runner of the tools device on its control gateway (host:port) to an access: the brain joins
+// the control gateway with the entry and dials that address. It is a key of the open union next to the entry, never a credential.
+func (a Access) WithAddr(addr string) Access {
+	out := make(Access, len(a)+1)
+	for k, v := range a {
+		out[k] = v
+	}
+	raw, _ := json.Marshal(addr)
+	out["addr"] = raw
+	return out
+}
+
 // NoAccess is the access of a run that joins no lab: a task with nothing to reach (only its materials and answers). It is
 // one more kind of the open union, written {"none": {}}.
 func NoAccess() Access { return Access{"none": json.RawMessage(`{}`)} }

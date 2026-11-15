@@ -28,6 +28,8 @@ import (
 type LabClient struct {
 	Name     string
 	DeployID uuid.UUID
+	// Control says the client is a bot's: it may reach the one control address of the tools device of its lab, nothing else.
+	Control bool
 }
 
 // LabClientSource lists the extra clients of an owner's lab group (the runs that are active). The group policy of a test
@@ -50,6 +52,10 @@ func (u *ExerciseUseCase) groupPolicies(ctx context.Context, owner, skipLab uuid
 	}
 	for _, c := range u.labClients(ctx, owner) {
 		if c.Name == "" || c.Name == skipClient || c.DeployID == skipLab {
+			continue
+		}
+		if c.Control {
+			policies = append(policies, labAccessModel.ClientPolicy{Name: c.Name, Control: &labAccessModel.ControlAccess{Lab: testLabName(c.DeployID), Host: exerciseModel.ControlHost(0)}})
 			continue
 		}
 		policies = append(policies, labAccessModel.ClientPolicy{Name: c.Name, AllowedLabs: []string{testLabName(c.DeployID)}})
@@ -108,7 +114,12 @@ func (u *ExerciseUseCase) MintLabClient(ctx context.Context, owner, deployID uui
 		// that is given none). A config that cannot be narrowed is not handed out, and its client is removed again.
 		status, statusErr := u.infra.LabStatus(ctx, deploy.GroupName, deploy.LabName)
 		if statusErr == nil {
-			made, statusErr = restrictAllowedIPs(made, firstVPNGatewayCIDR(status))
+			// The client of a bot's lab reaches the control gateway only; any other run, the lab's own VPN network.
+			cidr := gatewayCIDR(status, exerciseModel.ControlGatewayName)
+			if cidr == "" {
+				cidr = firstVPNGatewayCIDR(status)
+			}
+			made, statusErr = restrictAllowedIPs(made, cidr)
 		}
 		if statusErr != nil {
 			_ = u.infra.DeleteLabClient(context.WithoutCancel(ctx), deploy.GroupName, client)
@@ -398,4 +409,29 @@ func firstVPNGatewayCIDR(status exerciseModel.LabDeployStatus) string {
 		}
 	}
 	return ""
+}
+
+// ControlAddress is the address of the tools device of the owner's test lab on its control gateway (the /24 the laboratory gave
+// the gateway, plus the device's fixed host), the one address the run client of a bot may reach.
+func (u *ExerciseUseCase) ControlAddress(ctx context.Context, owner, deployID uuid.UUID) (string, error) {
+	deploy, err := u.ownedLab(ctx, owner, deployID)
+	if err != nil {
+		return "", err
+	}
+	status, err := u.infra.LabStatus(ctx, deploy.GroupName, deploy.LabName)
+	if err != nil {
+		return "", model.ErrPlatform.WithError(err).WithMessage("Failed to read deploy status").Err()
+	}
+	return controlAddress(gatewayCIDR(status, exerciseModel.ControlGatewayName), exerciseModel.ControlHost(0))
+}
+
+// controlAddress is the host-th address of a /24 (IPv4).
+func controlAddress(cidr string, host int32) (string, error) {
+	prefix, err := netip.ParsePrefix(strings.TrimSpace(cidr))
+	if err != nil || !prefix.Addr().Is4() || prefix.Bits() != 24 || host < 1 || host > 254 {
+		return "", exerciseModel.ErrToolsNoControl
+	}
+	b := prefix.Masked().Addr().As4()
+	b[3] = byte(host)
+	return netip.AddrFrom4(b).String(), nil
 }

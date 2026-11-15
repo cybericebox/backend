@@ -437,15 +437,28 @@ func TestProvideDeviceToolsAnswersTheVPNAccessOfTheRunAndPlacesTheDevice(t *test
 	p.drive(t)
 	var got struct {
 		Result struct {
-			DeviceRef string                       `json:"device_ref"`
-			Access    map[string]map[string]string `json:"access"`
+			DeviceRef string                     `json:"device_ref"`
+			Access    map[string]json.RawMessage `json:"access"`
 		}
 	}
 	if err := json.Unmarshal([]byte(p.answeredOnce(t, "r1")), &got); err != nil {
 		t.Fatal(err)
 	}
-	if got.Result.DeviceRef != runDeploy.String() || len(got.Result.Access) != 1 || got.Result.Access["vpn"]["entry"] == "" {
+	var vpn struct{ Entry string }
+	_ = json.Unmarshal(got.Result.Access["vpn"], &vpn)
+	if got.Result.DeviceRef != runDeploy.String() || len(got.Result.Access) != 2 || vpn.Entry == "" {
 		t.Fatalf("the lab and the VPN entry of the run's client: %v", p.brain.answered("r1"))
+	}
+	var raw struct {
+		Result struct {
+			Access struct {
+				Addr string `json:"addr"`
+			} `json:"access"`
+		} `json:"result"`
+	}
+	_ = json.Unmarshal([]byte(p.brain.answered("r1")[0]), &raw)
+	if raw.Result.Access.Addr != "10.8.4.10:9099" {
+		t.Fatalf("the runner's address on the control gateway: %v", p.brain.answered("r1"))
 	}
 	if p.labs.count("deploy-tools") != 1 || p.labs.count("deploy") != 1 {
 		t.Fatalf("%v", p.labs.called())

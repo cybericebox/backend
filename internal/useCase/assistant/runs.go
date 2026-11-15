@@ -69,6 +69,7 @@ type (
 		RunTarget(ctx context.Context, versionID, variantID uuid.UUID, want time.Duration) (exerciseUseCase.RunTarget, error)
 		RunMaterials(ctx context.Context, owner, deployID uuid.UUID) (exerciseUseCase.Materials, error)
 		RunStateTasks(ctx context.Context, owner, deployID uuid.UUID) ([]exerciseUseCase.StateSubtask, error)
+		ControlAddress(ctx context.Context, owner, deployID uuid.UUID) (string, error)
 		RunSolvedSubtasks(ctx context.Context, owner, deployID uuid.UUID) (map[string]bool, error)
 	}
 
@@ -274,6 +275,9 @@ func (u *UseCase) runEventReader(runID uuid.UUID) func(ctx context.Context, afte
 	}
 }
 
+// isBotRun says a row is a bot's: an opponent run or the lab of a tools device. Its client reaches the control gateway only.
+func isBotRun(r assistantModel.Run) bool { return r.Opponent > 0 || r.Role == assistantModel.RoleTools }
+
 // LabClients lists the WireGuard clients of the active runs of an owner, for the group policy of their test labs.
 func (u *UseCase) LabClients(ctx context.Context, owner uuid.UUID) []exerciseUseCase.LabClient {
 	if u.runs == nil {
@@ -287,7 +291,7 @@ func (u *UseCase) LabClients(ctx context.Context, owner uuid.UUID) []exerciseUse
 	var out []exerciseUseCase.LabClient
 	for _, r := range runs {
 		if r.Actor == owner && r.AccessClient != "" {
-			out = append(out, exerciseUseCase.LabClient{Name: r.AccessClient, DeployID: r.DeployID})
+			out = append(out, exerciseUseCase.LabClient{Name: r.AccessClient, DeployID: r.DeployID, Control: isBotRun(r)})
 		}
 	}
 	return out

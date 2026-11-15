@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
 	"sort"
 	"strconv"
@@ -109,8 +110,10 @@ type runDriver struct {
 
 	config    string
 	mintFails int
-	stopSent  bool
-	refused   bool
+	// ctlFails counts the failed tries to read the control address of a tools device.
+	ctlFails int
+	stopSent bool
+	refused  bool
 	// stateFlushed: the verdicts of the state subtasks that never passed were sent (once, before the teardown).
 	stateFlushed bool
 	// materialsSent: the materials of this run are with the brain (kept for this leadership; a new leader sends them again).
@@ -309,13 +312,34 @@ func (d *runDriver) startingOpponent(ctx context.Context, run assistantModel.Run
 			return u.runPoll // the run is not started until the platform sees that subtask solved (ExpiresAt bounds the wait)
 		}
 	}
+	addr, wait, ok := d.runnerAddr(ctx, run)
+	if !ok {
+		return wait
+	}
 	image, _ := imageAndKind(target.VariantsJS)
 	body := assistantModel.StartRun{
 		RunID: run.ID.String(), Role: string(opponent.Role), TaskRef: run.ExerciseID.String(), Version: run.VersionID.String(),
-		Image: image, Access: assistantModel.VPNAccess(d.config), Start: json.RawMessage(`"immediate"`),
+		Image: image, Access: assistantModel.VPNAccess(d.config).WithAddr(addr), Start: json.RawMessage(`"immediate"`),
 		Band: opponent.Band, Goal: opponent.Goal, Operates: opponent.Operates, Foothold: opponent.Foothold, Brief: opponent.Brief, Budget: u.opponentBudget(),
 	}
 	return d.started(ctx, run, body)
+}
+
+// runnerAddr is host:port of the runner of the run's tools device on the control gateway: the /24 the laboratory gave the gateway
+// plus the device's fixed host. ok is false when it cannot be known yet (the run is closed after a few tries) and wait says when
+// to try again.
+func (d *runDriver) runnerAddr(ctx context.Context, run assistantModel.Run) (addr string, wait time.Duration, ok bool) {
+	host, err := d.u.labs.ControlAddress(ctx, run.Actor, run.DeployID)
+	if err != nil {
+		d.ctlFails++
+		log.Warn().Err(err).Int("attempt", d.ctlFails).Msg("Reading the control address of the tools device failed")
+		if d.ctlFails >= mintAttempts {
+			d.close(ctx, run, assistantModel.RunFailed, assistantModel.FailureLabFailed)
+			return "", 0, false
+		}
+		return "", d.backoff(), false
+	}
+	return net.JoinHostPort(host, strconv.Itoa(exerciseModel.RunnerPort)), 0, true
 }
 
 // access gives the run its own VPN client (recorded before it is made, so a crash leaves a client that is known and gets
@@ -932,7 +956,15 @@ func (d *runDriver) labAnswer(ctx context.Context, run assistantModel.Run) time.
 		log.Warn().Err(err).Msg("Making the VPN client of a lab again failed")
 		return d.backoff()
 	}
-	result := map[string]any{"device_ref": run.DeployID.String(), "access": assistantModel.VPNAccess(d.config)}
+	access := assistantModel.VPNAccess(d.config)
+	if run.Role == assistantModel.RoleTools {
+		addr, wait, ok := d.runnerAddr(ctx, run)
+		if !ok {
+			return wait
+		}
+		access = access.WithAddr(addr)
+	}
+	result := map[string]any{"device_ref": run.DeployID.String(), "access": access}
 	if err := u.answer(ctx, run.RequestID, result, nil); err != nil {
 		log.Warn().Err(err).Msg("Answering a lab request failed; trying again")
 		return d.backoff()
