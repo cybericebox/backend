@@ -15,6 +15,7 @@ import (
 	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
 	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
 	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	labAccessModel "github.com/cybericebox/daemon/internal/model/labAccess"
 	labCheckModel "github.com/cybericebox/daemon/internal/model/labCheck"
 	"github.com/cybericebox/daemon/internal/useCase/exercise"
 )
@@ -396,5 +397,49 @@ func TestRunSolvedSubtasks_StatePassedAndAnswersFoundInTheLab(t *testing.T) {
 	checks.results = []labCheckModel.Result{{CheckID: exerciseModel.CheckID("service", 1), State: labCheckModel.StatePassed, FirstPassedAt: &first, ChangedAt: first}}
 	if got, err = uc.RunSolvedSubtasks(context.Background(), owner, deployID); err != nil || len(got) != 2 || !got["flag"] || !got["service"] || got["other"] {
 		t.Fatalf("%v %v", got, err)
+	}
+}
+
+func TestMintLabClient_TheClientOfABotReachesTheControlGatewayAndOneAddressOfItOnly(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	q := postgresMocks.NewMockQuerier(ctrl)
+	owner, deployID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	q.EXPECT().GetOwnedExerciseTestDeploy(gomock.Any(), gomock.Any()).Return(graderRow(owner, deployID), nil)
+	q.EXPECT().ListOwnedExerciseTestDeploys(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	infra := &fakeInfra{status: exerciseModel.LabDeployStatus{VPNConfig: agentConfig("10.8.0.0/10"), Gateways: gws("vpn", "10.8.3.0/24", "ctl", "10.8.4.0/24")}}
+	uc := exercise.NewExerciseUseCase(exercise.Dependencies{Repo: q, Infra: infra})
+	uc.SetLabClientSource(func(context.Context, uuid.UUID) []exercise.LabClient {
+		return []exercise.LabClient{{Name: "g-bot", DeployID: deployID, Control: true}}
+	})
+	config, err := uc.MintLabClient(context.Background(), owner, deployID, "g-bot")
+	if err != nil || config != agentConfig("10.8.4.0/24") {
+		t.Fatalf("the profile of a bot routes the control gateway only: %q %v", config, err)
+	}
+	var bot *labAccessModel.ClientPolicy
+	for i, p := range infra.policies {
+		if p.Name == "g-bot" {
+			bot = &infra.policies[i]
+		}
+	}
+	if bot == nil || len(bot.AllowedLabs) != 0 || bot.Control == nil || bot.Control.Host != 10 || bot.Control.Lab[:2] != "l-" {
+		t.Fatalf("a bot's client has the control address of its lab and no lab of its own: %+v", infra.policies)
+	}
+}
+
+func TestControlAddress_IsTheDevicesFixedHostOfTheGatewaysNetwork(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	q := postgresMocks.NewMockQuerier(ctrl)
+	owner, deployID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	q.EXPECT().GetOwnedExerciseTestDeploy(gomock.Any(), gomock.Any()).Return(graderRow(owner, deployID), nil).AnyTimes()
+	infra := &fakeInfra{status: exerciseModel.LabDeployStatus{Gateways: gws("ctl", "10.8.4.0/24")}}
+	uc := exercise.NewExerciseUseCase(exercise.Dependencies{Repo: q, Infra: infra})
+	if got, err := uc.ControlAddress(context.Background(), owner, deployID); err != nil || got != "10.8.4.10" {
+		t.Fatalf("%q %v", got, err)
+	}
+	for name, cidr := range map[string]string{"none yet": "", "not a /24": "10.8.4.0/23", "not ipv4": "fd00::/64", "garbage": "x"} {
+		infra.status.Gateways = gws("ctl", cidr)
+		if _, err := uc.ControlAddress(context.Background(), owner, deployID); !errors.Is(err, exerciseModel.ErrToolsNoControl) {
+			t.Errorf("%s: %v", name, err)
+		}
 	}
 }
