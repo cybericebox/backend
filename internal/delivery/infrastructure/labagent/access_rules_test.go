@@ -95,3 +95,17 @@ func TestTheClientOfABotGetsOneAddressOfTheControlGatewayAndNothingElse(t *testi
 		require.Equal(t, []string{"p-1"}, rule.GetClientNames())
 	}
 }
+
+func TestAGradersRuleNamesEveryVPNGatewayAParticipantGetsAndNeverCtl(t *testing.T) {
+	spec := []byte(`{"gateways":[{"name":"vpn","kind":"vpn"},{"name":"vpn-b","kind":"vpn"},{"name":"internet","kind":"internet"},{"name":"ctl","kind":"vpn"}]}`)
+	gateways := map[string][]string{"lab-run": vpnGatewaysOfSpec(spec)}
+	rules := accessRules([]labAccessModel.ClientPolicy{
+		{Name: "g-grader", AllowedLabs: []string{"lab-run"}},
+		{Name: "p-participant", AllowedLabs: []string{"lab-run"}},
+	}, gateways)
+	require.Len(t, rules, 2)
+	for _, rule := range rules {
+		require.Equal(t, []string{"vpn", "vpn-b"}, rule.GetGatewayNames(), "every VPN gateway of the lab a participant gets, never ctl or the internet")
+		require.Empty(t, rule.GetInclude())
+	}
+}

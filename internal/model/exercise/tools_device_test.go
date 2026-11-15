@@ -239,3 +239,19 @@ func TestAToolsDeviceHasAControlGatewayWithAFixedAddress(t *testing.T) {
 		}
 	}
 }
+
+func TestTheControlNamesAreReservedAtValidation(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		kind DeviceType
+	}{{"ctl", DeviceTypeNode}, {"CTL", DeviceTypeNode}, {"ctl", DeviceTypeVPNGateway}, {"ctl", DeviceTypeInternetGateway}, {"ctl-switch", DeviceTypeUnmanagedSwitch}, {"ctl-switch", DeviceTypeHub}, {" ctl ", DeviceTypeNode}} {
+		variant := Variant{Topology: Topology{Devices: []Device{{ID: uuid.Must(uuid.NewV7()), Name: c.name, Type: c.kind}}}}
+		if err := ValidateDeviceNames([]Variant{variant}); !errors.Is(err, ErrDeviceNameReserved.Err()) {
+			t.Errorf("%q (%s): %v", c.name, c.kind, err)
+		}
+	}
+	ok := Variant{Topology: Topology{Devices: []Device{{ID: uuid.Must(uuid.NewV7()), Name: "ctl2", Type: DeviceTypeNode}, {ID: uuid.Must(uuid.NewV7()), Name: "web", Type: DeviceTypeNode}}}}
+	if err := ValidateDeviceNames([]Variant{ok}); err != nil {
+		t.Fatalf("other names are free: %v", err)
+	}
+}
