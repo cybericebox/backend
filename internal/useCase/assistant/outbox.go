@@ -82,7 +82,6 @@ func (u *UseCase) handlers() map[string]requestHandler {
 		"provide_lab":    u.provideLab,
 		"provide_device": u.provideDevice,
 		"provide_data":   u.provideData,
-		"provide_access": u.provideAccess,
 	}
 }
 

@@ -48,7 +48,7 @@ func TestWithToolsDeviceBehindANode(t *testing.T) {
 	if tools.Internet != InternetDeny {
 		t.Fatalf("the tools device is denied the internet explicitly: %q", tools.Internet)
 	}
-	if tools.Name != "tools" || len(tools.Access) != 1 || tools.Access[0].Kind != AccessGRPC || tools.Image != "tools:1" {
+	if tools.Name != "tools" || len(tools.Access) != 0 || tools.Image != "tools:1" {
 		t.Fatalf("tools = %+v", tools)
 	}
 	// the tools device and a switch between the gateway and the node

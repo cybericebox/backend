@@ -117,11 +117,6 @@ var (
 	ErrTestDeployNoConsole = err.ErrObjectNotFound.WithObjectCode(model.ExerciseDocumentObjectCode).
 				WithMessage("The console of the device is not available").
 				WithDetailCode(18)
-	// ErrTestDeployNoGRPC: the lab cannot give the grpc address of the device (it does not have the device, or the device
-	// has no grpc access, or the laboratory does not serve it yet).
-	ErrTestDeployNoGRPC = err.ErrObjectNotFound.WithObjectCode(model.ExerciseDocumentObjectCode).
-				WithMessage("The grpc access of the device is not available").
-				WithDetailCode(26)
 	// ErrOpponentInvalid: an opponent of a variant is wrong; field is its path under the variant with 1-based
 	// positions (opponents[2].operates[1]) and reason says what is wrong: too_many, role, band, goal_empty,
 	// goal_unknown, goal_repeated, start_unknown, operates_required, operates_forbidden, operates_unknown, foothold_required, foothold_forbidden, foothold_unknown,

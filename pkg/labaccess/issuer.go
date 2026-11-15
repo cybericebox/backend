@@ -84,16 +84,11 @@ type Session struct {
 	// Next is where the proxy sends the browser after the handoff, the value of the `next` query key of the link (a path with
 	// its query, for example the console page of a device: see ConsoleSession). Empty: the proxy's default.
 	Next string
-	// Use marks a handoff for the proxy's tunnel endpoint instead of a browser session (UseTunnel); empty for a browser link.
-	Use string
 	// ExpiresAt is the wanted end of the session (the event's effective finish
 	// plus a buffer, or a test deploy's lease end). Zero, or a time that is not in
 	// the future, means the fallback TTL.
 	ExpiresAt time.Time
 }
-
-// UseTunnel is the `use` claim of a handoff that is exchanged for a byte tunnel to a device's grpc access.
-const UseTunnel = "tunnel"
 
 // Link is a signed handoff link.
 type Link struct {
@@ -105,15 +100,11 @@ type Link struct {
 	Token string
 	// ExpiresAt is the end of the session the proxy will grant.
 	ExpiresAt time.Time
-	// TokenExpiresAt is the end of the handoff itself: until then the link can be opened.
-	TokenExpiresAt time.Time
 }
 
 // claims: iss = the tenant, sub = the LabGroupClient, aud = laboratory-proxy, iat/nbf/exp and
 // group_id (the lab group id), host (the full host of the device access, <device>-<code><letter>.<base>) and sess (the unix end of the session).
 type claims struct {
-	// Use says what the token opens when it is not a browser session: UseTunnel is the byte tunnel of a device's grpc access.
-	Use     string `json:"use,omitempty"`
 	GroupID string `json:"group_id"`
 	Host    string `json:"host"`
 	Session int64  `json:"sess"`
@@ -171,7 +162,7 @@ func (i *Issuer) Issue(sk SigningKey, s Session, now time.Time) (Link, error) {
 		ttl = min(ttl, sk.MaxTokenTTL)
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodEdDSA, claims{
-		Use: s.Use, GroupID: s.Group, Host: host, Session: end.Unix(),
+		GroupID: s.Group, Host: host, Session: end.Unix(),
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer: sk.Tenant, Subject: s.Client, Audience: jwt.ClaimStrings{Audience},
 			IssuedAt: jwt.NewNumericDate(now), NotBefore: jwt.NewNumericDate(now), ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
@@ -187,5 +178,5 @@ func (i *Issuer) Issue(sk SigningKey, s Session, now time.Time) (Link, error) {
 		query.Set("next", s.Next)
 	}
 	link := url.URL{Scheme: origin.Scheme, Host: strings.ToLower(origin.Host), Path: AuthPath, RawQuery: query.Encode()}
-	return Link{URL: link.String(), Token: signed, ExpiresAt: end, TokenExpiresAt: now.Add(ttl)}, nil
+	return Link{URL: link.String(), Token: signed, ExpiresAt: end}, nil
 }

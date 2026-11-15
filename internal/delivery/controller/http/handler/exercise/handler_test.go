@@ -2531,7 +2531,7 @@ func TestCapabilities_CarryTheLabBlockWithoutNamingALab(t *testing.T) {
 		c.VPNReverse != "unknown" {
 		t.Fatalf("block: %+v", c)
 	}
-	if len(c.Observations) != 10 || len(c.Access) != 5 {
+	if len(c.Observations) != 10 || len(c.Access) != 4 {
 		t.Fatalf("the key lists are fixed: %v %v", c.Observations, c.Access)
 	}
 }

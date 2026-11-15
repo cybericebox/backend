@@ -109,10 +109,8 @@ type runDriver struct {
 
 	config    string
 	mintFails int
-	// edaFails counts the failed attempts to make the access of the tools device of a lab.
-	edaFails int
-	stopSent bool
-	refused  bool
+	stopSent  bool
+	refused   bool
 	// stateFlushed: the verdicts of the state subtasks that never passed were sent (once, before the teardown).
 	stateFlushed bool
 	// materialsSent: the materials of this run are with the brain (kept for this leadership; a new leader sends them again).
@@ -288,9 +286,9 @@ func (d *runDriver) started(ctx context.Context, run assistantModel.Run, body as
 }
 
 // startingOpponent is starting for a run of an opponent of the manifest: the lab is ready (with the tools device in it). The
-// run is a bot, not a lab client: it waits for the subtask its opponent starts after to be solved in the lab,
-// and is started with the manifest's role, band, goal and operates, the platform's budget and the eda access of the tools
-// device. It gets no materials: an opponent plays against the lab, it does not read the participant's task.
+// run gets a VPN client of its own, waits for the subtask its opponent starts after to be solved in the lab,
+// and is started with the manifest's role, band, goal and operates, the platform's budget and the VPN access of its client
+// (the runner of the tools device is on the lab network). It gets no materials: an opponent plays against the lab, it does not read the participant's task.
 func (d *runDriver) startingOpponent(ctx context.Context, run assistantModel.Run, target exerciseUseCase.RunTarget) time.Duration {
 	u := d.u
 	if run.Opponent > len(target.Opponents) {
@@ -298,6 +296,9 @@ func (d *runDriver) startingOpponent(ctx context.Context, run assistantModel.Run
 		return 0
 	}
 	opponent := target.Opponents[run.Opponent-1]
+	if wait, done := d.access(ctx, run); !done {
+		return wait
+	}
 	if !opponent.Start.Immediate() {
 		solved, err := u.labs.RunSolvedSubtasks(ctx, run.Actor, run.DeployID)
 		if err != nil {
@@ -308,21 +309,10 @@ func (d *runDriver) startingOpponent(ctx context.Context, run assistantModel.Run
 			return u.runPoll // the run is not started until the platform sees that subtask solved (ExpiresAt bounds the wait)
 		}
 	}
-	// The address of the tools device only: the run asks for a handoff to the tunnel when it needs one (provide_access).
-	address, err := u.labs.EDAAddress(ctx, run.Actor, run.DeployID, "")
-	if err != nil {
-		d.edaFails++
-		log.Warn().Err(err).Int("attempt", d.edaFails).Msg("Reading the address of the tools device of a run failed")
-		if d.edaFails >= mintAttempts {
-			d.close(ctx, run, assistantModel.RunFailed, assistantModel.FailureLabFailed)
-			return 0
-		}
-		return d.backoff()
-	}
 	image, _ := imageAndKind(target.VariantsJS)
 	body := assistantModel.StartRun{
 		RunID: run.ID.String(), Role: string(opponent.Role), TaskRef: run.ExerciseID.String(), Version: run.VersionID.String(),
-		Image: image, Access: assistantModel.EDAAccess(address), Start: json.RawMessage(`"immediate"`),
+		Image: image, Access: assistantModel.VPNAccess(d.config), Start: json.RawMessage(`"immediate"`),
 		Band: opponent.Band, Goal: opponent.Goal, Operates: opponent.Operates, Foothold: opponent.Foothold, Brief: opponent.Brief, Budget: u.opponentBudget(),
 	}
 	return d.started(ctx, run, body)
@@ -799,9 +789,6 @@ func (d *runDriver) closing(ctx context.Context, run assistantModel.Run) time.Du
 		d.flushStateTasks(ctx, run)
 	}
 	failed := false
-	if !d.revoked && run.AccessClient == "" {
-		d.revoked = true // a bot (an opponent, a tools lab) has no client: only the lab goes
-	}
 	if !d.revoked {
 		if err := u.labs.RevokeLabClient(ctx, run.Actor, run.DeployID, run.AccessClient); err != nil {
 			log.Warn().Err(err).Msg("Revoking the VPN client of a run failed; trying again")
@@ -901,14 +888,6 @@ func (d *runDriver) lab(ctx context.Context, run assistantModel.Run) time.Durati
 // labReady makes the lab's client and marks the lab running; the answer follows.
 func (d *runDriver) labReady(ctx context.Context, run assistantModel.Run) time.Duration {
 	u := d.u
-	if run.Role == assistantModel.RoleTools {
-		// The bot is no lab client: the tools lab has nothing to revoke but the lab.
-		if _, err := u.runs.SetRunning(ctx, run.ID, u.now().UTC()); err != nil {
-			log.Warn().Err(err).Msg("Marking a lab as running failed")
-			return d.backoff()
-		}
-		return 0
-	}
 	client := run.AccessClient
 	if client == "" {
 		client = runClientName(run.ID)
@@ -949,30 +928,11 @@ func (d *runDriver) mint(ctx context.Context, run assistantModel.Run, client str
 // labAnswer sends the result of the request the lab was made for, and records it as delivered.
 func (d *runDriver) labAnswer(ctx context.Context, run assistantModel.Run) time.Duration {
 	u := d.u
-	var access assistantModel.Access
-	ref := run.DeployID.String()
-	if run.Role == assistantModel.RoleTools {
-		// The tools device is reached out of band: its address, no credential and no VPN config. The device ref is the row,
-		// the same id the device is told as EDA_RUN_ID and provide_access names.
-		address, err := u.labs.EDAAddress(ctx, run.Actor, run.DeployID, "")
-		if err != nil {
-			log.Warn().Err(err).Msg("Reading the address of the tools device failed")
-			d.edaFails++
-			if d.edaFails >= mintAttempts {
-				d.close(ctx, run, assistantModel.RunFailed, assistantModel.FailureLabFailed)
-				return 0
-			}
-			return d.backoff()
-		}
-		access, ref = assistantModel.EDAAccess(address), run.ID.String()
-	} else {
-		if err := d.mint(ctx, run, run.AccessClient); err != nil {
-			log.Warn().Err(err).Msg("Making the VPN client of a lab again failed")
-			return d.backoff()
-		}
-		access = assistantModel.VPNAccess(d.config)
+	if err := d.mint(ctx, run, run.AccessClient); err != nil {
+		log.Warn().Err(err).Msg("Making the VPN client of a lab again failed")
+		return d.backoff()
 	}
-	result := map[string]any{"device_ref": ref, "access": access}
+	result := map[string]any{"device_ref": run.DeployID.String(), "access": assistantModel.VPNAccess(d.config)}
 	if err := u.answer(ctx, run.RequestID, result, nil); err != nil {
 		log.Warn().Err(err).Msg("Answering a lab request failed; trying again")
 		return d.backoff()

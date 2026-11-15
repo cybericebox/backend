@@ -281,34 +281,29 @@ func (m *memRuns) state(id uuid.UUID) assistantModel.Run {
 
 // fakeLabs is the exercise side of a run: a lab that becomes ready after a number of looks, and everything the run asks.
 type fakeLabs struct {
-	mu                          sync.Mutex
-	authErr                     error
-	deployErr                   error
-	hasLab                      bool
-	readyAfter                  int
-	looks                       int
-	failed                      bool
-	gone                        bool
-	materials                   *exerciseUseCase.Materials
-	stateTasks                  []exerciseUseCase.StateSubtask
-	authorized                  []exerciseUseCase.Actor
-	mintErr                     error
-	judged                      map[string]string // subtask ref -> the value that is right
-	calls                       []string
-	deployLen                   time.Duration
-	deployCount                 int
-	destroyErr                  error
-	revokeErr                   error
-	deployOwner                 uuid.UUID
-	toolsErr                    error
-	places                      []exerciseModel.ToolsPlacement
-	opponents                   []exerciseModel.Opponent
-	solved                      map[string]bool
-	edaErr                      error
-	edaUntil                    time.Time
-	handoffErr                  error
-	handoffOwner, handoffDeploy uuid.UUID
-	edaDevice                   string
+	mu          sync.Mutex
+	authErr     error
+	deployErr   error
+	hasLab      bool
+	readyAfter  int
+	looks       int
+	failed      bool
+	gone        bool
+	materials   *exerciseUseCase.Materials
+	stateTasks  []exerciseUseCase.StateSubtask
+	authorized  []exerciseUseCase.Actor
+	mintErr     error
+	judged      map[string]string // subtask ref -> the value that is right
+	calls       []string
+	deployLen   time.Duration
+	deployCount int
+	destroyErr  error
+	revokeErr   error
+	deployOwner uuid.UUID
+	toolsErr    error
+	places      []exerciseModel.ToolsPlacement
+	opponents   []exerciseModel.Opponent
+	solved      map[string]bool
 }
 
 func newFakeLabs() *fakeLabs { return &fakeLabs{hasLab: true, judged: map[string]string{}} }
@@ -361,26 +356,6 @@ func (f *fakeLabs) DeployVariantTestWithTools(ctx context.Context, owner, versio
 	}
 	f.record("deploy-tools")
 	return f.DeployVariantTest(ctx, owner, version, variant, length)
-}
-func (f *fakeLabs) EDAAddress(_ context.Context, _, _ uuid.UUID, device string) (string, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.calls = append(f.calls, "eda-address")
-	f.edaDevice = device
-	if f.edaErr != nil {
-		return "", f.edaErr
-	}
-	return "https://tools-abc123g.lab.example.com:443", nil
-}
-func (f *fakeLabs) TunnelHandoff(_ context.Context, owner, deploy uuid.UUID, device string, until time.Time) (exerciseUseCase.EDAHandoff, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.calls = append(f.calls, "handoff")
-	f.edaUntil, f.edaDevice, f.handoffOwner, f.handoffDeploy = until, device, owner, deploy
-	if f.handoffErr != nil {
-		return exerciseUseCase.EDAHandoff{}, f.handoffErr
-	}
-	return exerciseUseCase.EDAHandoff{URL: "https://tools-abc123g.lab.example.com:443", Token: "secret-handoff", ExpiresAt: time.Date(2026, 11, 15, 12, 1, 0, 0, time.UTC)}, nil
 }
 func (f *fakeLabs) DestroyDeployTest(context.Context, uuid.UUID, uuid.UUID) error {
 	f.record("destroy")

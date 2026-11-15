@@ -119,21 +119,15 @@ const (
 	AccessTerminal AccessKind = "terminal"
 	AccessVNC      AccessKind = "vnc"
 	AccessRDP      AccessKind = "rdp"
-	// AccessGRPC is the out-of-band programmatic channel to the device (the runner port, 9099 when none is given), served by
-	// the laboratory's proxy to an automated actor (the brain's bots), never offered to a participant's browser.
-	AccessGRPC AccessKind = "grpc"
 )
 
-// DefaultGRPCPort is the port of the runner a grpc access entry points to when it names none.
-const DefaultGRPCPort = 9099
-
 // MaxAccessEntries bounds the access list of a device: one entry per kind.
-const MaxAccessEntries = 5
+const MaxAccessEntries = 4
 
 // Valid reports a known kind.
 func (k AccessKind) Valid() bool {
 	switch k {
-	case AccessHTTP, AccessTerminal, AccessVNC, AccessRDP, AccessGRPC:
+	case AccessHTTP, AccessTerminal, AccessVNC, AccessRDP:
 		return true
 	default:
 		return false
@@ -141,7 +135,7 @@ func (k AccessKind) Valid() bool {
 }
 
 // Served reports whether the platform runs the kind (vnc and rdp are only accepted and stored for now).
-func (k AccessKind) Served() bool { return k == AccessHTTP || k == AccessTerminal || k == AccessGRPC }
+func (k AccessKind) Served() bool { return k == AccessHTTP || k == AccessTerminal }
 
 // AccessOf returns the entry of a kind.
 func (d Device) AccessOf(kind AccessKind) (Access, bool) {
@@ -151,18 +145,6 @@ func (d Device) AccessOf(kind AccessKind) (Access, bool) {
 		}
 	}
 	return Access{}, false
-}
-
-// GRPCPort is the runner port of the device's grpc entry (the default one when the entry names none); false without an entry.
-func (d Device) GRPCPort() (int32, bool) {
-	a, ok := d.AccessOf(AccessGRPC)
-	if !ok {
-		return 0, false
-	}
-	if a.Port == 0 {
-		return DefaultGRPCPort, true
-	}
-	return a.Port, true
 }
 
 // HasAccess reports whether the device has an entry of the kind.
@@ -205,19 +187,6 @@ func validateAccess(list []Access, bad func(string) error) error {
 			case a.Command != "" && !validInterpreter(a.Command):
 				return bad(field + ".command")
 			case a.User != "" && !accountNameRe.MatchString(a.User):
-				return bad(field + ".user")
-			}
-			continue
-		case AccessGRPC:
-			// The runner port: absent is the default one; no protocol, command or user.
-			switch {
-			case a.Port != 0 && (a.Port < 1 || a.Port > 65535):
-				return bad(field + ".port")
-			case a.Protocol != "":
-				return bad(field + ".protocol")
-			case a.Command != "":
-				return bad(field + ".command")
-			case a.User != "":
 				return bad(field + ".user")
 			}
 			continue

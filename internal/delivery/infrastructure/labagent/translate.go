@@ -62,7 +62,7 @@ type (
 		Internet   string         `json:"internet,omitempty"`
 		Resources  *labResources  `json:"resources,omitempty"`
 		Interfaces []labInterface `json:"interfaces,omitempty"`
-		// Access is the ways to reach the device in the browser (http, terminal, vnc, rdp, grpc), one entry per kind.
+		// Access is the ways to reach the device in the browser (http, terminal, vnc, rdp), one entry per kind.
 		Access []labAccess `json:"access,omitempty"`
 		// Persistence is the per-device state-persistence request; immutable once the lab exists.
 		Persistence *labPersistence `json:"persistence,omitempty"`
@@ -80,7 +80,7 @@ type (
 		WorkingDir string   `json:"workingDir,omitempty"`
 	}
 
-	// labAccess is one entry of the device's access list: kind http | terminal | vnc | rdp | grpc. http, vnc, rdp and grpc take a port (grpc: empty = the runner default)
+	// labAccess is one entry of the device's access list: kind http | terminal | vnc | rdp. http, vnc and rdp take a port
 	// (http also a protocol); terminal takes a command (empty = /bin/sh) and a user (empty = the image's user).
 	labAccess struct {
 		Kind     string   `json:"kind"`
@@ -304,9 +304,6 @@ func buildAccess(d exerciseModel.Device) []labAccess {
 	var out []labAccess
 	for _, a := range d.Access {
 		entry := labAccess{Kind: string(a.Kind), Port: a.Port, Protocol: a.Protocol, User: a.User}
-		if a.Kind == exerciseModel.AccessGRPC && a.Port == 0 {
-			entry.Port = exerciseModel.DefaultGRPCPort // the laboratory has no default: the port is always written
-		}
 		if a.Command != "" {
 			entry.Command = []string{a.Command}
 		}

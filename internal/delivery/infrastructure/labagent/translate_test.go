@@ -384,7 +384,6 @@ func TestBuildLabSpec_AccessListWithEveryKind(t *testing.T) {
 			{Kind: exerciseModel.AccessTerminal, Command: "/bin/bash", User: "app"},
 			{Kind: exerciseModel.AccessVNC, Port: 5900},
 			{Kind: exerciseModel.AccessRDP, Port: 3389},
-			{Kind: exerciseModel.AccessGRPC},
 		},
 	}
 	b, _, err := BuildLabSpec(exerciseModel.Topology{Devices: []exerciseModel.Device{dev}})
@@ -394,7 +393,7 @@ func TestBuildLabSpec_AccessListWithEveryKind(t *testing.T) {
 	access := decode(t, b).Devices[0].Access
 	want := []labAccess{
 		{Kind: "http", Port: 80}, {Kind: "terminal", Command: []string{"/bin/bash"}, User: "app"},
-		{Kind: "vnc", Port: 5900}, {Kind: "rdp", Port: 3389}, {Kind: "grpc", Port: 9099},
+		{Kind: "vnc", Port: 5900}, {Kind: "rdp", Port: 3389},
 	}
 	if !reflect.DeepEqual(access, want) {
 		t.Fatalf("access = %+v, want %+v", access, want)
