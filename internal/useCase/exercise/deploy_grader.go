@@ -109,22 +109,8 @@ func (u *ExerciseUseCase) MintLabClient(ctx context.Context, owner, deployID uui
 		if made == "" || strings.Contains(made, wgPrivateKeyPlaceholder) {
 			return false, errors.New("the laboratory agent returned a VPN config without the private key")
 		}
-		// The run's profile routes the lab's own network only: the agent writes the whole VPN base network of the platform
-		// there, and a profile must never carry a default route (no internet for the run, as for a participant of a task
-		// that is given none). A config that cannot be narrowed is not handed out, and its client is removed again.
-		status, statusErr := u.infra.LabStatus(ctx, deploy.GroupName, deploy.LabName)
-		if statusErr == nil {
-			// The client of a bot's lab reaches the control gateway only; any other run, the lab's own VPN network.
-			cidr := gatewayCIDR(status, exerciseModel.ControlGatewayName)
-			if cidr == "" {
-				cidr = firstVPNGatewayCIDR(status)
-			}
-			made, statusErr = restrictAllowedIPs(made, cidr)
-		}
-		if statusErr != nil {
-			_ = u.infra.DeleteLabClient(context.WithoutCancel(ctx), deploy.GroupName, client)
-			return false, statusErr
-		}
+		// The laboratory writes the client's AllowedIPs itself (contract 2.4): exactly the set its access rules let it reach, never
+		// a default route. The profile is handed out as the laboratory made it.
 		config = made
 		return false, u.refreshTestGroupAccess(ctx, repo, deploy, "")
 	})
@@ -370,45 +356,6 @@ func (u *ExerciseUseCase) RunStateTasks(ctx context.Context, owner, deployID uui
 		out[i].Passed = state.Solved || state.FirstSolvedAt != nil
 	}
 	return out, nil
-}
-
-// The one network is also all a student can reach: the VPN pod forwards a client to a lab only for destinations inside that
-// lab's VPN CIDR, on the lab's own interface (laboratory internal/vpn/forward_plan.go, forwardBinding: one rule per client and
-// lab with DestinationCIDR = LabAccessSnapshot.VPNCIDR = Lab.Status.VPN.CIDR, applied in forward_batch_linux.go as
-// `-i wg -o labN -s client/32 -d LabCIDR`; every other packet hits the chain's final DROP). status.VPNCIDR here is that same
-// field (the agent's vpn_cidr, labagent GetVpnCidr), so the narrowed profile loses nothing a student has; segments behind a
-// router device of the lab are reached through it from inside the lab, never routed by the VPN pod. A lab has one VPN CIDR
-// today; if it ever gets several, this must take the whole set from the same snapshot.
-//
-// restrictAllowedIPs sets the AllowedIPs of the peer in a WireGuard client config to the one network of the lab. The
-// network must be a real IPv4 subnet, never a default route. A config with no AllowedIPs line is refused.
-func restrictAllowedIPs(config, cidr string) (string, error) {
-	prefix, err := netip.ParsePrefix(strings.TrimSpace(cidr))
-	if err != nil || !prefix.Addr().Is4() || prefix.Bits() == 0 {
-		return "", errors.New("the lab has no VPN network to route the run's profile to")
-	}
-	lines := strings.Split(config, "\n")
-	replaced := false
-	for i, line := range lines {
-		if key, _, found := strings.Cut(line, "="); found && strings.EqualFold(strings.TrimSpace(key), "AllowedIPs") {
-			lines[i] = "AllowedIPs = " + prefix.Masked().String()
-			replaced = true
-		}
-	}
-	if !replaced {
-		return "", errors.New("the VPN config has no AllowedIPs to restrict")
-	}
-	return strings.Join(lines, "\n"), nil
-}
-
-// firstVPNGatewayCIDR is the /24 of the first VPN gateway of the lab that has one.
-func firstVPNGatewayCIDR(status exerciseModel.LabDeployStatus) string {
-	for _, g := range status.Gateways {
-		if g.Kind == "vpn" && g.CIDR != "" {
-			return g.CIDR
-		}
-	}
-	return ""
 }
 
 // ControlAddress is the address of the tools device of the owner's test lab on its control gateway (the /24 the laboratory gave
