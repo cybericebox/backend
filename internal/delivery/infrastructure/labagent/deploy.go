@@ -663,22 +663,11 @@ func (c *Client) reconcileLabGroupAccess(
 	policies []labAccessModel.ClientPolicy,
 	target *eventLabModel.AccessTarget,
 ) error {
-	rules := make([]*labpb.LabGroupAccessRule, 0, len(policies))
-	for _, policy := range policies {
-		// An empty LabNames list means "all Labs" in the operator protocol.
-		// Omit the rule instead so the group's default-deny policy revokes the
-		// client when no challenge Lab is currently available.
-		if len(policy.AllowedLabs) == 0 {
-			continue
-		}
-		// The rule names a client and its labs, never a gateway: the laboratory gives the client every VPN gateway of each lab
-		// (contract 2.0). A per-gateway choice would be added here, to this rule, when the laboratory's rule has a selector.
-		rules = append(rules, &labpb.LabGroupAccessRule{
-			Action:      labpb.LabGroupAccessAction_LAB_GROUP_ACCESS_ACTION_ALLOW,
-			ClientNames: []string{policy.Name},
-			LabNames:    append([]string(nil), policy.AllowedLabs...),
-		})
+	gateways, err := c.vpnGateways(ctx, group)
+	if err != nil {
+		return err
 	}
+	rules := accessRules(policies, gateways)
 	wire := &labpb.LabGroupAccessPolicy{LabGroupName: group, Rules: rules}
 	if target != nil {
 		wire.OperationId = target.OperationID.String()
