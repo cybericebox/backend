@@ -61,7 +61,8 @@ type (
 		AuthorizeTestDeploy(ctx context.Context, actor exerciseUseCase.Actor, exerciseID, versionID, variantID uuid.UUID) error
 		DeployVariantTest(ctx context.Context, owner, versionID, variantID uuid.UUID, length time.Duration) (exerciseModel.DeployHandle, error)
 		DeployVariantTestWithTools(ctx context.Context, owner, versionID, variantID uuid.UUID, length time.Duration, place exerciseModel.ToolsPlacement) (exerciseModel.DeployHandle, error)
-		MintEDAAccess(ctx context.Context, owner, deployID uuid.UUID, device, client, run string, until time.Time) (exerciseUseCase.EDAAccess, error)
+		EDAAddress(ctx context.Context, owner, deployID uuid.UUID, device string) (string, error)
+		TunnelHandoff(ctx context.Context, owner, deployID uuid.UUID, device string, until time.Time) (exerciseUseCase.EDAHandoff, error)
 		DestroyDeployTest(ctx context.Context, owner, deployID uuid.UUID) error
 		TestLabState(ctx context.Context, owner, deployID uuid.UUID) (exerciseUseCase.LabState, error)
 		MintLabClient(ctx context.Context, owner, deployID uuid.UUID, client string) (string, error)

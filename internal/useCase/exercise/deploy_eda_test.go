@@ -15,26 +15,16 @@ import (
 	"github.com/cybericebox/daemon/pkg/labaccess"
 )
 
-// bearerSessions signs nothing real: it records what it was asked and returns a recognisable token.
-type bearerSessions struct {
-	got labaccess.Bearer
+// handoffSessions signs nothing real: it records what it was asked and returns a recognisable handoff.
+type handoffSessions struct {
+	got labaccess.Session
 	now time.Time
 	err error
 }
 
-func (b *bearerSessions) Issue(context.Context, labaccess.Session, time.Time) (labaccess.Link, error) {
-	return labaccess.Link{}, errors.New("not used")
-}
-func (b *bearerSessions) IssueBearer(_ context.Context, in labaccess.Bearer, now time.Time) (labaccess.BearerToken, error) {
-	b.got, b.now = in, now
-	return labaccess.BearerToken{URL: in.AccessURL, Token: "signed.jwt.token", ExpiresAt: in.ExpiresAt}, b.err
-}
-
-// plainSessions can only issue handoff links.
-type plainSessions struct{}
-
-func (plainSessions) Issue(context.Context, labaccess.Session, time.Time) (labaccess.Link, error) {
-	return labaccess.Link{}, nil
+func (h *handoffSessions) Issue(_ context.Context, in labaccess.Session, now time.Time) (labaccess.Link, error) {
+	h.got, h.now = in, now
+	return labaccess.Link{Token: "signed.handoff", ExpiresAt: in.ExpiresAt, TokenExpiresAt: now.Add(time.Minute)}, h.err
 }
 
 func edaFixture(t *testing.T, sessions exercise.ITestSessions, access []exerciseModel.LabAccess) (*exercise.ExerciseUseCase, uuid.UUID, uuid.UUID) {
@@ -46,62 +36,60 @@ func edaFixture(t *testing.T, sessions exercise.ITestSessions, access []exercise
 	return exercise.NewExerciseUseCase(exercise.Dependencies{Repo: q, Infra: infra, Sessions: sessions}), owner, deployID
 }
 
-func TestMintEDAAccess_TheTokenNamesTheGroupTheHostTheClientAndTheRun(t *testing.T) {
-	signer := &bearerSessions{}
-	uc, owner, deployID := edaFixture(t, signer, []exerciseModel.LabAccess{
-		{Device: "tools", Port: 9099, Protocol: "grpc", URL: "https://tools-abc123g.lab.example.com:443"},
-		{Device: "web", Port: 80, Protocol: "http", URL: "https://web-abc.lab.example.com"},
-	})
-	until := time.Now().Add(40 * time.Minute)
-	got, err := uc.MintEDAAccess(context.Background(), owner, deployID, "tools", "g-run1", "run-1", until)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.URL != "https://tools-abc123g.lab.example.com:443" || got.Token != "signed.jwt.token" || !got.ExpiresAt.Equal(until) {
-		t.Fatalf("%+v", got)
-	}
-	if signer.got.Group != "tu-group" || signer.got.Client != "g-run1" || signer.got.Run != "run-1" || signer.got.AccessURL != got.URL || !signer.got.ExpiresAt.Equal(until) {
-		t.Fatalf("the token is for the lab's group, the per-run client and the run, up to the end of the window: %+v", signer.got)
+var edaAccess = []exerciseModel.LabAccess{
+	{Device: "web", Port: 80, Protocol: "http", URL: "https://web-abc.lab.example.com"},
+	{Device: "tools", Port: 9099, Protocol: "grpc", URL: "https://tools-abc123g.lab.example.com:443"},
+}
+
+func TestEDAAddress_IsTheGRPCEntryOfTheDeviceWithNoCredential(t *testing.T) {
+	uc, owner, deployID := edaFixture(t, &handoffSessions{}, edaAccess)
+	got, err := uc.EDAAddress(context.Background(), owner, deployID, "")
+	if err != nil || got != "https://tools-abc123g.lab.example.com:443" {
+		t.Fatalf("an empty device is the lab's grpc device: %q %v", got, err)
 	}
 }
 
-func TestMintEDAAccess_Refusals(t *testing.T) {
+func TestTunnelHandoff_IsSignedForTheGroupTheAuthorsClientAndTheTunnel(t *testing.T) {
+	signer := &handoffSessions{}
+	uc, owner, deployID := edaFixture(t, signer, edaAccess)
+	until := time.Now().Add(40 * time.Minute)
+	got, err := uc.TunnelHandoff(context.Background(), owner, deployID, "", until)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.URL != "https://tools-abc123g.lab.example.com:443" || got.Token != "signed.handoff" || got.ExpiresAt.Sub(signer.now) != time.Minute {
+		t.Fatalf("%+v", got)
+	}
+	if signer.got.Group != "tu-group" || signer.got.Use != labaccess.UseTunnel || signer.got.AccessURL != got.URL || !signer.got.ExpiresAt.Equal(until) || signer.got.Client == "" {
+		t.Fatalf("the session of the tunnel: %+v", signer.got)
+	}
+}
+
+func TestTunnelHandoff_Refusals(t *testing.T) {
 	until := time.Now().Add(time.Hour)
-	t.Run("the device has no grpc entry", func(t *testing.T) {
-		uc, owner, deployID := edaFixture(t, &bearerSessions{}, []exerciseModel.LabAccess{{Device: "tools", Port: 22, Protocol: "terminal", URL: "https://x"}})
-		if _, err := uc.MintEDAAccess(context.Background(), owner, deployID, "tools", "c", "r", until); !errors.Is(err, exerciseModel.ErrTestDeployNoGRPC.Err()) {
+	t.Run("the lab has no grpc device", func(t *testing.T) {
+		uc, owner, deployID := edaFixture(t, &handoffSessions{}, edaAccess[:1])
+		if _, err := uc.TunnelHandoff(context.Background(), owner, deployID, "", until); !errors.Is(err, exerciseModel.ErrTestDeployNoGRPC.Err()) {
+			t.Fatalf("%v", err)
+		}
+	})
+	t.Run("the named device has no grpc entry", func(t *testing.T) {
+		uc, owner, deployID := edaFixture(t, &handoffSessions{}, edaAccess)
+		if _, err := uc.TunnelHandoff(context.Background(), owner, deployID, "web", until); !errors.Is(err, exerciseModel.ErrTestDeployNoGRPC.Err()) {
 			t.Fatalf("%v", err)
 		}
 	})
 	t.Run("the entry has no address yet", func(t *testing.T) {
-		uc, owner, deployID := edaFixture(t, &bearerSessions{}, []exerciseModel.LabAccess{{Device: "tools", Protocol: "grpc"}})
-		if _, err := uc.MintEDAAccess(context.Background(), owner, deployID, "tools", "c", "r", until); !errors.Is(err, exerciseModel.ErrTestDeployNoGRPC.Err()) {
+		uc, owner, deployID := edaFixture(t, &handoffSessions{}, []exerciseModel.LabAccess{{Device: "tools", Protocol: "grpc"}})
+		if _, err := uc.TunnelHandoff(context.Background(), owner, deployID, "", until); !errors.Is(err, exerciseModel.ErrTestDeployNoGRPC.Err()) {
 			t.Fatalf("%v", err)
 		}
 	})
-	t.Run("the signer cannot sign bearer tokens", func(t *testing.T) {
-		uc, owner, deployID := edaFixture(t, plainSessions{}, []exerciseModel.LabAccess{{Device: "tools", Protocol: "grpc", URL: "https://t.example"}})
-		if _, err := uc.MintEDAAccess(context.Background(), owner, deployID, "tools", "c", "r", until); err == nil {
-			t.Fatal("a signer without bearer support must refuse")
-		}
-	})
 	t.Run("signing fails", func(t *testing.T) {
-		uc, owner, deployID := edaFixture(t, &bearerSessions{err: errors.New("no key")}, []exerciseModel.LabAccess{{Device: "tools", Protocol: "grpc", URL: "https://t.example"}})
-		got, err := uc.MintEDAAccess(context.Background(), owner, deployID, "tools", "c", "r", until)
+		uc, owner, deployID := edaFixture(t, &handoffSessions{err: errors.New("no key")}, edaAccess)
+		got, err := uc.TunnelHandoff(context.Background(), owner, deployID, "", until)
 		if err == nil || got.Token != "" {
 			t.Fatalf("%+v %v", got, err)
 		}
 	})
-}
-
-func TestMintEDAAccess_AnEmptyDeviceIsTheLabsGRPCDevice(t *testing.T) {
-	signer := &bearerSessions{}
-	uc, owner, deployID := edaFixture(t, signer, []exerciseModel.LabAccess{
-		{Device: "web", Port: 80, Protocol: "http", URL: "https://web-abc.lab.example.com"},
-		{Device: "tools-2", Port: 9099, Protocol: "grpc", URL: "https://tools-2-abc.lab.example.com:443"},
-	})
-	got, err := uc.MintEDAAccess(context.Background(), owner, deployID, "", "g-run1", "run-1", time.Now().Add(time.Hour))
-	if err != nil || got.URL != "https://tools-2-abc.lab.example.com:443" {
-		t.Fatalf("%+v %v", got, err)
-	}
 }

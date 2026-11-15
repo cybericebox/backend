@@ -215,83 +215,44 @@ func TestConsoleLinkIsSignedForTheDeviceConsoleHost(t *testing.T) {
 
 const grpcURL = "https://runner-abc123g.challenges.example.com:443"
 
-func TestIssueBearerSignsARunTokenTheProxyCanVerify(t *testing.T) {
+func TestATunnelHandoffIsTheOrdinaryHandoffWithTheTunnelUse(t *testing.T) {
 	sk := testSigningKey(t)
 	issuer, _ := New(Config{})
 	now := time.Date(2026, 11, 14, 12, 0, 0, 0, time.UTC)
-	end := now.Add(40 * time.Minute)
-	got, err := issuer.IssueBearer(sk, Bearer{Group: "tu-0190", Client: "g-0192", AccessURL: grpcURL, Run: "run-1", ExpiresAt: end}, now)
+	parse := func(token string) claims {
+		var claim claims
+		if _, err := jwt.ParseWithClaims(token, &claim, func(*jwt.Token) (any, error) { return sk.Key.Public(), nil },
+			jwt.WithValidMethods([]string{"EdDSA"}), jwt.WithIssuer("platform"), jwt.WithAudience(Audience),
+			jwt.WithTimeFunc(func() time.Time { return now })); err != nil {
+			t.Fatal(err)
+		}
+		return claim
+	}
+	tunnel, err := issuer.Issue(sk, Session{Group: "tu-0190", Client: "tc-1", AccessURL: grpcURL, Use: UseTunnel, ExpiresAt: now.Add(40 * time.Minute)}, now)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.URL != grpcURL || !got.ExpiresAt.Equal(end) {
-		t.Fatalf("%+v", got)
+	claim := parse(tunnel.Token)
+	if claim.Use != "tunnel" || claim.Host != "runner-abc123g.challenges.example.com" || claim.GroupID != "tu-0190" || claim.Subject != "tc-1" {
+		t.Fatalf("%+v", claim)
 	}
-	var claim bearerClaims
-	parsed, err := jwt.ParseWithClaims(got.Token, &claim, func(*jwt.Token) (any, error) { return sk.Key.Public(), nil },
-		jwt.WithValidMethods([]string{"EdDSA"}), jwt.WithIssuer("platform"), jwt.WithAudience(GRPCAudience),
-		jwt.WithTimeFunc(func() time.Time { return now.Add(30 * time.Minute) }))
-	if err != nil || !parsed.Valid || parsed.Header["kid"] != "k-1" {
-		t.Fatalf("the proxy could not verify the token: %v", err)
+	if claim.ExpiresAt == nil || !claim.ExpiresAt.Time.Equal(now.Add(time.Minute)) {
+		t.Fatalf("the handoff lives 60 s: %+v", claim.ExpiresAt)
 	}
-	if claim.TokenUse != "grpc" || claim.Kind != "grpc" {
-		t.Fatalf("the token says what it is for: %+v", claim)
+	if !tunnel.TokenExpiresAt.Equal(now.Add(time.Minute)) || !tunnel.ExpiresAt.Equal(now.Add(40*time.Minute)) {
+		t.Fatalf("the handoff ends in 60 s, the session at the run's end: %v %v", tunnel.TokenExpiresAt, tunnel.ExpiresAt)
 	}
-	// it is not a handoff token: the audience of /_auth does not match, so it cannot buy a browser cookie
-	if _, err = jwt.ParseWithClaims(got.Token, &bearerClaims{}, func(*jwt.Token) (any, error) { return sk.Key.Public(), nil },
-		jwt.WithAudience(Audience), jwt.WithTimeFunc(func() time.Time { return now })); err == nil {
-		t.Fatal("a run's token must not carry the handoff audience")
+	opened, _ := url.Parse(tunnel.URL)
+	if opened.Hostname() != claim.Host {
+		t.Fatalf("the claim is the host of the link: %q %q", claim.Host, opened.Hostname())
 	}
-	if claim.GroupID != "tu-0190" || claim.Host != "runner-abc123g.challenges.example.com" || claim.Subject != "g-0192" || claim.Run != "run-1" || claim.ExpiresAt == nil || !claim.ExpiresAt.Time.Equal(end) {
-		t.Fatalf("claims = %+v", claim)
-	}
-	// it is dead after the run window plus its grace
-	if _, err = jwt.ParseWithClaims(got.Token, &bearerClaims{}, func(*jwt.Token) (any, error) { return sk.Key.Public(), nil },
-		jwt.WithTimeFunc(func() time.Time { return end.Add(time.Second) })); err == nil {
-		t.Fatal("an expired run token must not verify")
-	}
-}
-
-func TestIssueBearerRefusals(t *testing.T) {
-	sk := testSigningKey(t)
-	issuer, _ := New(Config{})
-	now := time.Now()
-	ok := Bearer{Group: "g", Client: "c", AccessURL: grpcURL, Run: "r", ExpiresAt: now.Add(time.Hour)}
-	for name, mutate := range map[string]func(*Bearer){
-		"no group": func(b *Bearer) { b.Group = "" }, "no client": func(b *Bearer) { b.Client = "" }, "no run": func(b *Bearer) { b.Run = "" },
-		"no address": func(b *Bearer) { b.AccessURL = "" }, "already over": func(b *Bearer) { b.ExpiresAt = now.Add(-time.Second) },
-	} {
-		b := ok
-		mutate(&b)
-		if _, err := issuer.IssueBearer(sk, b, now); err == nil {
-			t.Errorf("%s must be refused", name)
-		}
-	}
-	if _, err := issuer.IssueBearer(SigningKey{}, ok, now); err == nil {
-		t.Error("no key must be refused")
-	}
-	// the proxy's own session limit caps the token
-	capped := sk
-	capped.MaxSessionTTL = 10 * time.Minute
-	got, err := issuer.IssueBearer(capped, ok, now)
-	if err != nil || got.ExpiresAt.After(now.Add(10*time.Minute)) {
-		t.Fatalf("%+v %v", got, err)
-	}
-}
-
-func TestAHandoffTokenIsNotAGRPCToken(t *testing.T) {
-	sk := testSigningKey(t)
-	issuer, _ := New(Config{})
-	now := time.Date(2026, 11, 14, 12, 0, 0, 0, time.UTC)
-	link, err := issuer.Issue(sk, Session{Group: "tu-0190", Client: "c", AccessURL: "https://web-abc123g.challenges.example.com", ExpiresAt: now.Add(time.Minute)}, now)
+	// a browser link carries no use
+	browser, err := issuer.Issue(sk, Session{Group: "tu-0190", Client: "c", AccessURL: "https://web-abc123w.challenges.example.com", ExpiresAt: now.Add(time.Hour)}, now)
 	if err != nil {
-		t.Skipf("issue API differs: %v", err)
+		t.Fatal(err)
 	}
-	var claim bearerClaims
-	_, err = jwt.ParseWithClaims(link.Token, &claim, func(*jwt.Token) (any, error) { return sk.Key.Public(), nil },
-		jwt.WithAudience(GRPCAudience), jwt.WithTimeFunc(func() time.Time { return now }))
-	if err == nil || claim.TokenUse == TokenUseGRPC {
-		t.Fatalf("a handoff token has neither the grpc audience nor token_use: %v %+v", err, claim)
+	if got := parse(browser.Token); got.Use != "" {
+		t.Fatalf("a browser handoff has no use: %+v", got)
 	}
 }
 

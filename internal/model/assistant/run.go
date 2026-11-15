@@ -114,13 +114,13 @@ func VPNAccess(entry string) Access {
 	return Access{"vpn": raw}
 }
 
-// EDAAccess is the access of a run that drives a device out of band: the address of the device's grpc channel and the bearer
-// token to present there, written {"eda": {"url": ..., "lab_access_token": ...}}; the brain sends the token as the metadata header x-lab-access. The token is a secret.
-func EDAAccess(url, token string) Access {
+// EDAAccess is the access of a run that drives a device out of band: the address of the device's grpc access, written
+// {"eda": {"url": ...}}. It holds no credential: the run asks for a fresh handoff to the tunnel when it needs one
+// (provide_access).
+func EDAAccess(url string) Access {
 	raw, _ := json.Marshal(struct {
-		URL   string `json:"url"`
-		Token string `json:"lab_access_token"`
-	}{URL: url, Token: token})
+		URL string `json:"url"`
+	}{URL: url})
 	return Access{"eda": raw}
 }
 
