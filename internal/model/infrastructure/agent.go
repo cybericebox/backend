@@ -143,9 +143,6 @@ type (
 		Terminal bool `json:"terminal"`
 		VNC      bool `json:"vnc"`
 		RDP      bool `json:"rdp"`
-		// GRPC: the laboratory serves the grpc access (the runner port through its proxy) for automated actors. An agent that
-		// does not report it does not serve it.
-		GRPC bool `json:"grpc"`
 	}
 	BootstrapFeature struct {
 		MaxScriptBytes      int32 `json:"max_script_bytes"`
@@ -211,7 +208,7 @@ func (f AgentFeatures) checksRefusals(n exerciseModel.LabNeeds, over func(string
 	return refused, at
 }
 
-// ServesAccess reports whether the laboratory serves a device access kind (http, terminal, vnc, rdp, grpc). An agent that reports no
+// ServesAccess reports whether the laboratory serves a device access kind (http, terminal, vnc, rdp). An agent that reports no
 // access serves http only.
 func (f AgentFeatures) ServesAccess(kind string) bool {
 	if f.Access == nil {
@@ -226,8 +223,6 @@ func (f AgentFeatures) ServesAccess(kind string) bool {
 		return f.Access.VNC
 	case "rdp":
 		return f.Access.RDP
-	case "grpc":
-		return f.Access.GRPC
 	}
 	return false
 }

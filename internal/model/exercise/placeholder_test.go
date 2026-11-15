@@ -45,7 +45,6 @@ func TestValidateForPublish_Placeholders(t *testing.T) {
 		{"external link to vnc validates", base, exerciseModel.Placeholder{Kind: exerciseModel.PlaceholderExternalLink, DeviceName: "web", Access: exerciseModel.AccessVNC}, nil},
 		{"external link to a missing rdp entry", base, exerciseModel.Placeholder{Kind: exerciseModel.PlaceholderExternalLink, DeviceName: "web", Access: exerciseModel.AccessRDP}, exerciseModel.ErrPlaceholderNode.Err()},
 		{"external link to a missing console", base, exerciseModel.Placeholder{Kind: exerciseModel.PlaceholderExternalLink, DeviceName: "plain", Access: exerciseModel.AccessTerminal}, exerciseModel.ErrPlaceholderNode.Err()},
-		{"external link to grpc is refused: it is no link", base, exerciseModel.Placeholder{Kind: exerciseModel.PlaceholderExternalLink, DeviceName: "web", Access: exerciseModel.AccessGRPC}, exerciseModel.ErrPlaceholderInvalid.Err()},
 		{"external link unknown access kind", base, exerciseModel.Placeholder{Kind: exerciseModel.PlaceholderExternalLink, DeviceName: "web", Access: "ssh"}, exerciseModel.ErrPlaceholderInvalid.Err()},
 		{"unknown kind", base, exerciseModel.Placeholder{Kind: "bogus"}, exerciseModel.ErrPlaceholderInvalid.Err()},
 	}

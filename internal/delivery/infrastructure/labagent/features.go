@@ -133,14 +133,7 @@ func accessFeatureOf(a *labpb.AccessFeature) *infraModel.AccessFeature {
 	if a == nil {
 		return nil
 	}
-	out := &infraModel.AccessFeature{HTTP: a.GetHttp(), Terminal: a.GetTerminal(), VNC: a.GetVnc(), RDP: a.GetRdp()}
-	// The grpc access is reported by the laboratory versions that serve it (AccessFeature.grpc). The agent contract this
-	// build was generated from may not have the field yet; read through an interface so that the first build against a
-	// contract that has it picks it up, and an older one reports it as not served.
-	if g, ok := any(a).(interface{ GetGrpc() bool }); ok {
-		out.GRPC = g.GetGrpc()
-	}
-	return out
+	return &infraModel.AccessFeature{HTTP: a.GetHttp(), Terminal: a.GetTerminal(), VNC: a.GetVnc(), RDP: a.GetRdp()}
 }
 
 func bootstrapFeatureOf(b *labpb.BootstrapFeature) *infraModel.BootstrapFeature {

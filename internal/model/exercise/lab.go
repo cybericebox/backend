@@ -16,7 +16,7 @@ import (
 //   - the resolved bootstrap list of a device with files or a script (Device.HasBootstrapList, ResolvedBootstrap), next to
 //     the existing environment path that still carries bootstrap.env;
 //   - the service command of a device (Device.LabService): the author's command and args, else the image configuration;
-//   - the access list of a device (Device.Access: http, terminal, grpc, and the reserved vnc and rdp);
+//   - the access list of a device (Device.Access: http, terminal, and the reserved vnc and rdp);
 //   - the checks of a lab: the conditions of a state task grouped per (task, device) (BuildLabChecks).
 //
 // The translation to the wire messages is in delivery/infrastructure/labagent.

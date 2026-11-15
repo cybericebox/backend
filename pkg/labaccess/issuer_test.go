@@ -213,49 +213,6 @@ func TestConsoleLinkIsSignedForTheDeviceConsoleHost(t *testing.T) {
 	}
 }
 
-const grpcURL = "https://runner-abc123g.challenges.example.com:443"
-
-func TestATunnelHandoffIsTheOrdinaryHandoffWithTheTunnelUse(t *testing.T) {
-	sk := testSigningKey(t)
-	issuer, _ := New(Config{})
-	now := time.Date(2026, 11, 14, 12, 0, 0, 0, time.UTC)
-	parse := func(token string) claims {
-		var claim claims
-		if _, err := jwt.ParseWithClaims(token, &claim, func(*jwt.Token) (any, error) { return sk.Key.Public(), nil },
-			jwt.WithValidMethods([]string{"EdDSA"}), jwt.WithIssuer("platform"), jwt.WithAudience(Audience),
-			jwt.WithTimeFunc(func() time.Time { return now })); err != nil {
-			t.Fatal(err)
-		}
-		return claim
-	}
-	tunnel, err := issuer.Issue(sk, Session{Group: "tu-0190", Client: "tc-1", AccessURL: grpcURL, Use: UseTunnel, ExpiresAt: now.Add(40 * time.Minute)}, now)
-	if err != nil {
-		t.Fatal(err)
-	}
-	claim := parse(tunnel.Token)
-	if claim.Use != "tunnel" || claim.Host != "runner-abc123g.challenges.example.com" || claim.GroupID != "tu-0190" || claim.Subject != "tc-1" {
-		t.Fatalf("%+v", claim)
-	}
-	if claim.ExpiresAt == nil || !claim.ExpiresAt.Time.Equal(now.Add(time.Minute)) {
-		t.Fatalf("the handoff lives 60 s: %+v", claim.ExpiresAt)
-	}
-	if !tunnel.TokenExpiresAt.Equal(now.Add(time.Minute)) || !tunnel.ExpiresAt.Equal(now.Add(40*time.Minute)) {
-		t.Fatalf("the handoff ends in 60 s, the session at the run's end: %v %v", tunnel.TokenExpiresAt, tunnel.ExpiresAt)
-	}
-	opened, _ := url.Parse(tunnel.URL)
-	if opened.Hostname() != claim.Host {
-		t.Fatalf("the claim is the host of the link: %q %q", claim.Host, opened.Hostname())
-	}
-	// a browser link carries no use
-	browser, err := issuer.Issue(sk, Session{Group: "tu-0190", Client: "c", AccessURL: "https://web-abc123w.challenges.example.com", ExpiresAt: now.Add(time.Hour)}, now)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := parse(browser.Token); got.Use != "" {
-		t.Fatalf("a browser handoff has no use: %+v", got)
-	}
-}
-
 func TestTheHostClaimIsTheHostOfTheLinkItOpens(t *testing.T) {
 	sk := testSigningKey(t)
 	issuer, _ := New(Config{})

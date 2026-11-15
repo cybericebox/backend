@@ -429,7 +429,7 @@ func (p *provideRig) toolsLab(t *testing.T) assistantModel.Run {
 	return assistantModel.Run{}
 }
 
-func TestProvideDeviceToolsAnswersTheEDAAccessOfTheDevice(t *testing.T) {
+func TestProvideDeviceToolsAnswersTheVPNAccessOfTheRunAndPlacesTheDevice(t *testing.T) {
 	p := newProvideRig(t, nil)
 	p.brain.frames = []outboxFrame{p.deviceFrame(1, "r1", "tools", p.task(p.subject, labImage()))}
 	p.labs.readyAfter = 1
@@ -444,14 +444,8 @@ func TestProvideDeviceToolsAnswersTheEDAAccessOfTheDevice(t *testing.T) {
 	if err := json.Unmarshal([]byte(p.answeredOnce(t, "r1")), &got); err != nil {
 		t.Fatal(err)
 	}
-	if got.Result.DeviceRef != p.toolsLab(t).ID.String() || got.Result.Access["eda"]["url"] != "https://tools-abc123g.lab.example.com:443" || len(got.Result.Access["eda"]) != 1 {
-		t.Fatalf("the address only, no credential: %v", p.brain.answered("r1"))
-	}
-	if strings.Contains(p.brain.answered("r1")[0], "secret") {
-		t.Fatalf("no secret in the answer: %v", p.brain.answered("r1"))
-	}
-	if _, vpn := got.Result.Access["vpn"]; vpn {
-		t.Fatal("the VPN config of the run's client is not handed out for a tools device")
+	if got.Result.DeviceRef != runDeploy.String() || len(got.Result.Access) != 1 || got.Result.Access["vpn"]["entry"] == "" {
+		t.Fatalf("the lab and the VPN entry of the run's client: %v", p.brain.answered("r1"))
 	}
 	if p.labs.count("deploy-tools") != 1 || p.labs.count("deploy") != 1 {
 		t.Fatalf("%v", p.labs.called())
@@ -461,13 +455,8 @@ func TestProvideDeviceToolsAnswersTheEDAAccessOfTheDevice(t *testing.T) {
 	}
 	eventually(t, "the answer to be recorded", func() bool { return p.toolsLab(t).Answered })
 	lab := p.toolsLab(t)
-	if lab.Role != assistantModel.RoleTools || lab.Actor != runActor.UserID || lab.AccessClient != "" {
-		t.Fatalf("the bot is no lab client: %+v", lab)
-	}
-	for _, call := range p.labs.called() {
-		if strings.HasPrefix(call, "mint:") {
-			t.Fatalf("no VPN client is made for a tools lab: %v", p.labs.called())
-		}
+	if lab.Role != assistantModel.RoleTools || lab.Actor != runActor.UserID || !strings.HasPrefix(lab.AccessClient, "g-") {
+		t.Fatalf("%+v", lab)
 	}
 	if assistantModel.ExcludeRun(lab.Role) != true {
 		t.Fatal("a tools lab never counts in the participant statistics")
@@ -511,10 +500,10 @@ func TestProvideDeviceRefusals(t *testing.T) {
 	}
 }
 
-func TestAToolsLabWhoseAccessFailsIsClosedRefusedAndTornDown(t *testing.T) {
+func TestAToolsLabThatFailsIsClosedRefusedAndTornDown(t *testing.T) {
 	p := newProvideRig(t, nil)
 	p.brain.frames = []outboxFrame{p.deviceFrame(1, "r1", "tools", p.task(p.subject, labImage()))}
-	p.labs.edaErr = fmt.Errorf("no grpc entry")
+	p.labs.failed = true
 	p.serve(t)
 	p.drive(t)
 	if got := refusalCode(t, p.answeredOnce(t, "r1")); got != "lab_unavailable" {
@@ -524,24 +513,24 @@ func TestAToolsLabWhoseAccessFailsIsClosedRefusedAndTornDown(t *testing.T) {
 	p.waitState(t, id, assistantModel.RunFailed)
 	calls := p.labs.called()
 	if indexOf(calls, "destroy") < 0 {
-		t.Fatalf("a lab that cannot give its access is destroyed: %v", calls)
+		t.Fatalf("a lab that failed is destroyed: %v", calls)
 	}
 }
 
-func TestAToolsLabIsDestroyedWhenItIsGone(t *testing.T) {
+func TestAToolsLabIsRevokedAndDestroyedWhenItIsGone(t *testing.T) {
 	p := newProvideRig(t, nil)
 	p.brain.frames = []outboxFrame{p.deviceFrame(1, "r1", "tools", p.task(p.subject, labImage()))}
 	p.serve(t)
 	p.drive(t)
 	p.answeredOnce(t, "r1")
 	eventually(t, "the answer to be recorded", func() bool { return p.toolsLab(t).Answered })
-	id := p.toolsLab(t).ID
+	id, client := p.toolsLab(t).ID, p.toolsLab(t).AccessClient
 	p.labs.mu.Lock()
 	p.labs.gone = true
 	p.labs.mu.Unlock()
 	p.waitState(t, id, assistantModel.RunFinished)
 	calls := p.labs.called()
-	if indexOf(calls, "destroy") < 0 {
+	if indexOf(calls, "revoke:"+client) < 0 || indexOf(calls, "destroy") < 0 {
 		t.Fatalf("%v", calls)
 	}
 }

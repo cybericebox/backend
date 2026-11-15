@@ -592,7 +592,7 @@ func TestExampleArchive_ListsAllEnumValues(t *testing.T) {
 			"near_solution",
 		},
 		"versions.variants.tasks.check.answer.type":                       {"flag", "text"},
-		"versions.variants.topology.devices.access.kind":                  {"http", "terminal", "vnc", "rdp", "grpc"},
+		"versions.variants.topology.devices.access.kind":                  {"http", "terminal", "vnc", "rdp"},
 		"versions.variants.topology.devices.access.protocol":              {"http", "https"},
 		"versions.variants.tasks.check.state.conditions.file.type":        {"file", "directory", "symlink"},
 		"versions.variants.tasks.check.state.conditions.port.protocol":    {"tcp", "udp"},

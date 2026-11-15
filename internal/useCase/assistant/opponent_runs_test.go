@@ -71,19 +71,11 @@ func TestAnOpponentRunStartsWithTheManifestTheBudgetAndTheEDAAccess(t *testing.T
 	if got.Budget != (assistantModel.RunBudget{Actions: 40, Tokens: 9000, Time: 600}) {
 		t.Fatalf("the platform's budget: %+v", got.Budget)
 	}
-	if got.Access["eda"]["url"] != "https://tools-abc123g.lab.example.com:443" || len(got.Access["eda"]) != 1 || len(got.Access) != 1 {
-		t.Fatalf("the address of the tools device only: %s", r.brn.Started()[0])
+	if got.Access["vpn"]["entry"] == "" || len(got.Access) != 1 {
+		t.Fatalf("the VPN access of the run's own client: %s", r.brn.Started()[0])
 	}
-	if strings.Contains(string(r.brn.Started()[0]), "secret") || strings.Contains(string(r.brn.Started()[0]), `"token"`) || strings.Contains(string(r.brn.Started()[0]), "lab_access") {
-		t.Fatalf("StartRun carries no secret: %s", r.brn.Started()[0])
-	}
-	if got := r.runs.state(run.ID); got.AccessClient != "" {
-		t.Fatalf("the bot is no lab client: %+v", got)
-	}
-	for _, call := range r.labs.called() {
-		if strings.HasPrefix(call, "mint:") {
-			t.Fatalf("no client is made for an opponent: %v", r.labs.called())
-		}
+	if got := r.runs.state(run.ID); !strings.HasPrefix(got.AccessClient, "g-") {
+		t.Fatalf("the run's own client: %+v", got)
 	}
 	// the tools device is placed with the operated devices and told its run and the brain's CA
 	place := r.labs.places[0]
@@ -140,8 +132,8 @@ func TestAnOpponentRunIsTornDownLikeAnyRun(t *testing.T) {
 	if !strings.Contains(string(got.Measurement), `"steps":7`) {
 		t.Fatalf("the measurement is stored: %s", got.Measurement)
 	}
-	if r.labs.count("destroy") != 1 {
-		t.Fatalf("the lab with the tools device is destroyed: %v", r.labs.called())
+	if indexOf(r.labs.called(), "revoke:"+got.AccessClient) < 0 || r.labs.count("destroy") != 1 {
+		t.Fatalf("the client is revoked and the lab with the tools device destroyed: %v", r.labs.called())
 	}
 	events, _ := r.runs.Events(context.Background(), run.ID, 0, 10)
 	if len(events) != 2 {
@@ -324,7 +316,7 @@ func TestARunWhoseLabIsGoneIsTornDownAtOnceNotAtTheEndOfItsWindow(t *testing.T) 
 			if got.FailureReason != assistantModel.FailureLabFailed {
 				t.Fatalf("%+v", got)
 			}
-			if r.labs.count("destroy") != 1 || len(r.brn.Stops()) != 1 || got.Opponent == 0 && indexOf(r.labs.called(), "revoke:"+got.AccessClient) < 0 {
+			if r.labs.count("destroy") != 1 || len(r.brn.Stops()) != 1 || indexOf(r.labs.called(), "revoke:"+got.AccessClient) < 0 {
 				t.Fatalf("the lab is destroyed, a grader's client revoked and the brain told: %v %v", r.labs.called(), r.brn.Stops())
 			}
 		})

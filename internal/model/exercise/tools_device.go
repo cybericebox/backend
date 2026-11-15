@@ -108,7 +108,6 @@ func (t Topology) WithToolsDevice(image string, place ToolsPlacement) (Topology,
 		// No internet link exists for it, and it is denied explicitly as well (defense in depth: the laboratory then refuses a lab
 		// in which it would share a broadcast domain with an Internet gateway).
 		Internet:  InternetDeny,
-		Access:    []Access{{Kind: AccessGRPC}},
 		Bootstrap: Bootstrap{Env: slices.Clone(place.Env)},
 	}
 	toolsEnd := Endpoint{Kind: EndpointDevice, DeviceID: tools.ID, Interface: "eth0"}

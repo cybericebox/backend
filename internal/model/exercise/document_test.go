@@ -288,25 +288,9 @@ func TestValidateDeviceRuntime(t *testing.T) {
 		"access every kind": {func(d *exerciseModel.Device) {
 			d.Access = []exerciseModel.Access{
 				{Kind: exerciseModel.AccessHTTP, Port: 443, Protocol: "https"}, {Kind: exerciseModel.AccessTerminal},
-				{Kind: exerciseModel.AccessVNC, Port: 5900}, {Kind: exerciseModel.AccessRDP, Port: 3389}, {Kind: exerciseModel.AccessGRPC},
+				{Kind: exerciseModel.AccessVNC, Port: 5900}, {Kind: exerciseModel.AccessRDP, Port: 3389},
 			}
 		}, true},
-		"access grpc without a port is the default runner port": {func(d *exerciseModel.Device) { d.Access = []exerciseModel.Access{{Kind: exerciseModel.AccessGRPC}} }, true},
-		"access grpc with a port": {func(d *exerciseModel.Device) {
-			d.Access = []exerciseModel.Access{{Kind: exerciseModel.AccessHTTP, Port: 80}, {Kind: exerciseModel.AccessGRPC, Port: 9100}}
-		}, true},
-		"access grpc port too high": {func(d *exerciseModel.Device) {
-			d.Access = []exerciseModel.Access{{Kind: exerciseModel.AccessGRPC, Port: 65536}}
-		}, false},
-		"access grpc with a protocol": {func(d *exerciseModel.Device) {
-			d.Access = []exerciseModel.Access{{Kind: exerciseModel.AccessGRPC, Protocol: "http"}}
-		}, false},
-		"access grpc with a command": {func(d *exerciseModel.Device) {
-			d.Access = []exerciseModel.Access{{Kind: exerciseModel.AccessGRPC, Command: "/bin/sh"}}
-		}, false},
-		"access grpc with a user": {func(d *exerciseModel.Device) {
-			d.Access = []exerciseModel.Access{{Kind: exerciseModel.AccessGRPC, User: "root"}}
-		}, false},
 		"access http without port": {func(d *exerciseModel.Device) { d.Access = []exerciseModel.Access{{Kind: exerciseModel.AccessHTTP}} }, false},
 		"access http port too high": {func(d *exerciseModel.Device) {
 			d.Access = []exerciseModel.Access{{Kind: exerciseModel.AccessHTTP, Port: 65536}}

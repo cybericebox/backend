@@ -43,10 +43,3 @@ func TestRunStateActive(t *testing.T) {
 		}
 	}
 }
-
-func TestEDAAccessIsTheKeyedUnion(t *testing.T) {
-	raw, _ := json.Marshal(EDAAccess("https://tools.example:443"))
-	if string(raw) != `{"eda":{"url":"https://tools.example:443"}}` {
-		t.Fatalf("%s", raw)
-	}
-}

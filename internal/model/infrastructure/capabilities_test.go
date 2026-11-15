@@ -27,7 +27,7 @@ func TestCapabilitiesOfAggregates(t *testing.T) {
 	require.Equal(t, AvailabilityUnknown, none.Checks)
 	require.Equal(t, AvailabilityUnknown, none.Observations["file"])
 	require.Len(t, none.Observations, 10)
-	require.Len(t, none.Access, 5)
+	require.Len(t, none.Access, 4)
 	require.Equal(t, none, CapabilitiesOf([]*AgentFeatures{nil, nil}), "agents that have not reported are unknown, not false")
 
 	same := CapabilitiesOf([]*AgentFeatures{full(), full()})
@@ -35,7 +35,7 @@ func TestCapabilitiesOfAggregates(t *testing.T) {
 	require.Equal(t, AvailabilityAll, same.Observations["directory"])
 	require.Equal(t, AvailabilityAll, same.Observations["file.checksum"])
 	require.Equal(t, AvailabilityNone, same.Observations["permission"], "no laboratory runs it yet")
-	require.Equal(t, map[string]Availability{"http": AvailabilityAll, "terminal": AvailabilityAll, "vnc": AvailabilityNone, "rdp": AvailabilityNone, "grpc": AvailabilityNone}, same.Access)
+	require.Equal(t, map[string]Availability{"http": AvailabilityAll, "terminal": AvailabilityAll, "vnc": AvailabilityNone, "rdp": AvailabilityNone}, same.Access)
 	require.Equal(t, AvailabilityAll, same.Bootstrap)
 	require.Equal(t, AvailabilityAll, same.VPNReverse)
 
@@ -62,8 +62,6 @@ func TestServesAccess(t *testing.T) {
 	require.False(t, reported.ServesAccess("vnc"))
 	require.False(t, reported.ServesAccess("rdp"))
 	require.False(t, reported.ServesAccess("ssh"))
-	require.False(t, reported.ServesAccess("grpc"), "a laboratory that does not report grpc does not serve it")
-	require.True(t, (AgentFeatures{Access: &AccessFeature{HTTP: true, GRPC: true}}).ServesAccess("grpc"))
 	require.True(t, (&ChecksFeature{Observations: []string{"file"}}).Offers("file.checksum"), "the file keys come with a listed file")
 	require.False(t, (&ChecksFeature{Observations: []string{"custom"}}).Offers("file.type"))
 }
