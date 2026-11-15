@@ -45,14 +45,11 @@ func TestWithToolsDeviceBehindANode(t *testing.T) {
 	if tools.Internet != InternetDeny {
 		t.Fatalf("the tools device is denied the internet explicitly: %q", tools.Internet)
 	}
-	if tools.Internet != InternetDeny {
-		t.Fatalf("the tools device is denied the internet explicitly: %q", tools.Internet)
-	}
 	if tools.Name != "tools" || len(tools.Access) != 0 || tools.Image != "tools:1" {
 		t.Fatalf("tools = %+v", tools)
 	}
-	// the tools device and a switch between the gateway and the node
-	if len(out.Devices) != 4 || len(out.Connections) != 3 {
+	// the tools device, a switch between the gateway and the node, the control gateway and its switch
+	if len(out.Devices) != 6 || len(out.Connections) != 5 {
 		t.Fatalf("devices %d connections %d", len(out.Devices), len(out.Connections))
 	}
 	for _, d := range out.Devices {
@@ -77,12 +74,12 @@ func TestWithToolsDeviceOnASwitchAndUncabled(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(out.Devices) != 4 || len(out.Connections) != 3 || out.Connections[2].Endpoints[1].Interface != "GigabitEthernet0/3" {
+	if len(out.Devices) != 6 || len(out.Connections) != 5 || out.Connections[2].Endpoints[1].Interface != "GigabitEthernet0/3" {
 		t.Fatalf("the device takes the next free port of the gateway's switch: %+v", out.Connections)
 	}
 
 	bare, _, _ := toolsBase(t, nil)
-	if out, _, err = bare.WithToolsDevice("tools:1", ToolsPlacement{}); err != nil || len(out.Connections) != 1 {
+	if out, _, err = bare.WithToolsDevice("tools:1", ToolsPlacement{}); err != nil || len(out.Connections) != 3 {
 		t.Fatalf("uncabled: %v %+v", err, out.Connections)
 	}
 }
@@ -106,6 +103,11 @@ func TestWithToolsDeviceRefusalsAndName(t *testing.T) {
 	_, tools, err := taken.WithToolsDevice("tools:1", ToolsPlacement{})
 	if err != nil || tools.Name != "tools-2" {
 		t.Fatalf("name = %q err %v", tools.Name, err)
+	}
+	clash := topo
+	clash.Devices = []Device{topo.Devices[0], node("ctl")}
+	if _, _, err := clash.WithToolsDevice("tools:1", ToolsPlacement{}); !errors.Is(err, ErrToolsNoControl) {
+		t.Fatalf("an author's device named ctl: %v", err)
 	}
 }
 
@@ -141,14 +143,14 @@ func TestWithToolsDevicePlacement(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		// the tools device and a switch for the segment
-		if len(out.Devices) != len(topo.Devices)+2 || len(out.Connections) != len(topo.Connections)+2 {
+		// the tools device, a switch for the segment, the control gateway and its switch
+		if len(out.Devices) != len(topo.Devices)+4 || len(out.Connections) != len(topo.Connections)+4 {
 			t.Fatalf("devices %d connections %d", len(out.Devices), len(out.Connections))
 		}
 	})
 	t.Run("beside a device on a switch takes a port of that switch", func(t *testing.T) {
 		out, _, err := topo.WithToolsDevice("tools:1", ToolsPlacement{Beside: []string{"web"}})
-		if err != nil || len(out.Devices) != len(topo.Devices)+1 {
+		if err != nil || len(out.Devices) != len(topo.Devices)+3 {
 			t.Fatalf("%v %d", err, len(out.Devices))
 		}
 	})
@@ -180,5 +182,60 @@ func TestAnInternetPolicyIsAllowOrDenyAndNotForASwitch(t *testing.T) {
 	topo.Devices = append(topo.Devices, Device{ID: uuid.Must(uuid.NewV7()), Name: "sw", Type: DeviceTypeUnmanagedSwitch, Internet: InternetDeny})
 	if err := topo.validateStructure(); err == nil {
 		t.Fatal("a switch has no internet policy")
+	}
+}
+
+func TestAToolsDeviceHasAControlGatewayWithAFixedAddress(t *testing.T) {
+	topo, vpn, web := toolsBase(t, func(vpn, web Device) []Connection {
+		return []Connection{link(port(vpn, GatewayPort), port(web, "eth0"))}
+	})
+	out, tools, err := topo.WithToolsDevice("tools:1", ToolsPlacement{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ctl Device
+	for _, d := range out.Devices {
+		if d.Name == ControlGatewayName {
+			ctl = d
+		}
+	}
+	if ctl.Type != DeviceTypeVPNGateway || ctl.DHCP || len(ctl.DHCPRanges) != 0 || ctl.ReverseConnections {
+		t.Fatalf("a VPN gateway of its own, no DHCP, no reverse connections: %+v", ctl)
+	}
+	for _, d := range topo.Devices {
+		if d.Name == ControlGatewayName {
+			t.Fatal("the input has no control gateway")
+		}
+	}
+	if len(tools.Interfaces) != 2 || tools.Interfaces[0].Name != "eth0" || tools.Interfaces[0].IP.Type != IPConfigTypeDHCPPreset {
+		t.Fatalf("the first interface stays where its placement put it: %+v", tools.Interfaces)
+	}
+	second := tools.Interfaces[1]
+	if second.Name != "eth1" || second.IP.Type != IPConfigTypeStatic || second.IP.AddressRef == nil || second.IP.AddressRef.Gateway != ControlGatewayName || second.IP.AddressRef.Host != ControlHost(0) || ControlHost(0) != 10 {
+		t.Fatalf("the second interface has the fixed address on ctl: %+v", second)
+	}
+	// ctl - switch - eth1: the gateway's connection ends at a switch that the device's second interface is cabled to
+	var gatewayPort, devicePort Endpoint
+	for _, c := range out.Connections {
+		for i, ep := range c.Endpoints {
+			if ep.DeviceID == ctl.ID {
+				gatewayPort = c.Endpoints[1-i]
+			}
+			if ep.DeviceID == tools.ID && ep.Interface == "eth1" {
+				devicePort = c.Endpoints[1-i]
+			}
+		}
+	}
+	if gatewayPort.DeviceID == uuid.Nil || gatewayPort.DeviceID != devicePort.DeviceID {
+		t.Fatalf("the gateway and the second interface meet at one switch: %+v %+v", gatewayPort, devicePort)
+	}
+	// the author's own devices are untouched
+	for _, d := range out.Devices {
+		if d.ID == web.ID && len(d.Interfaces) != 1 {
+			t.Fatalf("the author's device has no control interface: %+v", d)
+		}
+		if d.ID == vpn.ID && d.DHCP != true {
+			t.Fatalf("%+v", d)
+		}
 	}
 }

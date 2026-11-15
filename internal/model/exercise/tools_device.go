@@ -15,6 +15,8 @@ var (
 	// ErrToolsNoVPN: the lab has no VPN network (or no DHCP on it), so the tools device would have no place among the
 	// participants' machines.
 	ErrToolsNoVPN = errors.New("the lab has no VPN network with DHCP for the tools device")
+	// ErrToolsNoControl: the lab has no control gateway with a /24 yet (or it is not a lab with a tools device).
+	ErrToolsNoControl = errors.New("the lab has no control address for the tools device")
 	// ErrToolsNoSegment: the segment the device is to sit on (the foothold, or the segment of an operated device) is not in the
 	// lab, or has no free port.
 	ErrToolsNoSegment = errors.New("the lab has no such segment for the tools device")
@@ -38,6 +40,65 @@ type ToolsPlacement struct {
 	Env []EnvVar
 }
 
+// The values of Device.Internet.
+const (
+	InternetAllow = "allow"
+	InternetDeny  = "deny"
+)
+
+// The control gateway: a VPN gateway of its own that carries only the platform's control of a tools device. The brain's
+// run client reaches the device's second interface there, at one fixed address, and nowhere else.
+const (
+	// ControlGatewayName is the name of the control gateway in the lab spec.
+	ControlGatewayName = "ctl"
+	// ControlHostBase is the host of the first tools device in the /24 of the control gateway; the next one gets the next host.
+	ControlHostBase = 10
+	// RunnerPort is the port the runner of a tools device listens on.
+	RunnerPort        = 9099
+	controlSwitchName = "ctl-switch"
+)
+
+// ControlHost is the host (the last octet) a tools device has in the /24 of the control gateway: fixed per device by its
+// index, so the access rule of its run client can name that one address.
+func ControlHost(index int) int32 { return int32(ControlHostBase + index) }
+
+// addControl gives the topology its control gateway and the tools device a second interface on it: gateway - switch - the
+// device's eth1, whose address is the fixed host of the device in the gateway's /24. The gateway is an ordinary VPN gateway
+// device of the copy (no DHCP, no reverse connections); only the platform adds it, at deploy time. The first interface of the
+// device is left where its placement put it.
+func (t *Topology) addControl(tools *Device) error {
+	index := 0
+	taken := map[string]bool{}
+	for _, d := range t.Devices {
+		taken[d.Name] = true
+		for _, iface := range d.Interfaces {
+			if iface.IP.AddressRef != nil && iface.IP.AddressRef.Gateway == ControlGatewayName {
+				index++
+			}
+		}
+	}
+	if taken[ControlGatewayName] {
+		return ErrToolsNoControl
+	}
+	gateway := Device{ID: uuid.Must(uuid.NewV7()), Name: ControlGatewayName, Type: DeviceTypeVPNGateway}
+	name := controlSwitchName
+	for n := 2; taken[name]; n++ {
+		name = controlSwitchName + "-" + strconv.Itoa(n)
+	}
+	sw := Device{ID: uuid.Must(uuid.NewV7()), Name: name, Type: DeviceTypeUnmanagedSwitch}
+	t.Devices = append(t.Devices, gateway, sw)
+	tools.Interfaces = append(tools.Interfaces, Interface{Name: "eth1", IP: IPConfig{
+		Type: IPConfigTypeStatic, AddressRef: &NetworkIPRef{Gateway: ControlGatewayName, Host: ControlHost(index)},
+	}})
+	port := func(n int) Endpoint {
+		return Endpoint{Kind: EndpointDevice, DeviceID: sw.ID, Interface: "GigabitEthernet0/" + strconv.Itoa(n)}
+	}
+	t.Connections = append(t.Connections,
+		Connection{Endpoints: []Endpoint{{Kind: EndpointDevice, DeviceID: gateway.ID, Interface: GatewayPort}, port(1)}},
+		Connection{Endpoints: []Endpoint{{Kind: EndpointDevice, DeviceID: tools.ID, Interface: "eth1"}, port(2)}})
+	return nil
+}
+
 // vpnGatewayWithDHCP is the first VPN gateway of the topology whose DHCP server is on: where the tools device gets its address.
 func (t Topology) vpnGatewayWithDHCP() (Device, bool) {
 	for _, d := range t.Devices {
@@ -47,12 +108,6 @@ func (t Topology) vpnGatewayWithDHCP() (Device, bool) {
 	}
 	return Device{}, false
 }
-
-// The values of Device.Internet.
-const (
-	InternetAllow = "allow"
-	InternetDeny  = "deny"
-)
 
 // Names of the values a tools device is given to check the credentials of its callers.
 const (
@@ -163,6 +218,9 @@ func (t Topology) WithToolsDevice(image string, place ToolsPlacement) (Topology,
 		} else if err := out.cableBeside(at, Endpoint{Kind: EndpointDevice, DeviceID: vpn.ID}, toolsEnd); err != nil {
 			return Topology{}, Device{}, err
 		}
+	}
+	if err := out.addControl(&tools); err != nil {
+		return Topology{}, Device{}, err
 	}
 	out.Devices = append(out.Devices, tools)
 

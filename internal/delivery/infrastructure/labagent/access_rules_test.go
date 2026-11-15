@@ -6,6 +6,7 @@ import (
 	labpb "github.com/cybericebox/laboratory/pkg/agent/protobuf"
 	"github.com/stretchr/testify/require"
 
+	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
 	labAccessModel "github.com/cybericebox/daemon/internal/model/labAccess"
 )
 
@@ -65,4 +66,32 @@ func TestTheRulesComeInAFixedOrder(t *testing.T) {
 		}
 	}
 	require.Equal(t, []string{"a"}, first[0].GetGatewayNames())
+}
+
+func TestTheControlGatewayIsNeverAParticipantsGateway(t *testing.T) {
+	spec := []byte(`{"gateways":[{"name":"vpn","kind":"vpn"},{"name":"ctl","kind":"vpn"}]}`)
+	require.Equal(t, []string{"vpn"}, vpnGatewaysOfSpec(spec))
+	rules := accessRules([]labAccessModel.ClientPolicy{{Name: "p-1", AllowedLabs: []string{"lab-bot"}}}, map[string][]string{"lab-bot": vpnGatewaysOfSpec(spec)})
+	require.Len(t, rules, 1)
+	require.Equal(t, []string{"vpn"}, rules[0].GetGatewayNames(), "a participant's rule never names ctl")
+}
+
+func TestTheClientOfABotGetsOneAddressOfTheControlGatewayAndNothingElse(t *testing.T) {
+	rules := accessRules([]labAccessModel.ClientPolicy{
+		{Name: "g-run", Control: &labAccessModel.ControlAccess{Lab: "lab-bot", Host: exerciseModel.ControlHost(0)}},
+		{Name: "p-1", AllowedLabs: []string{"lab-bot"}},
+	}, map[string][]string{"lab-bot": {"vpn"}})
+	require.Len(t, rules, 2)
+	bot := rules[0]
+	require.Equal(t, []string{"g-run"}, bot.GetClientNames())
+	require.Equal(t, []string{"lab-bot"}, bot.GetLabNames())
+	require.Equal(t, []string{"ctl"}, bot.GetGatewayNames())
+	require.Len(t, bot.GetInclude(), 1)
+	require.Equal(t, int32(10), bot.GetInclude()[0].GetHost())
+	require.Equal(t, int32(32), bot.GetInclude()[0].GetPrefix())
+	require.Equal(t, labpb.LabGroupAccessAction_LAB_GROUP_ACCESS_ACTION_ALLOW, bot.GetAction())
+	for _, rule := range rules[1:] {
+		require.NotContains(t, rule.GetGatewayNames(), "ctl")
+		require.Equal(t, []string{"p-1"}, rule.GetClientNames())
+	}
 }
