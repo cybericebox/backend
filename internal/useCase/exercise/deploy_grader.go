@@ -245,7 +245,7 @@ func (u *ExerciseUseCase) RunTarget(ctx context.Context, versionID, variantID uu
 		switch {
 		case variantID != uuid.Nil && v.ID == variantID:
 			chosen = v
-		case variantID == uuid.Nil && (chosen == nil || len(chosen.Topology.Devices) == 0 && len(v.Topology.Devices) > 0):
+		case variantID == uuid.Nil && (chosen == nil || !chosen.Topology.HasLab() && v.Topology.HasLab()):
 			chosen = v
 		}
 		if variantID != uuid.Nil && chosen != nil {
@@ -262,7 +262,7 @@ func (u *ExerciseUseCase) RunTarget(ctx context.Context, versionID, variantID uu
 	allowed, _ := u.TestRunLengths(ctx)
 	return RunTarget{
 		ExerciseID: version.ExerciseID, VersionID: versionID, VariantID: chosen.ID, VariantsJS: raw,
-		HasLab: len(chosen.Topology.Devices) > 0, Lease: pickLease(allowed, want), Opponents: opponentsOf(version.Variants, chosen),
+		HasLab: chosen.Topology.HasLab(), Lease: pickLease(allowed, want), Opponents: opponentsOf(version.Variants, chosen),
 	}, nil
 }
 
