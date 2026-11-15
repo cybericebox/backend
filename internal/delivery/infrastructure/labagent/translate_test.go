@@ -412,3 +412,38 @@ func TestBuildLabSpec_InternetPolicyGoesOutOnlyWhenSet(t *testing.T) {
 		t.Fatalf("%s", b)
 	}
 }
+
+func TestBuildLabSpec_AToolsDeviceHasTheControlGateway(t *testing.T) {
+	vpn := exerciseModel.Device{ID: uuid.Must(uuid.NewV7()), Name: "vpn", Type: exerciseModel.DeviceTypeVPNGateway, DHCP: true, DHCPRanges: []exerciseModel.DHCPRange{{Start: 100, End: 200}}}
+	web := exerciseModel.Device{ID: uuid.Must(uuid.NewV7()), Name: "web", Type: exerciseModel.DeviceTypeNode, Profile: exerciseModel.NodeProfileContainer, Image: "web:1",
+		Interfaces: []exerciseModel.Interface{{Name: "eth0", IP: exerciseModel.IPConfig{Type: exerciseModel.IPConfigTypeDHCPPreset}}}}
+	topo := exerciseModel.Topology{
+		Devices:     []exerciseModel.Device{vpn, web},
+		Connections: []exerciseModel.Connection{{Endpoints: []exerciseModel.Endpoint{{Kind: exerciseModel.EndpointDevice, DeviceID: vpn.ID, Interface: "eth0"}, {Kind: exerciseModel.EndpointDevice, DeviceID: web.ID, Interface: "eth0"}}}},
+	}
+	withTools, _, err := topo.WithToolsDevice("tools:1", exerciseModel.ToolsPlacement{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _, err := BuildLabSpec(withTools)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ctl *labGateway
+	spec := decode(t, b)
+	for i, g := range spec.Gateways {
+		if g.Name == "ctl" {
+			ctl = &spec.Gateways[i]
+		}
+	}
+	if ctl == nil || ctl.Kind != "vpn" || ctl.DHCPServer != nil || ctl.ReverseConnections {
+		t.Fatalf("a VPN gateway of its own, no DHCP, no reverse connections: %+v", spec.Gateways)
+	}
+	if len(spec.Gateways) != 2 || !strings.Contains(string(b), `"addressRef":{"gateway":"ctl","host":10}`) {
+		t.Fatalf("the lab's own vpn gateway stays and the device has its fixed address on ctl: %s", b)
+	}
+	plain, _, err := BuildLabSpec(topo)
+	if err != nil || strings.Contains(string(plain), "ctl") {
+		t.Fatalf("an ordinary lab never has the control gateway: %v %s", err, plain)
+	}
+}
