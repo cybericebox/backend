@@ -46,16 +46,6 @@ const (
 // Audience is the token's aud: the proxy accepts only tokens meant for it.
 const Audience = "laboratory-proxy"
 
-// GRPCAudience is the aud of the long-lived token of a run's grpc access. It differs from Audience on purpose: the 60 s
-// handoff token is accepted at /_auth (it buys a browser cookie), a run's token must never be.
-const GRPCAudience = "laboratory-proxy-grpc"
-
-// The claims that mark a grpc token next to its audience.
-const (
-	TokenUseGRPC = "grpc"
-	KindGRPC     = "grpc"
-)
-
 // Config sets how long a token can be opened.
 type Config struct {
 	// TokenTTL is how long a token can be opened (default one minute). The proxy of each agent states
@@ -94,11 +84,16 @@ type Session struct {
 	// Next is where the proxy sends the browser after the handoff, the value of the `next` query key of the link (a path with
 	// its query, for example the console page of a device: see ConsoleSession). Empty: the proxy's default.
 	Next string
+	// Use marks a handoff for the proxy's tunnel endpoint instead of a browser session (UseTunnel); empty for a browser link.
+	Use string
 	// ExpiresAt is the wanted end of the session (the event's effective finish
 	// plus a buffer, or a test deploy's lease end). Zero, or a time that is not in
 	// the future, means the fallback TTL.
 	ExpiresAt time.Time
 }
+
+// UseTunnel is the `use` claim of a handoff that is exchanged for a byte tunnel to a device's grpc access.
+const UseTunnel = "tunnel"
 
 // Link is a signed handoff link.
 type Link struct {
@@ -110,11 +105,15 @@ type Link struct {
 	Token string
 	// ExpiresAt is the end of the session the proxy will grant.
 	ExpiresAt time.Time
+	// TokenExpiresAt is the end of the handoff itself: until then the link can be opened.
+	TokenExpiresAt time.Time
 }
 
 // claims: iss = the tenant, sub = the LabGroupClient, aud = laboratory-proxy, iat/nbf/exp and
 // group_id (the lab group id), host (the full host of the device access, <device>-<code><letter>.<base>) and sess (the unix end of the session).
 type claims struct {
+	// Use says what the token opens when it is not a browser session: UseTunnel is the byte tunnel of a device's grpc access.
+	Use     string `json:"use,omitempty"`
 	GroupID string `json:"group_id"`
 	Host    string `json:"host"`
 	Session int64  `json:"sess"`
@@ -172,7 +171,7 @@ func (i *Issuer) Issue(sk SigningKey, s Session, now time.Time) (Link, error) {
 		ttl = min(ttl, sk.MaxTokenTTL)
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodEdDSA, claims{
-		GroupID: s.Group, Host: host, Session: end.Unix(),
+		Use: s.Use, GroupID: s.Group, Host: host, Session: end.Unix(),
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer: sk.Tenant, Subject: s.Client, Audience: jwt.ClaimStrings{Audience},
 			IssuedAt: jwt.NewNumericDate(now), NotBefore: jwt.NewNumericDate(now), ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
@@ -188,73 +187,5 @@ func (i *Issuer) Issue(sk SigningKey, s Session, now time.Time) (Link, error) {
 		query.Set("next", s.Next)
 	}
 	link := url.URL{Scheme: origin.Scheme, Host: strings.ToLower(origin.Host), Path: AuthPath, RawQuery: query.Encode()}
-	return Link{URL: link.String(), Token: signed, ExpiresAt: end}, nil
-}
-
-// Bearer is the token an automated actor presents to the laboratory proxy, in the metadata header `x-lab-access`, to reach
-// one device's grpc access. It is signed like a handoff link's (EdDSA by the tenant's access key) but has its own audience
-// (laboratory-proxy-grpc) and token_use/kind grpc, so it cannot be used at /_auth; it names the run it is for and lives for
-// the whole run instead of one minute.
-type Bearer struct {
-	// Group is the lab group of the device, Client the per-run client inside it (the token's subject).
-	Group, Client string
-	// AccessURL is the device's grpc address from the lab status; its first host label is the token's host.
-	AccessURL string
-	// Run is the run the token is for (claim `run`).
-	Run string
-	// ExpiresAt is the end of the token: the end of the run's window plus a grace.
-	ExpiresAt time.Time
-}
-
-// BearerToken is a signed token with the address to dial and when it ends.
-type BearerToken struct {
-	// URL is the device's grpc address (the AccessURL as given), Token the signed JWT.
-	URL       string
-	Token     string
-	ExpiresAt time.Time
-}
-
-type bearerClaims struct {
-	TokenUse string `json:"token_use"`
-	Kind     string `json:"kind"`
-	GroupID  string `json:"group_id"`
-	Host     string `json:"host"`
-	Run      string `json:"run"`
-	jwt.RegisteredClaims
-}
-
-// IssueBearer signs a run's bearer token. The end is capped by what the tenant's proxy keeps a session (when it reports
-// one); a token that would end before it starts is refused.
-func (i *Issuer) IssueBearer(sk SigningKey, b Bearer, now time.Time) (BearerToken, error) {
-	if sk.Tenant == "" || sk.KeyID == "" || len(sk.Key) != ed25519.PrivateKeySize {
-		return BearerToken{}, errors.New("labaccess: no signing key")
-	}
-	if b.Group == "" || b.Client == "" || b.Run == "" {
-		return BearerToken{}, errors.New("labaccess: incomplete bearer")
-	}
-	origin, err := url.Parse(b.AccessURL)
-	if err != nil || origin.Hostname() == "" {
-		return BearerToken{}, errors.New("labaccess: the device has no grpc address")
-	}
-	end := b.ExpiresAt
-	if sk.MaxSessionTTL > 0 && end.After(now.Add(sk.MaxSessionTTL)) {
-		end = now.Add(sk.MaxSessionTTL)
-	}
-	if !end.After(now) {
-		return BearerToken{}, errors.New("labaccess: the bearer would end before it starts")
-	}
-	host := strings.ToLower(origin.Hostname()) // the full host of the device access: the proxy requires exact equality
-	token := jwt.NewWithClaims(jwt.SigningMethodEdDSA, bearerClaims{
-		TokenUse: TokenUseGRPC, Kind: KindGRPC, GroupID: b.Group, Host: host, Run: b.Run,
-		RegisteredClaims: jwt.RegisteredClaims{
-			Issuer: sk.Tenant, Subject: b.Client, Audience: jwt.ClaimStrings{GRPCAudience},
-			IssuedAt: jwt.NewNumericDate(now), NotBefore: jwt.NewNumericDate(now), ExpiresAt: jwt.NewNumericDate(end),
-		},
-	})
-	token.Header["kid"] = sk.KeyID
-	signed, err := token.SignedString(sk.Key)
-	if err != nil {
-		return BearerToken{}, fmt.Errorf("sign lab bearer token: %w", err)
-	}
-	return BearerToken{URL: b.AccessURL, Token: signed, ExpiresAt: end}, nil
+	return Link{URL: link.String(), Token: signed, ExpiresAt: end, TokenExpiresAt: now.Add(ttl)}, nil
 }

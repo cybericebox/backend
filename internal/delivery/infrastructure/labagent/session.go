@@ -51,22 +51,3 @@ func (s SessionIssuer) Issue(ctx context.Context, session labaccess.Session, now
 	}
 	return s.Issuer.Issue(sk, session, now)
 }
-
-// IssueBearer signs a run's bearer token for one device's grpc access with the access key of the agent that holds the lab
-// group, like Issue does for a handoff link.
-func (s SessionIssuer) IssueBearer(ctx context.Context, b labaccess.Bearer, now time.Time) (labaccess.BearerToken, error) {
-	member, err := s.Fleet.memberOf(ctx, b.Group)
-	if err != nil {
-		return labaccess.BearerToken{}, err
-	}
-	if member.Tenant == "" || member.AccessKeyID == "" || len(member.AccessKey) == 0 {
-		return labaccess.BearerToken{}, infraModel.ErrInfrastructureUnavailable.Err()
-	}
-	sk := labaccess.SigningKey{Tenant: member.Tenant, KeyID: member.AccessKeyID, Key: member.AccessKey}
-	if f := member.Features.Get(); f != nil {
-		sk.MaxTokenTTL = time.Duration(f.Proxy.AccessTokenMaxTTLSeconds) * time.Second
-		sk.MaxSessionTTL = time.Duration(f.Proxy.SessionMaxTTLSeconds) * time.Second
-		s.warnLimits(member, sk)
-	}
-	return s.Issuer.IssueBearer(sk, b, now)
-}

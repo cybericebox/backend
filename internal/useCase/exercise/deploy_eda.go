@@ -12,46 +12,56 @@ import (
 	"github.com/cybericebox/daemon/pkg/labaccess"
 )
 
-// IBearerSessions signs the bearer token of a run for one device's grpc access (satisfied by the same session issuer that
-// signs the handoff links of ITestSessions, with the same tenant access key).
-type IBearerSessions interface {
-	IssueBearer(ctx context.Context, b labaccess.Bearer, now time.Time) (labaccess.BearerToken, error)
+// EDAAddress is where an automated actor reaches a device out of band: the address of the device's grpc access (the host the
+// laboratory's proxy serves it on). It carries no credential: the actor gets a fresh handoff for it when it asks (TunnelHandoff).
+// With an empty device the lab's one device with a grpc access is meant (the tools device of a run's lab).
+func (u *ExerciseUseCase) EDAAddress(ctx context.Context, owner, deployID uuid.UUID, device string) (string, error) {
+	_, address, err := u.edaDevice(ctx, owner, deployID, device)
+	return address, err
 }
 
-// EDAAccess is how an automated actor reaches a device out of band: the address of the device's grpc access (through the
-// laboratory's proxy) and the bearer token to present there. The token is a secret: it is handed to the run and never logged.
-type EDAAccess struct {
+func (u *ExerciseUseCase) edaDevice(ctx context.Context, owner, deployID uuid.UUID, device string) (exerciseModel.TestDeploy, string, error) {
+	deploy, err := u.ownedLab(ctx, owner, deployID)
+	if err != nil {
+		return deploy, "", err
+	}
+	status, err := u.infra.LabStatus(ctx, deploy.GroupName, deploy.LabName)
+	if err != nil {
+		return deploy, "", model.ErrPlatform.WithError(err).WithMessage("Failed to read deploy status").Err()
+	}
+	if device == "" {
+		device, _ = status.GRPCDevice()
+	}
+	address, found := status.EntryURL(device, exerciseModel.AccessGRPC, 0)
+	if !found {
+		return deploy, "", exerciseModel.ErrTestDeployNoGRPC.Err()
+	}
+	return deploy, address, nil
+}
+
+// EDAHandoff is a handoff for the proxy's tunnel to a device's grpc access: the address, the signed handoff (60 s) and when the
+// handoff ends. The handoff is a secret: it is handed to the one who asked and never logged.
+type EDAHandoff struct {
 	URL       string
 	Token     string
 	ExpiresAt time.Time
 }
 
-// MintEDAAccess gives a run the grpc access of one device of the owner's test lab. The address is the one the laboratory
-// reports for the device's grpc entry in the lab status; the token names the lab group, the device's host, the per-run client
-// and the run, and ends at `until`. An empty device is the one device of the lab with a grpc access (the end of the run's window plus a grace).
-func (u *ExerciseUseCase) MintEDAAccess(ctx context.Context, owner, deployID uuid.UUID, device, client, run string, until time.Time) (EDAAccess, error) {
-	deploy, err := u.ownedLab(ctx, owner, deployID)
+// TunnelHandoff signs a fresh handoff for the tunnel to the grpc access of the owner's test lab's device, through the same
+// path as the handoff links of the browser: the host claim is the full host of the device's access, the claim use is tunnel,
+// the subject is the author's own client of the group (a bot is no lab client; the group policy that lets the author reach
+// their lab lets the tunnel in). The session it opens lasts until `until` (the end of the run's window plus a grace).
+func (u *ExerciseUseCase) TunnelHandoff(ctx context.Context, owner, deployID uuid.UUID, device string, until time.Time) (EDAHandoff, error) {
+	deploy, address, err := u.edaDevice(ctx, owner, deployID, device)
 	if err != nil {
-		return EDAAccess{}, err
+		return EDAHandoff{}, err
 	}
-	signer, ok := u.sessions.(IBearerSessions)
-	if !ok || u.sessions == nil {
-		return EDAAccess{}, infraModel.ErrInfrastructureUnavailable.Err()
+	if u.sessions == nil {
+		return EDAHandoff{}, infraModel.ErrInfrastructureUnavailable.Err()
 	}
-	status, err := u.infra.LabStatus(ctx, deploy.GroupName, deploy.LabName)
+	link, err := u.sessions.Issue(ctx, labaccess.Session{Group: deploy.GroupName, Client: testClientName(owner), AccessURL: address, Use: labaccess.UseTunnel, ExpiresAt: until}, u.timeNow())
 	if err != nil {
-		return EDAAccess{}, model.ErrPlatform.WithError(err).WithMessage("Failed to read deploy status").Err()
+		return EDAHandoff{}, model.ErrPlatform.WithError(err).WithMessage("Failed to sign the tunnel handoff").Err()
 	}
-	if device == "" { // the lab's own grpc device: the tools device of a run's lab
-		device, _ = status.GRPCDevice()
-	}
-	address, found := status.EntryURL(device, exerciseModel.AccessGRPC, 0)
-	if !found {
-		return EDAAccess{}, exerciseModel.ErrTestDeployNoGRPC.Err()
-	}
-	token, err := signer.IssueBearer(ctx, labaccess.Bearer{Group: deploy.GroupName, Client: client, AccessURL: address, Run: run, ExpiresAt: until}, u.timeNow())
-	if err != nil {
-		return EDAAccess{}, model.ErrPlatform.WithError(err).WithMessage("Failed to sign the run's access token").Err()
-	}
-	return EDAAccess{URL: token.URL, Token: token.Token, ExpiresAt: token.ExpiresAt}, nil
+	return EDAHandoff{URL: address, Token: link.Token, ExpiresAt: link.TokenExpiresAt}, nil
 }
