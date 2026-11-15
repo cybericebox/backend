@@ -389,6 +389,9 @@ func TestReconcileLabGroupAccessSendsTheCompletePolicy(t *testing.T) {
 	if rule.GetAction() != labpb.LabGroupAccessAction_LAB_GROUP_ACCESS_ACTION_ALLOW || rule.GetClientNames()[0] != "p-participant" || rule.GetLabNames()[0] != "c-challenge" {
 		t.Fatalf("rule = %+v", rule)
 	}
+	if got := rule.GetGatewayNames(); len(got) != 1 || got[0] != "vpn" || len(rule.GetInclude()) != 0 {
+		t.Fatalf("an allow names the VPN gateway of its lab and no narrower subnets: %+v", rule)
+	}
 }
 
 func TestSuspendAndVPNDisableSendExplicitDesiredState(t *testing.T) {

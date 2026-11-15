@@ -1,0 +1,68 @@
+package labagent
+
+import (
+	"testing"
+
+	labpb "github.com/cybericebox/laboratory/pkg/agent/protobuf"
+	"github.com/stretchr/testify/require"
+
+	labAccessModel "github.com/cybericebox/daemon/internal/model/labAccess"
+)
+
+func TestVPNGatewaysAreReadFromTheSpecOfALab(t *testing.T) {
+	spec := []byte(`{"gateways":[{"name":"vpn","kind":"vpn"},{"name":"internet","kind":"internet"},{"name":"b-vpn","kind":"vpn"}],"devices":[]}`)
+	require.Equal(t, []string{"b-vpn", "vpn"}, vpnGatewaysOfSpec(spec))
+	require.Empty(t, vpnGatewaysOfSpec([]byte(`{"devices":[]}`)))
+	require.Empty(t, vpnGatewaysOfSpec([]byte(`not json`)))
+}
+
+func TestAnAllowRuleNamesTheClientTheLabsAndTheirVPNGateways(t *testing.T) {
+	gateways := map[string][]string{
+		"lab-a": {"vpn"}, "lab-b": {"vpn"}, // one rule: the same connector
+		"lab-c":  {"entry", "vpn"}, // another set: another rule
+		"lab-no": {},               // a lab without a VPN gateway has nothing to grant
+	}
+	rules := accessRules([]labAccessModel.ClientPolicy{
+		{Name: "p-1", AllowedLabs: []string{"lab-a", "lab-no", "lab-b", "lab-c"}},
+		{Name: "p-empty"},
+		{Name: "p-novpn", AllowedLabs: []string{"lab-no"}},
+	}, gateways)
+	require.Len(t, rules, 2, "p-empty and p-novpn get no rule: default deny")
+	for _, rule := range rules {
+		require.Equal(t, labpb.LabGroupAccessAction_LAB_GROUP_ACCESS_ACTION_ALLOW, rule.GetAction())
+		require.Equal(t, []string{"p-1"}, rule.GetClientNames())
+		require.Empty(t, rule.GetInclude(), "the whole segment unless a caller narrows it")
+		require.NotEmpty(t, rule.GetGatewayNames(), "an allow without gateway names opens no VPN")
+	}
+	byGateways := map[string][]string{}
+	for _, rule := range rules {
+		byGateways[rule.GetGatewayNames()[0]] = rule.GetLabNames()
+	}
+	require.Equal(t, []string{"lab-c"}, byGateways["entry"])
+	require.Equal(t, []string{"lab-a", "lab-b"}, byGateways["vpn"])
+	for _, rule := range rules {
+		if rule.GetGatewayNames()[0] == "entry" {
+			require.Equal(t, []string{"entry", "vpn"}, rule.GetGatewayNames())
+		}
+	}
+}
+
+func TestALabTheAgentDoesNotListGetsTheDefaultGateway(t *testing.T) {
+	rules := accessRules([]labAccessModel.ClientPolicy{{Name: "p-1", AllowedLabs: []string{"lab-new"}}}, map[string][]string{})
+	require.Len(t, rules, 1)
+	require.Equal(t, []string{"vpn"}, rules[0].GetGatewayNames())
+	require.Equal(t, []string{"lab-new"}, rules[0].GetLabNames())
+}
+
+func TestTheRulesComeInAFixedOrder(t *testing.T) {
+	policies := []labAccessModel.ClientPolicy{{Name: "p-1", AllowedLabs: []string{"l1", "l2", "l3"}}}
+	gateways := map[string][]string{"l1": {"z"}, "l2": {"a"}, "l3": {"m"}}
+	first := accessRules(policies, gateways)
+	for i := 0; i < 20; i++ {
+		again := accessRules(policies, gateways)
+		for j := range first {
+			require.Equal(t, first[j].GetGatewayNames(), again[j].GetGatewayNames())
+		}
+	}
+	require.Equal(t, []string{"a"}, first[0].GetGatewayNames())
+}
