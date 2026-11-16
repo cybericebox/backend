@@ -50,6 +50,11 @@ const (
 	ReasonProfileUnavailable = "PROFILE_UNAVAILABLE"
 	// ReasonPersistenceUnavailable: a lab asks for state persistence and the lab nodes cannot keep state.
 	ReasonPersistenceUnavailable = "PERSISTENCE_UNAVAILABLE"
+	// The group's server switches (contract 2.7): a lab with a VPN gateway, or a client, in a group whose VPN is off; a lab with an
+	// Internet gateway in a group whose internet is off; a switch turned off while a lab or client of the group needs the server.
+	ReasonGroupVPNOff      = "GROUP_VPN_OFF"
+	ReasonGroupInternetOff = "GROUP_INTERNET_OFF"
+	ReasonGroupServerInUse = "GROUP_SERVER_IN_USE"
 )
 
 // The agent's refusals of an item, by reason.
@@ -60,6 +65,11 @@ var (
 	ErrReservationFull      = errors.New("not enough room in this reservation")
 	ErrReservationMismatch  = errors.New("deploy group under another reservation")
 	ErrReservationOverQuota = errors.New("reservations over the tenant quota")
+	// The refusals of the group's server switches. They say the daemon's plan and the group disagree (a switch it should have turned
+	// on first, or turned off with labs still using it), so none of them is a wait: the call is not retried as is.
+	ErrGroupVPNOff      = errors.New("the group's VPN is off")
+	ErrGroupInternetOff = errors.New("the group's internet is off")
+	ErrGroupServerInUse = errors.New("the group's server is used by a lab or a client")
 	// ErrNoClusterReservation: the part a group or lab must run under is not on its agent yet (retryable).
 	ErrNoClusterReservation = errors.New("the cluster reservation is not ready")
 	// ErrAgentIncompatible: the agent has no reservation API; it must be upgraded.
@@ -83,10 +93,21 @@ func ReasonError(reason string) error {
 		return ErrReservationOverQuota
 	case ReasonPersistenceUnavailable:
 		return ErrDevicePersistenceUnavailable.Err()
+	case ReasonGroupVPNOff:
+		return ErrGroupVPNOff
+	case ReasonGroupInternetOff:
+		return ErrGroupInternetOff
+	case ReasonGroupServerInUse:
+		return ErrGroupServerInUse
 	case ReasonProfileUnsupported, ReasonProfileUnavailable:
 		return exerciseModel.ErrNodeProfileUnavailable.Err()
 	}
 	return nil
+}
+
+// IsPlanningError says the agent refused because the group's server switches and the plan disagree: not a wait, not a retry.
+func IsPlanningError(err error) bool {
+	return errors.Is(err, ErrGroupVPNOff) || errors.Is(err, ErrGroupInternetOff) || errors.Is(err, ErrGroupServerInUse)
 }
 
 // ItemOutcome is the agent's answer for one reservation of a batch.

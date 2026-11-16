@@ -56,7 +56,9 @@ func (r *Repository) Group(ctx context.Context, eventID, teamID uuid.UUID, group
 		now := time.Now()
 		bootAt := time.UnixMilli(s.GetCurrentVpnBootObservedUnixMs())
 		currentNetwork := s.GetCurrentVpnBootAvailable() && s.GetCurrentVpnBootId() != "" && now.Sub(bootAt) >= 0 && now.Sub(bootAt) <= 30*time.Second
-		out.Ready = out.ActualState == "Running" && out.DesiredState == "Running" && s.GetPhase() == "Ready" && s.GetVpnRegistered() && !s.GetSuspended() && currentNetwork && now.Sub(at) >= 0 && now.Sub(at) <= 30*time.Second
+		// With the group's VPN switched off there is no VPN server to register or boot (contract 2.7).
+		vpnOK := !g.GetVpnEnabled() || (s.GetVpnRegistered() && currentNetwork)
+		out.Ready = out.ActualState == "Running" && out.DesiredState == "Running" && s.GetPhase() == "Ready" && vpnOK && !s.GetSuspended() && now.Sub(at) >= 0 && now.Sub(at) <= 30*time.Second
 		a := s.GetResources()
 		if a == nil || a.GetOperationId() != life.GetOperationId() || a.GetLifecycleRevision() != out.Revision {
 			return out, nil
@@ -65,7 +67,7 @@ func (r *Repository) Group(ctx context.Context, eventID, teamID uuid.UUID, group
 			return out, nil
 		}
 		out.Allocation = allocationOf(a)
-		if out.Allocation.RuntimeState == "Released" && (!life.GetAccessFenced() || life.GetAccessFencedUnixMs() <= 0 || life.GetAccessFenceVpnBootId() == "" || out.Allocation.ReleasedAt == nil || (out.ActualState != "Stopped" && out.ActualState != "Deleted") || out.FailureCode != "" || out.FailureMessage != "") {
+		if out.Allocation.RuntimeState == "Released" && (!life.GetAccessFenced() || life.GetAccessFencedUnixMs() <= 0 || (life.GetAccessFenceVpnBootId() == "" && g.GetVpnEnabled()) || out.Allocation.ReleasedAt == nil || (out.ActualState != "Stopped" && out.ActualState != "Deleted") || out.FailureCode != "" || out.FailureMessage != "") {
 			out.Allocation.RuntimeState = "Unknown"
 			out.Allocation.ReleasedAt = nil
 		}

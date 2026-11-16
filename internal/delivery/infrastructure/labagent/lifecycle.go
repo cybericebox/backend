@@ -160,7 +160,8 @@ func lifecycleObservation(ref eventLabModel.Ref, l *labpb.Lab) eventLabModel.Obs
 	} else if o.ActualState == "StopFailed" {
 		o.SnapshotState = "Failed"
 	}
-	o.AccessFenced = life.GetAccessFenced() && life.GetAccessFencedUnixMs() > 0 && life.GetAccessFenceVpnBootId() != ""
+	// A lab without a VPN connector has no VPN boot to name: the agent reports it fenced without one (contract 2.7).
+	o.AccessFenced = life.GetAccessFenced() && life.GetAccessFencedUnixMs() > 0 && (life.GetAccessFenceVpnBootId() != "" || !labHasVPNConnector(l.GetSpecJson()))
 	if o.AccessFenced {
 		o.AccessFencedAt = positiveMillis(life.GetAccessFencedUnixMs())
 		o.AccessFenceVPNBootID = life.GetAccessFenceVpnBootId()

@@ -100,8 +100,17 @@ type GroupSizes struct {
 // Total is the group's own pods together.
 func (g GroupSizes) Total() resourcesModel.Amount { return g.VPN.Add(g.Gateway) }
 
-// SizesFor computes the group's pod sizes for a plan.
+// SizesFor computes the group's pod sizes for a plan. A group with no internet lab has its internet gateway switched off
+// (contract 2.7) and runs no gateway pod, so it asks for no gateway size: the reservation is smaller by that pod.
 func (l LimitsFeature) SizesFor(plan GroupPlan) GroupSizes {
+	sizes := l.planSizes(plan)
+	if plan.InternetLabs <= 0 {
+		sizes.Gateway = resourcesModel.Amount{}
+	}
+	return sizes
+}
+
+func (l LimitsFeature) planSizes(plan GroupPlan) GroupSizes {
 	for _, p := range l.SizingV2 {
 		if p.Eligible(plan) {
 			return GroupSizes{VPN: p.VPN.Size(plan, plan.Envelope.VPNRetainedFlows), Gateway: p.Gateway.Size(plan, plan.Envelope.GatewayRetainedFlows)}
@@ -121,6 +130,23 @@ func WithGroupSizes(ctx context.Context, sizes GroupSizes) context.Context {
 func GroupSizesFrom(ctx context.Context) (GroupSizes, bool) {
 	sizes, ok := ctx.Value(sizesKey{}).(GroupSizes)
 	return sizes, ok
+}
+
+type serversKey struct{}
+
+// GroupServers are the group's server switches to send when the group is created: the VPN (on when the group has a lab with a
+// VPN connector or clients) and the internet gateway (on when a lab has an Internet connector).
+type GroupServers struct{ VPN, Internet bool }
+
+// WithGroupServers carries the switches to the call that creates the group.
+func WithGroupServers(ctx context.Context, s GroupServers) context.Context {
+	return context.WithValue(ctx, serversKey{}, s)
+}
+
+// GroupServersFrom returns what WithGroupServers stored; false when the caller set none.
+func GroupServersFrom(ctx context.Context) (GroupServers, bool) {
+	s, ok := ctx.Value(serversKey{}).(GroupServers)
+	return s, ok
 }
 
 // PlacementNeed is what the event's group asks of an agent: the largest container device any of its tasks

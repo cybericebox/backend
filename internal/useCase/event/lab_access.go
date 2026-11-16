@@ -10,6 +10,7 @@ import (
 	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabGroupRepo"
 	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
 	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
+	"github.com/rs/zerolog/log"
 	"sort"
 	"sync"
 	"time"
@@ -192,10 +193,22 @@ func (u *EventUseCase) reconcileLabAccess(ctx context.Context, sync labAccessSyn
 	// Stop both group services on disable, before attempting policy replacement.
 	if !sync.VPNEnabled {
 		if err = access.SetLabGroupVPNDisabled(ctx, group, true); err != nil {
-			return model.ErrPlatform.WithError(err).WithMessage("Failed to suspend team VPN group").Err()
+			// A lab with a VPN connector keeps the VPN switch on (contract 2.7: GROUP_SERVER_IN_USE). The group is suspended just
+			// below, which stops its services all the same, and the policy replaced after it closes every route.
+			if !errors.Is(err, infraModel.ErrGroupServerInUse) {
+				return model.ErrPlatform.WithError(err).WithMessage("Failed to suspend team VPN group").Err()
+			}
+			log.Debug().Err(err).Str("lab_group", group).Msg("The team VPN switch stays on while labs use it; the group is suspended instead")
 		}
 		if err = access.SetLabGroupSuspended(ctx, group, true); err != nil {
 			return model.ErrPlatform.WithError(err).WithMessage("Failed to suspend team laboratory group").Err()
+		}
+	}
+	// On enable the VPN server is switched on before the first client is made (contract 2.7: a client is refused in a group whose
+	// VPN is off). The group stays suspended until the policy is installed below, so no route is open meanwhile.
+	if sync.VPNEnabled && !groupPaused && canRunGroup {
+		if err = access.SetLabGroupVPNDisabled(ctx, group, false); err != nil {
+			return model.ErrPlatform.WithError(err).WithMessage("Failed to switch on the team VPN server").Err()
 		}
 	}
 	var revisionTarget eventLabModel.AccessTarget
@@ -205,7 +218,8 @@ func (u *EventUseCase) reconcileLabAccess(ctx context.Context, sync labAccessSyn
 		// Every member has a LabGroupClient from the moment they are in the team
 		// (or on the staff), before any lab is open; only the access config is
 		// handed out on demand. Idempotent: a stored config is never recreated.
-		if u.vpn != nil {
+		// While access is closed the VPN is off or suspended and the agent refuses a client; they are made once it opens.
+		if u.vpn != nil && sync.VPNEnabled {
 			for _, userID := range clients {
 				if _, err = ensureParticipantVPNConfig(ctx, u.vpn, u.infra, group, sync.EventID, userID); err != nil {
 					return err
@@ -246,9 +260,6 @@ func (u *EventUseCase) reconcileLabAccess(ctx context.Context, sync labAccessSyn
 	// group's VPN and internet gateway back. Lab routes remain closed until
 	// runtime access is open, even though both group services run before start.
 	if sync.VPNEnabled && !groupPaused && canRunGroup {
-		if err = access.SetLabGroupVPNDisabled(ctx, group, false); err != nil {
-			return model.ErrPlatform.WithError(err).WithMessage("Failed to resume team VPN group").Err()
-		}
 		if err = access.SetLabGroupSuspended(ctx, group, false); err != nil {
 			return model.ErrPlatform.WithError(err).WithMessage("Failed to start team laboratory group services").Err()
 		}
