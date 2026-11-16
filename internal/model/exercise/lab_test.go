@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/gofrs/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
@@ -342,4 +343,45 @@ func TestServiceUserOfPrecedence(t *testing.T) {
 	user, known := exerciseModel.Device{Name: "web"}.ResolveServiceUser(declared)
 	require.True(t, known)
 	require.Equal(t, "app", user, "the device has no author value yet")
+}
+
+func TestRegistryOf(t *testing.T) {
+	for image, want := range map[string]string{
+		"nginx":                         "docker.io",
+		"library/nginx:1.27":            "docker.io",
+		"docker.io/library/nginx":       "docker.io",
+		"index.docker.io/library/nginx": "docker.io",
+		"GHCR.io/org/app:v1":            "ghcr.io",
+		"registry.example.com:5000/web": "registry.example.com:5000",
+		"quay.io/x/y@sha256:abc":        "quay.io",
+		"localhost/app":                 "localhost",
+		"myorg/app":                     "docker.io",
+	} {
+		got, ok := exerciseModel.RegistryOf(image)
+		assert.True(t, ok, image)
+		assert.Equal(t, want, got, image)
+	}
+	for _, image := range []string{"", "platform:web@sha256:abc", "localhost:5035/c/ghcr.io/x"} {
+		_, ok := exerciseModel.RegistryOf(image)
+		assert.False(t, ok, image)
+	}
+}
+
+func TestNeedsOfSeesTheSwitchesAndRegistriesOfALab(t *testing.T) {
+	n := exerciseModel.NeedsOf(exerciseModel.Topology{Devices: []exerciseModel.Device{
+		{Name: "a", Type: exerciseModel.DeviceTypeNode, Image: "gcr.io/x/a", Access: []exerciseModel.Access{{Kind: exerciseModel.AccessHTTP}, {Kind: exerciseModel.AccessRDP}}},
+		{Name: "b", Type: exerciseModel.DeviceTypeNode, Image: "nginx", Access: []exerciseModel.Access{{Kind: exerciseModel.AccessVNC}}},
+		{Name: "c", Type: exerciseModel.DeviceTypeNode, Image: "gcr.io/x/c"},
+		{Name: "d", Type: exerciseModel.DeviceTypeNode, Image: "platform:d@sha256:abc"},
+		{Name: "vpn", Type: exerciseModel.DeviceTypeVPNGateway},
+		{Name: "net", Type: exerciseModel.DeviceTypeInternetGateway},
+	}}, nil)
+	assert.True(t, n.VPN)
+	assert.True(t, n.Internet)
+	assert.True(t, n.HTTP)
+	assert.True(t, n.RDP)
+	assert.True(t, n.VNC)
+	assert.False(t, n.Terminal)
+	assert.Equal(t, []string{"docker.io", "gcr.io"}, n.Registries)
+	assert.Empty(t, exerciseModel.NeedsOf(exerciseModel.Topology{}, nil).Registries)
 }

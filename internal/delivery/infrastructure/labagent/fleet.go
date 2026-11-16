@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -422,6 +423,37 @@ func (f *Fleet) requireLabOptions(ctx context.Context, m *Member, needs exercise
 	return err
 }
 
+// requireGroupServers refuses a group whose planned servers the laboratory does not run (contract 2.8). An agent that has not
+// reported is not refused here (it refuses on its own); the cached report may be old, so it is read again once per window.
+func (f *Fleet) requireGroupServers(ctx context.Context, m *Member) error {
+	feat := m.Features.Get()
+	if feat == nil {
+		return nil
+	}
+	needInternet := infraModel.PlacementNeedFrom(ctx).Plan.InternetLabs > 0
+	refuse := func(f infraModel.AgentFeatures) error {
+		var refused []string
+		if !f.ServesVPN() {
+			refused = append(refused, "vpn")
+		}
+		if needInternet && !f.ServesInternet() {
+			refused = append(refused, "internet")
+		}
+		if len(refused) == 0 {
+			return nil
+		}
+		return exerciseModel.ErrLabOptionUnavailable.WithPublicContext("options", strings.Join(refused, "; ")).Err()
+	}
+	err := refuse(*feat)
+	if err == nil {
+		return nil
+	}
+	if fresh := refreshOnRefusal(ctx, m.Features, time.Now(), featuresReader(m)); fresh != nil {
+		return refuse(*fresh)
+	}
+	return err
+}
+
 // EnsureVPNGroup creates a team's group; the reservation it runs under comes with ctx (WithGroupReservation).
 func (f *Fleet) EnsureVPNGroup(ctx context.Context, group string) error {
 	m, err := f.memberForCreate(ctx, group)
@@ -430,6 +462,11 @@ func (f *Fleet) EnsureVPNGroup(ctx context.Context, group string) error {
 	}
 	if v := f.fitOf(m, infraModel.PlacementNeedFrom(ctx)); v != nil {
 		return noAgentFits(v)
+	}
+	// The group is made with its VPN on, and with the internet gateway when the plan has internet labs: a laboratory that serves
+	// neither refuses it, so it is not asked.
+	if err = f.requireGroupServers(ctx, m); err != nil {
+		return err
 	}
 	ref, _ := infraModel.GroupReservationFrom(ctx)
 	part, err := f.partOn(ctx, m, ref)
