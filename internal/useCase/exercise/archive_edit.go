@@ -29,3 +29,13 @@ func (u *ExerciseUseCase) EditedArchiveTarget(ctx context.Context, actor Actor, 
 	}
 	return parsed.SourceExerciseID, nil
 }
+
+// ArchiveCarriesSecretValue says whether an archive holds the value of a secret variable (an empty secret is only declared). A
+// task made by the brain never does: the brain sets no secret value. A broken archive is an error.
+func (u *ExerciseUseCase) ArchiveCarriesSecretValue(archive []byte, lim exerciseModel.ArchiveLimits) (bool, error) {
+	parsed, err := ParseExerciseArchive(archive, "", lim)
+	if err != nil {
+		return false, err
+	}
+	return firstSecretValue(parsed.Versions) != "", nil
+}

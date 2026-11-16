@@ -104,4 +104,16 @@ var (
 					WithMessage("Opponents cannot be run in this lab").
 					WithDetailCode(17).
 					WithHTTPCode(http.StatusServiceUnavailable)
+
+	// ErrAssistantSecretValue: the finished task carries the value of a secret variable. The brain never sets secret values (they are
+	// entered in the catalog), so such an archive is refused, for a new task and for an edited one alike.
+	// ErrAssistantEditNeedsConfirmation: saving an edit would replace the working draft of the task it came from; the author confirms it
+	// (the public context carries the archive, the revision and the summary to send back).
+	ErrAssistantEditNeedsConfirmation = err.ErrConflict.WithObjectCode(model.AssistantObjectCode).
+						WithMessage("Saving this edit replaces the working draft of the task: confirm it").
+						WithDetailCode(19)
+
+	ErrAssistantSecretValue = err.ErrInvalidData.WithObjectCode(model.AssistantObjectCode).
+				WithMessage("The finished task carries a secret value, which the assistant never sets").
+				WithDetailCode(18)
 )

@@ -71,6 +71,7 @@ type fakeImporter struct {
 	during func()
 	// The edit of an existing task (uuid.Nil in editTarget: the archive is a new task).
 	editTarget   uuid.UUID
+	carriesValue bool
 	editErr      error
 	previewItems []exerciseUseCase.ArchiveImportPreviewItem
 	previewErr   error
@@ -82,6 +83,10 @@ type fakeImporter struct {
 
 func (f *fakeImporter) EditedArchiveTarget(context.Context, exerciseUseCase.Actor, []byte, exerciseModel.ArchiveLimits) (uuid.UUID, error) {
 	return f.editTarget, f.editErr
+}
+
+func (f *fakeImporter) ArchiveCarriesSecretValue([]byte, exerciseModel.ArchiveLimits) (bool, error) {
+	return f.carriesValue, nil
 }
 
 func (f *fakeImporter) PreviewArchiveImport(_ context.Context, _ exerciseUseCase.Actor, in exerciseUseCase.PreviewArchiveInput) (exerciseUseCase.ArchiveImportPreview, error) {
@@ -340,7 +345,7 @@ func newSaveRig(t *testing.T, images bool) *saveRig {
 
 func (s *saveRig) save(t *testing.T) (bool, error) {
 	t.Helper()
-	return s.uc.SaveSession(context.Background(), actor, "s1")
+	return s.uc.SaveSession(context.Background(), actor, "s1", nil)
 }
 
 func (s *saveRig) savedBodies() []string {
@@ -587,7 +592,7 @@ func TestOtherSessionsAreIndependent(t *testing.T) {
 		_, _ = w.Write([]byte("{}"))
 	})
 	for _, id := range []string{"s1", "s2"} {
-		if _, err := s.uc.SaveSession(context.Background(), actor, id); err != nil {
+		if _, err := s.uc.SaveSession(context.Background(), actor, id, nil); err != nil {
 			t.Fatal(err)
 		}
 	}

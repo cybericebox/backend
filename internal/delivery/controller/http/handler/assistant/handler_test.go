@@ -151,6 +151,9 @@ func (i *importer) ArchiveImportJob(context.Context, uuid.UUID, uuid.UUID) (exer
 func (i *importer) EditedArchiveTarget(context.Context, exerciseUseCase.Actor, []byte, exerciseModel.ArchiveLimits) (uuid.UUID, error) {
 	return uuid.Nil, nil
 }
+func (i *importer) ArchiveCarriesSecretValue([]byte, exerciseModel.ArchiveLimits) (bool, error) {
+	return false, nil
+}
 func (i *importer) PreviewArchiveImport(context.Context, exerciseUseCase.Actor, exerciseUseCase.PreviewArchiveInput) (exerciseUseCase.ArchiveImportPreview, error) {
 	return exerciseUseCase.ArchiveImportPreview{}, nil
 }
@@ -207,8 +210,8 @@ func (p port) RequireAuthor(_ context.Context, a exerciseUseCase.Actor) error {
 func (p port) AssistantProxy(ctx context.Context, u uuid.UUID, c assistantUseCase.Call) (*http.Response, error) {
 	return p.Proxy(ctx, u, c)
 }
-func (p port) AssistantSaveSession(ctx context.Context, a exerciseUseCase.Actor, id string) (bool, error) {
-	return p.SaveSession(ctx, a, id)
+func (p port) AssistantSaveSession(ctx context.Context, a exerciseUseCase.Actor, id string, confirm *assistantUseCase.EditConfirmation) (bool, error) {
+	return p.SaveSession(ctx, a, id, confirm)
 }
 
 // protector is the sign-in gate: X-Test-User names the signed-in person, none is a 401 like the real one.
@@ -488,6 +491,32 @@ func TestSaveImportsThenTellsTheBrain(t *testing.T) {
 	resp := r.do(t, author, http.MethodPost, "/api/assistant/sessions/s1/save", strings.NewReader(`{}`), map[string]string{"Content-Type": "application/json"})
 	if resp.StatusCode != 200 || strings.Join(order, ",") != "archive,save" || r.imp.imports != 1 || !strings.Contains(saveBody, taskID.String()) {
 		t.Fatalf("save: %d order=%v imports=%d body=%q", resp.StatusCode, order, r.imp.imports, saveBody)
+	}
+}
+
+// The save body is empty, or the confirmation of an edit that replaces a draft: all three of its parts or none.
+func TestSaveBodyIsEmptyOrAWholeEditConfirmation(t *testing.T) {
+	r := newRig(t)
+	r.fake.Assistant = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if strings.HasSuffix(req.URL.Path, "/archive") {
+			w.Header().Set("Content-Type", "application/zip")
+		}
+		_, _ = w.Write([]byte("PK-task"))
+	})
+	post := func(body string) int {
+		return r.do(t, author, http.MethodPost, "/api/assistant/sessions/s1/save", strings.NewReader(body), map[string]string{"Content-Type": "application/json"}).StatusCode
+	}
+	if code := post(`{"ConfirmRevision":"rev"}`); code != http.StatusBadRequest {
+		t.Fatalf("a part of a confirmation: %d", code)
+	}
+	if code := post(`not json`); code != http.StatusBadRequest {
+		t.Fatalf("a broken body: %d", code)
+	}
+	whole := `{"ConfirmRevision":"rev","FileID":"` + taskID.String() + `","ArchiveHash":"abc"}`
+	for _, body := range []string{``, `{}`, whole} {
+		if code := post(body); code != http.StatusOK {
+			t.Fatalf("save with %q: %d", body, code)
+		}
 	}
 }
 

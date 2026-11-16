@@ -61,7 +61,7 @@ type (
 		// RequireAuthor: whoever may author tasks somewhere (an admin, or a manager of an event) may use the assistant.
 		RequireAuthor(ctx context.Context, actor exerciseUseCase.Actor) error
 		AssistantProxy(ctx context.Context, user uuid.UUID, call assistantUseCase.Call) (*http.Response, error)
-		AssistantSaveSession(ctx context.Context, actor exerciseUseCase.Actor, sessionID string) (done bool, err error)
+		AssistantSaveSession(ctx context.Context, actor exerciseUseCase.Actor, sessionID string, confirm *assistantUseCase.EditConfirmation) (done bool, err error)
 	}
 
 	Handler struct {
@@ -250,11 +250,17 @@ func (h *Handler) save(c *gin.Context) {
 		return
 	}
 	middleware.LimitBody(c, maxJSONBody)
-	if _, err := io.Copy(io.Discard, c.Request.Body); err != nil {
+	raw, err := io.ReadAll(c.Request.Body)
+	if err != nil {
 		response.AbortWithBadRequest(c, err)
 		return
 	}
-	done, err := h.useCase.AssistantSaveSession(c.Request.Context(), actor, id)
+	confirm, err := parseEditConfirmation(raw)
+	if err != nil {
+		response.AbortWithBadRequest(c, err)
+		return
+	}
+	done, err := h.useCase.AssistantSaveSession(c.Request.Context(), actor, id, confirm)
 	if err != nil {
 		response.AbortWithError(c, err)
 		return
@@ -266,6 +272,32 @@ func (h *Handler) save(c *gin.Context) {
 		return
 	}
 	response.AbortWithSuccess(c)
+}
+
+// saveRequest is the body of a save: empty, or the confirmation of an edit that replaces the working draft of its task (the
+// error of the first save carries what to send back: file, revision and archive).
+type saveRequest struct {
+	// ConfirmRevision is the revision the first save answered with; File and Archive are the stored archive and its hash.
+	ConfirmRevision string    `json:"ConfirmRevision"`
+	FileID          uuid.UUID `json:"FileID"`
+	ArchiveHash     string    `json:"ArchiveHash"`
+}
+
+func parseEditConfirmation(raw []byte) (*assistantUseCase.EditConfirmation, error) {
+	if len(bytes.TrimSpace(raw)) == 0 {
+		return nil, nil
+	}
+	var in saveRequest
+	if err := json.Unmarshal(raw, &in); err != nil {
+		return nil, err
+	}
+	if in.ConfirmRevision == "" && in.FileID == uuid.Nil && in.ArchiveHash == "" {
+		return nil, nil
+	}
+	if in.ConfirmRevision == "" || in.FileID == uuid.Nil || in.ArchiveHash == "" {
+		return nil, errors.New("ConfirmRevision, FileID and ArchiveHash go together")
+	}
+	return &assistantUseCase.EditConfirmation{FileID: in.FileID, Revision: in.ConfirmRevision, ArchiveHash: in.ArchiveHash}, nil
 }
 
 // archive streams the finished task archive with the brain's file name.

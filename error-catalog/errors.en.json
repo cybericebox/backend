@@ -298,6 +298,7 @@
   "23526": "Secret variables have no value yet: enter them before publishing",
   "23604": "The authoring assistant did not accept the request",
   "23611": "Unknown statistics source or mode",
+  "23618": "The finished task carries a secret value, which the assistant never sets",
   "30101": "Setting not found",
   "30201": "Notification dispatch not found",
   "30202": "Notification template not found",
@@ -591,5 +592,6 @@
   "73610": "The finished task is still being imported",
   "73614": "The variant already has an active run",
   "73615": "Too many active runs",
-  "73617": "Opponents cannot be run in this lab"
+  "73617": "Opponents cannot be run in this lab",
+  "73619": "Saving this edit replaces the working draft of the task: confirm it"
 }

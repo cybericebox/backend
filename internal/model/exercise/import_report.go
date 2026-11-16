@@ -78,9 +78,6 @@ const (
 	ImportWarnNoExerciseID = "no_exercise_id"
 	// ImportWarnKeyConflict: a task could not keep its stored key (see ImportItem.KeyChanged).
 	ImportWarnKeyConflict = "task_key_conflict"
-	// ImportWarnSecretMissing: a secret variable the edit added has no value (an edit never carries secret values): the author
-	// enters it in the catalog. Context: device, variable.
-	ImportWarnSecretMissing = "secret_value_missing"
 	// ImportWarnUsedByEvents: the exercise is attached to events; see ImportUsage.
 	ImportWarnUsedByEvents = "used_by_events"
 	// ImportWarnRemovedHasAttempts: a task that leaves has recorded answers in an event.

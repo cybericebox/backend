@@ -248,11 +248,9 @@ func (u *ExerciseUseCase) commitArchiveRead(ctx context.Context, actor Actor, in
 				if accessErr != nil {
 					return ArchiveImportStart{}, importItemError(accessErr, staged[i].ItemKey, "target")
 				}
-				missing, restoreErr := u.restoreKeptSecrets(&staged[i].Versions[0], stored)
-				if restoreErr != nil {
-					return ArchiveImportStart{}, importItemError(restoreErr, staged[i].ItemKey, "")
+				if err = u.restoreKeptSecrets(&staged[i].Versions[0], stored); err != nil {
+					return ArchiveImportStart{}, importItemError(err, staged[i].ItemKey, "")
 				}
-				report.Warnings = append(report.Warnings, missing...)
 			}
 		} else if report, err = u.importReport(ctx, nil, staged[i].Versions[0], newImportDiff(staged[i].Versions[0]), nil, staged[i].SourceExerciseID == uuid.Nil); err != nil {
 			return ArchiveImportStart{}, importItemError(err, staged[i].ItemKey, "")

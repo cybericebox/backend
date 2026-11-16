@@ -34,6 +34,8 @@ type (
 		ArchiveImportJob(ctx context.Context, id, user uuid.UUID) (exerciseUseCase.ImportJobView, error)
 		// EditedArchiveTarget is the task an archive is the edited version of (uuid.Nil: a new task).
 		EditedArchiveTarget(ctx context.Context, actor exerciseUseCase.Actor, archive []byte, lim exerciseModel.ArchiveLimits) (uuid.UUID, error)
+		// ArchiveCarriesSecretValue: the archive holds the value of a secret variable (the brain never sets one).
+		ArchiveCarriesSecretValue(archive []byte, lim exerciseModel.ArchiveLimits) (bool, error)
 		PreviewArchiveImport(ctx context.Context, actor exerciseUseCase.Actor, in exerciseUseCase.PreviewArchiveInput) (exerciseUseCase.ArchiveImportPreview, error)
 		CommitArchiveImport(ctx context.Context, actor exerciseUseCase.Actor, in exerciseUseCase.CommitArchiveInput) (exerciseUseCase.ArchiveImportStart, error)
 	}
@@ -70,7 +72,7 @@ type (
 // A repeated save never imports again: of a done save it tells the brain the stored task, of a pending one it follows
 // the job or, for an import still running inside another request, answers done=false. Two saves at once: one claims,
 // the other answers done=false. No lock is held while the import runs. done=true: the brain was told.
-func (u *UseCase) SaveSession(ctx context.Context, actor exerciseUseCase.Actor, sessionID string) (done bool, err error) {
+func (u *UseCase) SaveSession(ctx context.Context, actor exerciseUseCase.Actor, sessionID string, confirm *EditConfirmation) (done bool, err error) {
 	if u.importer == nil || u.saves == nil {
 		return false, assistantModel.ErrAssistantUnavailable.Err()
 	}
@@ -84,7 +86,7 @@ func (u *UseCase) SaveSession(ctx context.Context, actor exerciseUseCase.Actor, 
 			return done, advanceErr
 		}
 	}
-	return u.start(ctx, actor, sessionID)
+	return u.start(ctx, actor, sessionID, confirm)
 }
 
 const (
@@ -97,13 +99,20 @@ const (
 )
 
 // start fetches the archive, claims the save and imports: at once, or as a queued background job.
-func (u *UseCase) start(ctx context.Context, actor exerciseUseCase.Actor, sessionID string) (bool, error) {
+func (u *UseCase) start(ctx context.Context, actor exerciseUseCase.Actor, sessionID string, confirm *EditConfirmation) (bool, error) {
 	archive, err := u.fetchArchive(ctx, actor.UserID, sessionID)
 	if err != nil {
 		return false, err
 	}
 	lim := u.importer.ArchiveLimits(ctx)
 	images := u.namesImages(archive, lim)
+	// The brain never sets a secret value: they are entered in the catalog. An archive that carries one is refused, whether it is a
+	// new task or the edit of one.
+	if carries, carryErr := u.importer.ArchiveCarriesSecretValue(archive, lim); carryErr != nil {
+		return false, importError(carryErr)
+	} else if carries {
+		return false, assistantModel.ErrAssistantSecretValue.Err()
+	}
 	// The edit of a task that came from the platform (a provide_task) goes back into that task as its new working version.
 	edited, err := u.importer.EditedArchiveTarget(ctx, actor, archive, lim)
 	if err != nil {
@@ -112,6 +121,13 @@ func (u *UseCase) start(ctx context.Context, actor exerciseUseCase.Actor, sessio
 	if images && edited == uuid.Nil {
 		// Checked before the claim: a refusal must not leave a claim behind.
 		if err = u.importer.AuthorizeImport(ctx, actor, nil); err != nil {
+			return false, err
+		}
+	}
+	// An edit of a task of the platform is previewed before anything is claimed: it may ask the author to confirm.
+	var plan *editPlan
+	if edited != uuid.Nil {
+		if plan, err = u.prepareEdit(ctx, actor, archive, edited, confirm); err != nil {
 			return false, err
 		}
 	}
@@ -126,8 +142,8 @@ func (u *UseCase) start(ctx context.Context, actor exerciseUseCase.Actor, sessio
 		return false, nil
 	}
 	rec := assistantModel.Save{Session: sessionID, Author: actor.UserID}
-	if edited != uuid.Nil {
-		return u.startEdit(ctx, rec, actor, archive, edited)
+	if plan != nil {
+		return u.commitEdit(ctx, rec, actor, plan)
 	}
 	if images {
 		return false, u.queue(ctx, rec, actor, archive)
@@ -149,30 +165,72 @@ func (u *UseCase) start(ctx context.Context, actor exerciseUseCase.Actor, sessio
 	return true, u.notify(ctx, rec)
 }
 
-// startEdit brings the edited task back into the task it came from, as its new working version: the archive is stored as a
-// file (the update confirms against an immutable source), previewed against the task, and committed with the confirmation of
-// that preview and with the kept secrets put back. It is exactly what an author's re-import of the task does, with the
-// replacement of the working draft confirmed for them. The outcome is recorded as for a new task: done at once, or a queued job.
-func (u *UseCase) startEdit(ctx context.Context, rec assistantModel.Save, actor exerciseUseCase.Actor, archive []byte, target uuid.UUID) (bool, error) {
+// EditConfirmation is what the author confirmed after seeing that saving an edit replaces the working draft of the task: the
+// archive that was stored for the preview (FileID), the revision of the preview (it binds that archive and the state of the
+// task) and the hash of the archive the brain gave then. Nothing of it is secret.
+type EditConfirmation struct {
+	FileID      uuid.UUID
+	Revision    string
+	ArchiveHash string
+}
+
+// editPlan is an edit that is ready to be committed: the stored archive, and the preview item whose revision the commit confirms.
+type editPlan struct {
+	source exerciseUseCase.PreviewArchiveInput
+	item   exerciseUseCase.ArchiveImportPreviewItem
+}
+
+// prepareEdit stores the archive of an edit and previews the update of the task it came from (nothing is claimed or written yet).
+// An update that replaces a working draft is the author's to confirm: the first save is refused with the preview (what it
+// brings, the stored archive and the revision to confirm) and the page saves again with that confirmation; a confirmation that
+// does not match what is there now (another archive, a changed task) is stale and refused the same way a re-import's is.
+// An update that replaces nothing needs no confirmation.
+func (u *UseCase) prepareEdit(ctx context.Context, actor exerciseUseCase.Actor, archive []byte, target uuid.UUID, confirm *EditConfirmation) (*editPlan, error) {
 	if u.files == nil {
-		return false, u.failed(ctx, rec, assistantModel.ErrAssistantUnavailable.Err())
+		return nil, assistantModel.ErrAssistantUnavailable.Err()
 	}
-	stored, err := u.files.UploadFile(ctx, "assistant-task.cybericebox.zip", "application/zip", bytes.NewReader(archive), actor.UserID)
-	if err != nil {
-		return false, u.failed(ctx, rec, err)
-	}
-	source := exerciseUseCase.PreviewArchiveInput{FileID: stored.ID, FixedExerciseID: target}
-	preview, err := u.importer.PreviewArchiveImport(ctx, actor, source)
-	if err != nil || len(preview.Items) != 1 {
-		if err == nil {
-			err = assistantModel.ErrAssistantImportFailed.WithPublicContext("tasks", len(preview.Items)).Err()
+	sum := sha256.Sum256(archive)
+	hash := hex.EncodeToString(sum[:])
+	var source exerciseUseCase.PreviewArchiveInput
+	if confirm != nil {
+		if confirm.ArchiveHash != hash {
+			return nil, exerciseModel.ErrImportConfirmationStale.Err()
 		}
-		return false, u.failed(ctx, rec, importError(err))
+		source = exerciseUseCase.PreviewArchiveInput{FileID: confirm.FileID, FixedExerciseID: target}
+	} else {
+		stored, err := u.files.UploadFile(ctx, "assistant-task.cybericebox.zip", "application/zip", bytes.NewReader(archive), actor.UserID)
+		if err != nil {
+			return nil, err
+		}
+		source = exerciseUseCase.PreviewArchiveInput{FileID: stored.ID, FixedExerciseID: target}
+	}
+	preview, err := u.importer.PreviewArchiveImport(ctx, actor, source)
+	if err != nil {
+		return nil, importError(err)
+	}
+	if len(preview.Items) != 1 {
+		return nil, assistantModel.ErrAssistantImportFailed.WithPublicContext("tasks", len(preview.Items)).Err()
 	}
 	item := preview.Items[0]
+	switch {
+	case confirm != nil && item.ConfirmationRevision != confirm.Revision:
+		return nil, exerciseModel.ErrImportConfirmationStale.Err()
+	case confirm == nil && item.ReplacesDraft:
+		return nil, assistantModel.ErrAssistantEditNeedsConfirmation.
+			WithPublicContext("exercise", target.String()).WithPublicContext("file", source.FileID.String()).
+			WithPublicContext("revision", item.ConfirmationRevision).WithPublicContext("archive", hash).
+			WithPublicContext("summary", item.Summary).Err()
+	}
+	return &editPlan{source: source, item: item}, nil
+}
+
+// commitEdit brings the edited task back into the task it came from, as its new working version: committed with the
+// confirmation of the preview and with the kept secrets put back. The outcome is recorded as for a new task: done at once, or a
+// queued job.
+func (u *UseCase) commitEdit(ctx context.Context, rec assistantModel.Save, actor exerciseUseCase.Actor, plan *editPlan) (bool, error) {
 	start, err := u.importer.CommitArchiveImport(ctx, actor, exerciseUseCase.CommitArchiveInput{
-		PreviewArchiveInput: source,
-		ConfirmedUpdates:    []exerciseUseCase.ConfirmedImportUpdate{{ItemKey: item.ItemKey, Revision: item.ConfirmationRevision, ReplaceDraft: item.ReplacesDraft}},
+		PreviewArchiveInput: plan.source,
+		ConfirmedUpdates:    []exerciseUseCase.ConfirmedImportUpdate{{ItemKey: plan.item.ItemKey, Revision: plan.item.ConfirmationRevision, ReplaceDraft: plan.item.ReplacesDraft}},
 		RestoreKeptSecrets:  true,
 	})
 	if err != nil {
