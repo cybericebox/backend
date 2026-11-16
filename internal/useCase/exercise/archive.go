@@ -21,6 +21,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
 	"github.com/cybericebox/backend/internal/model"
 	appErr "github.com/cybericebox/backend/pkg/err"
 	yzip "github.com/yeka/zip"
@@ -547,6 +548,37 @@ func (u *ExerciseUseCase) ExportExerciseArchive(ctx context.Context, id uuid.UUI
 	return archive, checkArchiveSize(int64(len(archive)), lim.ArchiveBytes)
 }
 
+// ExportTaskVersionForEdit gives the import archive of one version of a task to a user who may edit it (the Teacher's edit flow:
+// the brain asks for the source of an existing task). It is the admin export's format and content for that one version, without
+// secrets (their values are masked): what the user could read and change anyway. ErrExerciseNotFound for a task that does not
+// exist, ErrExerciseVersionNotFound for a version that is not of that task, ErrExerciseForbidden when the user may not edit it
+// (rights as for saving a change of the task: exercises.write, or owner or manager of the event whose task it is).
+func (u *ExerciseUseCase) ExportTaskVersionForEdit(ctx context.Context, actor Actor, id, versionID uuid.UUID) ([]byte, error) {
+	access, err := u.AuthorizeExercise(ctx, actor, id, ActionWrite)
+	if err != nil {
+		return nil, err
+	}
+	if !access.Full || !access.Flags {
+		return nil, exerciseModel.ErrExerciseForbidden.Err()
+	}
+	lim := exerciseModel.DefaultArchiveLimits()
+	plan, err := u.planExportVersions(ctx, id, versionID, ExportOptions{}, lim)
+	if err != nil {
+		if repositoryTools.IsObjectNotFoundError(err) {
+			return nil, exerciseModel.ErrExerciseNotFound.Err()
+		}
+		return nil, err
+	}
+	if err = checkExportEntries(plan.Contents, lim); err != nil {
+		return nil, err
+	}
+	archive, err := BuildArchiveV1(plan.Contents)
+	if err != nil {
+		return nil, err
+	}
+	return archive, checkArchiveSize(int64(len(archive)), lim.ArchiveBytes)
+}
+
 // exportPlan is one task laid out for its archive: the small files (exercise.json and the attachments, by path in
 // the task folder) and the image files, which are streamed.
 type exportPlan struct {
@@ -558,6 +590,11 @@ type exportPlan struct {
 // planExport reads a task and lays it out: the document, the attachments once per content and, with
 // opts.IncludeImages, its platform images. Without secrets their values are masked; with them they are decrypted.
 func (u *ExerciseUseCase) planExport(ctx context.Context, id uuid.UUID, opts ExportOptions, lim exerciseModel.ArchiveLimits) (exportPlan, error) {
+	return u.planExportVersions(ctx, id, uuid.Nil, opts, lim)
+}
+
+// planExportVersions is planExport for one version of the task (only is its id) or, with uuid.Nil, for all of them.
+func (u *ExerciseUseCase) planExportVersions(ctx context.Context, id, only uuid.UUID, opts ExportOptions, lim exerciseModel.ArchiveLimits) (exportPlan, error) {
 	e, err := u.exercises.GetByID(ctx, id)
 	if err != nil {
 		return exportPlan{}, err
@@ -565,6 +602,12 @@ func (u *ExerciseUseCase) planExport(ctx context.Context, id uuid.UUID, opts Exp
 	versions, err := u.exercises.ListVersions(ctx, id)
 	if err != nil {
 		return exportPlan{}, err
+	}
+	if only != uuid.Nil {
+		versions = slices.DeleteFunc(versions, func(v exerciseModel.ExerciseVersion) bool { return v.ID != only })
+		if len(versions) == 0 {
+			return exportPlan{}, exerciseModel.ErrExerciseVersionNotFound.Err()
+		}
 	}
 	if !opts.IncludeSecrets {
 		for i := range versions {
