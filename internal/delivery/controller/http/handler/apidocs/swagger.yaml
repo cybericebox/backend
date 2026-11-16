@@ -8016,6 +8016,11 @@ definitions:
         $ref: '#/definitions/exercise.forkSourceResponse'
       HasDraft:
         type: boolean
+      HasMissingSecrets:
+        description: |-
+          HasMissingSecrets: the visible version has secret variables with no value yet (a task made automatically declares
+          them empty): the catalog marks it as created automatically, with values still needed. The version lists them.
+        type: boolean
       HasPublished:
         type: boolean
       ID:
@@ -8127,6 +8132,11 @@ definitions:
       ForkedFrom:
         $ref: '#/definitions/exercise.forkSourceResponse'
       HasChanges:
+        type: boolean
+      HasMissingSecrets:
+        description: |-
+          HasMissingSecrets: the visible version has secret variables with no value yet (a task made automatically declares
+          them empty): the catalog marks it as created automatically, with values still needed. The version lists them.
         type: boolean
       ID:
         type: string
@@ -8568,6 +8578,15 @@ definitions:
         items:
           type: string
         type: array
+    type: object
+  exercise.missingSecretResponse:
+    properties:
+      Device:
+        type: string
+      Key:
+        type: string
+      Variant:
+        type: integer
     type: object
   exercise.networkIPRefDTO:
     properties:
@@ -9193,10 +9212,19 @@ definitions:
           never had one.
       ExerciseID:
         type: string
+      HasMissingSecrets:
+        type: boolean
       ID:
         type: string
       Label:
         type: string
+      MissingSecrets:
+        description: |-
+          MissingSecrets lists the secret variables that have no value yet (variant 1-based, device, key); HasMissingSecrets is
+          whether there are any. The version cannot be published while there are; entering the value in the editor clears the entry.
+        items:
+          $ref: '#/definitions/exercise.missingSecretResponse'
+        type: array
       Name:
         type: string
       PublishedAt:

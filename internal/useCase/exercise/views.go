@@ -82,6 +82,9 @@ type ExerciseScopeView struct {
 	Infrastructure bool
 	// UsesConsole: some device of the published version has a terminal access entry (a console). Not meant for events.
 	UsesConsole bool
+	// HasMissingSecrets: the visible version has secret variables with no value yet ("created automatically, these values are
+	// still needed"); the version page lists them.
+	HasMissingSecrets bool
 	// Resources is the total of the published version (min and max over its variants); zero without one.
 	// ResourceHeavy: an approved elevation holds a device of the published version above the platform frame.
 	Resources         ResourceRange
@@ -283,6 +286,10 @@ type VersionView struct {
 	// FileHashes is the sha256 hex of each attached file's bytes by file id.
 	SecretGroups [][][]int
 	FileHashes   map[uuid.UUID]string
+	// MissingSecrets lists the secret variables that have no value yet (a task made automatically declares them empty);
+	// HasMissingSecrets is whether there are any. Publishing is refused while there are.
+	MissingSecrets    []exerciseModel.MissingSecret
+	HasMissingSecrets bool
 
 	VariantCount int
 	CreatedAt    time.Time
@@ -327,5 +334,8 @@ func toVersionView(v exerciseModel.ExerciseVersion) VersionView {
 		CreatedAt:    v.CreatedAt,
 		CreatedBy:    uuidPtr(v.CreatedBy),
 		PublishedAt:  v.PublishedAt,
+		// Computed from the stored content before it is masked.
+		MissingSecrets:    exerciseModel.MissingSecrets(v.Variants),
+		HasMissingSecrets: len(exerciseModel.MissingSecrets(v.Variants)) > 0,
 	}
 }

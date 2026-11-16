@@ -372,6 +372,33 @@ func InVariant(failure error, number int) error {
 	return appErr.AddPublicContext(failure, "variant", number)
 }
 
+// MissingSecret is a secret variable of a version that has no value: where it is (variant 1-based, device name, variable name).
+// A task made automatically declares its secrets with empty values (the maker never sets one); the author enters them in the
+// editor, which is what clears the mark. The state is computed from the stored content, so it is always the truth.
+type MissingSecret struct {
+	Variant int    `json:"Variant"`
+	Device  string `json:"Device"`
+	Key     string `json:"Key"`
+}
+
+// MissingSecrets lists the secret variables with no value, in the order of the content.
+func MissingSecrets(variants []Variant) []MissingSecret {
+	var out []MissingSecret
+	for variantIndex, variant := range variants {
+		for _, device := range variant.Topology.Devices {
+			for _, env := range device.Bootstrap.Env {
+				if env.Secret && env.Value == "" {
+					out = append(out, MissingSecret{Variant: variantIndex + 1, Device: device.Name, Key: env.Name})
+				}
+			}
+		}
+	}
+	return out
+}
+
+// MissingSecrets lists the secret variables of the version that have no value.
+func (v *ExerciseVersion) MissingSecrets() []MissingSecret { return MissingSecrets(v.Variants) }
+
 // ValidateForPublish runs the full validation set: structure plus per-variant
 // topology graph rules and placeholder resolution. It is the only business
 // validation a working copy ever meets.
@@ -384,7 +411,14 @@ func (v *ExerciseVersion) ValidateForPublish() error {
 			return InVariant(err, variantIndex+1)
 		}
 	}
-	return validateLinkedContent(v.Variants)
+	if err := validateLinkedContent(v.Variants); err != nil {
+		return err
+	}
+	// Last: everything else is the structure of what is there, this is what is still to be entered.
+	if missing := v.MissingSecrets(); len(missing) > 0 {
+		return ErrSecretValueMissing.WithPublicContext("secrets", missing).WithPublicContext("count", len(missing)).Err()
+	}
+	return nil
 }
 
 // validateVariantForPublish is the publish check of one variant: its graph, its checks and the content of its tasks.
