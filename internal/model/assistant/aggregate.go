@@ -129,9 +129,9 @@ type Unavailable struct {
 // RunLabActivity is what the laboratory's activity reports said of a grader run's lab, kept on the run until its lab facts are
 // sent. Reported false: nothing is reported (the reports are off, or the lab is unknown to them).
 type RunLabActivity struct {
-	Reported       bool    `json:"reported"`
-	EgressUsed     bool    `json:"egress_used"`
-	VPNBytes       float64 `json:"vpn_bytes"`
-	DevicesTouched float64 `json:"devices_touched"`
-	ConsoleMinutes float64 `json:"console_minutes"`
+	Reported       bool     `json:"reported"`
+	EgressUsed     bool     `json:"egress_used"`
+	VPNBytes       *float64 `json:"vpn_bytes"`
+	DevicesTouched *float64 `json:"devices_touched"`
+	ConsoleMinutes float64  `json:"console_minutes"`
 }

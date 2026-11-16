@@ -934,7 +934,7 @@ func (d *runDriver) sendLabFacts(ctx context.Context, run assistantModel.Run) bo
 	// the lab's own, never a device's or a person's.
 	var activity assistantModel.RunLabActivity
 	if len(run.LabActivity) > 0 && json.Unmarshal(run.LabActivity, &activity) == nil && activity.Reported {
-		body.EgressUsed, body.VPNBytes, body.DevicesTouched, body.ConsoleMinutes = &activity.EgressUsed, &activity.VPNBytes, &activity.DevicesTouched, &activity.ConsoleMinutes
+		body.EgressUsed, body.VPNBytes, body.DevicesTouched, body.ConsoleMinutes = &activity.EgressUsed, activity.VPNBytes, activity.DevicesTouched, &activity.ConsoleMinutes
 	}
 	err = c.PostJSON(ctx, "/v1/runs/"+run.ID.String()+"/lab_facts", body)
 	if err == nil || finalRefusal(err) {

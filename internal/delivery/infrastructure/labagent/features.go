@@ -127,7 +127,7 @@ func activityFeatureOf(a *labpb.ActivityFeature) *infraModel.ActivityFeature {
 	if a == nil {
 		return nil
 	}
-	return &infraModel.ActivityFeature{Enabled: a.GetEnabled(), MaxEvents: a.GetMaxEvents(), RingMinutes: a.GetRingMinutes()}
+	return &infraModel.ActivityFeature{Enabled: a.GetEnabled(), MaxEvents: a.GetMaxEvents(), RingMinutes: a.GetRingMinutes(), ConsoleMaxLifetimeSeconds: a.GetConsoleMaxLifetimeS(), DeviceTouch: a.GetDeviceTouch()}
 }
 
 func vpnFeatureOf(v *labpb.VPNFeature) *infraModel.VPNFeature {

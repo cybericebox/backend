@@ -42,16 +42,16 @@ const (
 
 // Agent is what the pull needs of the laboratory fleet.
 type Agent interface {
-	// ActivityEnabled: the agent that holds the group keeps activity reports (features.activity.enabled).
-	ActivityEnabled(ctx context.Context, group string) (bool, error)
+	// ActivityFeature is what the agent that holds the group says of its activity reports (Enabled false: none are kept).
+	ActivityFeature(ctx context.Context, group string) (infraModel.ActivityFeature, error)
 	GroupActivity(ctx context.Context, group, cursor string, limit int32) (infraModel.ActivityPage, error)
 }
 
 // Store keeps the figures and the cursors (labActivityRepo.Repository).
 type Store interface {
 	Groups(ctx context.Context, platformDefault assistantModel.StatsMode, now time.Time) ([]string, error)
-	Cursor(ctx context.Context, group string) (cursor string, found bool, err error)
-	Apply(ctx context.Context, group, cursor string, gap bool, b labActivityRepo.Batch, now time.Time) error
+	Cursor(ctx context.Context, group string) (labActivityRepo.Cursor, bool, error)
+	Apply(ctx context.Context, group string, c labActivityRepo.Cursor, gap bool, b labActivityRepo.Batch, now time.Time) error
 	Instances(ctx context.Context, teams, exercises []uuid.UUID, now time.Time, maxSession time.Duration) ([]labActivityRepo.Instance, error)
 	OfClient(ctx context.Context, group, lab, client string, now time.Time, maxSession time.Duration) (labActivityRepo.Figures, bool, error)
 	Purge(ctx context.Context, before time.Time) error
@@ -163,19 +163,21 @@ func (u *UseCase) PullGroup(ctx context.Context, group string) error {
 	if u.agent == nil {
 		return nil
 	}
-	enabled, err := u.agent.ActivityEnabled(ctx, group)
+	feature, err := u.agent.ActivityFeature(ctx, group)
 	if err != nil {
 		return err
 	}
-	if !enabled {
+	if !feature.Enabled {
 		return nil
 	}
-	cursor, _, err := u.store.Cursor(ctx, group)
+	stored, _, err := u.store.Cursor(ctx, group)
 	if err != nil {
 		return err
 	}
+	// What the laboratory says now is kept with the cursor: whether device touches are produced, and its console limit.
+	cur := labActivityRepo.Cursor{Cursor: stored.Cursor, DeviceTouch: feature.DeviceTouch, ConsoleMaxSeconds: max(feature.ConsoleMaxLifetimeSeconds, 0)}
 	for range maxPages {
-		page, pageErr := u.agent.GroupActivity(ctx, group, cursor, pageLimit)
+		page, pageErr := u.agent.GroupActivity(ctx, group, cur.Cursor, pageLimit)
 		switch {
 		case errors.Is(pageErr, infraModel.ErrActivityDisabled), errors.Is(pageErr, infraModel.ErrActivityGroupGone):
 			return nil
@@ -183,10 +185,10 @@ func (u *UseCase) PullGroup(ctx context.Context, group string) error {
 			// Another agent or a restart: start from the oldest event the laboratory keeps. Facts it still holds from before may be
 			// counted twice; the figures are marked as approximate.
 			log.Warn().Str("group", group).Msg("The laboratory does not know the activity cursor; the pull starts again")
-			if err = u.store.Apply(ctx, group, "", true, labActivityRepo.Batch{}, u.now().UTC()); err != nil {
+			cur.Cursor = ""
+			if err = u.store.Apply(ctx, group, cur, true, labActivityRepo.Batch{}, u.now().UTC()); err != nil {
 				return err
 			}
-			cursor = ""
 			continue
 		case pageErr != nil:
 			return pageErr
@@ -194,10 +196,10 @@ func (u *UseCase) PullGroup(ctx context.Context, group string) error {
 		if page.Gap {
 			log.Warn().Str("group", group).Msg("The laboratory dropped activity events before they were read; the figures are a lower bound")
 		}
-		if err = u.store.Apply(ctx, group, page.NextCursor, page.Gap, Fold(page.Events), u.now().UTC()); err != nil {
+		cur.Cursor = page.NextCursor
+		if err = u.store.Apply(ctx, group, cur, page.Gap, Fold(page.Events), u.now().UTC()); err != nil {
 			return err
 		}
-		cursor = page.NextCursor
 		if !page.HasMore {
 			return nil
 		}
@@ -302,17 +304,24 @@ func (u *UseCase) Activity(ctx context.Context, keys []assistantStatsRepo.Instan
 		if !want[key] {
 			continue
 		}
-		used, bytes, devices, minutes := row.EgressUsed, float64(row.VPNBytes), float64(row.DevicesTouched), row.ConsoleMinutes
-		out[key] = assistantStatsRepo.Activity{EgressUsed: &used, VPNBytes: &bytes, DevicesTouched: &devices, ConsoleMinutes: &minutes}
+		used, minutes := row.EgressUsed, row.ConsoleMinutes
+		act := assistantStatsRepo.Activity{EgressUsed: &used, ConsoleMinutes: &minutes}
+		// Without device_touch events the laboratory cannot say what a team sent or reached: not reported, never zero.
+		if row.DeviceTouch {
+			bytes, devices := float64(row.VPNBytes), float64(row.DevicesTouched)
+			act.VPNBytes, act.DevicesTouched = &bytes, &devices
+		}
+		out[key] = act
 	}
 	return out, nil
 }
 
 // LabFigures are the activity of one lab as one client saw it.
 type LabFigures struct {
-	EgressUsed     bool
-	VPNBytes       float64
-	DevicesTouched float64
+	EgressUsed bool
+	// VPNBytes and DevicesTouched are nil while the cluster produces no device_touch events: not reported.
+	VPNBytes       *float64
+	DevicesTouched *float64
 	ConsoleMinutes float64
 }
 
@@ -328,10 +337,16 @@ func (u *UseCase) OfLab(ctx context.Context, group, lab, client string) (*LabFig
 		return nil, err
 	}
 	if !found {
-		_, pulled, cursorErr := u.store.Cursor(ctx, group)
+		cur, pulled, cursorErr := u.store.Cursor(ctx, group)
 		if cursorErr != nil || !pulled {
 			return nil, cursorErr
 		}
+		f.DeviceTouch = cur.DeviceTouch
 	}
-	return &LabFigures{EgressUsed: f.EgressUsed, VPNBytes: float64(f.VPNBytes), DevicesTouched: float64(f.DevicesTouched), ConsoleMinutes: f.ConsoleMinutes}, nil
+	out := &LabFigures{EgressUsed: f.EgressUsed, ConsoleMinutes: f.ConsoleMinutes}
+	if f.DeviceTouch {
+		bytes, devices := float64(f.VPNBytes), float64(f.DevicesTouched)
+		out.VPNBytes, out.DevicesTouched = &bytes, &devices
+	}
+	return out, nil
 }

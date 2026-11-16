@@ -14,33 +14,34 @@ import (
 
 const applyLabActivity = `-- name: ApplyLabActivity :exec
 WITH cur AS (
-    INSERT INTO lab_activity_cursors (lab_group_name, cursor, gap, updated_at)
-        VALUES ($1, $2, $3, $4::timestamptz)
+    INSERT INTO lab_activity_cursors (lab_group_name, cursor, gap, device_touch, console_max_s, updated_at)
+        VALUES ($1, $2, $3, $4, $5::integer, $6::timestamptz)
         ON CONFLICT (lab_group_name) DO UPDATE
-            SET cursor = EXCLUDED.cursor, gap = lab_activity_cursors.gap OR EXCLUDED.gap, updated_at = EXCLUDED.updated_at
+            SET cursor = EXCLUDED.cursor, gap = lab_activity_cursors.gap OR EXCLUDED.gap, device_touch = EXCLUDED.device_touch,
+                console_max_s = EXCLUDED.console_max_s, updated_at = EXCLUDED.updated_at
 ), labs AS (
     INSERT INTO lab_activity (lab_group_name, lab_name, egress_used, updated_at)
-        SELECT $1, x ->> 'lab', COALESCE((x ->> 'egress')::boolean, false), $4::timestamptz
-        FROM jsonb_array_elements($5::jsonb -> 'labs') AS x
+        SELECT $1, x ->> 'lab', COALESCE((x ->> 'egress')::boolean, false), $6::timestamptz
+        FROM jsonb_array_elements($7::jsonb -> 'labs') AS x
         ON CONFLICT (lab_group_name, lab_name) DO UPDATE
             SET egress_used = lab_activity.egress_used OR EXCLUDED.egress_used, updated_at = EXCLUDED.updated_at
 ), clients AS (
     INSERT INTO lab_activity_clients (lab_group_name, lab_name, client, bytes)
         SELECT $1, x ->> 'lab', x ->> 'client', (x ->> 'bytes')::bigint
-        FROM jsonb_array_elements($5::jsonb -> 'clients') AS x
+        FROM jsonb_array_elements($7::jsonb -> 'clients') AS x
         ON CONFLICT (lab_group_name, lab_name, client) DO UPDATE
             SET bytes = lab_activity_clients.bytes + EXCLUDED.bytes
 ), dsts AS (
     INSERT INTO lab_activity_dsts (lab_group_name, lab_name, client, dst_address)
         SELECT $1, x ->> 'lab', x ->> 'client', x ->> 'dst'
-        FROM jsonb_array_elements($5::jsonb -> 'dsts') AS x
+        FROM jsonb_array_elements($7::jsonb -> 'dsts') AS x
         ON CONFLICT DO NOTHING
 ), sessions AS (
     INSERT INTO lab_activity_sessions (lab_group_name, lab_name, session_id, client, opened_at, closed_at)
         SELECT $1, x ->> 'lab', x ->> 'session_id', x ->> 'client',
                to_timestamp((x ->> 'opened_ms')::bigint / 1000.0),
                CASE WHEN (x ->> 'closed_ms')::bigint > 0 THEN to_timestamp((x ->> 'closed_ms')::bigint / 1000.0) END
-        FROM jsonb_array_elements($5::jsonb -> 'sessions') AS x
+        FROM jsonb_array_elements($7::jsonb -> 'sessions') AS x
         ON CONFLICT (lab_group_name, lab_name, session_id) DO UPDATE
             SET closed_at = COALESCE(EXCLUDED.closed_at, lab_activity_sessions.closed_at)
 )
@@ -51,6 +52,8 @@ type ApplyLabActivityParams struct {
 	LabGroupName string    `json:"lab_group_name"`
 	Cursor       string    `json:"cursor"`
 	Gap          bool      `json:"gap"`
+	DeviceTouch  bool      `json:"device_touch"`
+	ConsoleMaxS  int32     `json:"console_max_s"`
 	Now          time.Time `json:"now"`
 	Batch        []byte    `json:"batch"`
 }
@@ -63,6 +66,8 @@ func (q *Queries) ApplyLabActivity(ctx context.Context, arg ApplyLabActivityPara
 		arg.LabGroupName,
 		arg.Cursor,
 		arg.Gap,
+		arg.DeviceTouch,
+		arg.ConsoleMaxS,
 		arg.Now,
 		arg.Batch,
 	)
@@ -70,34 +75,43 @@ func (q *Queries) ApplyLabActivity(ctx context.Context, arg ApplyLabActivityPara
 }
 
 const getLabActivityCursor = `-- name: GetLabActivityCursor :one
-SELECT cursor, gap
+SELECT cursor, gap, device_touch, console_max_s
 FROM lab_activity_cursors
 WHERE lab_group_name = $1
 `
 
 type GetLabActivityCursorRow struct {
-	Cursor string `json:"cursor"`
-	Gap    bool   `json:"gap"`
+	Cursor      string `json:"cursor"`
+	Gap         bool   `json:"gap"`
+	DeviceTouch bool   `json:"device_touch"`
+	ConsoleMaxS int32  `json:"console_max_s"`
 }
 
 func (q *Queries) GetLabActivityCursor(ctx context.Context, labGroupName string) (GetLabActivityCursorRow, error) {
 	row := q.db.QueryRow(ctx, getLabActivityCursor, labGroupName)
 	var i GetLabActivityCursorRow
-	err := row.Scan(&i.Cursor, &i.Gap)
+	err := row.Scan(
+		&i.Cursor,
+		&i.Gap,
+		&i.DeviceTouch,
+		&i.ConsoleMaxS,
+	)
 	return i, err
 }
 
 const getLabActivityOfClient = `-- name: GetLabActivityOfClient :one
 SELECT a.egress_used::bool                                                                                     AS egress_used,
+       COALESCE(k.device_touch, false)::bool                                                                          AS device_touch,
        (SELECT COALESCE(sum(c.bytes), 0) FROM lab_activity_clients c
         WHERE c.lab_group_name = a.lab_group_name AND c.lab_name = a.lab_name AND c.client = $1)::bigint AS vpn_bytes,
        (SELECT count(DISTINCT d.dst_address) FROM lab_activity_dsts d
         WHERE d.lab_group_name = a.lab_group_name AND d.lab_name = a.lab_name AND d.client = $1)::bigint AS devices_touched,
        (SELECT COALESCE(sum(EXTRACT(EPOCH FROM (LEAST(COALESCE(s.closed_at, $2::timestamptz),
-                                                      s.opened_at + make_interval(secs => $3::float8))
+                                                      s.opened_at + make_interval(secs => COALESCE(NULLIF(k.console_max_s, 0)::float8, $3::float8)))
            - s.opened_at))), 0) FROM lab_activity_sessions s
         WHERE s.lab_group_name = a.lab_group_name AND s.lab_name = a.lab_name AND s.client = $1)::float8 AS console_seconds
 FROM lab_activity a
+         LEFT JOIN lab_activity_cursors k ON k.lab_group_name = a.lab_group_name
 WHERE a.lab_group_name = $4
   AND a.lab_name = $5
 `
@@ -112,6 +126,7 @@ type GetLabActivityOfClientParams struct {
 
 type GetLabActivityOfClientRow struct {
 	EgressUsed     bool    `json:"egress_used"`
+	DeviceTouch    bool    `json:"device_touch"`
 	VpnBytes       int64   `json:"vpn_bytes"`
 	DevicesTouched int64   `json:"devices_touched"`
 	ConsoleSeconds float64 `json:"console_seconds"`
@@ -131,6 +146,7 @@ func (q *Queries) GetLabActivityOfClient(ctx context.Context, arg GetLabActivity
 	var i GetLabActivityOfClientRow
 	err := row.Scan(
 		&i.EgressUsed,
+		&i.DeviceTouch,
 		&i.VpnBytes,
 		&i.DevicesTouched,
 		&i.ConsoleSeconds,
@@ -147,20 +163,22 @@ WITH inst AS (
       AND ec.event_exercise_id = ANY ($2::uuid[])
 ), per_lab AS (
     SELECT i.event_id, i.event_team_id, i.event_exercise_id, i.lab_group_name, i.lab_name, COALESCE(a.egress_used, false) AS egress_used,
+           COALESCE(k.device_touch, false) AS device_touch,
            (SELECT COALESCE(sum(c.bytes), 0) FROM lab_activity_clients c
             WHERE c.lab_group_name = i.lab_group_name AND c.lab_name = i.lab_name)::bigint AS bytes,
            (SELECT COALESCE(sum(EXTRACT(EPOCH FROM (LEAST(COALESCE(s.closed_at, $3::timestamptz),
-                                                          s.opened_at + make_interval(secs => $4::float8))
+                                                          s.opened_at + make_interval(secs => COALESCE(NULLIF(k.console_max_s, 0)::float8, $4::float8)))
                - s.opened_at))), 0) FROM lab_activity_sessions s
             WHERE s.lab_group_name = i.lab_group_name AND s.lab_name = i.lab_name)::float8 AS console_seconds
     FROM inst i
              LEFT JOIN lab_activity a ON a.lab_group_name = i.lab_group_name AND a.lab_name = i.lab_name
+             LEFT JOIN lab_activity_cursors k ON k.lab_group_name = i.lab_group_name
     -- A lab the reports do not name is a lab with no activity, once its group is pulled at all (a cursor exists).
-    WHERE a.lab_name IS NOT NULL
-       OR EXISTS (SELECT 1 FROM lab_activity_cursors k WHERE k.lab_group_name = i.lab_group_name)
+    WHERE a.lab_name IS NOT NULL OR k.lab_group_name IS NOT NULL
 ), folded AS (
     SELECT event_id, event_team_id, event_exercise_id,
-           bool_or(egress_used)::bool AS egress_used, sum(bytes)::bigint AS vpn_bytes, sum(console_seconds)::float8 AS console_seconds
+           bool_or(egress_used)::bool AS egress_used, bool_and(device_touch)::bool AS device_touch,
+           sum(bytes)::bigint AS vpn_bytes, sum(console_seconds)::float8 AS console_seconds
     FROM per_lab
     GROUP BY event_id, event_team_id, event_exercise_id
 ), touched AS (
@@ -169,7 +187,7 @@ WITH inst AS (
              JOIN lab_activity_dsts d ON d.lab_group_name = i.lab_group_name AND d.lab_name = i.lab_name
     GROUP BY i.event_team_id, i.event_exercise_id
 )
-SELECT f.event_id, f.event_team_id, f.event_exercise_id, f.egress_used, f.vpn_bytes,
+SELECT f.event_id, f.event_team_id, f.event_exercise_id, f.egress_used, f.device_touch, f.vpn_bytes,
        COALESCE(t.devices, 0)::bigint AS devices_touched, f.console_seconds
 FROM folded f
          LEFT JOIN touched t ON t.event_team_id = f.event_team_id AND t.event_exercise_id = f.event_exercise_id
@@ -187,6 +205,7 @@ type ListAssistantLabActivityRow struct {
 	EventTeamID     uuid.UUID `json:"event_team_id"`
 	EventExerciseID uuid.UUID `json:"event_exercise_id"`
 	EgressUsed      bool      `json:"egress_used"`
+	DeviceTouch     bool      `json:"device_touch"`
 	VpnBytes        int64     `json:"vpn_bytes"`
 	DevicesTouched  int64     `json:"devices_touched"`
 	ConsoleSeconds  float64   `json:"console_seconds"`
@@ -195,7 +214,8 @@ type ListAssistantLabActivityRow struct {
 // The activity of the labs of teams x tasks, per (event, team, event exercise): the labs of one instance (a recreate makes
 // another lab) are folded together. egress_used: any of its labs had egress; vpn_bytes: bytes the team's VPN clients exchanged
 // with the labs; devices_touched: distinct lab addresses reached; console_seconds: console time, a session still open (or one
-// longer than max_session_seconds) counted up to that cap. An instance whose group was never pulled (reports off, or not yet) is not returned: its figures are "not reported", not zero.
+// longer than the cap) counted up to the cap: the laboratory's own console_max_s of the group, else max_session_seconds.
+// device_touch false: the cluster produces no device_touch events, so vpn_bytes and devices_touched are not reported. An instance whose group was never pulled (reports off, or not yet) is not returned: its figures are "not reported", not zero.
 func (q *Queries) ListAssistantLabActivity(ctx context.Context, arg ListAssistantLabActivityParams) ([]ListAssistantLabActivityRow, error) {
 	rows, err := q.db.Query(ctx, listAssistantLabActivity,
 		arg.TeamIds,
@@ -215,6 +235,7 @@ func (q *Queries) ListAssistantLabActivity(ctx context.Context, arg ListAssistan
 			&i.EventTeamID,
 			&i.EventExerciseID,
 			&i.EgressUsed,
+			&i.DeviceTouch,
 			&i.VpnBytes,
 			&i.DevicesTouched,
 			&i.ConsoleSeconds,
