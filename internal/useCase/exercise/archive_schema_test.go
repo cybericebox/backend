@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v3"
 
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 	exercise "github.com/cybericebox/backend/internal/useCase/exercise"
 )
 
@@ -90,4 +91,24 @@ func TestArchiveSchemaRefusesWhatTheDecoderRefuses(t *testing.T) {
 			require.Error(t, validateDocument(t, schema, []byte(document)))
 		})
 	}
+}
+
+// A task archive the brain really produced (its create path, a static task with two attachments) goes through the import the
+// save uses (read, strict decode, content validation) and arrives as a draft; its document also satisfies the schema.
+func TestBrainProducedStaticTaskImportsAsADraft(t *testing.T) {
+	archive, err := os.ReadFile(brainFixtures + "/create/brain-produced-static.cybericebox.zip")
+	require.NoError(t, err)
+
+	files, err := exercise.ReadArchiveV1(bytes.NewReader(archive), exercise.DefaultLimits())
+	require.NoError(t, err)
+	require.NoError(t, validateDocument(t, compileArchiveSchema(t), files["exercise.json"]), "the document satisfies the schema")
+
+	parsed, err := exercise.ParseExerciseArchive(archive, "", exercise.DefaultLimits())
+	require.NoError(t, err)
+	uc := exercise.NewExerciseUseCase(exercise.Dependencies{})
+	require.NoError(t, exercise.ValidateImportContentForTest(t.Context(), uc, &parsed, false))
+	require.Len(t, parsed.Versions, 1)
+	require.Equal(t, exerciseModel.VersionStatusDraft, parsed.Versions[0].Status)
+	require.Equal(t, "Rotated Secret", parsed.Versions[0].Name)
+	require.Len(t, parsed.Versions[0].Variants[0].Tasks[0].Attachments, 2)
 }
