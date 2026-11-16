@@ -1,0 +1,117 @@
+# A lab for the brain's opponents: two target devices (web, db) behind a switch the opponents' tools device is cabled to,
+# and a manifest with an attacker and a defender. The tools device itself is not in this document: the platform adds it
+# (with the hidden control gateway "ctl") when an opponent runs; see deployed-topology.json for the result.
+schema: cib-exercise/1.0
+exercise:
+  name: Brain opponent lab
+  description: A web service and its database on one segment.
+  tags: [brain, opponents, dynamic]
+versions:
+  - status: draft
+    admin_note: Fixture for the brain's local end-to-end runs.
+    variants:
+      - index: 1
+        tasks:
+          - key: recon
+            name: Find the service
+            description: |
+              A web service runs at {{web_link}}. Submit the flag its status page shows.
+            difficulty: easy
+            check:
+              answer:
+                type: flag
+                values: ["ICE{brain_recon}"]
+            placeholders:
+              - key: web_link
+                kind: external.link
+                device_name: web
+                access: http
+          - key: root
+            name: Read the database secret
+            description: |
+              The service keeps a secret in its database next door. Submit it.
+            difficulty: medium
+            requires: [recon]
+            check:
+              answer:
+                type: flag
+                values: ["ICE{brain_root}"]
+        topology:
+          devices:
+            - name: web
+              type: node
+              profile: container
+              image: nginx:1.27
+              resource_preset: micro
+              bootstrap:
+                timeout: 60s
+                files:
+                  - path: /usr/share/nginx/html/status.txt
+                    content: "{{task.recon}}"
+                    mode: "0644"
+              access:
+                - kind: http
+                  port: 80
+                  protocol: http
+              interfaces:
+                - name: eth0
+                  ip:
+                    type: static
+                    address_ref:
+                      gateway: attack
+                      host: 10
+                    gateway_ref:
+                      gateway: attack
+                      host: 1
+            - name: db
+              type: node
+              profile: container
+              image: redis:7
+              resource_preset: micro
+              bootstrap:
+                timeout: 60s
+                env:
+                  - name: SECRET
+                    value: "{{task.root}}"
+              interfaces:
+                - name: eth0
+                  ip:
+                    type: static
+                    address_ref:
+                      gateway: attack
+                      host: 20
+                    gateway_ref:
+                      gateway: attack
+                      host: 1
+            - name: sw1
+              type: unmanaged-switch
+            - name: attack
+              type: vpn_gateway
+              dhcp: true
+              dhcp_ranges:
+                - start: 100
+                  end: 200
+          connections:
+            - endpoints:
+                - {kind: device, device: attack, interface: eth0}
+                - {kind: device, device: sw1, interface: GigabitEthernet0/1}
+            - endpoints:
+                - {kind: device, device: sw1, interface: GigabitEthernet0/2}
+                - {kind: device, device: web, interface: eth0}
+            - endpoints:
+                - {kind: device, device: sw1, interface: GigabitEthernet0/3}
+                - {kind: device, device: db, interface: eth0}
+        opponents:
+          - role: attack
+            band: 3
+            goal: [recon, root]
+            start: immediate
+            foothold: sw1
+            brief: Be thorough, stay quiet.
+          - role: defense
+            band: 2
+            goal: [root]
+            start:
+              after: recon
+            operates: [web, db]
+            brief: Keep the database secret from the attacker.

@@ -1,0 +1,123 @@
+{
+  "aggregates": [
+    {
+      "source": "events",
+      "task_ref": "00000000-0000-4000-8000-000000000001",
+      "version": "00000000-0000-4000-8000-000000000002",
+      "image": "cd4495bb73de9b01bf009710b80ecf4be2d298db47492f4e9e7d0b04981c4614",
+      "solves": 3,
+      "attempts": 22,
+      "solve_rate": 0.6,
+      "time": {
+        "median": 2700,
+        "p25": 2250,
+        "p75": 3000
+      },
+      "hints_used": [
+        {
+          "hints": 0,
+          "teams": 3
+        },
+        {
+          "hints": 1,
+          "teams": 1
+        },
+        {
+          "hints": 2,
+          "teams": 1
+        }
+      ],
+      "task_kind": "dynamic",
+      "as_of": "2026-11-16T18:00:00Z",
+      "teams_engaged": 5,
+      "wrong_submissions_per_team": {
+        "p25": 1,
+        "median": 2,
+        "p75": 3.5
+      },
+      "wrong_submissions_per_nonsolver": {
+        "p25": 4.5,
+        "median": 6,
+        "p75": 7.5
+      },
+      "egress_enabled": true,
+      "lab_health": {
+        "ready_time_s": {
+          "p25": 37.5,
+          "median": 39.5,
+          "p75": 44.5
+        },
+        "restarts_per_team": 0.6,
+        "broken_share": 0.4
+      },
+      "egress_share": 0.6666666666666666,
+      "vpn_bytes_per_team": {
+        "p25": 4600000,
+        "median": 8000000,
+        "p75": 30214400
+      },
+      "devices_touched_per_team": {
+        "p25": 1.5,
+        "median": 2,
+        "p75": 2.5
+      },
+      "console_minutes_per_team": {
+        "p25": 2,
+        "median": 4,
+        "p75": 8.25
+      },
+      "team_records": [
+        {
+          "team_ref": "3a7f1c85e0d249b6a8c3f5710e9d26b4",
+          "solved": false,
+          "wrong_submissions": 3,
+          "hints_used": 0,
+          "state_checks": []
+        },
+        {
+          "team_ref": "5f0c2a7e9b1d4c3a8e6f0b2d7c91a4e3",
+          "solved": true,
+          "solve_time_s": 1800,
+          "wrong_submissions": 2,
+          "hints_used": 1,
+          "state_checks": [],
+          "vpn_bytes": 52428800,
+          "devices_touched": 3,
+          "console_minutes": 12.5,
+          "egress_used": true
+        },
+        {
+          "team_ref": "c4b8e1d02f7a46c9a3d5e8f1b0627c94",
+          "solved": true,
+          "solve_time_s": 2700,
+          "wrong_submissions": 5,
+          "hints_used": 0,
+          "state_checks": [],
+          "vpn_bytes": 8000000,
+          "devices_touched": 2,
+          "console_minutes": 0,
+          "egress_used": false
+        },
+        {
+          "team_ref": "17ad93f5c2e04b8d9a61f3c7e5b28d40",
+          "solved": false,
+          "wrong_submissions": 9,
+          "hints_used": 2,
+          "state_checks": [],
+          "vpn_bytes": 1200000,
+          "devices_touched": 1,
+          "console_minutes": 4,
+          "egress_used": true
+        },
+        {
+          "team_ref": "e92b6d04a8c15f3790bd2e64c1a7f853",
+          "solved": true,
+          "solve_time_s": 3300,
+          "wrong_submissions": 0,
+          "hints_used": 0,
+          "state_checks": []
+        }
+      ]
+    }
+  ]
+}
