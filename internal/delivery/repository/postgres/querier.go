@@ -23,6 +23,10 @@ type Querier interface {
 	// A chunk is accepted only as the next one in order; zero rows means the client is out of step (it reads the
 	// status and continues from chunks_received). Every accepted chunk moves the expiry forward.
 	AdvanceMediaUpload(ctx context.Context, arg AdvanceMediaUploadParams) (int64, error)
+	// Folds one page of a group's activity into the running figures and moves the group's cursor, in one statement, so the page
+	// is counted exactly once. batch is {labs:[{lab,egress}], clients:[{lab,client,bytes}], dsts:[{lab,client,dst}],
+	// sessions:[{lab,session_id,client,opened_ms,closed_ms}]}, each list holding one entry per key.
+	ApplyLabActivity(ctx context.Context, arg ApplyLabActivityParams) error
 	// Overwrites the final row of a user x lab x access type with the collector's
 	// cumulative values. Totals never go down (a stale resend cannot lower them),
 	// first is min, last is max, first_responded_at the earliest answer.
@@ -681,6 +685,11 @@ type Querier interface {
 	GetInfrastructureAgent(ctx context.Context, id uuid.UUID) (InfrastructureAgent, error)
 	// The catalog task behind a team task of the event.
 	GetIntegrityTaskOfTeamChallenge(ctx context.Context, arg GetIntegrityTaskOfTeamChallengeParams) (GetIntegrityTaskOfTeamChallengeRow, error)
+	GetLabActivityCursor(ctx context.Context, labGroupName string) (GetLabActivityCursorRow, error)
+	// The activity of one lab as one VPN client saw it (a grader run's lab): whether the lab had egress, the bytes the client
+	// exchanged with it, the distinct lab addresses it reached and its console time (a session open, or longer than the cap, is
+	// counted up to max_session_seconds). No row: the lab has no report.
+	GetLabActivityOfClient(ctx context.Context, arg GetLabActivityOfClientParams) (GetLabActivityOfClientRow, error)
 	GetLabArchiveChunkForScrub(ctx context.Context, id uuid.UUID) (GetLabArchiveChunkForScrubRow, error)
 	GetLabBinding(ctx context.Context, arg GetLabBindingParams) (LabBinding, error)
 	// The earliest moment a lab of this task existed for the team; 0001-01-01 when
@@ -880,6 +889,11 @@ type Querier interface {
 	ListAdminAuditLog(ctx context.Context, arg ListAdminAuditLogParams) ([]AdminAuditLog, error)
 	// The approved values of every approved elevation of the given exercises.
 	ListApprovedExerciseResourceElevations(ctx context.Context, exerciseIds []uuid.UUID) ([]ListApprovedExerciseResourceElevationsRow, error)
+	// The activity of the labs of teams x tasks, per (event, team, event exercise): the labs of one instance (a recreate makes
+	// another lab) are folded together. egress_used: any of its labs had egress; vpn_bytes: bytes the team's VPN clients exchanged
+	// with the labs; devices_touched: distinct lab addresses reached; console_seconds: console time, a session still open (or one
+	// longer than max_session_seconds) counted up to that cap. An instance whose group was never pulled (reports off, or not yet) is not returned: its figures are "not reported", not zero.
+	ListAssistantLabActivity(ctx context.Context, arg ListAssistantLabActivityParams) ([]ListAssistantLabActivityRow, error)
 	// The opponent runs of a variant (any role of the manifest, never the grader or a lab), newest first.
 	ListAssistantOpponentRunsOfVariant(ctx context.Context, arg ListAssistantOpponentRunsOfVariantParams) ([]AssistantRun, error)
 	ListAssistantRunAnswers(ctx context.Context, runID uuid.UUID) ([]ListAssistantRunAnswersRow, error)
@@ -1368,6 +1382,9 @@ type Querier interface {
 	// Pending, not yet announced invitations of started events; the use case
 	// applies the exact expiry rule of the event lifecycle.
 	ListInvitationExpiryCandidates(ctx context.Context, nowAt time.Time) ([]ListInvitationExpiryCandidatesRow, error)
+	// The lab groups whose activity the daemon pulls: the groups of the events whose statistics collection is on (final or
+	// continuous) while the event runs and for an hour after it ends (the laboratory keeps a short ring).
+	ListLabActivityGroups(ctx context.Context, arg ListLabActivityGroupsParams) ([]string, error)
 	// The archive chunks of an event after the given id, a page at a time.
 	ListLabArchiveChunksForScrub(ctx context.Context, arg ListLabArchiveChunksForScrubParams) ([]ListLabArchiveChunksForScrubRow, error)
 	// The challenges that share one Lab of a team.
@@ -1966,6 +1983,9 @@ type Querier interface {
 	// Signals finished (delivered to every hook, or given up) before the cutoff;
 	// their hook executions go with them (cascade).
 	PurgeFinishedSignals(ctx context.Context, arg PurgeFinishedSignalsParams) (int64, error)
+	// Drops the figures of labs nothing needs any more: no event binding names the lab (the event or its lab is gone, or it was a
+	// test lab) and nothing was reported for it since the cutoff; then the cursors of groups left without a lab.
+	PurgeLabActivity(ctx context.Context, before time.Time) error
 	// The delivery journal: a dispatch and (cascade) its per-channel targets,
 	// which hold the recipient address and transport errors.
 	PurgeNotificationDispatches(ctx context.Context, arg PurgeNotificationDispatchesParams) (int64, error)
@@ -2149,6 +2169,8 @@ type Querier interface {
 	SetAssistantRunAnswerSent(ctx context.Context, arg SetAssistantRunAnswerSentParams) (int64, error)
 	// The brain was answered the outbox request this lab was made for.
 	SetAssistantRunAnswered(ctx context.Context, arg SetAssistantRunAnsweredParams) (int64, error)
+	// The activity figures of the run's lab (or that none are reported); the first decision stays.
+	SetAssistantRunLabActivity(ctx context.Context, arg SetAssistantRunLabActivityParams) (int64, error)
 	// The first moment the run's test lab was seen ready (later calls keep the first).
 	SetAssistantRunLabReady(ctx context.Context, arg SetAssistantRunLabReadyParams) (int64, error)
 	// The final aggregate the brain sent with run_finished.

@@ -79,6 +79,13 @@ SET lab_ready_at = COALESCE(lab_ready_at, sqlc.arg(now)::timestamptz),
     updated_at   = sqlc.arg(now)::timestamptz
 WHERE id = sqlc.arg(id);
 
+-- name: SetAssistantRunLabActivity :execrows
+-- The activity figures of the run's lab (or that none are reported); the first decision stays.
+UPDATE assistant_runs
+SET lab_activity = COALESCE(lab_activity, sqlc.arg(lab_activity)::jsonb),
+    updated_at   = sqlc.arg(now)::timestamptz
+WHERE id = sqlc.arg(id);
+
 -- name: CloseAssistantRun :execrows
 -- Decides how the run ends; the teardown follows and then FinishAssistantRun. Only the first decision counts.
 UPDATE assistant_runs
