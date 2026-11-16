@@ -155,3 +155,25 @@ func TestSaveRefusesAnArchiveThatCarriesASecretValue(t *testing.T) {
 		})
 	}
 }
+
+// A confirmation names the stored archive by id, and the id alone proves nothing: a file of the author's that is not the archive that
+// was confirmed (other bytes), and a file that is not the author's at all, are refused before anything is committed, with the
+// kept secrets never restored into content nobody confirmed.
+func TestSaveOfAnEditWithAFileThatIsNotTheConfirmedArchiveIsRefused(t *testing.T) {
+	for name, tamper := range map[string]func(s *saveRig){
+		"other bytes under the same id": func(s *saveRig) { s.files.body = []byte("another archive of the author") },
+		"a file of another user":        func(s *saveRig) { s.files.owner = uuid.Must(uuid.NewV7()) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			s := editRig(t, true)
+			_, err := s.save(t) // the first save: the preview and the stored archive
+			require.ErrorIs(t, err, assistantModel.ErrAssistantEditNeedsConfirmation.Err())
+			tamper(s)
+			_, err = s.uc.SaveSession(t.Context(), actor, "s1", &assistant.EditConfirmation{FileID: fileID, Revision: "rev-1", ArchiveHash: archiveHash()})
+			require.ErrorIs(t, err, exerciseModel.ErrImportConfirmationStale.Err())
+			assert.NotContains(t, s.line.list(), "commit")
+			assert.False(t, s.importer.commitIn.RestoreKeptSecrets)
+			assert.Empty(t, s.savedBodies())
+		})
+	}
+}

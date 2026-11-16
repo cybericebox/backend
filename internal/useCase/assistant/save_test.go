@@ -147,12 +147,24 @@ func (f *fakeImporter) setJob(v exerciseUseCase.ImportJobView) { f.mu.Lock(); f.
 type fakeFiles struct {
 	line *timeline
 	body []byte
+	// owner is who the stored file belongs to (zero: the author of the test).
+	owner uuid.UUID
 }
 
 func (f *fakeFiles) UploadFile(_ context.Context, _, _ string, r io.Reader, _ uuid.UUID) (mediaModel.File, error) {
 	f.line.add("upload")
 	f.body, _ = io.ReadAll(r)
 	return mediaModel.File{ID: fileID}, nil
+}
+
+// GetFile is the record of the stored file: its owner and the SHA-256 of its bytes.
+func (f *fakeFiles) GetFile(context.Context, uuid.UUID) (mediaModel.File, error) {
+	sum := sha256.Sum256(f.body)
+	owner := f.owner
+	if owner == uuid.Nil {
+		owner = actor.UserID
+	}
+	return mediaModel.File{ID: fileID, ContentHash: hex.EncodeToString(sum[:]), CreatedBy: uuid.NullUUID{UUID: owner, Valid: true}}, nil
 }
 
 // memSaves is the save store in memory, with the same claim rules as the table.

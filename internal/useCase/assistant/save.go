@@ -53,6 +53,8 @@ type (
 	// FileStore stores the archive for a background import (the media use case).
 	FileStore interface {
 		UploadFile(ctx context.Context, name, contentType string, r io.Reader, createdBy uuid.UUID) (mediaModel.File, error)
+		// GetFile is a stored file's record (its content hash is the SHA-256 of its bytes).
+		GetFile(ctx context.Context, id uuid.UUID) (mediaModel.File, error)
 	}
 )
 
@@ -194,6 +196,16 @@ func (u *UseCase) prepareEdit(ctx context.Context, actor exerciseUseCase.Actor, 
 	var source exerciseUseCase.PreviewArchiveInput
 	if confirm != nil {
 		if confirm.ArchiveHash != hash {
+			return nil, exerciseModel.ErrImportConfirmationStale.Err()
+		}
+		// The confirmation names the stored archive by id, and the id alone says nothing about what is in it: the file must be the
+		// author's own and its bytes must be the archive the author confirmed (the hash that was just checked against the brain's
+		// archive). Another file of the author's, however well it previews, is not this edit.
+		file, err := u.files.GetFile(ctx, confirm.FileID)
+		if err != nil {
+			return nil, err
+		}
+		if !file.CreatedBy.Valid || file.CreatedBy.UUID != actor.UserID || file.ContentHash != confirm.ArchiveHash {
 			return nil, exerciseModel.ErrImportConfirmationStale.Err()
 		}
 		source = exerciseUseCase.PreviewArchiveInput{FileID: confirm.FileID, FixedExerciseID: target}

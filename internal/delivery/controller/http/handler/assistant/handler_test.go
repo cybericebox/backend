@@ -198,6 +198,10 @@ func (files) UploadFile(context.Context, string, string, io.Reader, uuid.UUID) (
 	return mediaModel.File{ID: taskID}, nil
 }
 
+func (files) GetFile(_ context.Context, id uuid.UUID) (mediaModel.File, error) {
+	return mediaModel.File{ID: id}, nil
+}
+
 // port is the handler's use case port over the real assistant use case. Only the author may author.
 type port struct{ *assistantUseCase.UseCase }
 
