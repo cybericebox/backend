@@ -70,6 +70,9 @@ type (
 		// RunGrace is how long the platform keeps trying to reopen the event stream of a run before it tears the run's lab
 		// down and marks the run failed (brain_unreachable).
 		RunGrace time.Duration `env:"RUN_GRACE" envDefault:"60s"`
+		// ConsoleMaxLifetime is how long a console session may last in the laboratory (the chart's terminal.limits.maxLifetime,
+		// 8h by default); the statistics cap a console session that never reported its end at it.
+		ConsoleMaxLifetime time.Duration `env:"CONSOLE_MAX_LIFETIME" envDefault:"8h"`
 		// RunMaxDuration is the longest a run may last, the start of its lab included; then it is torn down as failed.
 		RunMaxDuration time.Duration `env:"RUN_MAX_DURATION" envDefault:"30m"`
 		// ToolsImage is the image of the platform tools device an automated actor works from (a container with the tools and
@@ -761,8 +764,8 @@ func (c BrainConfig) Validate() error {
 	if c.OpponentActions < 0 || c.OpponentTokens < 0 || c.OpponentSeconds < 0 {
 		return errors.New("cyber-brain: BRAIN_OPPONENT_ACTIONS, BRAIN_OPPONENT_TOKENS and BRAIN_OPPONENT_SECONDS must not be negative")
 	}
-	if c.RunGrace < 0 || c.RunMaxDuration < 0 {
-		return errors.New("cyber-brain: BRAIN_RUN_GRACE and BRAIN_RUN_MAX_DURATION must not be negative")
+	if c.RunGrace < 0 || c.RunMaxDuration < 0 || c.ConsoleMaxLifetime < 0 {
+		return errors.New("cyber-brain: BRAIN_RUN_GRACE, BRAIN_RUN_MAX_DURATION and BRAIN_CONSOLE_MAX_LIFETIME must not be negative")
 	}
 	return nil
 }

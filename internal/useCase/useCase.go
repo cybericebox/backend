@@ -569,7 +569,7 @@ func NewUseCase(deps Dependencies) *UseCase {
 	if a, ok := deps.LabAgent.(labActivityUseCase.Agent); ok {
 		activityAgent = a
 	}
-	labActivityUC := labActivityUseCase.New(labActivityUseCase.Dependencies{Agent: activityAgent, Store: labActivityRepo.New(deps.Repo), Modes: statsRepo})
+	labActivityUC := labActivityUseCase.New(labActivityUseCase.Dependencies{Agent: activityAgent, Store: labActivityRepo.New(deps.Repo), Modes: statsRepo, ConsoleMaxLifetime: deps.Brain.ConsoleMaxLifetime})
 	assistantUC := assistantUseCase.New(assistantUseCase.Dependencies{
 		Store: brainConnectionRepo.New(deps.Repo), Cursor: brainConnectionRepo.New(deps.Repo), Cipher: deps.PlatformCipher,
 		Config:     assistantUseCase.Config{Endpoint: deps.Brain.Endpoint, EnrollmentToken: deps.Brain.EnrollmentToken, CAFile: deps.Brain.CAFile},
