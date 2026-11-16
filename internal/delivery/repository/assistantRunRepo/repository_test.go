@@ -64,11 +64,11 @@ func TestGetMapsARunAndMissingIsNotAnError(t *testing.T) {
 	now := time.Unix(100, 0).UTC()
 	f := &fake{run: &postgres.AssistantRun{
 		ID: id, State: "closing", EndState: "failed", FailureReason: "brain_unreachable", LastSeq: 7,
-		Measurement: []byte(`{"a":1}`), StreamDownSince: pgtype.Timestamptz{Time: now, Valid: true}, ExpiresAt: now,
+		Measurement: []byte(`{"a":1}`), StreamDownSince: pgtype.Timestamptz{Time: now, Valid: true}, LabReadyAt: pgtype.Timestamptz{Time: now, Valid: true}, ExpiresAt: now,
 	}}
 	got, found, err := New(f).Get(context.Background(), id)
 	if err != nil || !found || got.State != assistantModel.RunClosing || got.EndState != assistantModel.RunFailed || got.LastSeq != 7 ||
-		got.FailureReason != "brain_unreachable" || string(got.Measurement) != `{"a":1}` || !got.StreamDownSince.Equal(now) || !got.StartedAt.IsZero() {
+		got.FailureReason != "brain_unreachable" || string(got.Measurement) != `{"a":1}` || !got.StreamDownSince.Equal(now) || !got.LabReadyAt.Equal(now) || !got.StartedAt.IsZero() {
 		t.Fatalf("%v %v %+v", err, found, got)
 	}
 	f.run = nil

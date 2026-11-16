@@ -10,7 +10,7 @@ import (
 	"sync"
 )
 
-// Runs is the run side of the fake brain: `POST /v1/runs`, `POST /v1/runs/{id}/stop`, `POST /v1/runs/{id}/verdict` and
+// Runs is the run side of the fake brain: `POST /v1/runs`, `POST /v1/runs/{id}/stop`, `POST /v1/runs/{id}/verdict`, `POST /v1/runs/{id}/lab_facts` and
 // `GET /v1/runs/{id}/events?after=`. A test scripts the events of a run with Emit and reads what the platform sent.
 type Runs struct {
 	mu sync.Mutex
@@ -31,6 +31,9 @@ type Runs struct {
 	stopStatus   int // when not 0, StopRun answers it with an error envelope
 	vFail        int // how many of the next verdicts are refused with vStatus
 	vStatus      int
+	labFacts     map[string][]json.RawMessage
+	lfFail       int // how many of the next lab_facts calls are refused with lfStatus
+	lfStatus     int
 	closeAll     bool
 	wake         chan struct{}
 }
@@ -43,7 +46,7 @@ type frame struct {
 
 // NewRuns makes an empty run side; set it as Fake.Runs.
 func NewRuns() *Runs {
-	return &Runs{verdicts: map[string][]json.RawMessage{}, materials: map[string][]Upload{}, frames: map[string][]frame{}, opened: map[string]int{}, afters: map[string][]int64{}, wake: make(chan struct{})}
+	return &Runs{verdicts: map[string][]json.RawMessage{}, labFacts: map[string][]json.RawMessage{}, materials: map[string][]Upload{}, frames: map[string][]frame{}, opened: map[string]int{}, afters: map[string][]int64{}, wake: make(chan struct{})}
 }
 
 // Emit adds an event to the run's stream and returns its sequence number.
@@ -107,6 +110,20 @@ func (r *Runs) Verdicts(runID string) []json.RawMessage {
 	return append([]json.RawMessage(nil), r.verdicts[runID]...)
 }
 
+// LabFacts are the lab_facts bodies sent for a run.
+func (r *Runs) LabFacts(runID string) []json.RawMessage {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]json.RawMessage(nil), r.labFacts[runID]...)
+}
+
+// FailLabFacts makes the next n lab_facts calls answer this status with an error envelope (they are not recorded).
+func (r *Runs) FailLabFacts(n, status int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.lfFail, r.lfStatus = n, status
+}
+
 // Afters are the `after` values the run's event stream was opened with, in order.
 func (r *Runs) Afters(runID string) []int64 {
 	r.mu.Lock()
@@ -159,6 +176,21 @@ func (r *Runs) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 		r.verdicts[id] = append(r.verdicts[id], body)
+		r.mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{}`))
+	case strings.HasSuffix(rest, "/lab_facts") && req.Method == http.MethodPost:
+		id := strings.TrimSuffix(rest, "/lab_facts")
+		body, _ := io.ReadAll(req.Body)
+		r.mu.Lock()
+		if r.lfFail > 0 {
+			r.lfFail--
+			status := r.lfStatus
+			r.mu.Unlock()
+			Fail(w, status, "unavailable", "try again")
+			return
+		}
+		r.labFacts[id] = append(r.labFacts[id], body)
 		r.mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{}`))

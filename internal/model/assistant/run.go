@@ -79,6 +79,8 @@ type Run struct {
 	UpdatedAt       time.Time
 	StartedAt       time.Time
 	FinishedAt      time.Time
+	// LabReadyAt is when the run's test lab was first seen ready (zero until then).
+	LabReadyAt time.Time
 	// ExpiresAt is the longest the run may last.
 	ExpiresAt time.Time
 }

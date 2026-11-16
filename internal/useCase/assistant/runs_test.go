@@ -8,6 +8,7 @@ import (
 	"io"
 	"mime"
 	"mime/multipart"
+	"net/http"
 	"strings"
 	"sync"
 	"testing"
@@ -153,6 +154,15 @@ func (m *memRuns) SetMeasurement(_ context.Context, id uuid.UUID, measurement []
 	m.update(id, func(r *assistantModel.Run) bool { r.Measurement = measurement; return true })
 	return nil
 }
+func (m *memRuns) SetLabReady(_ context.Context, id uuid.UUID, now time.Time) error {
+	m.update(id, func(r *assistantModel.Run) bool {
+		if r.LabReadyAt.IsZero() {
+			r.LabReadyAt = now
+		}
+		return true
+	})
+	return nil
+}
 func (m *memRuns) SetStreamDown(_ context.Context, id uuid.UUID, since, _ time.Time) error {
 	m.update(id, func(r *assistantModel.Run) bool { r.StreamDownSince = since; return true })
 	return nil
@@ -285,6 +295,7 @@ type fakeLabs struct {
 	authErr     error
 	deployErr   error
 	hasLab      bool
+	egress      bool
 	readyAfter  int
 	looks       int
 	failed      bool
@@ -446,7 +457,7 @@ func (f *fakeLabs) RunTarget(_ context.Context, runVersion, _ uuid.UUID, want ti
 	variants := `[{"topology":{"devices":[{"image":"nginx:1"},{"image":"redis:7"}]}}]`
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return exerciseUseCase.RunTarget{ExerciseID: runExercise, VersionID: runVersion, VariantID: runVariant, VariantsJS: []byte(variants), HasLab: f.hasLab, Lease: want, Opponents: f.opponents}, nil
+	return exerciseUseCase.RunTarget{ExerciseID: runExercise, VersionID: runVersion, VariantID: runVariant, VariantsJS: []byte(variants), HasLab: f.hasLab, EgressEnabled: f.egress, Lease: want, Opponents: f.opponents}, nil
 }
 
 var (
@@ -713,6 +724,57 @@ func TestAGraderRunFromStartToTeardown(t *testing.T) {
 	}
 	if len(r.brn.Stops()) != 0 {
 		t.Fatalf("%v", r.brn.Stops())
+	}
+}
+
+// A finished grader run tells the brain the lab-side facts of its lab (POST /v1/runs/{id}/lab_facts): the time the lab took,
+// its restarts and the topology's egress; the activity figures are null until the laboratory reports them. A failing
+// brain is retried and the facts then arrive once.
+func TestAFinishedGraderRunSendsItsLabFactsAndRetriesThem(t *testing.T) {
+	r := newRunRig(t, nil)
+	r.labs.egress = true
+	run := r.start(t)
+	id := run.ID.String()
+	r.brn.FailLabFacts(2, http.StatusServiceUnavailable)
+	r.drive(t)
+	r.waitState(t, run.ID, assistantModel.RunRunning)
+	r.brn.Emit(id, "run_finished", `{"type":"run_finished","run_id":"`+id+`","status":"done"}`)
+	r.waitState(t, run.ID, assistantModel.RunFinished)
+
+	sent := r.brn.LabFacts(id)
+	if len(sent) != 1 {
+		t.Fatalf("the facts arrive once, after the refusals: %v", sent)
+	}
+	got := mustJSON(t, sent[0])
+	if string(got["egress_enabled"]) != "true" || string(got["restarts"]) != "0" {
+		t.Fatalf("%s", sent[0])
+	}
+	for _, nullable := range []string{"egress_used", "vpn_bytes", "devices_touched", "console_minutes"} {
+		if v, has := got[nullable]; !has || string(v) != "null" {
+			t.Fatalf("%s is null while the laboratory does not report it: %s", nullable, sent[0])
+		}
+	}
+	var ready float64
+	if err := json.Unmarshal(got["ready_time_s"], &ready); err != nil || ready < 0 {
+		t.Fatalf("ready_time_s: %v %s", err, sent[0])
+	}
+	if r.runs.state(run.ID).LabReadyAt.IsZero() {
+		t.Fatal("the moment the lab was ready is recorded")
+	}
+}
+
+// An answered 409 means the brain has the facts already: it counts as delivered and nothing is sent twice.
+func TestLabFactsRefusedAsKnownAreNotSentAgain(t *testing.T) {
+	r := newRunRig(t, nil)
+	run := r.start(t)
+	id := run.ID.String()
+	r.brn.FailLabFacts(1, http.StatusConflict)
+	r.drive(t)
+	r.waitState(t, run.ID, assistantModel.RunRunning)
+	r.brn.Emit(id, "run_finished", `{"type":"run_finished","run_id":"`+id+`","status":"done"}`)
+	r.waitState(t, run.ID, assistantModel.RunFinished)
+	if n := len(r.brn.LabFacts(id)); n != 0 {
+		t.Fatalf("a 409 is the end of it: %d", n)
 	}
 }
 
