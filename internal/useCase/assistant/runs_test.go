@@ -16,6 +16,8 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/cybericebox/daemon/internal/delivery/infrastructure/brain/brainfake"
 	"github.com/cybericebox/daemon/internal/delivery/repository/assistantRunRepo"
@@ -25,6 +27,7 @@ import (
 	userModel "github.com/cybericebox/daemon/internal/model/user"
 	"github.com/cybericebox/daemon/internal/useCase/assistant"
 	exerciseUseCase "github.com/cybericebox/daemon/internal/useCase/exercise"
+	labActivityUseCase "github.com/cybericebox/daemon/internal/useCase/labActivity"
 )
 
 // memRuns is the run store in memory.
@@ -158,6 +161,15 @@ func (m *memRuns) SetLabReady(_ context.Context, id uuid.UUID, now time.Time) er
 	m.update(id, func(r *assistantModel.Run) bool {
 		if r.LabReadyAt.IsZero() {
 			r.LabReadyAt = now
+		}
+		return true
+	})
+	return nil
+}
+func (m *memRuns) SetLabActivity(_ context.Context, id uuid.UUID, activity []byte, _ time.Time) error {
+	m.update(id, func(r *assistantModel.Run) bool {
+		if r.LabActivity == nil {
+			r.LabActivity = activity
 		}
 		return true
 	})
@@ -458,6 +470,36 @@ func (f *fakeLabs) RunTarget(_ context.Context, runVersion, _ uuid.UUID, want ti
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return exerciseUseCase.RunTarget{ExerciseID: runExercise, VersionID: runVersion, VariantID: runVariant, VariantsJS: []byte(variants), HasLab: f.hasLab, EgressEnabled: f.egress, Lease: want, Opponents: f.opponents}, nil
+}
+
+func (f *fakeLabs) RunLabRef(context.Context, uuid.UUID, uuid.UUID) (string, string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = append(f.calls, "labref")
+	return "tg-1", "l-1", nil
+}
+
+// fakeActivity is the laboratory's activity of the run's lab: nil figures are "not reported".
+type fakeActivity struct {
+	mu        sync.Mutex
+	figures   *labActivityUseCase.LabFigures
+	refreshed []string
+	askedFor  []string // group/lab/client of the reads
+	err       error
+}
+
+func (f *fakeActivity) Refresh(_ context.Context, group string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.refreshed = append(f.refreshed, group)
+	return f.err
+}
+
+func (f *fakeActivity) OfLab(_ context.Context, group, lab, client string) (*labActivityUseCase.LabFigures, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.askedFor = append(f.askedFor, group+"/"+lab+"/"+client)
+	return f.figures, nil
 }
 
 var (
@@ -761,6 +803,61 @@ func TestAFinishedGraderRunSendsItsLabFactsAndRetriesThem(t *testing.T) {
 	if r.runs.state(run.ID).LabReadyAt.IsZero() {
 		t.Fatal("the moment the lab was ready is recorded")
 	}
+}
+
+// The activity of the run's lab is read before the lab is destroyed, kept on the run, and sent with the lab facts: egress is the
+// lab's, the effort figures are those of the run's own VPN client.
+func TestTheLabFactsCarryTheActivityOfTheRunsLabReadBeforeItIsDestroyed(t *testing.T) {
+	act := &fakeActivity{figures: &labActivityUseCase.LabFigures{EgressUsed: true, VPNBytes: 4096, DevicesTouched: 3, ConsoleMinutes: 2.5}}
+	r := newRunRig(t, func(d *assistant.Dependencies) { d.LabActivity = act })
+	run := r.start(t)
+	id := run.ID.String()
+	r.drive(t)
+	r.waitState(t, run.ID, assistantModel.RunRunning)
+	r.brn.Emit(id, "run_finished", `{"type":"run_finished","run_id":"`+id+`","status":"done"}`)
+	done := r.waitState(t, run.ID, assistantModel.RunFinished)
+
+	sent := r.brn.LabFacts(id)
+	require.Len(t, sent, 1)
+	got := mustJSON(t, sent[0])
+	assert.Equal(t, "true", string(got["egress_used"]))
+	assert.Equal(t, "4096", string(got["vpn_bytes"]))
+	assert.Equal(t, "3", string(got["devices_touched"]))
+	assert.Equal(t, "2.5", string(got["console_minutes"]))
+	assert.Equal(t, []string{"tg-1"}, act.refreshed)
+	assert.Equal(t, []string{"tg-1/l-1/" + done.AccessClient}, act.askedFor, "the run's own client")
+	calls := r.labs.called()
+	assert.Less(t, indexOf(calls, "labref"), indexOf(calls, "destroy"), "read before the lab is destroyed")
+}
+
+// Reports that are off (or a lab the laboratory does not know) are null, never zero.
+func TestTheLabFactsActivityIsNullWhenNothingIsReported(t *testing.T) {
+	act := &fakeActivity{}
+	r := newRunRig(t, func(d *assistant.Dependencies) { d.LabActivity = act })
+	run := r.start(t)
+	id := run.ID.String()
+	r.drive(t)
+	r.waitState(t, run.ID, assistantModel.RunRunning)
+	r.brn.Emit(id, "run_finished", `{"type":"run_finished","run_id":"`+id+`","status":"done"}`)
+	r.waitState(t, run.ID, assistantModel.RunFinished)
+	got := mustJSON(t, r.brn.LabFacts(id)[0])
+	for _, key := range []string{"egress_used", "vpn_bytes", "devices_touched", "console_minutes"} {
+		assert.Equal(t, "null", string(got[key]), key)
+	}
+}
+
+// A laboratory that fails to answer is tried again, then the run goes on without the figures.
+func TestAFailingActivityReadIsRetriedThenLeftNull(t *testing.T) {
+	act := &fakeActivity{err: errors.New("agent down")}
+	r := newRunRig(t, func(d *assistant.Dependencies) { d.LabActivity = act })
+	run := r.start(t)
+	id := run.ID.String()
+	r.drive(t)
+	r.waitState(t, run.ID, assistantModel.RunRunning)
+	r.brn.Emit(id, "run_finished", `{"type":"run_finished","run_id":"`+id+`","status":"done"}`)
+	r.waitState(t, run.ID, assistantModel.RunFinished)
+	assert.Len(t, act.refreshed, 3, "three passes")
+	assert.Equal(t, "null", string(mustJSON(t, r.brn.LabFacts(id)[0])["vpn_bytes"]))
 }
 
 // An answered 409 means the brain has the facts already: it counts as delivered and nothing is sent twice.

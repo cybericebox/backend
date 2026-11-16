@@ -32,6 +32,7 @@ import (
 	"github.com/cybericebox/daemon/internal/delivery/repository/infrastructureAgentRepo"
 	"github.com/cybericebox/daemon/internal/delivery/repository/instanceValueRepo"
 	"github.com/cybericebox/daemon/internal/delivery/repository/jobQueueRepo"
+	"github.com/cybericebox/daemon/internal/delivery/repository/labActivityRepo"
 	"github.com/cybericebox/daemon/internal/delivery/repository/labCheckRepo"
 	"github.com/cybericebox/daemon/internal/delivery/repository/labPlacementRepo"
 	"github.com/cybericebox/daemon/internal/delivery/repository/labTrafficRepo"
@@ -66,6 +67,7 @@ import (
 	exerciseUseCase "github.com/cybericebox/daemon/internal/useCase/exercise"
 	imageRegistryUseCase "github.com/cybericebox/daemon/internal/useCase/imageRegistry"
 	infrastructureUseCase "github.com/cybericebox/daemon/internal/useCase/infrastructure"
+	labActivityUseCase "github.com/cybericebox/daemon/internal/useCase/labActivity"
 	mailUseCase "github.com/cybericebox/daemon/internal/useCase/mail"
 	mediaUseCase "github.com/cybericebox/daemon/internal/useCase/media"
 	bannerUseCase "github.com/cybericebox/daemon/internal/useCase/notification/banner"
@@ -125,6 +127,8 @@ type (
 		InboxRequests *inboxUseCase.RequestRouter
 		// Assistant is the authoring assistant: the connection to cyber-brain and the chat pass-through.
 		Assistant *assistantUseCase.UseCase
+		// LabActivity pulls the laboratory's activity reports for the statistics sent to cyber-brain.
+		LabActivity *labActivityUseCase.UseCase
 	}
 	Dependencies struct {
 		Repo            *repository.Repository
@@ -559,14 +563,21 @@ func NewUseCase(deps Dependencies) *UseCase {
 
 	adminAuditUC := adminAuditUseCase.New(deps.Repo)
 	statsRepo := assistantStatsRepo.New(deps.Repo)
+	// The activity reports of the laboratory (contract 2.5): pulled by the leader, read by the statistics and the grader runs.
+	// Without infrastructure, or with an agent that lacks the call, nothing is pulled and the figures stay "not reported".
+	var activityAgent labActivityUseCase.Agent
+	if a, ok := deps.LabAgent.(labActivityUseCase.Agent); ok {
+		activityAgent = a
+	}
+	labActivityUC := labActivityUseCase.New(labActivityUseCase.Dependencies{Agent: activityAgent, Store: labActivityRepo.New(deps.Repo), Modes: statsRepo})
 	assistantUC := assistantUseCase.New(assistantUseCase.Dependencies{
 		Store: brainConnectionRepo.New(deps.Repo), Cursor: brainConnectionRepo.New(deps.Repo), Cipher: deps.PlatformCipher,
 		Config:     assistantUseCase.Config{Endpoint: deps.Brain.Endpoint, EnrollmentToken: deps.Brain.EnrollmentToken, CAFile: deps.Brain.CAFile},
-		Stats:      assistantUseCase.MultiSource{assistantUseCase.EventsSource{Store: statsRepo, Exclusion: assistantUseCase.NoExclusion{}}},
+		Stats:      assistantUseCase.MultiSource{assistantUseCase.EventsSource{Store: statsRepo, Exclusion: assistantUseCase.NoExclusion{}, Activity: labActivityUC}},
 		StatsAdmin: statsRepo,
 		Importer:   exerciseUC, Files: mediaUC, Saves: assistantSaveRepo.New(deps.Repo), Subjects: assistantSubjectRepo.New(deps.Repo), Audit: adminAuditUC.RecordAdminAction,
 		// The grader runs: a test lab of the variant, a VPN client of its own, and the checker of the lab's flags.
-		Runs: assistantRunRepo.New(deps.Repo), Users: userRepo.New(deps.Repo), Labs: exerciseUC, RunGrace: deps.Brain.RunGrace, RunMaxDuration: deps.Brain.RunMaxDuration,
+		Runs: assistantRunRepo.New(deps.Repo), Users: userRepo.New(deps.Repo), Labs: exerciseUC, LabActivity: labActivityUC, RunGrace: deps.Brain.RunGrace, RunMaxDuration: deps.Brain.RunMaxDuration,
 		OpponentBudget: assistantModel.RunBudget{Actions: deps.Brain.OpponentActions, Tokens: deps.Brain.OpponentTokens, Time: deps.Brain.OpponentSeconds},
 	})
 	// A test lab's group policy keeps the clients of the active runs, or a run would lose its lab when the author deploys another.
@@ -622,5 +633,6 @@ func NewUseCase(deps Dependencies) *UseCase {
 		imageRegistryUC,
 		inboxRequests,
 		assistantUC,
+		labActivityUC,
 	}
 }

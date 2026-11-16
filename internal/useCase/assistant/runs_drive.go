@@ -20,6 +20,7 @@ import (
 	"github.com/cybericebox/daemon/internal/model/challengeAttempt"
 	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
 	exerciseUseCase "github.com/cybericebox/daemon/internal/useCase/exercise"
+	labActivityUseCase "github.com/cybericebox/daemon/internal/useCase/labActivity"
 )
 
 const (
@@ -119,6 +120,8 @@ type runDriver struct {
 	// factsSent: the lab facts of the run are with the brain; factsTries counts the passes that tried to send them.
 	factsSent  bool
 	factsTries int
+	// activityTries counts the passes that tried to read the activity of the run's lab before it was destroyed.
+	activityTries int
 	// materialsSent: the materials of this run are with the brain (kept for this leadership; a new leader sends them again).
 	materialsSent bool
 	revoked       bool
@@ -820,6 +823,14 @@ func (d *runDriver) closing(ctx context.Context, run assistantModel.Run) time.Du
 		d.stateFlushed = true
 		d.flushStateTasks(ctx, run)
 	}
+	// What the lab did is read while the lab is still known to the laboratory and the platform; the figures stay on the run.
+	if run.Role == assistantModel.RoleGrader && !run.StartedAt.IsZero() && run.LabActivity == nil {
+		raw, done := d.captureActivity(ctx, run)
+		if !done {
+			return d.backoff()
+		}
+		run.LabActivity = raw
+	}
 	failed := false
 	if !d.revoked {
 		if err := u.labs.RevokeLabClient(ctx, run.Actor, run.DeployID, run.AccessClient); err != nil {
@@ -851,6 +862,46 @@ func (d *runDriver) closing(ctx context.Context, run assistantModel.Run) time.Du
 	return 0
 }
 
+// activityPasses is how many passes of the teardown try to read the lab's activity before the run goes on without it.
+const activityPasses = 3
+
+// captureActivity reads the laboratory's activity reports of the run's lab (egress of the lab, the VPN bytes, the lab addresses
+// and the console minutes of the run's own client) and keeps them on the run, so its lab facts can say them after the lab is
+// gone. Reports that are off, a lab the laboratory does not know, or a failing read after a few passes are recorded as "not
+// reported": the brain then gets null for them, never a guess.
+func (d *runDriver) captureActivity(ctx context.Context, run assistantModel.Run) (raw []byte, done bool) {
+	u := d.u
+	ctx, cancel := context.WithTimeout(ctx, bestEffort)
+	defer cancel()
+	notReported := assistantModel.RunLabActivity{}
+	figures := notReported
+	if u.activity != nil {
+		d.activityTries++
+		group, lab, err := u.labs.RunLabRef(ctx, run.Actor, run.DeployID)
+		if err == nil {
+			if err = u.activity.Refresh(ctx, group); err == nil {
+				var f *labActivityUseCase.LabFigures
+				if f, err = u.activity.OfLab(ctx, group, lab, run.AccessClient); err == nil && f != nil {
+					figures = assistantModel.RunLabActivity{Reported: true, EgressUsed: f.EgressUsed, VPNBytes: f.VPNBytes, DevicesTouched: f.DevicesTouched, ConsoleMinutes: f.ConsoleMinutes}
+				}
+			}
+		}
+		if err != nil && !errors.Is(err, exerciseModel.ErrTestDeployNotFound.Err()) && d.activityTries < activityPasses {
+			log.Warn().Err(err).Msg("Reading the activity of a run's lab failed; trying again")
+			return nil, false
+		}
+	}
+	raw, err := json.Marshal(figures)
+	if err != nil {
+		return nil, true
+	}
+	if err = u.runs.SetLabActivity(ctx, run.ID, raw, u.now().UTC()); err != nil {
+		log.Warn().Err(err).Msg("Recording the activity of a run's lab failed; trying again")
+		return nil, false
+	}
+	return raw, true
+}
+
 // labFactsPasses is how many passes of the teardown try to deliver the lab facts before the run is finished without them.
 const labFactsPasses = 5
 
@@ -878,6 +929,12 @@ func (d *runDriver) sendLabFacts(ctx context.Context, run assistantModel.Run) bo
 	}
 	body := assistantModel.LabFacts{
 		ReadyTimeS: max(run.LabReadyAt.Sub(run.CreatedAt).Seconds(), 0), Restarts: 0, EgressEnabled: target.EgressEnabled,
+	}
+	// The activity figures are the laboratory's, read before the lab was destroyed; null while they are not reported. Egress is
+	// the lab's own, never a device's or a person's.
+	var activity assistantModel.RunLabActivity
+	if len(run.LabActivity) > 0 && json.Unmarshal(run.LabActivity, &activity) == nil && activity.Reported {
+		body.EgressUsed, body.VPNBytes, body.DevicesTouched, body.ConsoleMinutes = &activity.EgressUsed, &activity.VPNBytes, &activity.DevicesTouched, &activity.ConsoleMinutes
 	}
 	err = c.PostJSON(ctx, "/v1/runs/"+run.ID.String()+"/lab_facts", body)
 	if err == nil || finalRefusal(err) {
