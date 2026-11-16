@@ -107,6 +107,8 @@ func FeaturesOf(r *labpb.FeaturesResponse) infraModel.AgentFeatures {
 		Access:                 accessFeatureOf(r.GetAccess()),
 		Bootstrap:              bootstrapFeatureOf(r.GetBootstrap()),
 		VPN:                    vpnFeatureOf(r.GetVpn()),
+		Internet:               internetFeatureOf(r.GetInternet()),
+		AllowedRegistries:      allowedRegistriesOf(r.GetAllowedRegistries()),
 		Activity:               activityFeatureOf(r.GetActivity()),
 	}
 }
@@ -134,7 +136,26 @@ func vpnFeatureOf(v *labpb.VPNFeature) *infraModel.VPNFeature {
 	if v == nil {
 		return nil
 	}
-	return &infraModel.VPNFeature{ReverseConnections: v.GetReverseConnections(), MaxGateways: v.GetMaxGateways()}
+	out := &infraModel.VPNFeature{ReverseConnections: v.GetReverseConnections(), MaxGateways: v.GetMaxGateways()}
+	if v.Enabled != nil { // optional: absent = an older agent, which runs a VPN
+		enabled := v.GetEnabled()
+		out.Enabled = &enabled
+	}
+	return out
+}
+
+func internetFeatureOf(i *labpb.InternetFeature) *infraModel.InternetFeature {
+	if i == nil {
+		return nil
+	}
+	return &infraModel.InternetFeature{Enabled: i.GetEnabled()}
+}
+
+func allowedRegistriesOf(a *labpb.AllowedRegistriesFeature) *infraModel.AllowedRegistriesFeature {
+	if a == nil {
+		return nil
+	}
+	return &infraModel.AllowedRegistriesFeature{Any: a.GetAny(), Registries: append([]string(nil), a.GetRegistries()...)}
 }
 
 func accessFeatureOf(a *labpb.AccessFeature) *infraModel.AccessFeature {

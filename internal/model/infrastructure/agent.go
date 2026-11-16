@@ -116,6 +116,10 @@ type AgentFeatures struct {
 	// VPN is the VPN gateway option of the agent (nil: an older agent, which neither enforces the block of lab-initiated
 	// connections nor accepts the key that allows them).
 	VPN *VPNFeature `json:"vpn,omitempty"`
+	// Internet is the internet gateway of the laboratory (contract 2.8): nil = an older agent, which runs one.
+	Internet *InternetFeature `json:"internet,omitempty"`
+	// AllowedRegistries are the registries lab images may come from (contract 2.8): nil = an older agent, no list is enforced.
+	AllowedRegistries *AllowedRegistriesFeature `json:"allowed_registries,omitempty"`
 	// Activity is the laboratory's activity reports (contract 2.5): nil for an agent older than the field.
 	Activity *ActivityFeature `json:"activity,omitempty"`
 	// PersistenceUnavailable and LifecycleUnavailable say why a feature the cluster is configured for is held back
@@ -247,6 +251,33 @@ func (f AgentFeatures) ServesAccess(kind string) bool {
 type VPNFeature struct {
 	ReverseConnections bool  `json:"reverse_connections"`
 	MaxGateways        int32 `json:"max_gateways"`
+	// Enabled says the laboratory runs a VPN (chart vpn.enabled, contract 2.8); nil: an older agent, which runs one.
+	Enabled *bool `json:"enabled,omitempty"`
+}
+
+// InternetFeature says the laboratory runs an internet gateway (chart inetGateway.enabled, contract 2.8).
+type InternetFeature struct {
+	Enabled bool `json:"enabled"`
+}
+
+// AllowedRegistriesFeature is the list of registries the laboratory pulls lab images from: Any when every registry is allowed,
+// otherwise the canonical hosts (the platform's own included).
+type AllowedRegistriesFeature struct {
+	Any        bool     `json:"any"`
+	Registries []string `json:"registries,omitempty"`
+}
+
+// ServesVPN is false only for a laboratory that reported its VPN as off.
+func (f AgentFeatures) ServesVPN() bool {
+	return f.VPN == nil || f.VPN.Enabled == nil || *f.VPN.Enabled
+}
+
+// ServesInternet is false only for a laboratory that reported its internet gateway as off.
+func (f AgentFeatures) ServesInternet() bool { return f.Internet == nil || f.Internet.Enabled }
+
+// AllowsRegistry is false only for a laboratory that reported a list without that registry.
+func (f AgentFeatures) AllowsRegistry(registry string) bool {
+	return f.AllowedRegistries == nil || f.AllowedRegistries.Any || slices.Contains(f.AllowedRegistries.Registries, registry)
 }
 
 // EnforcesVPNReverse says the agent has reported that it enforces the block (and so accepts the key).
@@ -275,8 +306,24 @@ func (f AgentFeatures) RequireLabOptions(n exerciseModel.LabNeeds) error {
 	if f.VPN != nil {
 		over("gateways", n.Gateways, f.VPN.MaxGateways)
 	}
-	if n.Terminal && !f.ServesAccess("terminal") {
-		refused = append(refused, "terminal")
+	if n.VPN && !f.ServesVPN() {
+		refused = append(refused, "vpn")
+	}
+	if n.Internet && !f.ServesInternet() {
+		refused = append(refused, "internet")
+	}
+	for _, access := range []struct {
+		needed bool
+		kind   string
+	}{{n.HTTP, "http"}, {n.Terminal, "terminal"}, {n.RDP, "rdp"}, {n.VNC, "vnc"}} {
+		if access.needed && !f.ServesAccess(access.kind) {
+			refused = append(refused, access.kind)
+		}
+	}
+	for _, registry := range n.Registries {
+		if !f.AllowsRegistry(registry) {
+			refused = append(refused, "registry "+registry)
+		}
 	}
 	if n.Bootstrap {
 		if f.Bootstrap == nil {

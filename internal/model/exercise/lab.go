@@ -318,6 +318,35 @@ type LabNeeds struct {
 	MaxBootstrapLimit int
 	// Gateways is the number of gateways (VPN and Internet) of the lab.
 	Gateways int
+	// VPN and Internet: the lab has a VPN gateway / an Internet gateway (a laboratory that runs none refuses it).
+	VPN, Internet bool
+	// HTTP, RDP and VNC: some device has that access (the terminal is Terminal above); the laboratory must serve each kind.
+	HTTP, RDP, VNC bool
+	// Registries are the registries the device images come from, canonical, sorted, without repeats; images of the platform itself
+	// ("platform:..." and the node's own forwarder) are not in it. The laboratory must allow each one.
+	Registries []string
+}
+
+// RegistryOf is the canonical registry an image reference is pulled from: docker.io for a reference that names none (and for
+// the Docker Hub spellings), the host with its port otherwise, lower-case. ok is false for what is not pulled from a
+// registry the laboratory checks: an empty reference, a platform reference and the node's own forwarder.
+func RegistryOf(image string) (registry string, ok bool) {
+	image = strings.TrimSpace(image)
+	if image == "" || strings.HasPrefix(image, "platform:") {
+		return "", false
+	}
+	host, _, hasPath := strings.Cut(image, "/")
+	if !hasPath || !(strings.ContainsAny(host, ".:") || host == "localhost") {
+		return "docker.io", true
+	}
+	host = strings.ToLower(host)
+	switch host {
+	case "index.docker.io", "registry-1.docker.io", "registry.hub.docker.com":
+		return "docker.io", true
+	case "localhost:5035":
+		return "", false
+	}
+	return host, true
 }
 
 // NeedsOf measures the topology (with its resolved bootstraps) and the checks.
@@ -327,8 +356,16 @@ func NeedsOf(t Topology, checks []LabCheck) LabNeeds {
 		if d.Type.IsGateway() {
 			n.Gateways++
 		}
-		if d.HasAccess(AccessTerminal) && d.IsNode() {
-			n.Terminal = true
+		n.VPN = n.VPN || d.Type == DeviceTypeVPNGateway
+		n.Internet = n.Internet || d.Type == DeviceTypeInternetGateway
+		if d.IsNode() {
+			n.Terminal = n.Terminal || d.HasAccess(AccessTerminal)
+			n.HTTP = n.HTTP || d.HasAccess(AccessHTTP)
+			n.RDP = n.RDP || d.HasAccess(AccessRDP)
+			n.VNC = n.VNC || d.HasAccess(AccessVNC)
+			if registry, ok := RegistryOf(d.Image); ok && !slices.Contains(n.Registries, registry) {
+				n.Registries = append(n.Registries, registry)
+			}
 		}
 		if d.NeedsServiceCommand() {
 			n.Bootstrap = true
@@ -350,6 +387,7 @@ func NeedsOf(t Topology, checks []LabCheck) LabNeeds {
 			}
 		}
 	}
+	slices.Sort(n.Registries)
 	n.Checks = len(checks) > 0
 	n.ChecksPerLab = len(checks)
 	kinds := map[string]struct{}{}

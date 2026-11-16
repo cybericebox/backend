@@ -55,6 +55,11 @@ const (
 	ReasonGroupVPNOff      = "GROUP_VPN_OFF"
 	ReasonGroupInternetOff = "GROUP_INTERNET_OFF"
 	ReasonGroupServerInUse = "GROUP_SERVER_IN_USE"
+	// The feature switches of the laboratory (contract 2.8): the cluster does not serve what the lab, client or group asks for.
+	ReasonVPNUnavailable      = "VPN_UNAVAILABLE"
+	ReasonInternetUnavailable = "INTERNET_UNAVAILABLE"
+	ReasonAccessUnavailable   = "ACCESS_UNAVAILABLE"
+	ReasonChecksUnavailable   = "CHECKS_UNAVAILABLE"
 )
 
 // The agent's refusals of an item, by reason.
@@ -99,6 +104,14 @@ func ReasonError(reason string) error {
 		return ErrGroupInternetOff
 	case ReasonGroupServerInUse:
 		return ErrGroupServerInUse
+	case ReasonVPNUnavailable:
+		return optionUnavailable("vpn")
+	case ReasonInternetUnavailable:
+		return optionUnavailable("internet")
+	case ReasonAccessUnavailable:
+		return optionUnavailable("access")
+	case ReasonChecksUnavailable:
+		return optionUnavailable("checks")
 	case ReasonProfileUnsupported, ReasonProfileUnavailable:
 		return exerciseModel.ErrNodeProfileUnavailable.Err()
 	}
@@ -106,8 +119,15 @@ func ReasonError(reason string) error {
 }
 
 // IsPlanningError says the agent refused because the group's server switches and the plan disagree: not a wait, not a retry.
+// So is a feature the cluster does not serve (VPN_UNAVAILABLE, ...): the laboratory is set up without it, a retry changes nothing.
 func IsPlanningError(err error) bool {
-	return errors.Is(err, ErrGroupVPNOff) || errors.Is(err, ErrGroupInternetOff) || errors.Is(err, ErrGroupServerInUse)
+	return errors.Is(err, ErrGroupVPNOff) || errors.Is(err, ErrGroupInternetOff) || errors.Is(err, ErrGroupServerInUse) ||
+		errors.Is(err, exerciseModel.ErrLabOptionUnavailable.Err())
+}
+
+// optionUnavailable is the refusal of something the laboratory does not serve, named for the admin as an option of the lab.
+func optionUnavailable(option string) error {
+	return exerciseModel.ErrLabOptionUnavailable.WithPublicContext("options", option).Err()
 }
 
 // ItemOutcome is the agent's answer for one reservation of a batch.

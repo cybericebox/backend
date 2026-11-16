@@ -1061,6 +1061,11 @@ func podState(s labpb.PodState) string {
 // "still being deleted" refusal becomes a domain TerminatingError so workers
 // retry instead of recording a failure.
 func agentErr(op string, err error) error {
+	// An image from a registry the laboratory does not allow (contract 2.8): a planning error with the agent's own words for the
+	// admin (the variant, the device, the image), never a retry.
+	if labclient.IsRegistryNotAllowed(err) {
+		return fmt.Errorf("%s: %w: %s", op, exerciseModel.ErrLabOptionUnavailable.WithPublicContext("options", "registry").Err(), status.Convert(err).Message())
+	}
 	if labclient.IsTerminating(err) {
 		return &infraModel.TerminatingError{
 			Message:    fmt.Sprintf("%s: %s", op, err),
