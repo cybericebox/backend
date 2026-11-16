@@ -56,6 +56,8 @@ github.com/cybericebox/laboratory v1.2.1-0.20261116084708-85a55928c76f h1:EKaena
 github.com/cybericebox/laboratory v1.2.1-0.20261116084708-85a55928c76f/go.mod h1:kMND86bq6+wMFFbByWToYwFEeypn4t5cnaOzGB+lYnw=
 github.com/cybericebox/laboratory v1.2.1-0.20261116091300-04f7b756296a h1:mbzp3CSm/MsRYR+HWRyEYfpUPkOaVIJZ3mtLTS8s0lE=
 github.com/cybericebox/laboratory v1.2.1-0.20261116091300-04f7b756296a/go.mod h1:kMND86bq6+wMFFbByWToYwFEeypn4t5cnaOzGB+lYnw=
+github.com/cybericebox/laboratory v1.2.1-0.20261116125640-43b73b815069 h1:70VbqYTr3wWcmzrxy6Tku5Bx3f7Ti4lojW5zy+ltV0I=
+github.com/cybericebox/laboratory v1.2.1-0.20261116125640-43b73b815069/go.mod h1:kMND86bq6+wMFFbByWToYwFEeypn4t5cnaOzGB+lYnw=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=
