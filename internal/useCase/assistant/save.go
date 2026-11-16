@@ -32,6 +32,10 @@ type (
 		ImportRawArchive(ctx context.Context, actor exerciseUseCase.Actor, in exerciseUseCase.ImportExerciseInput) (exerciseUseCase.ArchiveImportStart, error)
 		QueueArchiveImport(ctx context.Context, in exerciseUseCase.QueueImportInput) (uuid.UUID, error)
 		ArchiveImportJob(ctx context.Context, id, user uuid.UUID) (exerciseUseCase.ImportJobView, error)
+		// EditedArchiveTarget is the task an archive is the edited version of (uuid.Nil: a new task).
+		EditedArchiveTarget(ctx context.Context, actor exerciseUseCase.Actor, archive []byte, lim exerciseModel.ArchiveLimits) (uuid.UUID, error)
+		PreviewArchiveImport(ctx context.Context, actor exerciseUseCase.Actor, in exerciseUseCase.PreviewArchiveInput) (exerciseUseCase.ArchiveImportPreview, error)
+		CommitArchiveImport(ctx context.Context, actor exerciseUseCase.Actor, in exerciseUseCase.CommitArchiveInput) (exerciseUseCase.ArchiveImportStart, error)
 	}
 	// SaveStore remembers how a session was saved. A save is claimed first (pending), then done with the task or failed;
 	// the claim is atomic, so one request owns it.
@@ -100,7 +104,12 @@ func (u *UseCase) start(ctx context.Context, actor exerciseUseCase.Actor, sessio
 	}
 	lim := u.importer.ArchiveLimits(ctx)
 	images := u.namesImages(archive, lim)
-	if images {
+	// The edit of a task that came from the platform (a provide_task) goes back into that task as its new working version.
+	edited, err := u.importer.EditedArchiveTarget(ctx, actor, archive, lim)
+	if err != nil {
+		return false, importError(err)
+	}
+	if images && edited == uuid.Nil {
 		// Checked before the claim: a refusal must not leave a claim behind.
 		if err = u.importer.AuthorizeImport(ctx, actor, nil); err != nil {
 			return false, err
@@ -117,6 +126,9 @@ func (u *UseCase) start(ctx context.Context, actor exerciseUseCase.Actor, sessio
 		return false, nil
 	}
 	rec := assistantModel.Save{Session: sessionID, Author: actor.UserID}
+	if edited != uuid.Nil {
+		return u.startEdit(ctx, rec, actor, archive, edited)
+	}
 	if images {
 		return false, u.queue(ctx, rec, actor, archive)
 	}
@@ -129,6 +141,47 @@ func (u *UseCase) start(ctx context.Context, actor exerciseUseCase.Actor, sessio
 	}
 	rec.ExerciseID, err = onlyExercise(start)
 	if err != nil {
+		return false, u.failed(ctx, rec, err)
+	}
+	if err = u.complete(ctx, rec); err != nil {
+		return false, err
+	}
+	return true, u.notify(ctx, rec)
+}
+
+// startEdit brings the edited task back into the task it came from, as its new working version: the archive is stored as a
+// file (the update confirms against an immutable source), previewed against the task, and committed with the confirmation of
+// that preview and with the kept secrets put back. It is exactly what an author's re-import of the task does, with the
+// replacement of the working draft confirmed for them. The outcome is recorded as for a new task: done at once, or a queued job.
+func (u *UseCase) startEdit(ctx context.Context, rec assistantModel.Save, actor exerciseUseCase.Actor, archive []byte, target uuid.UUID) (bool, error) {
+	if u.files == nil {
+		return false, u.failed(ctx, rec, assistantModel.ErrAssistantUnavailable.Err())
+	}
+	stored, err := u.files.UploadFile(ctx, "assistant-task.cybericebox.zip", "application/zip", bytes.NewReader(archive), actor.UserID)
+	if err != nil {
+		return false, u.failed(ctx, rec, err)
+	}
+	source := exerciseUseCase.PreviewArchiveInput{FileID: stored.ID, FixedExerciseID: target}
+	preview, err := u.importer.PreviewArchiveImport(ctx, actor, source)
+	if err != nil || len(preview.Items) != 1 {
+		if err == nil {
+			err = assistantModel.ErrAssistantImportFailed.WithPublicContext("tasks", len(preview.Items)).Err()
+		}
+		return false, u.failed(ctx, rec, importError(err))
+	}
+	item := preview.Items[0]
+	start, err := u.importer.CommitArchiveImport(ctx, actor, exerciseUseCase.CommitArchiveInput{
+		PreviewArchiveInput: source,
+		ConfirmedUpdates:    []exerciseUseCase.ConfirmedImportUpdate{{ItemKey: item.ItemKey, Revision: item.ConfirmationRevision, ReplaceDraft: item.ReplacesDraft}},
+		RestoreKeptSecrets:  true,
+	})
+	if err != nil {
+		return false, u.failed(ctx, rec, importError(err))
+	}
+	if start.JobID != uuid.Nil {
+		return false, u.recordJob(ctx, rec, start.JobID)
+	}
+	if rec.ExerciseID, err = onlyExercise(start); err != nil {
 		return false, u.failed(ctx, rec, err)
 	}
 	if err = u.complete(ctx, rec); err != nil {

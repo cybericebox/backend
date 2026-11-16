@@ -147,6 +147,17 @@ func (i *importer) ArchiveImportJob(context.Context, uuid.UUID, uuid.UUID) (exer
 	return exerciseUseCase.ImportJobView{State: exerciseModel.ImportJobRunning}, nil
 }
 
+// The edit of an existing task is not exercised here: every archive of these tests is a new task.
+func (i *importer) EditedArchiveTarget(context.Context, exerciseUseCase.Actor, []byte, exerciseModel.ArchiveLimits) (uuid.UUID, error) {
+	return uuid.Nil, nil
+}
+func (i *importer) PreviewArchiveImport(context.Context, exerciseUseCase.Actor, exerciseUseCase.PreviewArchiveInput) (exerciseUseCase.ArchiveImportPreview, error) {
+	return exerciseUseCase.ArchiveImportPreview{}, nil
+}
+func (i *importer) CommitArchiveImport(context.Context, exerciseUseCase.Actor, exerciseUseCase.CommitArchiveInput) (exerciseUseCase.ArchiveImportStart, error) {
+	return exerciseUseCase.ArchiveImportStart{}, nil
+}
+
 type subjects struct {
 	mu   sync.Mutex
 	rows map[uuid.UUID]uuid.UUID

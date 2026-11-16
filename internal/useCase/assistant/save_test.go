@@ -69,6 +69,35 @@ type fakeImporter struct {
 	delay   time.Duration
 	// during runs while the import is in progress (the row must already be claimed).
 	during func()
+	// The edit of an existing task (uuid.Nil in editTarget: the archive is a new task).
+	editTarget   uuid.UUID
+	editErr      error
+	previewItems []exerciseUseCase.ArchiveImportPreviewItem
+	previewErr   error
+	previewIn    exerciseUseCase.PreviewArchiveInput
+	commitStart  exerciseUseCase.ArchiveImportStart
+	commitErr    error
+	commitIn     exerciseUseCase.CommitArchiveInput
+}
+
+func (f *fakeImporter) EditedArchiveTarget(context.Context, exerciseUseCase.Actor, []byte, exerciseModel.ArchiveLimits) (uuid.UUID, error) {
+	return f.editTarget, f.editErr
+}
+
+func (f *fakeImporter) PreviewArchiveImport(_ context.Context, _ exerciseUseCase.Actor, in exerciseUseCase.PreviewArchiveInput) (exerciseUseCase.ArchiveImportPreview, error) {
+	f.line.add("preview")
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.previewIn = in
+	return exerciseUseCase.ArchiveImportPreview{Items: f.previewItems}, f.previewErr
+}
+
+func (f *fakeImporter) CommitArchiveImport(_ context.Context, _ exerciseUseCase.Actor, in exerciseUseCase.CommitArchiveInput) (exerciseUseCase.ArchiveImportStart, error) {
+	f.line.add("commit")
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.commitIn = in
+	return f.commitStart, f.commitErr
 }
 
 func (f *fakeImporter) AuthorizeImport(context.Context, exerciseUseCase.Actor, *uuid.UUID) error {
