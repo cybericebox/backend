@@ -1458,9 +1458,17 @@ func TestAStateSubtaskThatNeverPassedIsToldNotCorrectBeforeTheTeardown(t *testin
 	eventually(t, "the pass", func() bool { return len(r.brn.Verdicts(id)) == 1 })
 	r.brn.Emit(id, "run_finished", `{"type":"run_finished","run_id":"`+id+`","status":"done"}`)
 	r.waitState(t, run.ID, assistantModel.RunFinished)
-	eventually(t, "the verdict of the subtask that never passed", func() bool { return len(r.brn.Verdicts(id)) == 2 })
-	got := verdictBodies(t, r, id)
-	if string(got[1]["subtask_ref"]) != `"firewall"` || string(got[1]["correct"]) != "false" {
+	// A verdict is delivered at least once: one whose request was cut by the end of the stream is sent again, and the brain may
+	// have the first copy already. So the test looks at what each subtask was told, not at how many calls it took.
+	told := func() map[string]string {
+		out := map[string]string{}
+		for _, body := range verdictBodies(t, r, id) {
+			out[string(body["subtask_ref"])] = string(body["correct"])
+		}
+		return out
+	}
+	eventually(t, "the verdict of the subtask that never passed", func() bool { return len(told()) == 2 })
+	if got := told(); got[`"service"`] != "true" || got[`"firewall"`] != "false" {
 		t.Fatalf("%v", r.brn.Verdicts(id))
 	}
 	if r.labs.count("destroy") != 1 {
