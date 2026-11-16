@@ -826,6 +826,8 @@ type Querier interface {
 	InsertAssistantRunAnswer(ctx context.Context, arg InsertAssistantRunAnswerParams) (int64, error)
 	// Stores one brain frame verbatim; a frame seen again (a resumed stream) is ignored.
 	InsertAssistantRunEvent(ctx context.Context, arg InsertAssistantRunEventParams) (int64, error)
+	// Gives teams their id in the statistics of an event. A team that has one already keeps it (a second writer loses).
+	InsertAssistantStatsTeamRefs(ctx context.Context, arg InsertAssistantStatsTeamRefsParams) error
 	InsertErrorSample(ctx context.Context, arg InsertErrorSampleParams) error
 	InsertEventRegistrySecret(ctx context.Context, arg InsertEventRegistrySecretParams) error
 	// The first lifecycle transition captures the population. A retry must return
@@ -895,7 +897,15 @@ type Querier interface {
 	// started, final once it has ended. One row per (task, team); the team is not in the row, and only ranked teams count
 	// (no moderators, no hidden teams, no team with a member in excluded_users: the participants who refused). Times are
 	// seconds from the team's first opening of the task to its last solved subtask, NULL when it did not solve all of them.
+	// event_id, event_exercise_id and team_id are for the caller only (it turns them into the random per-event team_ref and drops them).
+	// wrong_submissions are the team's wrong answers (before its solve, when it solved the task). The lab figures come from the
+	// status log of the task's labs (ready_seconds: from the first lab record to the first ready; NULL while never ready;
+	// restarts: the highest recreate generation; broken: a lab of the team failed); has_lab is false for a task without a lab.
+	// state_checks lists the state-checked subtasks (a state subtask has no flag): their ref and the seconds from the lab being
+	// ready to the pass (NULL when it did not pass).
 	ListAssistantStatsTeamFacts(ctx context.Context, arg ListAssistantStatsTeamFactsParams) ([]ListAssistantStatsTeamFactsRow, error)
+	// The random ids teams already have in the statistics of these events.
+	ListAssistantStatsTeamRefs(ctx context.Context, eventIds []uuid.UUID) ([]ListAssistantStatsTeamRefsRow, error)
 	// One row per recipient and channel target of the broadcast (recipients still
 	// waiting for their first attempt have a NULL channel). status_filter is
 	// '' (all), 'error', 'done' or 'waiting' (no attempt yet).
@@ -2139,6 +2149,8 @@ type Querier interface {
 	SetAssistantRunAnswerSent(ctx context.Context, arg SetAssistantRunAnswerSentParams) (int64, error)
 	// The brain was answered the outbox request this lab was made for.
 	SetAssistantRunAnswered(ctx context.Context, arg SetAssistantRunAnsweredParams) (int64, error)
+	// The first moment the run's test lab was seen ready (later calls keep the first).
+	SetAssistantRunLabReady(ctx context.Context, arg SetAssistantRunLabReadyParams) (int64, error)
 	// The final aggregate the brain sent with run_finished.
 	SetAssistantRunMeasurement(ctx context.Context, arg SetAssistantRunMeasurementParams) (int64, error)
 	// The brain accepted the run.
