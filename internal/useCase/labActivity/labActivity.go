@@ -31,7 +31,7 @@ const (
 	// Retention is how long the figures of a lab that no event names (a test lab) are kept after its last report.
 	Retention = 7 * 24 * time.Hour
 	// DefaultConsoleMaxLifetime caps a console session that never reported its end.
-	DefaultConsoleMaxLifetime = 4 * time.Hour
+	DefaultConsoleMaxLifetime = 8 * time.Hour
 	// pageLimit is the events asked for in one call (the laboratory's own maximum is 5000).
 	pageLimit = 2000
 	// maxPages bounds the calls one pull of a group makes; the rest waits for the next pass.
