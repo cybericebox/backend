@@ -100,8 +100,10 @@ type (
 		// defaults, 2s and 1s).
 		Runs RunStore
 		// Users gives the role of the user a lab request names (nil: labs are unavailable).
-		Users          UserLookup
-		Labs           LabRunner
+		Users UserLookup
+		Labs  LabRunner
+		// LabActivity gives the laboratory's activity figures of a run's lab for its lab facts (nil: not reported).
+		LabActivity    LabActivity
 		RunMaxDuration time.Duration
 		RunGrace       time.Duration
 		MaxActiveRuns  int
@@ -133,6 +135,7 @@ type (
 		runs              RunStore
 		users             UserLookup
 		labs              LabRunner
+		activity          LabActivity
 		runMax, runGrace  time.Duration
 		oppBudget         assistantModel.RunBudget
 		maxActive         int
@@ -154,7 +157,7 @@ func New(d Dependencies) *UseCase {
 		store: d.Store, cipher: d.Cipher, cfg: d.Config, enroll: d.Enroll, now: d.Now, importer: d.Importer, files: d.Files, saves: d.Saves, subjects: d.Subjects, audit: d.Audit, cursor: d.Cursor, stats: d.Stats, statsAdmin: d.StatsAdmin,
 		watchMin: orDefault(d.WatchMin, watchBackoffMin), watchMax: orDefault(d.WatchMax, watchBackoffMax), answerPause: orDefault(d.AnswerPause, 200*time.Millisecond),
 		namesImages: d.NamesImages,
-		runs:        d.Runs, users: d.Users, labs: d.Labs, maxActive: d.MaxActiveRuns,
+		runs:        d.Runs, users: d.Users, labs: d.Labs, activity: d.LabActivity, maxActive: d.MaxActiveRuns,
 		runMax: orDefault(d.RunMaxDuration, DefaultRunMaxDuration), runGrace: orDefault(d.RunGrace, DefaultRunGrace),
 		oppBudget: d.OpponentBudget, runPoll: orDefault(d.RunPoll, 2*time.Second), runPause: orDefault(d.RunPause, time.Second),
 	}

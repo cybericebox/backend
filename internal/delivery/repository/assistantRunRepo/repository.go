@@ -33,6 +33,7 @@ type Queries interface {
 	SetAssistantRunMeasurement(context.Context, postgres.SetAssistantRunMeasurementParams) (int64, error)
 	SetAssistantRunStreamDown(context.Context, postgres.SetAssistantRunStreamDownParams) (int64, error)
 	SetAssistantRunLabReady(context.Context, postgres.SetAssistantRunLabReadyParams) (int64, error)
+	SetAssistantRunLabActivity(context.Context, postgres.SetAssistantRunLabActivityParams) (int64, error)
 	AdvanceAssistantRunSeq(context.Context, postgres.AdvanceAssistantRunSeqParams) (int64, error)
 	InsertAssistantRunEvent(context.Context, postgres.InsertAssistantRunEventParams) (int64, error)
 	ListAssistantRunEvents(context.Context, postgres.ListAssistantRunEventsParams) ([]postgres.ListAssistantRunEventsRow, error)
@@ -64,7 +65,7 @@ func toRun(r postgres.AssistantRun) assistantModel.Run {
 		ID: r.ID, ExerciseID: r.ExerciseID, VersionID: r.VersionID, VariantID: r.VariantID, DeployID: r.DeployID, Actor: r.ActorID,
 		Role: r.Role, Opponent: int(r.Opponent), State: assistantModel.RunState(r.State), EndState: assistantModel.RunState(r.EndState), FailureReason: r.FailureReason,
 		AccessClient: r.AccessClient, RequestID: r.RequestID, Answered: r.Answered, LastSeq: r.LastSeq, StreamDownSince: timeOf(r.StreamDownSince), Measurement: r.Measurement,
-		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, StartedAt: timeOf(r.StartedAt), FinishedAt: timeOf(r.FinishedAt), LabReadyAt: timeOf(r.LabReadyAt), ExpiresAt: r.ExpiresAt,
+		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, StartedAt: timeOf(r.StartedAt), FinishedAt: timeOf(r.FinishedAt), LabReadyAt: timeOf(r.LabReadyAt), LabActivity: r.LabActivity, ExpiresAt: r.ExpiresAt,
 	}
 }
 
@@ -184,6 +185,12 @@ func (r *Repository) SetMeasurement(ctx context.Context, id uuid.UUID, measureme
 // SetLabReady records the moment the run's lab was first seen ready; a later call keeps the first.
 func (r *Repository) SetLabReady(ctx context.Context, id uuid.UUID, now time.Time) error {
 	_, err := r.q.SetAssistantRunLabReady(ctx, postgres.SetAssistantRunLabReadyParams{ID: id, Now: now})
+	return err
+}
+
+// SetLabActivity records the activity of the run's lab (a RunLabActivity as JSON); the first decision stays.
+func (r *Repository) SetLabActivity(ctx context.Context, id uuid.UUID, activity []byte, now time.Time) error {
+	_, err := r.q.SetAssistantRunLabActivity(ctx, postgres.SetAssistantRunLabActivityParams{ID: id, LabActivity: activity, Now: now})
 	return err
 }
 

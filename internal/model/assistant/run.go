@@ -81,6 +81,8 @@ type Run struct {
 	FinishedAt      time.Time
 	// LabReadyAt is when the run's test lab was first seen ready (zero until then).
 	LabReadyAt time.Time
+	// LabActivity is the activity of the run's lab, read before it was destroyed: nil while undecided, else a RunLabActivity.
+	LabActivity json.RawMessage
 	// ExpiresAt is the longest the run may last.
 	ExpiresAt time.Time
 }

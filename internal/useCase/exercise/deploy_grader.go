@@ -91,6 +91,19 @@ func (u *ExerciseUseCase) TestLabState(ctx context.Context, owner, deployID uuid
 	return LabState{Ready: status.Ready}, nil
 }
 
+// RunLabRef names the owner's test lab as the laboratory knows it: its lab group and its lab. The activity reports of the lab
+// are read by these names.
+func (u *ExerciseUseCase) RunLabRef(ctx context.Context, owner, deployID uuid.UUID) (group, lab string, err error) {
+	deploy, err := u.testDeploys.GetOwned(ctx, deployID, owner)
+	if err != nil {
+		if repositoryTools.IsObjectNotFoundError(err) {
+			return "", "", exerciseModel.ErrTestDeployNotFound.Err()
+		}
+		return "", "", model.ErrPlatform.WithError(err).WithMessage("Failed to load test deploy").Err()
+	}
+	return deploy.GroupName, testLabName(deployID), nil
+}
+
 // MintLabClient makes a WireGuard client of its own in the group of the owner's test lab, lets it reach that lab only, and
 // returns its complete configuration (the key is in it: it is given to the run and never stored here). The client is
 // named by the caller and revoked with RevokeLabClient. The caller records the name first, so a crash leaves it known.

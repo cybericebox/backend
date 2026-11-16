@@ -339,6 +339,12 @@ func Run(cfg *config.Config) {
 					loop(ctx)
 				}()
 			}
+			// the laboratory's activity reports, pulled for the statistics (a no-op without an agent that serves them)
+			loops.Add(1)
+			go func() {
+				defer loops.Done()
+				ucs.LabActivity.Run(ctx)
+			}()
 			agentManager.Lead(ctx)
 			loops.Wait()
 		})

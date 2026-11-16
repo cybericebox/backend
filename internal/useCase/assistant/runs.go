@@ -13,6 +13,7 @@ import (
 	assistantModel "github.com/cybericebox/daemon/internal/model/assistant"
 	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
 	exerciseUseCase "github.com/cybericebox/daemon/internal/useCase/exercise"
+	labActivityUseCase "github.com/cybericebox/daemon/internal/useCase/labActivity"
 )
 
 const (
@@ -46,6 +47,8 @@ type (
 		SetStreamDown(ctx context.Context, id uuid.UUID, since, now time.Time) error
 		// SetLabReady records the first moment the run's lab was seen ready (a later call keeps the first).
 		SetLabReady(ctx context.Context, id uuid.UUID, now time.Time) error
+		// SetLabActivity records the activity of the run's lab as JSON (the first decision stays).
+		SetLabActivity(ctx context.Context, id uuid.UUID, activity []byte, now time.Time) error
 		AppendEvent(ctx context.Context, id uuid.UUID, e assistantModel.RunEvent, now time.Time) (bool, error)
 		Events(ctx context.Context, id uuid.UUID, after int64, limit int) ([]assistantModel.RunEvent, error)
 		AddAnswer(ctx context.Context, id uuid.UUID, seq int64, subtask string, correct bool, now time.Time) (bool, error)
@@ -73,6 +76,15 @@ type (
 		RunStateTasks(ctx context.Context, owner, deployID uuid.UUID) ([]exerciseUseCase.StateSubtask, error)
 		ControlAddress(ctx context.Context, owner, deployID uuid.UUID) (string, error)
 		RunSolvedSubtasks(ctx context.Context, owner, deployID uuid.UUID) (map[string]bool, error)
+		// RunLabRef is the lab group and the lab of the run's test lab, as the laboratory names them.
+		RunLabRef(ctx context.Context, owner, deployID uuid.UUID) (group, lab string, err error)
+	}
+
+	// LabActivity is the laboratory's activity reports (nil: not reported). Refresh pulls a group now; OfLab is one lab as one VPN
+	// client saw it, nil while nothing is reported.
+	LabActivity interface {
+		Refresh(ctx context.Context, group string) error
+		OfLab(ctx context.Context, group, lab, client string) (*labActivityUseCase.LabFigures, error)
 	}
 
 	// RunView is a run with the answers it submitted and how they were judged.
