@@ -42,10 +42,13 @@ func activityClient(a *activityAgent) *Client {
 }
 
 func TestTheActivityFeatureIsReadFromTheFeatures(t *testing.T) {
-	f := FeaturesOf(&labpb.FeaturesResponse{Activity: &labpb.ActivityFeature{Enabled: true, MaxEvents: 5000, RingMinutes: 30}})
+	f := FeaturesOf(&labpb.FeaturesResponse{Activity: &labpb.ActivityFeature{Enabled: true, MaxEvents: 5000, RingMinutes: 30, ConsoleMaxLifetimeS: 28800, DeviceTouch: true}})
 	require.NotNil(t, f.Activity)
 	assert.True(t, f.Activity.Enabled)
 	assert.EqualValues(t, 30, f.Activity.RingMinutes)
+	assert.EqualValues(t, 28800, f.Activity.ConsoleMaxLifetimeSeconds)
+	assert.True(t, f.Activity.DeviceTouch)
+	assert.False(t, FeaturesOf(&labpb.FeaturesResponse{Activity: &labpb.ActivityFeature{Enabled: true}}).Activity.DeviceTouch, "contract 2.5 agent: no touches reported")
 	assert.Nil(t, FeaturesOf(&labpb.FeaturesResponse{}).Activity, "an agent older than the field reports none")
 }
 
@@ -108,9 +111,9 @@ func TestTheFleetSaysWhetherTheAgentKeepsActivityReports(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			a := &activityAgent{features: tc.live}
 			m := &Member{ID: uuid.Must(uuid.NewV7()), Name: "env", Enabled: true, Client: activityClient(a), Features: NewFeatureCell(tc.cached)}
-			got, err := NewFleet(nil, nil, m).ActivityEnabled(ctx, "g")
+			got, err := NewFleet(nil, nil, m).ActivityFeature(ctx, "g")
 			require.NoError(t, err)
-			assert.Equal(t, tc.want, got)
+			assert.Equal(t, tc.want, got.Enabled)
 		})
 	}
 }

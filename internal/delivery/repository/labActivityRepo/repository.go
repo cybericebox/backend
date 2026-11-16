@@ -67,6 +67,8 @@ type Session struct {
 // Figures are the activity of one lab or one team's task. EgressUsed is "the lab had any Internet egress"; the other figures
 // are in the units the brain's record uses (bytes, distinct addresses, minutes).
 type Figures struct {
+	// DeviceTouch false: the cluster produces no device_touch events, so VPNBytes and DevicesTouched are not reported.
+	DeviceTouch    bool
 	EgressUsed     bool
 	VPNBytes       int64
 	DevicesTouched int64
@@ -79,20 +81,28 @@ func (r *Repository) Groups(ctx context.Context, platformDefault assistantModel.
 	return r.q.ListLabActivityGroups(ctx, postgres.ListLabActivityGroupsParams{DefaultMode: platformDefault.Stored(), Now: now})
 }
 
-// Cursor is where the next pull of a group starts; found is false for a group never pulled.
-func (r *Repository) Cursor(ctx context.Context, group string) (cursor string, found bool, err error) {
+// Cursor is where the next pull of a group starts and what the laboratory said of the group's reports at the last one.
+type Cursor struct {
+	Cursor string
+	// DeviceTouch: the cluster produces device_touch events; ConsoleMaxSeconds is its console session limit (0: not told).
+	DeviceTouch       bool
+	ConsoleMaxSeconds int32
+}
+
+// Cursor of a group; found is false for a group never pulled.
+func (r *Repository) Cursor(ctx context.Context, group string) (Cursor, bool, error) {
 	row, err := r.q.GetLabActivityCursor(ctx, group)
 	if err != nil {
 		if repositoryTools.IsObjectNotFoundError(err) {
-			return "", false, nil
+			return Cursor{}, false, nil
 		}
-		return "", false, err
+		return Cursor{}, false, err
 	}
-	return row.Cursor, true, nil
+	return Cursor{Cursor: row.Cursor, DeviceTouch: row.DeviceTouch, ConsoleMaxSeconds: row.ConsoleMaxS}, true, nil
 }
 
 // Apply folds a page into the figures and moves the group's cursor, atomically.
-func (r *Repository) Apply(ctx context.Context, group, cursor string, gap bool, b Batch, now time.Time) error {
+func (r *Repository) Apply(ctx context.Context, group string, c Cursor, gap bool, b Batch, now time.Time) error {
 	// A nil list would be the JSON scalar null, which jsonb_array_elements refuses: the lists are arrays.
 	if b.Labs == nil {
 		b.Labs = []Lab{}
@@ -110,7 +120,7 @@ func (r *Repository) Apply(ctx context.Context, group, cursor string, gap bool, 
 	if err != nil {
 		return err
 	}
-	return r.q.ApplyLabActivity(ctx, postgres.ApplyLabActivityParams{LabGroupName: group, Cursor: cursor, Gap: gap, Now: now, Batch: body})
+	return r.q.ApplyLabActivity(ctx, postgres.ApplyLabActivityParams{LabGroupName: group, Cursor: c.Cursor, Gap: gap, DeviceTouch: c.DeviceTouch, ConsoleMaxS: c.ConsoleMaxSeconds, Now: now, Batch: body})
 }
 
 // Instance is the activity of one team's task.
@@ -131,7 +141,7 @@ func (r *Repository) Instances(ctx context.Context, teams, exercises []uuid.UUID
 	for _, row := range rows {
 		out = append(out, Instance{
 			EventID: row.EventID, TeamID: row.EventTeamID, EventExerciseID: row.EventExerciseID,
-			Figures: Figures{EgressUsed: row.EgressUsed, VPNBytes: row.VpnBytes, DevicesTouched: row.DevicesTouched, ConsoleMinutes: row.ConsoleSeconds / 60},
+			Figures: Figures{DeviceTouch: row.DeviceTouch, EgressUsed: row.EgressUsed, VPNBytes: row.VpnBytes, DevicesTouched: row.DevicesTouched, ConsoleMinutes: row.ConsoleSeconds / 60},
 		})
 	}
 	return out, nil
@@ -148,7 +158,7 @@ func (r *Repository) OfClient(ctx context.Context, group, lab, client string, no
 		}
 		return Figures{}, false, err
 	}
-	return Figures{EgressUsed: row.EgressUsed, VPNBytes: row.VpnBytes, DevicesTouched: row.DevicesTouched, ConsoleMinutes: row.ConsoleSeconds / 60}, true, nil
+	return Figures{DeviceTouch: row.DeviceTouch, EgressUsed: row.EgressUsed, VPNBytes: row.VpnBytes, DevicesTouched: row.DevicesTouched, ConsoleMinutes: row.ConsoleSeconds / 60}, true, nil
 }
 
 // Purge drops the figures nothing needs any more (see PurgeLabActivity).

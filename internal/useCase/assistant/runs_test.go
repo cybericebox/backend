@@ -479,6 +479,8 @@ func (f *fakeLabs) RunLabRef(context.Context, uuid.UUID, uuid.UUID) (string, str
 	return "tg-1", "l-1", nil
 }
 
+func ptr(v float64) *float64 { return &v }
+
 // fakeActivity is the laboratory's activity of the run's lab: nil figures are "not reported".
 type fakeActivity struct {
 	mu        sync.Mutex
@@ -808,7 +810,7 @@ func TestAFinishedGraderRunSendsItsLabFactsAndRetriesThem(t *testing.T) {
 // The activity of the run's lab is read before the lab is destroyed, kept on the run, and sent with the lab facts: egress is the
 // lab's, the effort figures are those of the run's own VPN client.
 func TestTheLabFactsCarryTheActivityOfTheRunsLabReadBeforeItIsDestroyed(t *testing.T) {
-	act := &fakeActivity{figures: &labActivityUseCase.LabFigures{EgressUsed: true, VPNBytes: 4096, DevicesTouched: 3, ConsoleMinutes: 2.5}}
+	act := &fakeActivity{figures: &labActivityUseCase.LabFigures{EgressUsed: true, VPNBytes: ptr(4096), DevicesTouched: ptr(3), ConsoleMinutes: 2.5}}
 	r := newRunRig(t, func(d *assistant.Dependencies) { d.LabActivity = act })
 	run := r.start(t)
 	id := run.ID.String()
@@ -828,6 +830,23 @@ func TestTheLabFactsCarryTheActivityOfTheRunsLabReadBeforeItIsDestroyed(t *testi
 	assert.Equal(t, []string{"tg-1/l-1/" + done.AccessClient}, act.askedFor, "the run's own client")
 	calls := r.labs.called()
 	assert.Less(t, indexOf(calls, "labref"), indexOf(calls, "destroy"), "read before the lab is destroyed")
+}
+
+// A cluster without device_touch events: egress and the console are reported, the VPN bytes and devices touched are null.
+func TestTheLabFactsDeviceFiguresAreNullWithoutDeviceTouch(t *testing.T) {
+	act := &fakeActivity{figures: &labActivityUseCase.LabFigures{EgressUsed: true, ConsoleMinutes: 1}}
+	r := newRunRig(t, func(d *assistant.Dependencies) { d.LabActivity = act })
+	run := r.start(t)
+	id := run.ID.String()
+	r.drive(t)
+	r.waitState(t, run.ID, assistantModel.RunRunning)
+	r.brn.Emit(id, "run_finished", `{"type":"run_finished","run_id":"`+id+`","status":"done"}`)
+	r.waitState(t, run.ID, assistantModel.RunFinished)
+	got := mustJSON(t, r.brn.LabFacts(id)[0])
+	assert.Equal(t, "true", string(got["egress_used"]))
+	assert.Equal(t, "1", string(got["console_minutes"]))
+	assert.Equal(t, "null", string(got["vpn_bytes"]))
+	assert.Equal(t, "null", string(got["devices_touched"]))
 }
 
 // Reports that are off (or a lab the laboratory does not know) are null, never zero.

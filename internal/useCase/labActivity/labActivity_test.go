@@ -20,13 +20,18 @@ import (
 // fakeAgent serves the pages in order and records the cursors it was asked with.
 type fakeAgent struct {
 	enabled bool
+	feature infraModel.ActivityFeature // enabled is set on it by the calls
 	pages   []infraModel.ActivityPage
 	errs    []error // an error for the call of the same index, nil for none
 	asked   []string
 	calls   int
 }
 
-func (a *fakeAgent) ActivityEnabled(context.Context, string) (bool, error) { return a.enabled, nil }
+func (a *fakeAgent) ActivityFeature(context.Context, string) (infraModel.ActivityFeature, error) {
+	f := a.feature
+	f.Enabled = a.enabled
+	return f, nil
+}
 
 func (a *fakeAgent) GroupActivity(_ context.Context, _, cursor string, _ int32) (infraModel.ActivityPage, error) {
 	a.asked = append(a.asked, cursor)
@@ -44,28 +49,33 @@ func (a *fakeAgent) GroupActivity(_ context.Context, _, cursor string, _ int32) 
 // memStore folds batches the way the statement does, to check what a pull hands to the store.
 type memStore struct {
 	cursors  map[string]string
+	features map[string]labActivityRepo.Cursor
 	gaps     map[string]bool
 	applied  []labActivityRepo.Batch
 	egress   map[string]bool
 	bytes    map[string]int64
 	instance []labActivityRepo.Instance
+	touch    bool // what OfClient says of the group
 }
 
 func newStore() *memStore {
-	return &memStore{cursors: map[string]string{}, gaps: map[string]bool{}, egress: map[string]bool{}, bytes: map[string]int64{}}
+	return &memStore{cursors: map[string]string{}, features: map[string]labActivityRepo.Cursor{}, gaps: map[string]bool{}, egress: map[string]bool{}, bytes: map[string]int64{}}
 }
 
 func (s *memStore) Groups(context.Context, assistantModel.StatsMode, time.Time) ([]string, error) {
 	return []string{"g-1"}, nil
 }
 
-func (s *memStore) Cursor(_ context.Context, g string) (string, bool, error) {
+func (s *memStore) Cursor(_ context.Context, g string) (labActivityRepo.Cursor, bool, error) {
 	c, ok := s.cursors[g]
-	return c, ok, nil
+	f := s.features[g]
+	f.Cursor = c
+	return f, ok, nil
 }
 
-func (s *memStore) Apply(_ context.Context, g, cursor string, gap bool, b labActivityRepo.Batch, _ time.Time) error {
-	s.cursors[g] = cursor
+func (s *memStore) Apply(_ context.Context, g string, c labActivityRepo.Cursor, gap bool, b labActivityRepo.Batch, _ time.Time) error {
+	s.cursors[g] = c.Cursor
+	s.features[g] = c
 	s.gaps[g] = s.gaps[g] || gap
 	s.applied = append(s.applied, b)
 	for _, l := range b.Labs {
@@ -85,7 +95,7 @@ func (s *memStore) OfClient(_ context.Context, _, lab, client string, _ time.Tim
 	if _, ok := s.egress[lab]; !ok {
 		return labActivityRepo.Figures{}, false, nil
 	}
-	return labActivityRepo.Figures{EgressUsed: s.egress[lab], VPNBytes: s.bytes[lab+"/"+client]}, true, nil
+	return labActivityRepo.Figures{DeviceTouch: s.touch, EgressUsed: s.egress[lab], VPNBytes: s.bytes[lab+"/"+client]}, true, nil
 }
 
 func (s *memStore) Purge(context.Context, time.Time) error { return nil }
@@ -177,7 +187,7 @@ func TestTheSeamGivesFiguresOnlyForTheInstancesThatHaveThem(t *testing.T) {
 	other := assistantStatsRepo.InstanceKey{EventID: event, TeamID: uuid.Must(uuid.NewV7()), EventExerciseID: ex}
 	key := assistantStatsRepo.InstanceKey{EventID: event, TeamID: team, EventExerciseID: ex}
 	s := newStore()
-	s.instance = []labActivityRepo.Instance{{EventID: event, TeamID: team, EventExerciseID: ex, Figures: labActivityRepo.Figures{EgressUsed: true, VPNBytes: 4096, DevicesTouched: 3, ConsoleMinutes: 12.5}}}
+	s.instance = []labActivityRepo.Instance{{EventID: event, TeamID: team, EventExerciseID: ex, Figures: labActivityRepo.Figures{DeviceTouch: true, EgressUsed: true, VPNBytes: 4096, DevicesTouched: 3, ConsoleMinutes: 12.5}}}
 	got, err := newUC(&fakeAgent{}, s).Activity(context.Background(), []assistantStatsRepo.InstanceKey{key, other})
 	require.NoError(t, err)
 	require.Len(t, got, 1, "an instance without a report is absent: not reported, not zero")
@@ -196,19 +206,51 @@ func TestOfLabIsNilUntilTheGroupIsPulledAndZeroAfterwards(t *testing.T) {
 	assert.Nil(t, f, "reports off or never pulled: not reported")
 
 	s.cursors["g-1"] = "c" // pulled, and the lab did nothing
+	s.features["g-1"] = labActivityRepo.Cursor{DeviceTouch: true}
 	f, err = uc.OfLab(context.Background(), "g-1", "l-1", "c")
 	require.NoError(t, err)
 	require.NotNil(t, f)
 	assert.False(t, f.EgressUsed)
-	assert.Zero(t, f.VPNBytes)
+	assert.EqualValues(t, 0, *f.VPNBytes)
 
-	s.egress["l-1"], s.bytes["l-1/c"] = true, 77
+	s.egress["l-1"], s.bytes["l-1/c"], s.touch = true, 77, true
 	f, _ = uc.OfLab(context.Background(), "g-1", "l-1", "c")
 	assert.True(t, f.EgressUsed)
-	assert.EqualValues(t, 77, f.VPNBytes)
+	assert.EqualValues(t, 77, *f.VPNBytes)
 }
 
 func TestPullAllWithoutAnAgentDoesNothing(t *testing.T) {
 	uc := labActivity.New(labActivity.Dependencies{Store: newStore()})
 	require.NoError(t, uc.PullGroup(context.Background(), "g-1"))
+}
+
+// The laboratory's own words ride with the cursor: whether device touches are produced and its console limit.
+func TestThePullKeepsWhatTheLaboratorySaysOfTheGroup(t *testing.T) {
+	a := &fakeAgent{enabled: true, feature: infraModel.ActivityFeature{DeviceTouch: true, ConsoleMaxLifetimeSeconds: 28800},
+		pages: []infraModel.ActivityPage{{NextCursor: "c1"}}}
+	s := newStore()
+	require.NoError(t, newUC(a, s).PullGroup(context.Background(), "g-1"))
+	assert.Equal(t, labActivityRepo.Cursor{Cursor: "c1", DeviceTouch: true, ConsoleMaxSeconds: 28800}, s.features["g-1"])
+}
+
+// Without device_touch events (nft, or a laboratory older than 2.6) the VPN bytes and devices touched are null, not zero.
+func TestWithoutDeviceTouchTheEffortFiguresAreNotReported(t *testing.T) {
+	event, team, ex := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	key := assistantStatsRepo.InstanceKey{EventID: event, TeamID: team, EventExerciseID: ex}
+	s := newStore()
+	s.instance = []labActivityRepo.Instance{{EventID: event, TeamID: team, EventExerciseID: ex, Figures: labActivityRepo.Figures{DeviceTouch: false, EgressUsed: true, ConsoleMinutes: 4}}}
+	got, err := newUC(&fakeAgent{}, s).Activity(context.Background(), []assistantStatsRepo.InstanceKey{key})
+	require.NoError(t, err)
+	a := got[key]
+	assert.Nil(t, a.VPNBytes)
+	assert.Nil(t, a.DevicesTouched)
+	assert.True(t, *a.EgressUsed, "egress and the console do not depend on device touches")
+	assert.EqualValues(t, 4, *a.ConsoleMinutes)
+
+	s.cursors["g-1"] = "c"
+	s.features["g-1"] = labActivityRepo.Cursor{DeviceTouch: false}
+	f, err := newUC(&fakeAgent{}, s).OfLab(context.Background(), "g-1", "l-x", "c")
+	require.NoError(t, err)
+	assert.Nil(t, f.VPNBytes)
+	assert.Nil(t, f.DevicesTouched)
 }

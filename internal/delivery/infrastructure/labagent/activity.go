@@ -53,26 +53,29 @@ func ActivityPageOf(res *labpb.GetLabGroupActivityResponse) infraModel.ActivityP
 	return page
 }
 
-// ActivityEnabled says whether the agent that holds the group keeps activity reports. An agent older than contract 2.5, or one
-// that has not reported its features, or a group without an agent, says no.
-func (f *Fleet) ActivityEnabled(ctx context.Context, group string) (bool, error) {
+// ActivityFeature is what the agent that holds the group says of its activity reports (contract 2.5/2.6). An agent older than the
+// reports, one that has not reported its features, or a group without an agent has none: the zero value (not enabled).
+func (f *Fleet) ActivityFeature(ctx context.Context, group string) (infraModel.ActivityFeature, error) {
 	m, err := f.memberOf(ctx, group)
 	if errors.Is(err, errNoPlacement) {
-		return false, nil
+		return infraModel.ActivityFeature{}, nil
 	}
 	if err != nil {
-		return false, err
+		return infraModel.ActivityFeature{}, err
 	}
 	feat := m.Features.Get()
 	if feat == nil {
 		res, readErr := featuresReader(m)(ctx)
 		if readErr != nil {
-			return false, readErr
+			return infraModel.ActivityFeature{}, readErr
 		}
-		f := FeaturesOf(res)
-		feat = &f
+		read := FeaturesOf(res)
+		feat = &read
 	}
-	return feat.Activity != nil && feat.Activity.Enabled, nil
+	if feat.Activity == nil {
+		return infraModel.ActivityFeature{}, nil
+	}
+	return *feat.Activity, nil
 }
 
 // GroupActivity is the agent's page of the group's activity. A group without an agent is gone.

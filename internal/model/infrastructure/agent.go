@@ -130,6 +130,11 @@ type ActivityFeature struct {
 	Enabled     bool  `json:"enabled"`
 	MaxEvents   int32 `json:"max_events"`
 	RingMinutes int32 `json:"ring_minutes"`
+	// ConsoleMaxLifetimeSeconds is the longest a console session lives (0: the console is off, or an older laboratory).
+	ConsoleMaxLifetimeSeconds int32 `json:"console_max_lifetime_s"`
+	// DeviceTouch: the cluster produces device_touch events (contract 2.6). False: the VPN bytes and devices-touched figures are
+	// not reported, which is not zero.
+	DeviceTouch bool `json:"device_touch"`
 }
 
 // ChecksFeature: lab checks are switched on and their limits. Access: which device access kinds are served.

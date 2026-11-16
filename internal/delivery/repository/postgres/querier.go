@@ -892,7 +892,8 @@ type Querier interface {
 	// The activity of the labs of teams x tasks, per (event, team, event exercise): the labs of one instance (a recreate makes
 	// another lab) are folded together. egress_used: any of its labs had egress; vpn_bytes: bytes the team's VPN clients exchanged
 	// with the labs; devices_touched: distinct lab addresses reached; console_seconds: console time, a session still open (or one
-	// longer than max_session_seconds) counted up to that cap. An instance whose group was never pulled (reports off, or not yet) is not returned: its figures are "not reported", not zero.
+	// longer than the cap) counted up to the cap: the laboratory's own console_max_s of the group, else max_session_seconds.
+	// device_touch false: the cluster produces no device_touch events, so vpn_bytes and devices_touched are not reported. An instance whose group was never pulled (reports off, or not yet) is not returned: its figures are "not reported", not zero.
 	ListAssistantLabActivity(ctx context.Context, arg ListAssistantLabActivityParams) ([]ListAssistantLabActivityRow, error)
 	// The opponent runs of a variant (any role of the manifest, never the grader or a lab), newest first.
 	ListAssistantOpponentRunsOfVariant(ctx context.Context, arg ListAssistantOpponentRunsOfVariantParams) ([]AssistantRun, error)
