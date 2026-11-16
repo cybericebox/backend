@@ -415,6 +415,9 @@ func (f *fakeLabs) MintLabClient(_ context.Context, _, _ uuid.UUID, client strin
 }
 func (f *fakeLabs) RevokeLabClient(_ context.Context, _, _ uuid.UUID, client string) error {
 	f.record("revoke:" + client)
+	// The test clears the error while the driver is still retrying the revocation: read it under the lock the test writes it with.
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	return f.revokeErr
 }
 func (f *fakeLabs) JudgeAnswer(_ context.Context, _, _ uuid.UUID, ref, value string) (bool, error) {
