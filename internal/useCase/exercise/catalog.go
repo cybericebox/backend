@@ -117,7 +117,7 @@ func (u *ExerciseUseCase) applyResources(ctx context.Context, actor Actor, views
 	}
 	for i, v := range views {
 		if r, ok := visible[ids[i]]; ok {
-			v.Resources, v.ResourceHeavy, v.Infrastructure, v.UsesConsole = r.Range, r.Heavy, r.Infrastructure, r.Console
+			v.Resources, v.ResourceHeavy, v.Infrastructure, v.UsesConsole, v.HasMissingSecrets = r.Range, r.Heavy, r.Infrastructure, r.Console, r.MissingSecrets
 		}
 	}
 	return nil

@@ -41341,6 +41341,10 @@ const docTemplate = `{
                 "HasDraft": {
                     "type": "boolean"
                 },
+                "HasMissingSecrets": {
+                    "description": "HasMissingSecrets: the visible version has secret variables with no value yet (a task made automatically declares\nthem empty): the catalog marks it as created automatically, with values still needed. The version lists them.",
+                    "type": "boolean"
+                },
                 "HasPublished": {
                     "type": "boolean"
                 },
@@ -41493,6 +41497,10 @@ const docTemplate = `{
                     "$ref": "#/definitions/exercise.forkSourceResponse"
                 },
                 "HasChanges": {
+                    "type": "boolean"
+                },
+                "HasMissingSecrets": {
+                    "description": "HasMissingSecrets: the visible version has secret variables with no value yet (a task made automatically declares\nthem empty): the catalog marks it as created automatically, with values still needed. The version lists them.",
                     "type": "boolean"
                 },
                 "ID": {
@@ -42118,6 +42126,20 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                }
+            }
+        },
+        "exercise.missingSecretResponse": {
+            "type": "object",
+            "properties": {
+                "Device": {
+                    "type": "string"
+                },
+                "Key": {
+                    "type": "string"
+                },
+                "Variant": {
+                    "type": "integer"
                 }
             }
         },
@@ -42998,11 +43020,21 @@ const docTemplate = `{
                 "ExerciseID": {
                     "type": "string"
                 },
+                "HasMissingSecrets": {
+                    "type": "boolean"
+                },
                 "ID": {
                     "type": "string"
                 },
                 "Label": {
                     "type": "string"
+                },
+                "MissingSecrets": {
+                    "description": "MissingSecrets lists the secret variables that have no value yet (variant 1-based, device, key); HasMissingSecrets is\nwhether there are any. The version cannot be published while there are; entering the value in the editor clears the entry.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/exercise.missingSecretResponse"
+                    }
                 },
                 "Name": {
                     "type": "string"

@@ -124,6 +124,11 @@ var (
 	ErrOpponentInvalid = err.ErrInvalidData.WithObjectCode(model.ExerciseDocumentObjectCode).
 				WithMessage("An opponent of the variant is invalid").
 				WithDetailCode(25)
+	// ErrSecretValueMissing: a secret variable has no value yet (a task made automatically declares its secrets and the author
+	// enters them), and the version cannot be published until it has. secrets lists each one: variant (1-based), device, key.
+	ErrSecretValueMissing = err.ErrInvalidData.WithObjectCode(model.ExerciseDocumentObjectCode).
+				WithMessage("Secret variables have no value yet: enter them before publishing").
+				WithDetailCode(26)
 	ErrBootstrapTooLarge = err.ErrInvalidData.WithObjectCode(model.ExerciseDocumentObjectCode).
 				WithMessage("A bootstrap file is over 256 KiB, or the script and files of a device are over 512 KiB").
 				WithDetailCode(17)

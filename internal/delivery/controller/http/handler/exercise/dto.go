@@ -46,6 +46,9 @@ type exerciseScopeResponse struct {
 	// UsesConsole: some device of the published version has a terminal access entry (a console in the browser). A console
 	// is not meant for events; the event side shows it.
 	UsesConsole bool `json:"UsesConsole"`
+	// HasMissingSecrets: the visible version has secret variables with no value yet (a task made automatically declares
+	// them empty): the catalog marks it as created automatically, with values still needed. The version lists them.
+	HasMissingSecrets bool `json:"HasMissingSecrets"`
 	// Resources is the total of the published version: min and max over its variants (equal for one variant);
 	// zeros without a published version. ResourceHeavy: an approved elevation holds a device of the published
 	// version above the platform frame (shown as a badge).
@@ -79,7 +82,7 @@ type exercisePermissionsResponse struct {
 func scopeToResponse(v exerciseUseCase.ExerciseScopeView) exerciseScopeResponse {
 	out := exerciseScopeResponse{
 		Scope: v.Scope, OwnerEventID: v.OwnerEventID, OwnerEventName: v.OwnerEventName, AccessLevel: v.AccessLevel,
-		AccessEventIDs: v.AccessEventIDs, OriginEventID: v.OriginEventID, Infrastructure: v.Infrastructure, UsesConsole: v.UsesConsole,
+		AccessEventIDs: v.AccessEventIDs, OriginEventID: v.OriginEventID, Infrastructure: v.Infrastructure, UsesConsole: v.UsesConsole, HasMissingSecrets: v.HasMissingSecrets,
 		Resources: rangeToResponse(v.Resources), ResourceHeavy: v.ResourceHeavy,
 		PendingProposalID: v.PendingProposalID, Permissions: exercisePermissionsResponse(v.Permissions),
 	}
@@ -871,6 +874,16 @@ type versionResponse struct {
 	// Elevation is the exercise's open resource elevation request, else its latest decided one; null when it
 	// never had one.
 	Elevation *elevationResponse `json:"Elevation"`
+	// MissingSecrets lists the secret variables that have no value yet (variant 1-based, device, key); HasMissingSecrets is
+	// whether there are any. The version cannot be published while there are; entering the value in the editor clears the entry.
+	MissingSecrets    []missingSecretResponse `json:"MissingSecrets"`
+	HasMissingSecrets bool                    `json:"HasMissingSecrets"`
+}
+
+type missingSecretResponse struct {
+	Variant int    `json:"Variant"`
+	Device  string `json:"Device"`
+	Key     string `json:"Key"`
 }
 
 type versionListItemResponse struct {
@@ -1384,7 +1397,16 @@ func versionToResponse(v exerciseUseCase.VersionView) versionResponse {
 		Variants:  withContentHashes(variantsToDTO(v.Variants), v.SecretGroups, v.FileHashes),
 		CreatedAt: v.CreatedAt, CreatedBy: v.CreatedBy, AuthorName: v.AuthorName, PublishedAt: v.PublishedAt,
 		Resources: versionResourcesToResponse(v.Resources), Elevation: elevationPtr(v.Elevation),
+		MissingSecrets: missingSecretsToResponse(v.MissingSecrets), HasMissingSecrets: v.HasMissingSecrets,
 	}
+}
+
+func missingSecretsToResponse(missing []exerciseModel.MissingSecret) []missingSecretResponse {
+	out := make([]missingSecretResponse, 0, len(missing))
+	for _, m := range missing {
+		out = append(out, missingSecretResponse(m))
+	}
+	return out
 }
 
 // withContentHashes sets ValueGroup on every stored secret (groups is [variant][device][env], aligned with the
