@@ -1,0 +1,1075 @@
+{
+  "$defs": {
+    "Access": {
+      "additionalProperties": false,
+      "properties": {
+        "command": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "http",
+            "terminal",
+            "vnc",
+            "rdp"
+          ],
+          "type": "string"
+        },
+        "port": {
+          "type": "integer"
+        },
+        "protocol": {
+          "type": "string"
+        },
+        "user": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "DHCPRange": {
+      "additionalProperties": false,
+      "properties": {
+        "end": {
+          "type": "integer"
+        },
+        "start": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "DevicePersistence": {
+      "additionalProperties": false,
+      "properties": {
+        "debounce": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "DirectoryObservation": {
+      "additionalProperties": false,
+      "properties": {
+        "exists": {
+          "type": "boolean"
+        },
+        "group": {
+          "type": "string"
+        },
+        "has_entries": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "lacks_entries": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "owner": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "IPConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "address_ref": {
+          "$ref": "#/$defs/NetworkIPRef"
+        },
+        "addresses": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "gateway": {
+          "type": "string"
+        },
+        "gateway_ref": {
+          "$ref": "#/$defs/NetworkIPRef"
+        },
+        "routes": {
+          "items": {
+            "$ref": "#/$defs/Route"
+          },
+          "type": "array"
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Interface": {
+      "additionalProperties": false,
+      "properties": {
+        "ip": {
+          "$ref": "#/$defs/IPConfig"
+        },
+        "mac": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "KernelParamObservation": {
+      "additionalProperties": false,
+      "properties": {
+        "equals": {
+          "type": "string"
+        },
+        "matches": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "NetworkIPRef": {
+      "additionalProperties": false,
+      "properties": {
+        "gateway": {
+          "type": "string"
+        },
+        "host": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "NetworkSubnetRef": {
+      "additionalProperties": false,
+      "properties": {
+        "gateway": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Opponent": {
+      "additionalProperties": false,
+      "properties": {
+        "band": {
+          "type": "integer"
+        },
+        "brief": {
+          "type": "string"
+        },
+        "foothold": {
+          "type": "string"
+        },
+        "goal": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "operates": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "role": {
+          "type": "string"
+        },
+        "start": {
+          "$ref": "#/$defs/OpponentStart"
+        }
+      },
+      "type": "object"
+    },
+    "OpponentStart": {
+      "additionalProperties": false,
+      "properties": {
+        "After": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "PermissionObservation": {
+      "additionalProperties": false,
+      "properties": {
+        "execute": {
+          "type": "boolean"
+        },
+        "path": {
+          "type": "string"
+        },
+        "read": {
+          "type": "boolean"
+        },
+        "user": {
+          "type": "string"
+        },
+        "write": {
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "Placeholder": {
+      "additionalProperties": false,
+      "properties": {
+        "access": {
+          "enum": [
+            "http",
+            "terminal",
+            "vnc",
+            "rdp"
+          ],
+          "type": "string"
+        },
+        "as_link": {
+          "type": "boolean"
+        },
+        "device_name": {
+          "type": "string"
+        },
+        "gateway": {
+          "type": "string"
+        },
+        "ip_reference": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "gateway.subnet",
+            "ip",
+            "external.link"
+          ],
+          "type": "string"
+        },
+        "last_octet": {
+          "type": "integer"
+        },
+        "octets_1to3": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "port": {
+          "type": "integer"
+        },
+        "scheme": {
+          "type": "string"
+        },
+        "show_mask": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "type": "object"
+    },
+    "PortObservation": {
+      "additionalProperties": false,
+      "properties": {
+        "address": {
+          "type": "string"
+        },
+        "listening": {
+          "type": "boolean"
+        },
+        "port": {
+          "type": "integer"
+        },
+        "process": {
+          "type": "string"
+        },
+        "protocol": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "ProcessObservation": {
+      "additionalProperties": false,
+      "properties": {
+        "matches": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "running": {
+          "type": "boolean"
+        },
+        "user": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "RequestObservation": {
+      "additionalProperties": false,
+      "properties": {
+        "body_contains": {
+          "type": "string"
+        },
+        "body_matches": {
+          "type": "string"
+        },
+        "host": {
+          "type": "string"
+        },
+        "method": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "port": {
+          "type": "integer"
+        },
+        "protocol": {
+          "type": "string"
+        },
+        "status": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "Route": {
+      "additionalProperties": false,
+      "properties": {
+        "dst": {
+          "type": "string"
+        },
+        "dst_ref": {
+          "$ref": "#/$defs/NetworkSubnetRef"
+        },
+        "via": {
+          "type": "string"
+        },
+        "via_ref": {
+          "$ref": "#/$defs/NetworkIPRef"
+        }
+      },
+      "type": "object"
+    },
+    "archiveAnswerV2": {
+      "additionalProperties": false,
+      "properties": {
+        "ignore_case": {
+          "type": "boolean"
+        },
+        "input_hint": {
+          "type": "string"
+        },
+        "trim": {
+          "type": "boolean"
+        },
+        "type": {
+          "enum": [
+            "flag",
+            "text"
+          ],
+          "type": "string"
+        },
+        "values": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "archiveAttachmentV2": {
+      "additionalProperties": false,
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "file"
+      ],
+      "type": "object"
+    },
+    "archiveBootstrapFileV2": {
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "type": "string"
+        },
+        "group": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "owner": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "type": "object"
+    },
+    "archiveBootstrapV2": {
+      "additionalProperties": false,
+      "properties": {
+        "env": {
+          "items": {
+            "$ref": "#/$defs/archiveEnvVarV2"
+          },
+          "type": "array"
+        },
+        "files": {
+          "items": {
+            "$ref": "#/$defs/archiveBootstrapFileV2"
+          },
+          "type": "array"
+        },
+        "interpreter": {
+          "type": "string"
+        },
+        "script": {
+          "type": "string"
+        },
+        "timeout": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "archiveCheckV2": {
+      "additionalProperties": false,
+      "properties": {
+        "answer": {
+          "$ref": "#/$defs/archiveAnswerV2"
+        },
+        "state": {
+          "$ref": "#/$defs/archiveStateV2"
+        }
+      },
+      "type": "object"
+    },
+    "archiveConditionV2": {
+      "additionalProperties": false,
+      "properties": {
+        "custom": {
+          "$ref": "#/$defs/archiveCustomCheckV2"
+        },
+        "device": {
+          "type": "string"
+        },
+        "directory": {
+          "$ref": "#/$defs/DirectoryObservation"
+        },
+        "file": {
+          "$ref": "#/$defs/archiveFileCheckV2"
+        },
+        "kernel_param": {
+          "$ref": "#/$defs/KernelParamObservation"
+        },
+        "permission": {
+          "$ref": "#/$defs/PermissionObservation"
+        },
+        "port": {
+          "$ref": "#/$defs/PortObservation"
+        },
+        "process": {
+          "$ref": "#/$defs/ProcessObservation"
+        },
+        "request": {
+          "$ref": "#/$defs/RequestObservation"
+        },
+        "timeout": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "device"
+      ],
+      "type": "object"
+    },
+    "archiveConnectionV2": {
+      "additionalProperties": false,
+      "properties": {
+        "endpoints": {
+          "items": {
+            "$ref": "#/$defs/archiveEndpointV2"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "endpoints"
+      ],
+      "type": "object"
+    },
+    "archiveCustomCheckV2": {
+      "additionalProperties": false,
+      "properties": {
+        "interpreter": {
+          "type": "string"
+        },
+        "output_contains": {
+          "type": "string"
+        },
+        "output_matches": {
+          "type": "string"
+        },
+        "run": {
+          "type": "string"
+        },
+        "user": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "run"
+      ],
+      "type": "object"
+    },
+    "archiveDeviceV2": {
+      "additionalProperties": false,
+      "properties": {
+        "access": {
+          "items": {
+            "$ref": "#/$defs/Access"
+          },
+          "type": "array"
+        },
+        "args": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "bootstrap": {
+          "$ref": "#/$defs/archiveBootstrapV2"
+        },
+        "command": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "dhcp": {
+          "type": "boolean"
+        },
+        "dhcp_ranges": {
+          "items": {
+            "$ref": "#/$defs/DHCPRange"
+          },
+          "type": "array"
+        },
+        "dns": {
+          "type": "string"
+        },
+        "hardware": {
+          "enum": [
+            "fast",
+            "compatible"
+          ],
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "image": {
+          "oneOf": [
+            {
+              "description": "an image reference such as nginx:1.27",
+              "type": "string"
+            },
+            {
+              "additionalProperties": false,
+              "description": "an image file shipped in the archive",
+              "properties": {
+                "file": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "file"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "interfaces": {
+          "items": {
+            "$ref": "#/$defs/Interface"
+          },
+          "type": "array"
+        },
+        "name": {
+          "type": "string"
+        },
+        "persistence": {
+          "$ref": "#/$defs/DevicePersistence"
+        },
+        "profile": {
+          "enum": [
+            "container",
+            "microvm",
+            "vm"
+          ],
+          "type": "string"
+        },
+        "resource_preset": {
+          "type": "string"
+        },
+        "reverse_connections": {
+          "type": "boolean"
+        },
+        "security_preset": {
+          "enum": [
+            "standard",
+            "extended"
+          ],
+          "type": "string"
+        },
+        "system": {
+          "enum": [
+            "linux",
+            "windows"
+          ],
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "node",
+            "container",
+            "unmanaged-switch",
+            "hub",
+            "vpn_gateway",
+            "internet_gateway"
+          ],
+          "type": "string"
+        },
+        "wait_ready_file": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "type"
+      ],
+      "type": "object"
+    },
+    "archiveDocV2": {
+      "additionalProperties": false,
+      "properties": {
+        "exercise": {
+          "$ref": "#/$defs/archiveExerciseV2"
+        },
+        "schema": {
+          "const": "cib-exercise/1.0"
+        },
+        "versions": {
+          "items": {
+            "$ref": "#/$defs/archiveVersionV2"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "exercise",
+        "schema",
+        "versions"
+      ],
+      "type": "object"
+    },
+    "archiveEndpointV2": {
+      "additionalProperties": false,
+      "properties": {
+        "device": {
+          "type": "string"
+        },
+        "device_id": {
+          "type": "string"
+        },
+        "interface": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "device"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "type": "object"
+    },
+    "archiveEnvVarV2": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "secret": {
+          "type": "boolean"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "archiveExerciseV2": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "archiveFileCheckV2": {
+      "additionalProperties": false,
+      "properties": {
+        "checksum": {
+          "type": "string"
+        },
+        "contains": {
+          "type": "string"
+        },
+        "exists": {
+          "type": "boolean"
+        },
+        "group": {
+          "type": "string"
+        },
+        "matches": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "owner": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "type": "object"
+    },
+    "archiveHintV2": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "level": {
+          "enum": [
+            "nudge",
+            "direction",
+            "steps",
+            "near_solution"
+          ],
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "type": "object"
+    },
+    "archiveStateV2": {
+      "additionalProperties": false,
+      "properties": {
+        "conditions": {
+          "items": {
+            "$ref": "#/$defs/archiveConditionV2"
+          },
+          "type": "array"
+        },
+        "interval": {
+          "description": "a duration such as 30s, or 0 for no schedule",
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "const": 0
+            }
+          ]
+        },
+        "manual": {
+          "type": "boolean"
+        },
+        "mode": {
+          "enum": [
+            "once",
+            "continuous"
+          ],
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "archiveTaskV2": {
+      "additionalProperties": false,
+      "properties": {
+        "attachments": {
+          "items": {
+            "$ref": "#/$defs/archiveAttachmentV2"
+          },
+          "type": "array"
+        },
+        "check": {
+          "$ref": "#/$defs/archiveCheckV2"
+        },
+        "description": {},
+        "difficulty": {
+          "enum": [
+            "elementary",
+            "trivial",
+            "easy",
+            "medium",
+            "hard",
+            "insane"
+          ],
+          "type": "string"
+        },
+        "hints": {
+          "items": {
+            "$ref": "#/$defs/archiveHintV2"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "placeholders": {
+          "items": {
+            "$ref": "#/$defs/Placeholder"
+          },
+          "type": "array"
+        },
+        "requires": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "archiveTopologyV2": {
+      "additionalProperties": false,
+      "properties": {
+        "connections": {
+          "items": {
+            "$ref": "#/$defs/archiveConnectionV2"
+          },
+          "type": "array"
+        },
+        "devices": {
+          "items": {
+            "$ref": "#/$defs/archiveDeviceV2"
+          },
+          "type": "array"
+        },
+        "variables": {
+          "items": {
+            "$ref": "#/$defs/archiveVariableV2"
+          },
+          "type": "array"
+        },
+        "visual_render": {}
+      },
+      "type": "object"
+    },
+    "archiveVariableV2": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "template": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "archiveVariantV2": {
+      "additionalProperties": false,
+      "properties": {
+        "device_images": {
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "description": "an image reference such as nginx:1.27",
+                "type": "string"
+              },
+              {
+                "additionalProperties": false,
+                "description": "an image file shipped in the archive",
+                "properties": {
+                  "file": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "file"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "type": "object"
+        },
+        "id": {
+          "type": "string"
+        },
+        "index": {
+          "type": "integer"
+        },
+        "linked_to": {
+          "type": "integer"
+        },
+        "note": {
+          "type": "string"
+        },
+        "opponents": {
+          "items": {
+            "$ref": "#/$defs/Opponent"
+          },
+          "type": "array"
+        },
+        "tasks": {
+          "items": {
+            "$ref": "#/$defs/archiveTaskV2"
+          },
+          "type": "array"
+        },
+        "topology": {
+          "$ref": "#/$defs/archiveTopologyV2"
+        },
+        "weight": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "archiveVersionV2": {
+      "additionalProperties": false,
+      "properties": {
+        "admin_note": {
+          "type": "string"
+        },
+        "exercise": {
+          "$ref": "#/$defs/archiveExerciseV2"
+        },
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "draft",
+            "published",
+            "unpublished",
+            "checkpoint"
+          ],
+          "type": "string"
+        },
+        "variants": {
+          "items": {
+            "$ref": "#/$defs/archiveVariantV2"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "variants"
+      ],
+      "type": "object"
+    }
+  },
+  "$ref": "#/$defs/archiveDocV2",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "The exercise document of a task archive (exercise.json). Generated from internal/useCase/exercise/archive_v2.go; the platform checks the rest (publish rules, limits, linked files) on import and publish.",
+  "title": "cib-exercise/1.0"
+}

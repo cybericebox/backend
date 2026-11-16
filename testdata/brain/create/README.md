@@ -31,8 +31,11 @@ The importer decodes it **strictly**: the exact, case-sensitive keys below only,
 (`archive_v2.go:336` `decodeArchiveV2`, with `checkArchiveKeys` over the Go structs). JSON comments are accepted in `exercise.json` (JSONC).
 `schema` must be exactly `"cib-exercise/1.0"`. **The Go structs are the schema:** `internal/useCase/exercise/archive_v2.go:22-228`
 (`archiveDocV2` and the `archive*V2` types); the domain types they reuse (`Placeholder`, `Interface`, `Access`, `Opponent`, observations) are
-in `internal/model/exercise/`. There is **no published JSON Schema file**; a prose table follows, and a JSON Schema can be generated from
-those structs on request.
+in `internal/model/exercise/`. A **JSON Schema (draft 2020-12)** is generated from
+those structs: `testdata/brain/schema/cib-exercise-1.0.schema.json` (`go generate ./internal/useCase/exercise`; a test fails when it drifts, and
+the samples and `tasks/web-dynamic` are validated against it). It covers keys, types, enums and the keys that cannot be omitted, with
+`additionalProperties: false` everywhere. Strip JSONC comments before validating. Publish-time rules (a check on every task, a resolving device graph,
+limits, linked files) are not in the schema; the prose below lists them.
 
 ```
 document   {schema, exercise{id?,name,description?,tags?}, versions[]}
