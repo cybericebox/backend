@@ -34,7 +34,9 @@ func (NoExclusion) Excluded(context.Context) ([]uuid.UUID, error) { return nil, 
 // LabActivitySource gives the laboratory's activity reports (VPN bytes, devices touched, console minutes, egress use) of
 // team-instances. It is the seam for the laboratory's activity API: today nothing implements it, so EventsSource leaves
 // those figures null ("not reported yet"). An instance the laboratory has no report for is simply absent from the answer; a
-// nil figure inside an Activity is not reported either. Only figures of the instances asked for may be returned.
+// nil figure inside an Activity is not reported either.
+// EgressUsed is per lab: "the lab had any Internet egress". The laboratory attributes egress to a lab only (best-effort, by source
+// address), never to a device or a user, so nothing here maps it to either; in events a team has its own lab, so per lab is per team. Only figures of the instances asked for may be returned.
 type LabActivitySource interface {
 	Activity(ctx context.Context, instances []assistantStatsRepo.InstanceKey) (map[assistantStatsRepo.InstanceKey]assistantStatsRepo.Activity, error)
 }
