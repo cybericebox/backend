@@ -116,10 +116,20 @@ type AgentFeatures struct {
 	// VPN is the VPN gateway option of the agent (nil: an older agent, which neither enforces the block of lab-initiated
 	// connections nor accepts the key that allows them).
 	VPN *VPNFeature `json:"vpn,omitempty"`
+	// Activity is the laboratory's activity reports (contract 2.5): nil for an agent older than the field.
+	Activity *ActivityFeature `json:"activity,omitempty"`
 	// PersistenceUnavailable and LifecycleUnavailable say why a feature the cluster is configured for is held back
 	// (nil: nothing is). Only a fixed code and a count of nodes: never node names, paths or text of the agent.
 	PersistenceUnavailable *UnavailableReason `json:"persistence_unavailable,omitempty"`
 	LifecycleUnavailable   *UnavailableReason `json:"lifecycle_unavailable,omitempty"`
+}
+
+// ActivityFeature: Enabled says the cluster keeps raw activity facts for the platform to pull; MaxEvents and RingMinutes bound
+// what the laboratory keeps per writer (a platform that pulls less often than every RingMinutes may lose events).
+type ActivityFeature struct {
+	Enabled     bool  `json:"enabled"`
+	MaxEvents   int32 `json:"max_events"`
+	RingMinutes int32 `json:"ring_minutes"`
 }
 
 // ChecksFeature: lab checks are switched on and their limits. Access: which device access kinds are served.

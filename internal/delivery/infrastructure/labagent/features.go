@@ -107,6 +107,7 @@ func FeaturesOf(r *labpb.FeaturesResponse) infraModel.AgentFeatures {
 		Access:                 accessFeatureOf(r.GetAccess()),
 		Bootstrap:              bootstrapFeatureOf(r.GetBootstrap()),
 		VPN:                    vpnFeatureOf(r.GetVpn()),
+		Activity:               activityFeatureOf(r.GetActivity()),
 	}
 }
 
@@ -120,6 +121,13 @@ func checksFeatureOf(c *labpb.ChecksFeature) *infraModel.ChecksFeature {
 		MaxTimeLimitSeconds: c.GetMaxTimeLimitSeconds(), MaxScheduleSeconds: c.GetMaxScheduleSeconds(), MaxDetailBytes: c.GetMaxDetailBytes(),
 		Observations: append([]string(nil), c.GetObservations()...),
 	}
+}
+
+func activityFeatureOf(a *labpb.ActivityFeature) *infraModel.ActivityFeature {
+	if a == nil {
+		return nil
+	}
+	return &infraModel.ActivityFeature{Enabled: a.GetEnabled(), MaxEvents: a.GetMaxEvents(), RingMinutes: a.GetRingMinutes()}
 }
 
 func vpnFeatureOf(v *labpb.VPNFeature) *infraModel.VPNFeature {
