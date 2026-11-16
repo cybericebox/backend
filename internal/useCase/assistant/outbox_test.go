@@ -48,6 +48,14 @@ type outboxBrain struct {
 	afterSeen   []string
 	answerCodes []int // statuses to answer the next answers with (then 200)
 	watches     int
+	// archives are the task archives uploaded for a request (provide_task); archiveCodes the statuses the next uploads are answered with (then 202)
+	archives     map[string][]archiveUpload
+	archiveCodes []int
+}
+
+type archiveUpload struct {
+	Field, Filename, ContentType, RequestedWith string
+	Data                                        []byte
 }
 
 type outboxFrame struct {
@@ -92,10 +100,47 @@ func (b *outboxBrain) handler() http.Handler {
 				return
 			}
 			_, _ = w.Write([]byte("{}"))
+		case strings.HasPrefix(req.URL.Path, "/v1/requests/") && strings.HasSuffix(req.URL.Path, "/archive") && req.Method == http.MethodPost:
+			id := strings.TrimSuffix(strings.TrimPrefix(req.URL.Path, "/v1/requests/"), "/archive")
+			upload := archiveUpload{RequestedWith: req.Header.Get("X-Requested-With")}
+			if err := req.ParseMultipartForm(64 << 20); err == nil && req.MultipartForm != nil {
+				for field, headers := range req.MultipartForm.File {
+					for _, h := range headers {
+						f, _ := h.Open()
+						data, _ := io.ReadAll(f)
+						_ = f.Close()
+						upload.Field, upload.Filename, upload.ContentType, upload.Data = field, h.Filename, h.Header.Get("Content-Type"), data
+					}
+				}
+			}
+			b.mu.Lock()
+			if b.archives == nil {
+				b.archives = map[string][]archiveUpload{}
+			}
+			status := http.StatusAccepted
+			if len(b.archiveCodes) > 0 {
+				status, b.archiveCodes = b.archiveCodes[0], b.archiveCodes[1:]
+			}
+			if status < 400 {
+				b.archives[id] = append(b.archives[id], upload)
+			}
+			b.mu.Unlock()
+			if status >= 400 {
+				brainfake.Fail(w, status, "x", "x")
+				return
+			}
+			w.WriteHeader(status)
+			_, _ = w.Write([]byte("{}"))
 		default:
 			brainfake.Fail(w, http.StatusNotFound, "not_found", "no route")
 		}
 	})
+}
+
+func (b *outboxBrain) uploaded(id string) []archiveUpload {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return append([]archiveUpload(nil), b.archives[id]...)
 }
 
 func (b *outboxBrain) watchCount() int { b.mu.Lock(); defer b.mu.Unlock(); return b.watches }
