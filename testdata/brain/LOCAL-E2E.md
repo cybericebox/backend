@@ -51,6 +51,7 @@ Start the brain (in `cyber-brain`; flags as in `cmd/brain/main.go`) with the tok
 daemon, and a SAN for the host name the daemon will use:
 
 ```sh
+go build -o bin/brain ./cmd/brain
 BRAIN_ENROLLMENT_TOKEN="$(cat ~/brain-enroll.token)" \
   ./bin/brain -addr 127.0.0.1:8099 -enroll-tenant daemon -tls-san localhost,127.0.0.1 -ca-out /tmp/brain-ca.crt
 ```
