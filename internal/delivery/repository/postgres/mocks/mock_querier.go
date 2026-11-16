@@ -132,6 +132,20 @@ func (mr *MockQuerierMockRecorder) AdvanceMediaUpload(ctx, arg any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AdvanceMediaUpload", reflect.TypeOf((*MockQuerier)(nil).AdvanceMediaUpload), ctx, arg)
 }
 
+// ApplyLabActivity mocks base method.
+func (m *MockQuerier) ApplyLabActivity(ctx context.Context, arg postgres.ApplyLabActivityParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ApplyLabActivity", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ApplyLabActivity indicates an expected call of ApplyLabActivity.
+func (mr *MockQuerierMockRecorder) ApplyLabActivity(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplyLabActivity", reflect.TypeOf((*MockQuerier)(nil).ApplyLabActivity), ctx, arg)
+}
+
 // ApplyLabTrafficTouch mocks base method.
 func (m *MockQuerier) ApplyLabTrafficTouch(ctx context.Context, arg postgres.ApplyLabTrafficTouchParams) error {
 	m.ctrl.T.Helper()
@@ -5887,6 +5901,36 @@ func (mr *MockQuerierMockRecorder) GetIntegrityTaskOfTeamChallenge(ctx, arg any)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetIntegrityTaskOfTeamChallenge", reflect.TypeOf((*MockQuerier)(nil).GetIntegrityTaskOfTeamChallenge), ctx, arg)
 }
 
+// GetLabActivityCursor mocks base method.
+func (m *MockQuerier) GetLabActivityCursor(ctx context.Context, labGroupName string) (postgres.GetLabActivityCursorRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLabActivityCursor", ctx, labGroupName)
+	ret0, _ := ret[0].(postgres.GetLabActivityCursorRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetLabActivityCursor indicates an expected call of GetLabActivityCursor.
+func (mr *MockQuerierMockRecorder) GetLabActivityCursor(ctx, labGroupName any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLabActivityCursor", reflect.TypeOf((*MockQuerier)(nil).GetLabActivityCursor), ctx, labGroupName)
+}
+
+// GetLabActivityOfClient mocks base method.
+func (m *MockQuerier) GetLabActivityOfClient(ctx context.Context, arg postgres.GetLabActivityOfClientParams) (postgres.GetLabActivityOfClientRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLabActivityOfClient", ctx, arg)
+	ret0, _ := ret[0].(postgres.GetLabActivityOfClientRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetLabActivityOfClient indicates an expected call of GetLabActivityOfClient.
+func (mr *MockQuerierMockRecorder) GetLabActivityOfClient(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLabActivityOfClient", reflect.TypeOf((*MockQuerier)(nil).GetLabActivityOfClient), ctx, arg)
+}
+
 // GetLabArchiveChunkForScrub mocks base method.
 func (m *MockQuerier) GetLabArchiveChunkForScrub(ctx context.Context, id uuid.UUID) (postgres.GetLabArchiveChunkForScrubRow, error) {
 	m.ctrl.T.Helper()
@@ -7423,6 +7467,21 @@ func (m *MockQuerier) ListApprovedExerciseResourceElevations(ctx context.Context
 func (mr *MockQuerierMockRecorder) ListApprovedExerciseResourceElevations(ctx, exerciseIds any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListApprovedExerciseResourceElevations", reflect.TypeOf((*MockQuerier)(nil).ListApprovedExerciseResourceElevations), ctx, exerciseIds)
+}
+
+// ListAssistantLabActivity mocks base method.
+func (m *MockQuerier) ListAssistantLabActivity(ctx context.Context, arg postgres.ListAssistantLabActivityParams) ([]postgres.ListAssistantLabActivityRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListAssistantLabActivity", ctx, arg)
+	ret0, _ := ret[0].([]postgres.ListAssistantLabActivityRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListAssistantLabActivity indicates an expected call of ListAssistantLabActivity.
+func (mr *MockQuerierMockRecorder) ListAssistantLabActivity(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAssistantLabActivity", reflect.TypeOf((*MockQuerier)(nil).ListAssistantLabActivity), ctx, arg)
 }
 
 // ListAssistantOpponentRunsOfVariant mocks base method.
@@ -10168,6 +10227,21 @@ func (m *MockQuerier) ListInvitationExpiryCandidates(ctx context.Context, nowAt 
 func (mr *MockQuerierMockRecorder) ListInvitationExpiryCandidates(ctx, nowAt any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListInvitationExpiryCandidates", reflect.TypeOf((*MockQuerier)(nil).ListInvitationExpiryCandidates), ctx, nowAt)
+}
+
+// ListLabActivityGroups mocks base method.
+func (m *MockQuerier) ListLabActivityGroups(ctx context.Context, arg postgres.ListLabActivityGroupsParams) ([]string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListLabActivityGroups", ctx, arg)
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListLabActivityGroups indicates an expected call of ListLabActivityGroups.
+func (mr *MockQuerierMockRecorder) ListLabActivityGroups(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListLabActivityGroups", reflect.TypeOf((*MockQuerier)(nil).ListLabActivityGroups), ctx, arg)
 }
 
 // ListLabArchiveChunksForScrub mocks base method.
@@ -13337,6 +13411,20 @@ func (mr *MockQuerierMockRecorder) PurgeFinishedSignals(ctx, arg any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PurgeFinishedSignals", reflect.TypeOf((*MockQuerier)(nil).PurgeFinishedSignals), ctx, arg)
 }
 
+// PurgeLabActivity mocks base method.
+func (m *MockQuerier) PurgeLabActivity(ctx context.Context, before time.Time) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PurgeLabActivity", ctx, before)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// PurgeLabActivity indicates an expected call of PurgeLabActivity.
+func (mr *MockQuerierMockRecorder) PurgeLabActivity(ctx, before any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PurgeLabActivity", reflect.TypeOf((*MockQuerier)(nil).PurgeLabActivity), ctx, before)
+}
+
 // PurgeNotificationDispatches mocks base method.
 func (m *MockQuerier) PurgeNotificationDispatches(ctx context.Context, arg postgres.PurgeNotificationDispatchesParams) (int64, error) {
 	m.ctrl.T.Helper()
@@ -14404,6 +14492,21 @@ func (m *MockQuerier) SetAssistantRunAnswered(ctx context.Context, arg postgres.
 func (mr *MockQuerierMockRecorder) SetAssistantRunAnswered(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAssistantRunAnswered", reflect.TypeOf((*MockQuerier)(nil).SetAssistantRunAnswered), ctx, arg)
+}
+
+// SetAssistantRunLabActivity mocks base method.
+func (m *MockQuerier) SetAssistantRunLabActivity(ctx context.Context, arg postgres.SetAssistantRunLabActivityParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetAssistantRunLabActivity", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SetAssistantRunLabActivity indicates an expected call of SetAssistantRunLabActivity.
+func (mr *MockQuerierMockRecorder) SetAssistantRunLabActivity(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAssistantRunLabActivity", reflect.TypeOf((*MockQuerier)(nil).SetAssistantRunLabActivity), ctx, arg)
 }
 
 // SetAssistantRunLabReady mocks base method.
