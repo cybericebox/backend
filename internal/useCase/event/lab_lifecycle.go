@@ -11,6 +11,7 @@ import (
 	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
+	"sync"
 	"time"
 )
 
@@ -103,34 +104,7 @@ func (u *EventUseCase) ReconcilePendingLabLifecycles(ctx context.Context) error 
 	if err != nil {
 		return err
 	}
-	var errs []error
-	for _, lab := range labs {
-		err = nil
-		if u.lifecycleControls && lab.DesiredState == "Running" {
-			err = u.reconcileRunningLab(ctx, lab, now)
-		} else if lab.DesiredState == "Stopped" {
-			err = u.reconcileStoppedLab(ctx, lab)
-		}
-		// Persist delay for both failures and accepted but still unacknowledged work.
-		delay := u.labLifecycleRetryMin
-		if errors.Is(err, errLifecycleUnsupported) {
-			// The agent cannot stop it: the lab runs until it is destroyed. Not a
-			// failure; it is only looked at again at the longest interval.
-			err, delay = nil, u.labLifecycleRetryMax
-		}
-		if err != nil {
-			errs = append(errs, fmt.Errorf("lab %s: %w", lab.ID, err))
-		}
-		if err != nil {
-			previous := lab.NextAttemptAt.Sub(lab.UpdatedAt)
-			if previous >= delay {
-				delay = min(previous*2, u.labLifecycleRetryMax)
-			}
-		}
-		if retryErr := u.labs.ScheduleLifecycleRetry(ctx, lab, now, now.Add(delay)); retryErr != nil {
-			errs = append(errs, retryErr)
-		}
-	}
+	errs := u.reconcileLabs(ctx, labs, now, u.reconcileOneLab)
 	if u.lifecycleControls {
 		if e := u.reconcileGroups(ctx, now); e != nil {
 			errs = append(errs, e)
@@ -140,6 +114,122 @@ func (u *EventUseCase) ReconcilePendingLabLifecycles(ctx context.Context) error 
 		}
 	}
 	return errors.Join(errs...)
+}
+
+// defaultLabLifecycleWorkers is how many labs a lifecycle pass handles at once when nothing says otherwise.
+const defaultLabLifecycleWorkers = 16
+
+func labLifecycleWorkers(configured int) int {
+	if configured <= 0 {
+		return defaultLabLifecycleWorkers
+	}
+	return configured
+}
+
+// labBusySet is the labs being handled now. Its lock is held only to add or remove an id, never across a call to the agent or
+// the database.
+type labBusySet struct {
+	mu   sync.Mutex
+	labs map[uuid.UUID]struct{}
+}
+
+// begin marks the lab busy; false means a worker (of this pass or of an overlapping one) has it already.
+func (s *labBusySet) begin(id uuid.UUID) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, busy := s.labs[id]; busy {
+		return false
+	}
+	if s.labs == nil {
+		s.labs = map[uuid.UUID]struct{}{}
+	}
+	s.labs[id] = struct{}{}
+	return true
+}
+
+func (s *labBusySet) end(id uuid.UUID) {
+	s.mu.Lock()
+	delete(s.labs, id)
+	s.mu.Unlock()
+}
+
+// reconcileLabs moves the labs of a pass with at most labLifecycleWorkers at once. Each lab is handled by one worker from
+// start to finish (the call, the retry schedule), a lab that is busy already is skipped (the next pass sees it), and no lock is
+// held across a lab call. The errors of all labs are returned together.
+func (u *EventUseCase) reconcileLabs(ctx context.Context, labs []eventLabModel.Lab, now time.Time, handle func(context.Context, eventLabModel.Lab, time.Time) []error) []error {
+	if len(labs) == 0 {
+		return nil
+	}
+	var (
+		mu   sync.Mutex
+		errs []error
+		wg   sync.WaitGroup
+	)
+	jobs := make(chan eventLabModel.Lab)
+	for range min(u.labLifecycleWorkers, len(labs)) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for lab := range jobs {
+				if !u.labBusy.begin(lab.ID) {
+					continue // a worker has this lab already: the next pass sees it
+				}
+				labErrs := handle(ctx, lab, now)
+				u.labBusy.end(lab.ID)
+				if len(labErrs) > 0 {
+					mu.Lock()
+					errs = append(errs, labErrs...)
+					mu.Unlock()
+				}
+			}
+		}()
+	}
+	seen := make(map[uuid.UUID]struct{}, len(labs))
+feed:
+	for _, lab := range labs {
+		if _, dup := seen[lab.ID]; dup {
+			continue
+		}
+		seen[lab.ID] = struct{}{}
+		select {
+		case jobs <- lab:
+		case <-ctx.Done():
+			break feed
+		}
+	}
+	close(jobs)
+	wg.Wait()
+	return errs
+}
+
+// reconcileOneLab is one lab's turn of a pass: the move, then the persisted delay for failures and for accepted but still
+// unacknowledged work.
+func (u *EventUseCase) reconcileOneLab(ctx context.Context, lab eventLabModel.Lab, now time.Time) []error {
+	var errs []error
+	var err error
+	if u.lifecycleControls && lab.DesiredState == "Running" {
+		err = u.reconcileRunningLab(ctx, lab, now)
+	} else if lab.DesiredState == "Stopped" {
+		err = u.reconcileStoppedLab(ctx, lab)
+	}
+	// Persist delay for both failures and accepted but still unacknowledged work.
+	delay := u.labLifecycleRetryMin
+	if errors.Is(err, errLifecycleUnsupported) {
+		// The agent cannot stop it: the lab runs until it is destroyed. Not a
+		// failure; it is only looked at again at the longest interval.
+		err, delay = nil, u.labLifecycleRetryMax
+	}
+	if err != nil {
+		errs = append(errs, fmt.Errorf("lab %s: %w", lab.ID, err))
+		previous := lab.NextAttemptAt.Sub(lab.UpdatedAt)
+		if previous >= delay {
+			delay = min(previous*2, u.labLifecycleRetryMax)
+		}
+	}
+	if retryErr := u.labs.ScheduleLifecycleRetry(ctx, lab, now, now.Add(delay)); retryErr != nil {
+		errs = append(errs, retryErr)
+	}
+	return errs
 }
 
 // awaitingCreation: an object the agent does not know yet, for a lab that never got an agent identity, is a lab

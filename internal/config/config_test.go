@@ -302,6 +302,35 @@ func TestExerciseConfigStandPrewarmLeadBounds(t *testing.T) {
 	}
 }
 
+func TestStandPrewarmWaitAndLabLifecycleWorkersBounds(t *testing.T) {
+	valid := ExerciseConfig{FlagRandomBytes: 20, FlagWarningBits: 20, MaxActiveTestDeploys: 3, StandDeployBudget: 200, LabSweepInterval: 10 * time.Minute, LabSweepGrace: 15 * time.Minute, TestDeployTTL: 2 * time.Hour, TestDeployTTLMax: 8 * time.Hour}
+	for _, wait := range []time.Duration{0, 10 * time.Minute, 2 * time.Hour} {
+		ok := valid
+		ok.StandPrewarmWait = wait
+		if err := ok.Validate(); err != nil {
+			t.Errorf("wait %v rejected: %v", wait, err)
+		}
+	}
+	for _, wait := range []time.Duration{-time.Second, 3 * time.Hour} {
+		bad := valid
+		bad.StandPrewarmWait = wait
+		if bad.Validate() == nil {
+			t.Errorf("wait %v accepted", wait)
+		}
+	}
+	lc := LabLifecycleConfig{Interval: 2 * time.Second, Batch: 100, RetryMin: 10 * time.Second, RetryMax: 5 * time.Minute, Workers: 16}
+	if err := lc.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	for _, workers := range []int{0, -1, 129} {
+		bad := lc
+		bad.Workers = workers
+		if bad.Validate() == nil {
+			t.Errorf("workers %d accepted", workers)
+		}
+	}
+}
+
 func TestAgentConfigInstanceIDMustBeALabelValue(t *testing.T) {
 	for _, id := range []string{"cybericebox", "prod-1", "a", "A.b_c"} {
 		if err := (AgentConfig{Endpoint: "agent:443", InstanceID: id}).Validate(); err != nil {

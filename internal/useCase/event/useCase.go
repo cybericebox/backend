@@ -176,6 +176,9 @@ type EventUseCase struct {
 	labLifecycleWake                           func(context.Context) error
 	labLifecycleBatch                          int32
 	labLifecycleRetryMin, labLifecycleRetryMax time.Duration
+	labLifecycleWorkers                        int
+	// labBusy holds the labs a pass is handling now, so a lab is never moved by two workers at once (a slow pass overlapping the next).
+	labBusy *labBusySet
 	// labCleanupWake runs the queued laboratory group teardown now instead of at the next periodic tick; nil: no wake.
 	labCleanupWake func(context.Context) error
 	// cancelNotices cancels the queued notices of a deleted event; nil: nothing is cancelled.
@@ -187,6 +190,7 @@ type EventUseCase struct {
 	observations      *eventLabObservationRepo.Repository
 	standDeployBudget int
 	prewarmLead       time.Duration
+	prewarmWait       time.Duration
 	labSweepGrace     time.Duration
 	prewarm           *prewarmState
 	images            ImageAccess // nil: labs deploy without image checks or pull credentials
@@ -310,19 +314,23 @@ type Dependencies struct {
 	PreviewLabs                                PreviewTestLabs
 	LabLifecycleBatch                          int32
 	LabLifecycleRetryMin, LabLifecycleRetryMax time.Duration
-	Repo                                       IRepository
-	UoW                                        postgres.IUnitOfWorker[IRepository]
-	Infra                                      Infrastructure
-	InfrastructureCapability                   InfrastructureCapability
-	Topologies                                 TopologyResolver
-	VPN                                        VPNStore
-	SignalPublishers                           SignalPublisherFactory
-	FlagRandomBytes                            int
+	// LabLifecycleWorkers is how many labs one lifecycle pass handles at once; 0 means the default.
+	LabLifecycleWorkers      int
+	Repo                     IRepository
+	UoW                      postgres.IUnitOfWorker[IRepository]
+	Infra                    Infrastructure
+	InfrastructureCapability InfrastructureCapability
+	Topologies               TopologyResolver
+	VPN                      VPNStore
+	SignalPublishers         SignalPublisherFactory
+	FlagRandomBytes          int
 	// StandDeployBudget is the Lab deploy calls per event and engine pass; 0 means the default.
 	StandDeployBudget int
 	// StandPrewarmLead is how long before an event's stand deploy time its images are prewarmed in
 	// the image cache; 0 turns prewarming off.
 	StandPrewarmLead time.Duration
+	// StandPrewarmWait is the longest the initial stand deploy of an event waits for its image prewarm to settle; 0: it never waits.
+	StandPrewarmWait time.Duration
 	// LabSweepGrace is how old a lab group must be before the orphan sweep may judge it; 0 means the default.
 	LabSweepGrace time.Duration
 	// Media backs Event email template images (validation and references).
@@ -403,9 +411,10 @@ func NewEventUseCase(deps Dependencies) *EventUseCase {
 	if retryMax < retryMin {
 		retryMax = 5 * time.Minute
 	}
-	return &EventUseCase{previewLabs: deps.PreviewLabs, repo: deps.Repo, labLifecycleBatch: batch, labLifecycleRetryMin: retryMin, labLifecycleRetryMax: retryMax,
+	return &EventUseCase{previewLabs: deps.PreviewLabs, repo: deps.Repo, labLifecycleBatch: batch, labLifecycleRetryMin: retryMin, labLifecycleRetryMax: retryMax, labLifecycleWorkers: labLifecycleWorkers(deps.LabLifecycleWorkers), labBusy: &labBusySet{},
 		standDeployBudget:        standDeployBudget,
 		prewarmLead:              deps.StandPrewarmLead,
+		prewarmWait:              deps.StandPrewarmWait,
 		labSweepGrace:            labSweepGrace(deps.LabSweepGrace),
 		prewarm:                  newPrewarmState(),
 		imageWaits:               newImageWaits(),

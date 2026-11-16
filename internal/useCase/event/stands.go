@@ -125,6 +125,9 @@ func (u *EventUseCase) reconcileEventStands(ctx context.Context, eventID uuid.UU
 	if now.Before(schedule.InitialDeployAt) {
 		return nil
 	}
+	if u.holdForPrewarm(e, schedule.InitialDeployAt, now) {
+		return nil
+	}
 	var errs []error
 	if e.InfrastructureAllowed && u.laboratoriesUsable(ctx) {
 		if err = u.moveLegacyStandLabs(ctx, e); err != nil {
