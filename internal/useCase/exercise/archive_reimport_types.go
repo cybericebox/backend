@@ -24,11 +24,16 @@ type ImportOptions struct {
 	Targets          []ImportTarget          `json:"Targets"`
 	FixedExerciseID  uuid.UUID               `json:"FixedExerciseID"`
 	ConfirmedUpdates []ConfirmedImportUpdate `json:"ConfirmedUpdates"`
+	// RestoreKeptSecrets (an import of an edited task into the task it came from, set by the assistant's save only, never read
+	// from a request) puts the stored value back where an update leaves a secret variable empty.
+	RestoreKeptSecrets bool `json:"RestoreKeptSecrets,omitempty" swaggerignore:"true"`
 }
 
 type CommitArchiveInput struct {
 	PreviewArchiveInput
 	ConfirmedUpdates []ConfirmedImportUpdate `json:"ConfirmedUpdates"`
+	// RestoreKeptSecrets: see ImportOptions.
+	RestoreKeptSecrets bool `json:"-"`
 }
 
 type PreviewArchiveInput struct {

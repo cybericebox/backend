@@ -550,7 +550,8 @@ func (u *ExerciseUseCase) ExportExerciseArchive(ctx context.Context, id uuid.UUI
 
 // ExportTaskVersionForEdit gives the import archive of one version of a task to a user who may edit it (the Teacher's edit flow:
 // the brain asks for the source of an existing task). It is the admin export's format and content for that one version, without
-// secrets (their values are masked): what the user could read and change anyway. ErrExerciseNotFound for a task that does not
+// secret values: every secret variable is delivered by name with an empty value, which an import of the edited task
+// (RestoreKeptSecrets) turns back into the stored value, by variant, device and variable name. ErrExerciseNotFound for a task that does not
 // exist, ErrExerciseVersionNotFound for a version that is not of that task, ErrExerciseForbidden when the user may not edit it
 // (rights as for saving a change of the task: exercises.write, or owner or manager of the event whose task it is).
 func (u *ExerciseUseCase) ExportTaskVersionForEdit(ctx context.Context, actor Actor, id, versionID uuid.UUID) ([]byte, error) {

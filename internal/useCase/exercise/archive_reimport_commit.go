@@ -76,7 +76,7 @@ func (u *ExerciseUseCase) CommitArchiveImport(ctx context.Context, actor Actor, 
 		if id == uuid.Nil {
 			source, id = exerciseModel.ImportSourceFile, in.FileID
 		}
-		jobID, err := u.QueueArchiveImport(ctx, QueueImportInput{Source: source, SourceID: id, Password: in.Password, CreatedBy: actor.UserID, OwnerEventID: in.OwnerEventID, Options: ImportOptions{Targets: in.Targets, FixedExerciseID: in.FixedExerciseID, ConfirmedUpdates: in.ConfirmedUpdates}})
+		jobID, err := u.QueueArchiveImport(ctx, QueueImportInput{Source: source, SourceID: id, Password: in.Password, CreatedBy: actor.UserID, OwnerEventID: in.OwnerEventID, Options: ImportOptions{Targets: in.Targets, FixedExerciseID: in.FixedExerciseID, ConfirmedUpdates: in.ConfirmedUpdates, RestoreKeptSecrets: in.RestoreKeptSecrets}})
 		return ArchiveImportStart{JobID: jobID}, err
 	}
 	result, err := u.commitArchiveRead(ctx, actor, in, read, nil, nil)
@@ -237,6 +237,22 @@ func (u *ExerciseUseCase) commitArchiveRead(ctx context.Context, actor Actor, in
 			}
 			if report, err = u.importReport(ctx, &target, staged[i].Versions[0], diff, warnings, false); err != nil {
 				return ArchiveImportStart{}, importItemError(err, staged[i].ItemKey, "")
+			}
+			if in.RestoreKeptSecrets {
+				// The edited task comes back into the task it came from: its kept secrets are put back. Only an editor who may
+				// also see the flags of the task has them.
+				access, accessErr := u.AuthorizeExercise(ctx, actor, choice.ExerciseID, ActionWrite)
+				if accessErr == nil && !(access.Full && access.Flags) {
+					accessErr = exerciseModel.ErrExerciseForbidden.Err()
+				}
+				if accessErr != nil {
+					return ArchiveImportStart{}, importItemError(accessErr, staged[i].ItemKey, "target")
+				}
+				missing, restoreErr := u.restoreKeptSecrets(&staged[i].Versions[0], stored)
+				if restoreErr != nil {
+					return ArchiveImportStart{}, importItemError(restoreErr, staged[i].ItemKey, "")
+				}
+				report.Warnings = append(report.Warnings, missing...)
 			}
 		} else if report, err = u.importReport(ctx, nil, staged[i].Versions[0], newImportDiff(staged[i].Versions[0]), nil, staged[i].SourceExerciseID == uuid.Nil); err != nil {
 			return ArchiveImportStart{}, importItemError(err, staged[i].ItemKey, "")
