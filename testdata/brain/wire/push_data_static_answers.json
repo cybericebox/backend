@@ -1,0 +1,135 @@
+{
+  "aggregates": [
+    {
+      "source": "events",
+      "task_ref": "00000000-0000-4000-8000-000000000001",
+      "version": "00000000-0000-4000-8000-000000000002",
+      "image": "",
+      "solves": 2,
+      "attempts": 17,
+      "solve_rate": 0.5,
+      "time": {
+        "median": 1200,
+        "p25": 1050,
+        "p75": 1350
+      },
+      "hints_used": [
+        {
+          "hints": 0,
+          "teams": 2
+        },
+        {
+          "hints": 1,
+          "teams": 1
+        },
+        {
+          "hints": 3,
+          "teams": 1
+        }
+      ],
+      "task_kind": "static",
+      "as_of": "2026-11-16T18:00:00Z",
+      "teams_engaged": 4,
+      "wrong_submissions_per_team": {
+        "p25": 1.75,
+        "median": 2.5,
+        "p75": 3.25
+      },
+      "wrong_submissions_per_nonsolver": {
+        "p25": 1.75,
+        "median": 3.5,
+        "p75": 5.25
+      },
+      "egress_enabled": false,
+      "egress_share": null,
+      "vpn_bytes_per_team": null,
+      "devices_touched_per_team": null,
+      "console_minutes_per_team": null,
+      "team_records": [
+        {
+          "team_ref": "e92b6d04a8c15f3790bd2e64c1a7f853",
+          "solved": false,
+          "wrong_submissions": 0,
+          "hints_used": 0,
+          "state_checks": []
+        },
+        {
+          "team_ref": "5f0c2a7e9b1d4c3a8e6f0b2d7c91a4e3",
+          "solved": true,
+          "solve_time_s": 900,
+          "wrong_submissions": 1,
+          "hints_used": 0,
+          "state_checks": []
+        },
+        {
+          "team_ref": "c4b8e1d02f7a46c9a3d5e8f1b0627c94",
+          "solved": true,
+          "solve_time_s": 1500,
+          "wrong_submissions": 4,
+          "hints_used": 1,
+          "state_checks": []
+        },
+        {
+          "team_ref": "17ad93f5c2e04b8d9a61f3c7e5b28d40",
+          "solved": false,
+          "wrong_submissions": 7,
+          "hints_used": 3,
+          "state_checks": []
+        }
+      ]
+    },
+    {
+      "source": "events",
+      "task_ref": "00000000-0000-4000-8000-000000000003",
+      "version": "00000000-0000-4000-8000-000000000004",
+      "image": "",
+      "solves": 0,
+      "attempts": 6,
+      "solve_rate": 0,
+      "time": {
+        "median": 0,
+        "p25": 0,
+        "p75": 0
+      },
+      "hints_used": [
+        {
+          "hints": 0,
+          "teams": 1
+        },
+        {
+          "hints": 2,
+          "teams": 1
+        }
+      ],
+      "task_kind": "static",
+      "as_of": "2026-11-16T18:00:00Z",
+      "teams_engaged": 2,
+      "wrong_submissions_per_nonsolver": {
+        "p25": 1.5,
+        "median": 3,
+        "p75": 4.5
+      },
+      "egress_enabled": false,
+      "egress_share": null,
+      "vpn_bytes_per_team": null,
+      "devices_touched_per_team": null,
+      "console_minutes_per_team": null,
+      "team_records": [
+        {
+          "team_ref": "c4b8e1d02f7a46c9a3d5e8f1b0627c94",
+          "solved": false,
+          "wrong_submissions": 0,
+          "hints_used": 0,
+          "state_checks": []
+        },
+        {
+          "team_ref": "5f0c2a7e9b1d4c3a8e6f0b2d7c91a4e3",
+          "solved": false,
+          "wrong_submissions": 6,
+          "hints_used": 2,
+          "state_checks": []
+        }
+      ]
+    }
+  ]
+}

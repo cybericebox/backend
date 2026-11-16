@@ -1,0 +1,75 @@
+# A dynamic web task for the brain's grader: one lab with one web device, reached over the participant VPN.
+# One subtask with a fixed flag, delivered to the device through its bootstrap, so the grader has to find it on the site.
+schema: cib-exercise/1.0
+exercise:
+  name: Brain web probe
+  description: A small website with a flag in a file nobody links to.
+  tags: [brain, web, dynamic]
+versions:
+  - status: draft
+    admin_note: Fixture for the brain's local end-to-end runs.
+    variants:
+      - index: 1
+        tasks:
+          - key: find_flag
+            name: Find the flag
+            description: |
+              A website runs at {{web_link}}.
+
+              It keeps a backup file next to its pages. Find it and submit the flag it holds.
+            difficulty: easy
+            check:
+              answer:
+                type: flag
+                values: ["ICE{brain_web_probe}"]
+                input_hint: "ICE{...}"
+            placeholders:
+              - key: web_link
+                kind: external.link
+                device_name: web
+                access: http
+            hints:
+              - text: Look at what the site's index page does not link to.
+                level: nudge
+        topology:
+          devices:
+            - name: web
+              type: node
+              profile: container
+              image: nginx:1.27
+              resource_preset: micro
+              bootstrap:
+                timeout: 60s
+                files:
+                  - path: /usr/share/nginx/html/backup.txt
+                    content: "{{task.find_flag}}"
+                    mode: "0644"
+              access:
+                - kind: http
+                  port: 80
+                  protocol: http
+              interfaces:
+                - name: eth0
+                  ip:
+                    type: static
+                    address_ref:
+                      gateway: attack
+                      host: 10
+                    gateway_ref:
+                      gateway: attack
+                      host: 1
+            - name: sw1
+              type: unmanaged-switch
+            - name: attack
+              type: vpn_gateway
+              dhcp: true
+              dhcp_ranges:
+                - start: 100
+                  end: 200
+          connections:
+            - endpoints:
+                - {kind: device, device: attack, interface: eth0}
+                - {kind: device, device: sw1, interface: GigabitEthernet0/1}
+            - endpoints:
+                - {kind: device, device: sw1, interface: GigabitEthernet0/2}
+                - {kind: device, device: web, interface: eth0}

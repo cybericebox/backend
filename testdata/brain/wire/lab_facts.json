@@ -1,0 +1,9 @@
+{
+  "ready_time_s": 41.7,
+  "restarts": 0,
+  "egress_enabled": true,
+  "egress_used": false,
+  "vpn_bytes": 1500000,
+  "devices_touched": 2,
+  "console_minutes": 0
+}

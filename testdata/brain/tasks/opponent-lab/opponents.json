@@ -1,0 +1,28 @@
+[
+  {
+    "role": "attack",
+    "band": 3,
+    "goal": [
+      "recon",
+      "root"
+    ],
+    "start": "immediate",
+    "foothold": "sw1",
+    "brief": "Be thorough, stay quiet."
+  },
+  {
+    "role": "defense",
+    "band": 2,
+    "goal": [
+      "root"
+    ],
+    "start": {
+      "after": "recon"
+    },
+    "operates": [
+      "web",
+      "db"
+    ],
+    "brief": "Keep the database secret from the attacker."
+  }
+]
