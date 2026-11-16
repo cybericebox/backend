@@ -99,9 +99,13 @@ type ArchiveImportPreviewItem struct {
 	SourceIDMismatch bool                  `json:"SourceIDMismatch"`
 	// ConfirmationRevision binds immutable source/item/snapshot and selected
 	// target/current content. No password, flags or secret values are returned.
-	ConfirmationRevision string               `json:"ConfirmationRevision"`
-	ReplacesDraft        bool                 `json:"ReplacesDraft"`
-	Summary              ArchiveImportSummary `json:"Summary"`
+	ConfirmationRevision string `json:"ConfirmationRevision"`
+	ReplacesDraft        bool   `json:"ReplacesDraft"`
+	// DraftVersionID and DraftRevision are the target's working copy this preview was made against (nil and "" when it has
+	// none): the revision is what a write of the working copy must still find.
+	DraftVersionID *uuid.UUID           `json:"DraftVersionID"`
+	DraftRevision  string               `json:"DraftRevision"`
+	Summary        ArchiveImportSummary `json:"Summary"`
 	// Report is the dry-run answer: what stays, comes and goes by identity, the errors that would stop the result
 	// being published, who uses the exercise and the warnings. The apply call returns the same report per item.
 	Report exerciseModel.ImportReport `json:"Report"`

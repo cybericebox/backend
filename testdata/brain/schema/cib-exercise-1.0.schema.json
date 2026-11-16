@@ -692,6 +692,9 @@
     "archiveDocV2": {
       "additionalProperties": false,
       "properties": {
+        "edit": {
+          "$ref": "#/$defs/archiveEditV2"
+        },
         "exercise": {
           "$ref": "#/$defs/archiveExerciseV2"
         },
@@ -710,6 +713,18 @@
         "schema",
         "versions"
       ],
+      "type": "object"
+    },
+    "archiveEditV2": {
+      "additionalProperties": false,
+      "properties": {
+        "draft_revision": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
       "type": "object"
     },
     "archiveEndpointV2": {

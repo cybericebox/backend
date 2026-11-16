@@ -71,6 +71,7 @@ type fakeImporter struct {
 	during func()
 	// The edit of an existing task (uuid.Nil in editTarget: the archive is a new task).
 	editTarget   uuid.UUID
+	editBase     exerciseUseCase.EditBase // what the edit started from
 	carriesValue bool
 	editErr      error
 	previewItems []exerciseUseCase.ArchiveImportPreviewItem
@@ -81,8 +82,13 @@ type fakeImporter struct {
 	commitIn     exerciseUseCase.CommitArchiveInput
 }
 
-func (f *fakeImporter) EditedArchiveTarget(context.Context, exerciseUseCase.Actor, []byte, exerciseModel.ArchiveLimits) (uuid.UUID, error) {
-	return f.editTarget, f.editErr
+func (f *fakeImporter) EditedArchiveTarget(context.Context, exerciseUseCase.Actor, []byte, exerciseModel.ArchiveLimits) (exerciseUseCase.EditTarget, error) {
+	return exerciseUseCase.EditTarget{ExerciseID: f.editTarget, Base: f.editBase}, f.editErr
+}
+
+func (f *fakeImporter) StaleDraftError(context.Context, uuid.UUID) error {
+	f.line.add("stale")
+	return exerciseModel.ErrDraftModified.Err()
 }
 
 func (f *fakeImporter) ArchiveCarriesSecretValue([]byte, exerciseModel.ArchiveLimits) (bool, error) {

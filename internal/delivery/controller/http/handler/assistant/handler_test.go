@@ -148,8 +148,11 @@ func (i *importer) ArchiveImportJob(context.Context, uuid.UUID, uuid.UUID) (exer
 }
 
 // The edit of an existing task is not exercised here: every archive of these tests is a new task.
-func (i *importer) EditedArchiveTarget(context.Context, exerciseUseCase.Actor, []byte, exerciseModel.ArchiveLimits) (uuid.UUID, error) {
-	return uuid.Nil, nil
+func (i *importer) EditedArchiveTarget(context.Context, exerciseUseCase.Actor, []byte, exerciseModel.ArchiveLimits) (exerciseUseCase.EditTarget, error) {
+	return exerciseUseCase.EditTarget{}, nil
+}
+func (i *importer) StaleDraftError(context.Context, uuid.UUID) error {
+	return exerciseModel.ErrDraftModified.Err()
 }
 func (i *importer) ArchiveCarriesSecretValue([]byte, exerciseModel.ArchiveLimits) (bool, error) {
 	return false, nil

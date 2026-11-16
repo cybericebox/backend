@@ -177,3 +177,76 @@ func TestSaveOfAnEditWithAFileThatIsNotTheConfirmedArchiveIsRefused(t *testing.T
 		})
 	}
 }
+
+var (
+	workingCopy  = uuid.FromStringOrNil("77777777-7777-4777-8777-777777777777")
+	publishedRow = uuid.FromStringOrNil("88888888-8888-4888-8888-888888888888")
+)
+
+// editBasedOn is an edit export that started from the version `from`, when the working copy of the task was at `revision` ("":
+// it had none); the preview of the stored archive finds the working copy at `now` (draft id and revision).
+func editBasedOn(t *testing.T, from uuid.UUID, revision string, draft *uuid.UUID, now string) *saveRig {
+	t.Helper()
+	s := editRig(t, draft != nil)
+	s.importer.editBase = exerciseUseCase.EditBase{VersionID: from, DraftRevision: revision}
+	s.importer.previewItems[0].DraftVersionID = draft
+	s.importer.previewItems[0].DraftRevision = now
+	return s
+}
+
+// An edit of the working copy that is still at the revision it was exported at continues that working copy: no confirmation is
+// asked (nothing the author did not see is replaced), and the commit confirms the replacement.
+func TestSaveOfAnEditOfTheWorkingCopyAtItsRevisionNeedsNoConfirmation(t *testing.T) {
+	s := editBasedOn(t, workingCopy, "R1", &workingCopy, "R1")
+	done, err := s.save(t)
+	require.NoError(t, err)
+	assert.True(t, done)
+	assert.Equal(t, []exerciseUseCase.ConfirmedImportUpdate{{ItemKey: "task", Revision: "rev-1", ReplaceDraft: true}}, s.importer.commitIn.ConfirmedUpdates)
+	assert.NotContains(t, s.line.list(), "stale")
+}
+
+// A working copy that was saved after the export is not the one the edit started from: the save is the concurrent-edit 409,
+// nothing is claimed, committed or told.
+func TestSaveOfAnEditOfAWorkingCopyThatMovedOnIsRefused(t *testing.T) {
+	s := editBasedOn(t, workingCopy, "R1", &workingCopy, "R2")
+	_, err := s.save(t)
+	require.ErrorIs(t, err, exerciseModel.ErrDraftModified.Err())
+	assert.Contains(t, s.line.list(), "stale")
+	assert.NotContains(t, s.line.list(), "commit")
+	assert.Empty(t, s.savedBodies())
+	assert.Empty(t, failedBodies(s), "it is not a failure of the import: the author reloads")
+	_, found, _ := s.saves.Get(t.Context(), "s1", userOne)
+	assert.False(t, found, "no claim is left behind")
+}
+
+// A working copy that someone made after the export (the edit started with none) is refused the same way, and so is the loss of
+// the working copy the edit started from.
+func TestSaveOfAnEditIsRefusedWhenTheWorkingCopyAppearedOrWentSinceTheExport(t *testing.T) {
+	for name, s := range map[string]*saveRig{
+		"appeared": editBasedOn(t, publishedRow, "", &workingCopy, "R9"),
+		"gone":     editBasedOn(t, workingCopy, "R1", nil, ""),
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := s.save(t)
+			require.ErrorIs(t, err, exerciseModel.ErrDraftModified.Err())
+			assert.NotContains(t, s.line.list(), "commit")
+		})
+	}
+}
+
+// An edit of another version (the published one) while a working copy exists, still at the revision the export saw, would replace
+// work the edit does not contain: the author confirms that, as before.
+func TestSaveOfAnEditOfTheOtherVersionThatReplacesTheWorkingCopyStillAsksTheAuthor(t *testing.T) {
+	s := editBasedOn(t, publishedRow, "R1", &workingCopy, "R1")
+	_, err := s.save(t)
+	require.ErrorIs(t, err, assistantModel.ErrAssistantEditNeedsConfirmation.Err())
+	assert.NotContains(t, s.line.list(), "commit")
+}
+
+// An edit of a task with no working copy, exported and saved with none, is a plain update.
+func TestSaveOfAnEditWithNoWorkingCopyEitherWayIsAPlainUpdate(t *testing.T) {
+	s := editBasedOn(t, publishedRow, "", nil, "")
+	done, err := s.save(t)
+	require.NoError(t, err)
+	assert.True(t, done)
+}

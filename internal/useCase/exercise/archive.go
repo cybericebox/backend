@@ -38,12 +38,16 @@ type ExportOptions struct {
 	// IncludeImages writes the platform images of the devices into the archive ("with images"). Up to 10 GiB, so only
 	// the background export (StartArchiveExport) takes it; ExportExerciseArchive refuses it.
 	IncludeImages bool
+	// edit is the base recorded in an export made for editing (ExportTaskVersionForEdit).
+	edit *archiveEditV2
 }
 type exportedFile struct {
 	Name        string `json:"name"`
 	ContentType string `json:"content_type"`
 }
 type ParsedExerciseArchive struct {
+	// EditBase is what the document says its edit started from (zero for a document that is not an edit export).
+	EditBase EditBase
 	// SourceExerciseID is only a re-import suggestion. New imports still allocate
 	// their own identity; legacy archives may omit it or use an unrelated id format.
 	SourceExerciseID uuid.UUID
@@ -563,7 +567,16 @@ func (u *ExerciseUseCase) ExportTaskVersionForEdit(ctx context.Context, actor Ac
 		return nil, exerciseModel.ErrExerciseForbidden.Err()
 	}
 	lim := exerciseModel.DefaultArchiveLimits()
-	plan, err := u.planExportVersions(ctx, id, versionID, ExportOptions{}, lim)
+	// What the edit starts from: the version given and the revision of the working copy now. The save of the edit refuses a
+	// working copy that has moved on, and a working copy someone made meanwhile.
+	base := archiveEditV2{Version: versionID.String()}
+	switch draft, draftErr := u.exercises.GetDraftRevision(ctx, id); {
+	case draftErr == nil:
+		base.DraftRevision = exerciseModel.FormatRevision(draft.UpdatedAt)
+	case !repositoryTools.IsObjectNotFoundError(draftErr):
+		return nil, model.ErrPlatform.WithError(draftErr).WithMessage("Failed to read the working copy revision").Err()
+	}
+	plan, err := u.planExportVersions(ctx, id, versionID, ExportOptions{edit: &base}, lim)
 	if err != nil {
 		if repositoryTools.IsObjectNotFoundError(err) {
 			return nil, exerciseModel.ErrExerciseNotFound.Err()
@@ -630,7 +643,7 @@ func (u *ExerciseUseCase) planExportVersions(ctx context.Context, id, only uuid.
 			return exportPlan{}, err
 		}
 	}
-	document, err := buildV2DocumentWithImages(e, versions, filePaths, imagePaths)
+	document, err := buildV2DocumentWithEdit(e, versions, filePaths, imagePaths, opts.edit)
 	if err != nil {
 		return exportPlan{}, err
 	}

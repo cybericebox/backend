@@ -24,6 +24,9 @@ The sample task: one draft version, two variants, a device `web` with an ordinar
 
 * `exercise.id` (kept verbatim: it is what links the edit to the task) and every `variants[].id`, `tasks[].id`, `hints[].id` of what
   stays. Do not renumber, regenerate or "normalize" them. New variants, tasks, devices and hints may be added without an id.
+* The `edit` object (`edit.version` and `edit.draft_revision`): what the edit started from, the version it was given and the
+  revision of the task's working copy then (empty: it had none). Both are opaque; keep them as they are. The save of the edit is
+  applied only on top of that working copy (see below).
 * The names of devices and variables that stay, and `secret: true` on a secret variable.
 * The value of a secret variable: **empty**. The brain never sets a secret value and never gets one. A secret variable with a
   non-empty value in the archive the brain gives back is refused (the save fails with the code "the finished task carries a secret
@@ -32,10 +35,14 @@ The sample task: one draft version, two variants, a device `web` with an ordinar
 ## What the daemon does with the archive that comes back
 
 * **Same exercise id, and the author may edit that task:** the archive is previewed and committed as an update of that task (the
-  author confirms it when it replaces a working draft). Variants are paired by id, then by order; tasks by id, then key; devices by
+  author confirms it when it replaces a working draft that the edit did not start from). Variants are paired by id, then by order; tasks by id, then key; devices by
   name. An empty secret on a variable the stored version has (same variant, device name, variable name) keeps its stored value.
   A secret variable that is new (a new device or name) stays empty and is a **missing secret value** of the version: the catalog
   shows it, and the version cannot be published until the author enters it.
+* **The working copy moved on since the export** (someone saved it, or made one when there was none, or discarded it): the save
+  is refused with the concurrent-edit conflict (409, code 70922) and the current revision, who saved it and when in its context;
+  nothing is written. An edit of the working copy itself, still at the revision the export saw, continues it. An edit that started
+  from another version (the published one) and would replace a working copy the author has is confirmed by the author first.
 * **No `exercise.id`, an unknown one, one the author may not edit, or an archived task:** the archive is imported as a NEW task
   (and then every secret variable is missing until entered). Never an error, never an update of a task the author cannot edit.
 * **A changed `variants[].id`** is not an error either: a variant whose id is not found is paired by order with the next unmatched

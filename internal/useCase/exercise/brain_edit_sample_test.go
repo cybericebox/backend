@@ -9,10 +9,12 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
 	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
 	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 	"github.com/cybericebox/backend/internal/model/rbac"
@@ -48,6 +50,8 @@ func editSampleArchive(t *testing.T) []byte {
 	}
 	q := postgresMocks.NewMockQuerier(gomock.NewController(t))
 	expectExport(t, q, exportExerciseID, "Експорт", versions)
+	// The sample is the export of the working copy itself, as it was at this revision.
+	q.EXPECT().GetDraftRevision(gomock.Any(), exportExerciseID).Return(postgres.GetDraftRevisionRow{ID: versions[0].ID, UpdatedAt: time.Date(2026, 11, 16, 10, 0, 0, 123456000, time.UTC)}, nil)
 	uc := newTestExerciseUseCase(exercise.Dependencies{Repo: q, Cipher: cipher, Media: exportFixtureMedia()})
 	archive, err := uc.ExportTaskVersionForEdit(context.Background(), exercise.Actor{UserID: exportID(1), Role: rbac.RoleAdmin}, exportExerciseID, versions[0].ID)
 	require.NoError(t, err)

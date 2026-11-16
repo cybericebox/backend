@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gofrs/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -47,6 +48,7 @@ func editUseCase(t *testing.T, version exerciseModel.ExerciseVersion, cipher *se
 	q.EXPECT().ListExerciseVersions(gomock.Any(), version.ExerciseID).Return([]postgres.ExerciseVersion{{
 		ID: version.ID, ExerciseID: version.ExerciseID, Status: string(version.Status), Variants: variants,
 	}}, nil).AnyTimes()
+	q.EXPECT().GetDraftRevision(gomock.Any(), version.ExerciseID).Return(postgres.GetDraftRevisionRow{}, pgx.ErrNoRows).AnyTimes()
 	return &ExerciseUseCase{exercises: exerciseRepo.New(q), cipher: cipher}
 }
 
@@ -195,12 +197,12 @@ func TestEditedArchiveTarget(t *testing.T) {
 
 	target, err := u.EditedArchiveTarget(context.Background(), admin, archive, DefaultLimits())
 	require.NoError(t, err)
-	assert.Equal(t, stored.ExerciseID, target, "an editor of the task: it is an edit of it")
+	assert.Equal(t, stored.ExerciseID, target.ExerciseID, "an editor of the task: it is an edit of it")
 
 	nobody := Actor{UserID: freshID(), Role: rbac.RoleUser}
 	target, err = u.EditedArchiveTarget(context.Background(), nobody, archive, DefaultLimits())
 	require.NoError(t, err)
-	assert.Equal(t, uuid.Nil, target, "a user who may not edit the task: a new task")
+	assert.Equal(t, uuid.Nil, target.ExerciseID, "a user who may not edit the task: a new task")
 
 	files, err := ReadArchiveV1(bytes.NewReader(archive), DefaultLimits())
 	require.NoError(t, err)
@@ -213,5 +215,5 @@ func TestEditedArchiveTarget(t *testing.T) {
 	require.NoError(t, err)
 	target, err = u.EditedArchiveTarget(context.Background(), admin, anonymous, DefaultLimits())
 	require.NoError(t, err)
-	assert.Equal(t, uuid.Nil, target, "no id: a new task")
+	assert.Equal(t, uuid.Nil, target.ExerciseID, "no id: a new task")
 }

@@ -32,8 +32,11 @@ type (
 		ImportRawArchive(ctx context.Context, actor exerciseUseCase.Actor, in exerciseUseCase.ImportExerciseInput) (exerciseUseCase.ArchiveImportStart, error)
 		QueueArchiveImport(ctx context.Context, in exerciseUseCase.QueueImportInput) (uuid.UUID, error)
 		ArchiveImportJob(ctx context.Context, id, user uuid.UUID) (exerciseUseCase.ImportJobView, error)
-		// EditedArchiveTarget is the task an archive is the edited version of (uuid.Nil: a new task).
-		EditedArchiveTarget(ctx context.Context, actor exerciseUseCase.Actor, archive []byte, lim exerciseModel.ArchiveLimits) (uuid.UUID, error)
+		// EditedArchiveTarget is the task an archive is the edited version of (ExerciseID uuid.Nil: a new task) and what the
+		// edit started from.
+		EditedArchiveTarget(ctx context.Context, actor exerciseUseCase.Actor, archive []byte, lim exerciseModel.ArchiveLimits) (exerciseUseCase.EditTarget, error)
+		// StaleDraftError is the 409 of an edit whose working copy has moved on (the current revision and who saved it).
+		StaleDraftError(ctx context.Context, exerciseID uuid.UUID) error
 		// ArchiveCarriesSecretValue: the archive holds the value of a secret variable (the brain never sets one).
 		ArchiveCarriesSecretValue(archive []byte, lim exerciseModel.ArchiveLimits) (bool, error)
 		PreviewArchiveImport(ctx context.Context, actor exerciseUseCase.Actor, in exerciseUseCase.PreviewArchiveInput) (exerciseUseCase.ArchiveImportPreview, error)
@@ -116,10 +119,11 @@ func (u *UseCase) start(ctx context.Context, actor exerciseUseCase.Actor, sessio
 		return false, assistantModel.ErrAssistantSecretValue.Err()
 	}
 	// The edit of a task that came from the platform (a provide_task) goes back into that task as its new working version.
-	edited, err := u.importer.EditedArchiveTarget(ctx, actor, archive, lim)
+	target, err := u.importer.EditedArchiveTarget(ctx, actor, archive, lim)
 	if err != nil {
 		return false, importError(err)
 	}
+	edited := target.ExerciseID
 	if images && edited == uuid.Nil {
 		// Checked before the claim: a refusal must not leave a claim behind.
 		if err = u.importer.AuthorizeImport(ctx, actor, nil); err != nil {
@@ -129,7 +133,7 @@ func (u *UseCase) start(ctx context.Context, actor exerciseUseCase.Actor, sessio
 	// An edit of a task of the platform is previewed before anything is claimed: it may ask the author to confirm.
 	var plan *editPlan
 	if edited != uuid.Nil {
-		if plan, err = u.prepareEdit(ctx, actor, archive, edited, confirm); err != nil {
+		if plan, err = u.prepareEdit(ctx, actor, archive, target, confirm); err != nil {
 			return false, err
 		}
 	}
@@ -183,11 +187,16 @@ type editPlan struct {
 }
 
 // prepareEdit stores the archive of an edit and previews the update of the task it came from (nothing is claimed or written yet).
-// An update that replaces a working draft is the author's to confirm: the first save is refused with the preview (what it
-// brings, the stored archive and the revision to confirm) and the page saves again with that confirmation; a confirmation that
-// does not match what is there now (another archive, a changed task) is stale and refused the same way a re-import's is.
-// An update that replaces nothing needs no confirmation.
-func (u *UseCase) prepareEdit(ctx context.Context, actor exerciseUseCase.Actor, archive []byte, target uuid.UUID, confirm *EditConfirmation) (*editPlan, error) {
+// An edit is applied only on top of the working copy it started from: the document says which revision of the working copy it
+// was given (none, or the draft at that revision), and a working copy that has changed since, appeared or gone is the
+// concurrent-edit 409 (ErrDraftModified, with the current revision and who saved it). An edit of the working copy itself, still
+// at that revision, continues it and needs no confirmation. An edit of another version (the published one, a snapshot) that
+// would replace a working copy is the author's to confirm: the first save is refused with the preview (what it brings, the
+// stored archive and the revision to confirm) and the page saves again with that confirmation; a confirmation that does not
+// match what is there now (another archive, a changed task) is stale and refused the same way a re-import's is. An update that
+// replaces nothing needs no confirmation.
+func (u *UseCase) prepareEdit(ctx context.Context, actor exerciseUseCase.Actor, archive []byte, edit exerciseUseCase.EditTarget, confirm *EditConfirmation) (*editPlan, error) {
+	target := edit.ExerciseID
 	if u.files == nil {
 		return nil, assistantModel.ErrAssistantUnavailable.Err()
 	}
@@ -224,10 +233,14 @@ func (u *UseCase) prepareEdit(ctx context.Context, actor exerciseUseCase.Actor, 
 		return nil, assistantModel.ErrAssistantImportFailed.WithPublicContext("tasks", len(preview.Items)).Err()
 	}
 	item := preview.Items[0]
+	if item.DraftRevision != edit.Base.DraftRevision {
+		return nil, u.importer.StaleDraftError(ctx, target)
+	}
+	continuesDraft := item.DraftVersionID != nil && *item.DraftVersionID == edit.Base.VersionID
 	switch {
 	case confirm != nil && item.ConfirmationRevision != confirm.Revision:
 		return nil, exerciseModel.ErrImportConfirmationStale.Err()
-	case confirm == nil && item.ReplacesDraft:
+	case confirm == nil && item.ReplacesDraft && !continuesDraft:
 		return nil, assistantModel.ErrAssistantEditNeedsConfirmation.
 			WithPublicContext("exercise", target.String()).WithPublicContext("file", source.FileID.String()).
 			WithPublicContext("revision", item.ConfirmationRevision).WithPublicContext("archive", hash).

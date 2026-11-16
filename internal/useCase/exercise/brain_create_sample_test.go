@@ -38,6 +38,7 @@ func withoutIDs(t *testing.T, doc []byte) []byte {
 		return object
 	}
 	drop(root["exercise"])
+	delete(root, "edit") // what an edit started from: a new task has none
 	for _, version := range root["versions"].([]any) {
 		for _, variant := range drop(version)["variants"].([]any) {
 			object := drop(variant)
@@ -119,5 +120,5 @@ func TestBrainCreateSampleIsAnImportableNewTask(t *testing.T) {
 	uc := newTestExerciseUseCase(exercise.Dependencies{Repo: q, Media: exportFixtureMedia()})
 	target, err := uc.EditedArchiveTarget(context.Background(), exercise.Actor{Role: rbac.RoleAdmin}, archive, exercise.DefaultLimits())
 	require.NoError(t, err)
-	assert.True(t, target.IsNil(), "it is saved as a new task")
+	assert.True(t, target.ExerciseID.IsNil(), "it is saved as a new task")
 }

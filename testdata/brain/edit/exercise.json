@@ -8,6 +8,10 @@
       "web"
     ]
   },
+  "edit": {
+    "version": "0192f0a0-0000-7000-8000-000000000384",
+    "draft_revision": "2026-11-16T10:00:00.123456Z"
+  },
   "versions": [
     {
       "status": "draft",
