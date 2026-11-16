@@ -1,8 +1,6 @@
 package assistant_test
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"strconv"
 	"testing"
@@ -13,7 +11,6 @@ import (
 
 	assistantModel "github.com/cybericebox/backend/internal/model/assistant"
 	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
-	"github.com/cybericebox/backend/internal/useCase/assistant"
 	exerciseUseCase "github.com/cybericebox/backend/internal/useCase/exercise"
 )
 
@@ -44,51 +41,6 @@ func TestSaveOfAnEditedTaskUpdatesTheTaskItCameFromAndRestoresItsSecrets(t *test
 	assert.Equal(t, []exerciseUseCase.ConfirmedImportUpdate{{ItemKey: "task", Revision: "rev-1", ReplaceDraft: false}}, s.importer.commitIn.ConfirmedUpdates)
 	assert.Equal(t, editedTask.String(), bodyID(t, s.savedBodies()[0]))
 	assert.Equal(t, archive, s.files.body, "the stored source is the archive of the brain")
-}
-
-func archiveHash() string {
-	sum := sha256.Sum256(archive)
-	return hex.EncodeToString(sum[:])
-}
-
-// An edit that replaces the working draft of its task is the author's to confirm: the first save is refused with what the
-// author needs to see and confirm (the stored archive, the revision, the summary), nothing is claimed or written, and the
-// second save with that confirmation commits exactly that preview with the replacement confirmed.
-func TestSaveOfAnEditThatReplacesTheDraftNeedsTheAuthorsConfirmation(t *testing.T) {
-	s := editRig(t, true)
-	_, err := s.save(t)
-	require.ErrorIs(t, err, assistantModel.ErrAssistantEditNeedsConfirmation.Err())
-	assert.Equal(t, []string{"brain:archive", "upload", "preview"}, s.line.list(), "nothing is committed, claimed or told")
-	assert.Empty(t, s.savedBodies())
-	assert.Empty(t, failedBodies(s), "it is not a failure: the brain is not told one")
-	_, found, _ := s.saves.Get(t.Context(), "s1", userOne)
-	assert.False(t, found, "no claim is left behind: the author can confirm at once")
-
-	confirm := &assistant.EditConfirmation{FileID: fileID, Revision: "rev-1", ArchiveHash: archiveHash()}
-	done, err := s.uc.SaveSession(t.Context(), actor, "s1", confirm)
-	require.NoError(t, err)
-	assert.True(t, done)
-	assert.Equal(t, 1, s.line.count("upload"), "the confirmed archive is the stored one: it is not stored again")
-	assert.Equal(t, exerciseUseCase.PreviewArchiveInput{FileID: fileID, FixedExerciseID: editedTask}, s.importer.commitIn.PreviewArchiveInput)
-	assert.Equal(t, []exerciseUseCase.ConfirmedImportUpdate{{ItemKey: "task", Revision: "rev-1", ReplaceDraft: true}}, s.importer.commitIn.ConfirmedUpdates)
-	assert.Equal(t, editedTask.String(), bodyID(t, s.savedBodies()[0]))
-}
-
-// A confirmation of something else than what is there now is stale: another archive from the brain, or a task that changed
-// since the preview (another revision). Nothing is committed.
-func TestSaveOfAnEditWithAStaleConfirmationIsRefused(t *testing.T) {
-	for name, confirm := range map[string]*assistant.EditConfirmation{
-		"the brain's archive changed": {FileID: fileID, Revision: "rev-1", ArchiveHash: "0000"},
-		"the task changed":            {FileID: fileID, Revision: "rev-0", ArchiveHash: archiveHash()},
-	} {
-		t.Run(name, func(t *testing.T) {
-			s := editRig(t, true)
-			_, err := s.uc.SaveSession(t.Context(), actor, "s1", confirm)
-			require.ErrorIs(t, err, exerciseModel.ErrImportConfirmationStale.Err())
-			assert.NotContains(t, s.line.list(), "commit")
-			assert.Empty(t, s.savedBodies())
-		})
-	}
 }
 
 // An archive that is not the edit of a task of the caller is saved as a new task, exactly as before: the placeholder of an edit
@@ -156,28 +108,6 @@ func TestSaveRefusesAnArchiveThatCarriesASecretValue(t *testing.T) {
 	}
 }
 
-// A confirmation names the stored archive by id, and the id alone proves nothing: a file of the author's that is not the archive that
-// was confirmed (other bytes), and a file that is not the author's at all, are refused before anything is committed, with the
-// kept secrets never restored into content nobody confirmed.
-func TestSaveOfAnEditWithAFileThatIsNotTheConfirmedArchiveIsRefused(t *testing.T) {
-	for name, tamper := range map[string]func(s *saveRig){
-		"other bytes under the same id": func(s *saveRig) { s.files.body = []byte("another archive of the author") },
-		"a file of another user":        func(s *saveRig) { s.files.owner = uuid.Must(uuid.NewV7()) },
-	} {
-		t.Run(name, func(t *testing.T) {
-			s := editRig(t, true)
-			_, err := s.save(t) // the first save: the preview and the stored archive
-			require.ErrorIs(t, err, assistantModel.ErrAssistantEditNeedsConfirmation.Err())
-			tamper(s)
-			_, err = s.uc.SaveSession(t.Context(), actor, "s1", &assistant.EditConfirmation{FileID: fileID, Revision: "rev-1", ArchiveHash: archiveHash()})
-			require.ErrorIs(t, err, exerciseModel.ErrImportConfirmationStale.Err())
-			assert.NotContains(t, s.line.list(), "commit")
-			assert.False(t, s.importer.commitIn.RestoreKeptSecrets)
-			assert.Empty(t, s.savedBodies())
-		})
-	}
-}
-
 var (
 	workingCopy  = uuid.FromStringOrNil("77777777-7777-4777-8777-777777777777")
 	publishedRow = uuid.FromStringOrNil("88888888-8888-4888-8888-888888888888")
@@ -194,9 +124,9 @@ func editBasedOn(t *testing.T, from uuid.UUID, revision string, draft *uuid.UUID
 	return s
 }
 
-// An edit of the working copy that is still at the revision it was exported at continues that working copy: no confirmation is
-// asked (nothing the author did not see is replaced), and the commit confirms the replacement.
-func TestSaveOfAnEditOfTheWorkingCopyAtItsRevisionNeedsNoConfirmation(t *testing.T) {
+// An edit of the working copy that is still at the revision it was exported at replaces that working copy with its own result:
+// nothing is asked, and the commit confirms the preview.
+func TestSaveOfAnEditOfTheWorkingCopyAtItsRevisionCommitsAtOnce(t *testing.T) {
 	s := editBasedOn(t, workingCopy, "R1", &workingCopy, "R1")
 	done, err := s.save(t)
 	require.NoError(t, err)
@@ -205,42 +135,25 @@ func TestSaveOfAnEditOfTheWorkingCopyAtItsRevisionNeedsNoConfirmation(t *testing
 	assert.NotContains(t, s.line.list(), "stale")
 }
 
-// A working copy that was saved after the export is not the one the edit started from: the save is the concurrent-edit 409,
-// nothing is claimed, committed or told.
-func TestSaveOfAnEditOfAWorkingCopyThatMovedOnIsRefused(t *testing.T) {
-	s := editBasedOn(t, workingCopy, "R1", &workingCopy, "R2")
-	_, err := s.save(t)
-	require.ErrorIs(t, err, exerciseModel.ErrDraftModified.Err())
-	assert.Contains(t, s.line.list(), "stale")
-	assert.NotContains(t, s.line.list(), "commit")
-	assert.Empty(t, s.savedBodies())
-	assert.Empty(t, failedBodies(s), "it is not a failure of the import: the author reloads")
-	_, found, _ := s.saves.Get(t.Context(), "s1", userOne)
-	assert.False(t, found, "no claim is left behind")
-}
-
-// A working copy that someone made after the export (the edit started with none) is refused the same way, and so is the loss of
-// the working copy the edit started from.
-func TestSaveOfAnEditIsRefusedWhenTheWorkingCopyAppearedOrWentSinceTheExport(t *testing.T) {
+// A working copy that moved on, appeared or went since the export is not the one the edit started from: the save is the
+// concurrent-edit 409, nothing is claimed, committed or told, and it is not a failure of the import.
+func TestSaveOfAnEditIsRefusedWhenTheWorkingCopyMovedOnAppearedOrWent(t *testing.T) {
 	for name, s := range map[string]*saveRig{
+		"moved on": editBasedOn(t, workingCopy, "R1", &workingCopy, "R2"),
 		"appeared": editBasedOn(t, publishedRow, "", &workingCopy, "R9"),
 		"gone":     editBasedOn(t, workingCopy, "R1", nil, ""),
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := s.save(t)
 			require.ErrorIs(t, err, exerciseModel.ErrDraftModified.Err())
+			assert.Contains(t, s.line.list(), "stale")
 			assert.NotContains(t, s.line.list(), "commit")
+			assert.Empty(t, s.savedBodies())
+			assert.Empty(t, failedBodies(s))
+			_, found, _ := s.saves.Get(t.Context(), "s1", userOne)
+			assert.False(t, found, "no claim is left behind")
 		})
 	}
-}
-
-// An edit of another version (the published one) while a working copy exists, still at the revision the export saw, would replace
-// work the edit does not contain: the author confirms that, as before.
-func TestSaveOfAnEditOfTheOtherVersionThatReplacesTheWorkingCopyStillAsksTheAuthor(t *testing.T) {
-	s := editBasedOn(t, publishedRow, "R1", &workingCopy, "R1")
-	_, err := s.save(t)
-	require.ErrorIs(t, err, assistantModel.ErrAssistantEditNeedsConfirmation.Err())
-	assert.NotContains(t, s.line.list(), "commit")
 }
 
 // An edit of a task with no working copy, exported and saved with none, is a plain update.

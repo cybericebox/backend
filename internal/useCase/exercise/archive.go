@@ -557,7 +557,8 @@ func (u *ExerciseUseCase) ExportExerciseArchive(ctx context.Context, id uuid.UUI
 // secret values: every secret variable is delivered by name with an empty value, which an import of the edited task
 // (RestoreKeptSecrets) turns back into the stored value, by variant, device and variable name. ErrExerciseNotFound for a task that does not
 // exist, ErrExerciseVersionNotFound for a version that is not of that task, ErrExerciseForbidden when the user may not edit it
-// (rights as for saving a change of the task: exercises.write, or owner or manager of the event whose task it is).
+// (rights as for saving a change of the task: exercises.write, or owner or manager of the event whose task it is). A task that has
+// a working copy is exported as that working copy whichever version is asked for (it must still be a version of the task).
 func (u *ExerciseUseCase) ExportTaskVersionForEdit(ctx context.Context, actor Actor, id, versionID uuid.UUID) ([]byte, error) {
 	access, err := u.AuthorizeExercise(ctx, actor, id, ActionWrite)
 	if err != nil {
@@ -567,15 +568,27 @@ func (u *ExerciseUseCase) ExportTaskVersionForEdit(ctx context.Context, actor Ac
 		return nil, exerciseModel.ErrExerciseForbidden.Err()
 	}
 	lim := exerciseModel.DefaultArchiveLimits()
-	// What the edit starts from: the version given and the revision of the working copy now. The save of the edit refuses a
-	// working copy that has moved on, and a working copy someone made meanwhile.
-	base := archiveEditV2{Version: versionID.String()}
+	// What the edit starts from. A task with a working copy is always exported as that working copy (what its author sees and
+	// edits), with its revision; a task without one is exported as the version asked for, with no revision. The save of the edit
+	// refuses a working copy that has moved on, appeared or gone since, so no edit can silently replace work it did not contain.
+	var base archiveEditV2
 	switch draft, draftErr := u.exercises.GetDraftRevision(ctx, id); {
 	case draftErr == nil:
+		if versionID != draft.ID {
+			requested, versionErr := u.exercises.GetVersion(ctx, versionID)
+			if versionErr != nil && !repositoryTools.IsObjectNotFoundError(versionErr) {
+				return nil, model.ErrPlatform.WithError(versionErr).WithMessage("Failed to read the version").Err()
+			}
+			if versionErr != nil || requested.ExerciseID != id {
+				return nil, exerciseModel.ErrExerciseVersionNotFound.Err()
+			}
+		}
+		versionID = draft.ID
 		base.DraftRevision = exerciseModel.FormatRevision(draft.UpdatedAt)
 	case !repositoryTools.IsObjectNotFoundError(draftErr):
 		return nil, model.ErrPlatform.WithError(draftErr).WithMessage("Failed to read the working copy revision").Err()
 	}
+	base.Version = versionID.String()
 	plan, err := u.planExportVersions(ctx, id, versionID, ExportOptions{edit: &base}, lim)
 	if err != nil {
 		if repositoryTools.IsObjectNotFoundError(err) {

@@ -363,7 +363,7 @@ func newSaveRig(t *testing.T, images bool) *saveRig {
 
 func (s *saveRig) save(t *testing.T) (bool, error) {
 	t.Helper()
-	return s.uc.SaveSession(context.Background(), actor, "s1", nil)
+	return s.uc.SaveSession(context.Background(), actor, "s1")
 }
 
 func (s *saveRig) savedBodies() []string {
@@ -610,7 +610,7 @@ func TestOtherSessionsAreIndependent(t *testing.T) {
 		_, _ = w.Write([]byte("{}"))
 	})
 	for _, id := range []string{"s1", "s2"} {
-		if _, err := s.uc.SaveSession(context.Background(), actor, id, nil); err != nil {
+		if _, err := s.uc.SaveSession(context.Background(), actor, id); err != nil {
 			t.Fatal(err)
 		}
 	}

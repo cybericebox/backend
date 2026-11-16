@@ -35,14 +35,15 @@ The sample task: one draft version, two variants, a device `web` with an ordinar
 ## What the daemon does with the archive that comes back
 
 * **Same exercise id, and the author may edit that task:** the archive is previewed and committed as an update of that task (the
-  author confirms it when it replaces a working draft that the edit did not start from). Variants are paired by id, then by order; tasks by id, then key; devices by
+  the edit replaces the task's working copy, which it started from). Variants are paired by id, then by order; tasks by id, then key; devices by
   name. An empty secret on a variable the stored version has (same variant, device name, variable name) keeps its stored value.
   A secret variable that is new (a new device or name) stays empty and is a **missing secret value** of the version: the catalog
   shows it, and the version cannot be published until the author enters it.
 * **The working copy moved on since the export** (someone saved it, or made one when there was none, or discarded it): the save
   is refused with the concurrent-edit conflict (409, code 70922) and the current revision, who saved it and when in its context;
-  nothing is written. An edit of the working copy itself, still at the revision the export saw, continues it. An edit that started
-  from another version (the published one) and would replace a working copy the author has is confirmed by the author first.
+  nothing is written. A task that has a working copy is always exported as that working copy (whichever version the brain asked for), so
+  an edit never replaces work it does not contain; a task without one is exported as the version asked for, and the save then
+  requires that there is still none.
 * **No `exercise.id`, an unknown one, one the author may not edit, or an archived task:** the archive is imported as a NEW task
   (and then every secret variable is missing until entered). Never an error, never an update of a task the author cannot edit.
 * **A changed `variants[].id`** is not an error either: a variant whose id is not found is paired by order with the next unmatched

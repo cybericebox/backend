@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5"
@@ -216,4 +217,38 @@ func TestEditedArchiveTarget(t *testing.T) {
 	target, err = u.EditedArchiveTarget(context.Background(), admin, anonymous, DefaultLimits())
 	require.NoError(t, err)
 	assert.Equal(t, uuid.Nil, target.ExerciseID, "no id: a new task")
+}
+
+// A task that has a working copy is exported for editing as that working copy, whichever version was asked for, and the export
+// records its revision; the version asked for must still be a version of the task.
+func TestEditExportOfATaskWithAWorkingCopyIsTheWorkingCopy(t *testing.T) {
+	cipher, err := secret.New(strings.Repeat("66", 32))
+	require.NoError(t, err)
+	stored, _ := editedFixture(t, cipher)
+	variants, err := json.Marshal(stored.Variants)
+	require.NoError(t, err)
+	published, draft, foreign := freshID(), freshID(), freshID()
+	at := time.Date(2026, 11, 16, 10, 0, 0, 123456000, time.UTC)
+	q := postgresMocks.NewMockQuerier(gomock.NewController(t))
+	q.EXPECT().GetExerciseByID(gomock.Any(), stored.ExerciseID).Return(postgres.Exercise{ID: stored.ExerciseID, Name: stored.Name}, nil).AnyTimes()
+	q.EXPECT().ListExerciseVersions(gomock.Any(), stored.ExerciseID).Return([]postgres.ExerciseVersion{
+		{ID: published, ExerciseID: stored.ExerciseID, Status: "published", Variants: variants, AdminNote: "published"},
+		{ID: draft, ExerciseID: stored.ExerciseID, Status: "draft", Variants: variants, AdminNote: "the working copy"},
+	}, nil).AnyTimes()
+	q.EXPECT().GetDraftRevision(gomock.Any(), stored.ExerciseID).Return(postgres.GetDraftRevisionRow{ID: draft, UpdatedAt: at}, nil).AnyTimes()
+	q.EXPECT().GetExerciseVersionByID(gomock.Any(), published).Return(postgres.ExerciseVersion{ID: published, ExerciseID: stored.ExerciseID}, nil).AnyTimes()
+	q.EXPECT().GetExerciseVersionByID(gomock.Any(), foreign).Return(postgres.ExerciseVersion{ID: foreign, ExerciseID: freshID()}, nil).AnyTimes()
+	u := &ExerciseUseCase{exercises: exerciseRepo.New(q), cipher: cipher}
+	admin := Actor{UserID: freshID(), Role: rbac.RoleAdmin}
+
+	archive, err := u.ExportTaskVersionForEdit(context.Background(), admin, stored.ExerciseID, published)
+	require.NoError(t, err)
+	parsed, err := ParseExerciseArchive(archive, "", DefaultLimits())
+	require.NoError(t, err)
+	require.Len(t, parsed.Versions, 1)
+	assert.Equal(t, "the working copy", parsed.Versions[0].AdminNote, "the working copy, not the version asked for")
+	assert.Equal(t, EditBase{VersionID: draft, DraftRevision: "2026-11-16T10:00:00.123456Z"}, parsed.EditBase)
+
+	_, err = u.ExportTaskVersionForEdit(context.Background(), admin, stored.ExerciseID, foreign)
+	require.ErrorIs(t, err, exerciseModel.ErrExerciseVersionNotFound.Err())
 }

@@ -56,8 +56,6 @@ type (
 	// FileStore stores the archive for a background import (the media use case).
 	FileStore interface {
 		UploadFile(ctx context.Context, name, contentType string, r io.Reader, createdBy uuid.UUID) (mediaModel.File, error)
-		// GetFile is a stored file's record (its content hash is the SHA-256 of its bytes).
-		GetFile(ctx context.Context, id uuid.UUID) (mediaModel.File, error)
 	}
 )
 
@@ -77,7 +75,7 @@ type (
 // A repeated save never imports again: of a done save it tells the brain the stored task, of a pending one it follows
 // the job or, for an import still running inside another request, answers done=false. Two saves at once: one claims,
 // the other answers done=false. No lock is held while the import runs. done=true: the brain was told.
-func (u *UseCase) SaveSession(ctx context.Context, actor exerciseUseCase.Actor, sessionID string, confirm *EditConfirmation) (done bool, err error) {
+func (u *UseCase) SaveSession(ctx context.Context, actor exerciseUseCase.Actor, sessionID string) (done bool, err error) {
 	if u.importer == nil || u.saves == nil {
 		return false, assistantModel.ErrAssistantUnavailable.Err()
 	}
@@ -91,7 +89,7 @@ func (u *UseCase) SaveSession(ctx context.Context, actor exerciseUseCase.Actor, 
 			return done, advanceErr
 		}
 	}
-	return u.start(ctx, actor, sessionID, confirm)
+	return u.start(ctx, actor, sessionID)
 }
 
 const (
@@ -104,7 +102,7 @@ const (
 )
 
 // start fetches the archive, claims the save and imports: at once, or as a queued background job.
-func (u *UseCase) start(ctx context.Context, actor exerciseUseCase.Actor, sessionID string, confirm *EditConfirmation) (bool, error) {
+func (u *UseCase) start(ctx context.Context, actor exerciseUseCase.Actor, sessionID string) (bool, error) {
 	archive, err := u.fetchArchive(ctx, actor.UserID, sessionID)
 	if err != nil {
 		return false, err
@@ -133,7 +131,7 @@ func (u *UseCase) start(ctx context.Context, actor exerciseUseCase.Actor, sessio
 	// An edit of a task of the platform is previewed before anything is claimed: it may ask the author to confirm.
 	var plan *editPlan
 	if edited != uuid.Nil {
-		if plan, err = u.prepareEdit(ctx, actor, archive, target, confirm); err != nil {
+		if plan, err = u.prepareEdit(ctx, actor, archive, target); err != nil {
 			return false, err
 		}
 	}
@@ -171,15 +169,6 @@ func (u *UseCase) start(ctx context.Context, actor exerciseUseCase.Actor, sessio
 	return true, u.notify(ctx, rec)
 }
 
-// EditConfirmation is what the author confirmed after seeing that saving an edit replaces the working draft of the task: the
-// archive that was stored for the preview (FileID), the revision of the preview (it binds that archive and the state of the
-// task) and the hash of the archive the brain gave then. Nothing of it is secret.
-type EditConfirmation struct {
-	FileID      uuid.UUID
-	Revision    string
-	ArchiveHash string
-}
-
 // editPlan is an edit that is ready to be committed: the stored archive, and the preview item whose revision the commit confirms.
 type editPlan struct {
 	source exerciseUseCase.PreviewArchiveInput
@@ -188,43 +177,19 @@ type editPlan struct {
 
 // prepareEdit stores the archive of an edit and previews the update of the task it came from (nothing is claimed or written yet).
 // An edit is applied only on top of the working copy it started from: the document says which revision of the working copy it
-// was given (none, or the draft at that revision), and a working copy that has changed since, appeared or gone is the
-// concurrent-edit 409 (ErrDraftModified, with the current revision and who saved it). An edit of the working copy itself, still
-// at that revision, continues it and needs no confirmation. An edit of another version (the published one, a snapshot) that
-// would replace a working copy is the author's to confirm: the first save is refused with the preview (what it brings, the
-// stored archive and the revision to confirm) and the page saves again with that confirmation; a confirmation that does not
-// match what is there now (another archive, a changed task) is stale and refused the same way a re-import's is. An update that
-// replaces nothing needs no confirmation.
-func (u *UseCase) prepareEdit(ctx context.Context, actor exerciseUseCase.Actor, archive []byte, edit exerciseUseCase.EditTarget, confirm *EditConfirmation) (*editPlan, error) {
+// was given (none, or the draft at that revision; an export of a task with a working copy is always of the working copy), and
+// a working copy that has changed since, appeared or gone is the concurrent-edit 409 (ErrDraftModified, with the current
+// revision and who saved it). The commit then confirms the preview's revision, which binds the task's state as the preview saw it.
+func (u *UseCase) prepareEdit(ctx context.Context, actor exerciseUseCase.Actor, archive []byte, edit exerciseUseCase.EditTarget) (*editPlan, error) {
 	target := edit.ExerciseID
 	if u.files == nil {
 		return nil, assistantModel.ErrAssistantUnavailable.Err()
 	}
-	sum := sha256.Sum256(archive)
-	hash := hex.EncodeToString(sum[:])
-	var source exerciseUseCase.PreviewArchiveInput
-	if confirm != nil {
-		if confirm.ArchiveHash != hash {
-			return nil, exerciseModel.ErrImportConfirmationStale.Err()
-		}
-		// The confirmation names the stored archive by id, and the id alone says nothing about what is in it: the file must be the
-		// author's own and its bytes must be the archive the author confirmed (the hash that was just checked against the brain's
-		// archive). Another file of the author's, however well it previews, is not this edit.
-		file, err := u.files.GetFile(ctx, confirm.FileID)
-		if err != nil {
-			return nil, err
-		}
-		if !file.CreatedBy.Valid || file.CreatedBy.UUID != actor.UserID || file.ContentHash != confirm.ArchiveHash {
-			return nil, exerciseModel.ErrImportConfirmationStale.Err()
-		}
-		source = exerciseUseCase.PreviewArchiveInput{FileID: confirm.FileID, FixedExerciseID: target}
-	} else {
-		stored, err := u.files.UploadFile(ctx, "assistant-task.cybericebox.zip", "application/zip", bytes.NewReader(archive), actor.UserID)
-		if err != nil {
-			return nil, err
-		}
-		source = exerciseUseCase.PreviewArchiveInput{FileID: stored.ID, FixedExerciseID: target}
+	stored, err := u.files.UploadFile(ctx, "assistant-task.cybericebox.zip", "application/zip", bytes.NewReader(archive), actor.UserID)
+	if err != nil {
+		return nil, err
 	}
+	source := exerciseUseCase.PreviewArchiveInput{FileID: stored.ID, FixedExerciseID: target}
 	preview, err := u.importer.PreviewArchiveImport(ctx, actor, source)
 	if err != nil {
 		return nil, importError(err)
@@ -235,16 +200,6 @@ func (u *UseCase) prepareEdit(ctx context.Context, actor exerciseUseCase.Actor, 
 	item := preview.Items[0]
 	if item.DraftRevision != edit.Base.DraftRevision {
 		return nil, u.importer.StaleDraftError(ctx, target)
-	}
-	continuesDraft := item.DraftVersionID != nil && *item.DraftVersionID == edit.Base.VersionID
-	switch {
-	case confirm != nil && item.ConfirmationRevision != confirm.Revision:
-		return nil, exerciseModel.ErrImportConfirmationStale.Err()
-	case confirm == nil && item.ReplacesDraft && !continuesDraft:
-		return nil, assistantModel.ErrAssistantEditNeedsConfirmation.
-			WithPublicContext("exercise", target.String()).WithPublicContext("file", source.FileID.String()).
-			WithPublicContext("revision", item.ConfirmationRevision).WithPublicContext("archive", hash).
-			WithPublicContext("summary", item.Summary).Err()
 	}
 	return &editPlan{source: source, item: item}, nil
 }

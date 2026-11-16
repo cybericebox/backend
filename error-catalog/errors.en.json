@@ -592,6 +592,5 @@
   "73610": "The finished task is still being imported",
   "73614": "The variant already has an active run",
   "73615": "Too many active runs",
-  "73617": "Opponents cannot be run in this lab",
-  "73619": "Saving this edit replaces the working draft of the task: confirm it"
+  "73617": "Opponents cannot be run in this lab"
 }
