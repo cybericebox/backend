@@ -406,8 +406,14 @@ func TestSuspendAndVPNDisableSendExplicitDesiredState(t *testing.T) {
 	if err := c.SetLabGroupVPNDisabled(context.Background(), "event-team", false); err != nil {
 		t.Fatal(err)
 	}
-	if got := f.updateGroup.GetItems()[0].GetChanges(); got.VpnDisabled == nil || *got.VpnDisabled || !got.GetProbeWhileSuspended() || got.Suspended != nil {
-		t.Fatalf("vpn request = %+v", got)
+	if got := f.updateGroup.GetItems()[0].GetChanges(); got.VpnEnabled == nil || !*got.VpnEnabled || got.VpnDisabled != nil || !got.GetProbeWhileSuspended() || got.Suspended != nil {
+		t.Fatalf("the VPN is switched on with vpn_enabled (contract 2.7), never the old flag: %+v", got)
+	}
+	if err := c.SetLabGroupVPNDisabled(context.Background(), "event-team", true); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.updateGroup.GetItems()[0].GetChanges(); got.VpnEnabled == nil || *got.VpnEnabled || got.VpnDisabled != nil {
+		t.Fatalf("vpn off request = %+v", got)
 	}
 }
 

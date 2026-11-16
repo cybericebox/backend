@@ -246,6 +246,10 @@ func (f *Fleet) groupPodsFit(l infraModel.LimitsFeature, plan infraModel.GroupPl
 		if !pod.sizing.Reported() && pod.size == (resourcesModel.Amount{}) {
 			continue
 		}
+		// No internet lab: the gateway switch is off and its pod does not exist (contract 2.7).
+		if pod.size == (resourcesModel.Amount{}) && plan.InternetLabs <= 0 && pod.sizing == l.Gateway {
+			continue
+		}
 		if pod.size.CPUMillicores <= 0 || pod.size.MemoryBytes <= 0 {
 			return &infraModel.FitViolation{Resource: infraModel.FitMemory, Requested: pod.size.MemoryBytes}
 		}
@@ -330,7 +334,8 @@ func (f *Fleet) GroupSizes(plan infraModel.GroupPlan) (sizes infraModel.GroupSiz
 			return sizes, false
 		}
 		s := feat.Limits.SizesFor(plan)
-		if s.VPN.CPUMillicores <= 0 || s.VPN.MemoryBytes <= 0 || s.Gateway.CPUMillicores <= 0 || s.Gateway.MemoryBytes <= 0 {
+		// The gateway pod exists only for a plan with internet labs; without them its size is none.
+		if s.VPN.CPUMillicores <= 0 || s.VPN.MemoryBytes <= 0 || (plan.InternetLabs > 0 && (s.Gateway.CPUMillicores <= 0 || s.Gateway.MemoryBytes <= 0)) {
 			return sizes, false
 		}
 		sizes = infraModel.GroupSizes{VPN: sizes.VPN.Max(s.VPN), Gateway: sizes.Gateway.Max(s.Gateway)}

@@ -32,6 +32,25 @@ func (c *Client) vpnGateways(ctx context.Context, group string) (map[string][]st
 	return out, nil
 }
 
+// labHasVPNConnector says the lab's spec has a VPN gateway of any kind of use, the hidden control gateway of a tools device
+// included (it is a VPN connector too).
+func labHasVPNConnector(specJSON []byte) bool {
+	var spec struct {
+		Gateways []struct {
+			Kind string `json:"kind"`
+		} `json:"gateways"`
+	}
+	if json.Unmarshal(specJSON, &spec) != nil {
+		return true // unreadable: the stricter reading, a boot id is needed
+	}
+	for _, g := range spec.Gateways {
+		if g.Kind == "vpn" {
+			return true
+		}
+	}
+	return false
+}
+
 func vpnGatewaysOfSpec(specJSON []byte) []string {
 	var spec struct {
 		Gateways []struct {

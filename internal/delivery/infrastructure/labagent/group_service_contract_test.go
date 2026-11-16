@@ -44,8 +44,21 @@ func TestFleetDeployUsesExactSelectedServiceSizes(t *testing.T) {
 		t.Fatalf("published default must be accepted by producer: %v", err)
 	}
 	item := f.a.createGroup.Items[0]
-	if item.VpnSize.CpuMillicores != 100 || item.VpnSize.MemoryBytes != 320<<20 || item.GatewaySize.CpuMillicores != 10 || item.GatewaySize.MemoryBytes != 32<<20 {
+	if item.VpnSize.CpuMillicores != 100 || item.VpnSize.MemoryBytes != 320<<20 {
 		t.Fatalf("service sizes were device-preset rounded: %+v", item)
+	}
+	if item.GatewaySize != nil || item.GetInternetEnabled() {
+		t.Fatalf("a plan without internet labs has no gateway and asks for no gateway size: %+v", item)
+	}
+
+	// with an internet lab the gateway is on and sized
+	withInternet := infra.WithPlacementNeed(context.Background(), infra.PlacementNeed{Plan: infra.GroupPlan{MaxUsers: 1, InternetLabs: 1}})
+	if err := f.fleet.DeployLab(withInternet, "initial-internet", "lab", infra.LabMeta{}, exercise.Topology{}); err != nil {
+		t.Fatal(err)
+	}
+	item = f.a.createGroup.Items[0]
+	if item.GatewaySize.CpuMillicores != 10 || item.GatewaySize.MemoryBytes != 32<<20 || !item.GetInternetEnabled() {
+		t.Fatalf("gateway sizes were device-preset rounded: %+v", item)
 	}
 }
 

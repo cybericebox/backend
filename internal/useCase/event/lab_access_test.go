@@ -81,7 +81,7 @@ func TestReconcilePendingLabAccess_UsesOnlyAvailableLabs(t *testing.T) {
 	if len(infra.policies) != 2 {
 		t.Fatalf("policies=%+v", infra.policies)
 	}
-	if got, want := infra.operations, []string{"ensure", "policy", "resume", "group-resume"}; !sameLabAccessOperations(got, want) {
+	if got, want := infra.operations, []string{"ensure", "resume", "policy", "group-resume"}; !sameLabAccessOperations(got, want) {
 		t.Fatalf("operations = %v, want %v", got, want)
 	}
 	for _, policy := range infra.policies {
@@ -108,7 +108,7 @@ func TestReconcilePendingLabAccessRevokesUnavailableLabs(t *testing.T) {
 	if len(infra.policies) != 1 || len(infra.policies[0].AllowedLabs) != 0 {
 		t.Fatalf("unavailable Lab was not revoked: %+v", infra.policies)
 	}
-	if got, want := infra.operations, []string{"ensure", "policy", "resume", "group-resume"}; !sameLabAccessOperations(got, want) {
+	if got, want := infra.operations, []string{"ensure", "resume", "policy", "group-resume"}; !sameLabAccessOperations(got, want) {
 		t.Fatalf("operations = %v, want %v", got, want)
 	}
 }
@@ -125,7 +125,7 @@ func TestReconcilePendingLabAccessKeepsTestTunnelBeforeAnyLab(t *testing.T) {
 	if err := uc.ReconcilePendingLabAccess(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := infra.operations, []string{"ensure", "policy", "resume", "group-resume"}; !sameLabAccessOperations(got, want) {
+	if got, want := infra.operations, []string{"ensure", "resume", "policy", "group-resume"}; !sameLabAccessOperations(got, want) {
 		t.Fatalf("operations=%v want=%v", got, want)
 	}
 	if len(infra.policies) != 1 || len(infra.policies[0].AllowedLabs) != 0 {
@@ -169,6 +169,40 @@ func TestReconcilePendingLabAccessVPNOffStopsGroupServices(t *testing.T) {
 	// while the VPN itself is stopped.
 	if len(infra.policies) != 1 || len(infra.policies[0].AllowedLabs) != 1 {
 		t.Fatalf("policy must list the member with the available lab: %+v", infra.policies)
+	}
+}
+
+// A lab with a VPN connector keeps the VPN switch on (contract 2.7: the agent refuses to switch it off, GROUP_SERVER_IN_USE). Closing
+// the access is then done by the suspension and the empty policy, and the sync is not stuck on the refusal.
+func TestReconcilePendingLabAccessVPNOffToleratesServerInUse(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	q := newFormGateMock(ctrl)
+	infra := &recordingLabAccessInfra{suspendErr: fmt.Errorf("set lab group VPN disabled: %w", infraModel.ErrGroupServerInUse)}
+	uc := event.NewEventUseCase(event.Dependencies{Repo: q, Infra: infra})
+	eventID, teamID, userID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	q.EXPECT().ListDirtyEventLabAccessSyncs(gomock.Any(), int32(100)).Return([]postgres.ListDirtyEventLabAccessSyncsRow{{EventTeamID: teamID, EventID: eventID, DesiredRevision: 2, RuntimeOpen: false, VpnEnabled: false}}, nil)
+	q.EXPECT().ListEventLabAccessClients(gomock.Any(), teamID).Return([]uuid.UUID{userID}, nil)
+	q.EXPECT().ListEventLabAccessLabs(gomock.Any(), teamID).Return([]postgres.ListEventLabAccessLabsRow{{LabGroupName: testLabGroup(eventID, teamID), LabName: "vpn-lab", Available: false}}, nil)
+	if err := uc.ReconcilePendingLabAccess(context.Background()); err != nil {
+		t.Fatalf("a switch that stays on must not fail the sync: %v", err)
+	}
+	if got, want := infra.operations, []string{"suspend", "group-suspend", "policy"}; !sameLabAccessOperations(got, want) {
+		t.Fatalf("operations=%v want=%v", got, want)
+	}
+}
+
+// Another failure of the VPN switch still leaves the revision dirty.
+func TestReconcilePendingLabAccessVPNOffOtherErrorsStillFail(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	q := newFormGateMock(ctrl)
+	infra := &recordingLabAccessInfra{suspendErr: fmt.Errorf("group: %w", infraModel.ErrGroupVPNOff)}
+	uc := event.NewEventUseCase(event.Dependencies{Repo: q, Infra: infra})
+	eventID, teamID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	q.EXPECT().ListDirtyEventLabAccessSyncs(gomock.Any(), int32(100)).Return([]postgres.ListDirtyEventLabAccessSyncsRow{{EventTeamID: teamID, EventID: eventID, DesiredRevision: 2, RuntimeOpen: false, VpnEnabled: false}}, nil)
+	q.EXPECT().ListEventLabAccessClients(gomock.Any(), teamID).Return(nil, nil)
+	q.EXPECT().ListEventLabAccessLabs(gomock.Any(), teamID).Return(nil, nil)
+	if err := uc.ReconcilePendingLabAccess(context.Background()); err == nil {
+		t.Fatal("a refused switch other than 'in use' must fail the sync")
 	}
 }
 
@@ -296,6 +330,43 @@ func TestReconcilePendingLabAccessCreatesMemberClientsEagerly(t *testing.T) {
 	}
 }
 
+type orderedClientInfra struct{ recordingLabAccessInfra }
+
+func (i *orderedClientInfra) EnsureLabClient(context.Context, string, string) (string, error) {
+	i.operations = append(i.operations, "client")
+	return "config", nil
+}
+
+// On enable the VPN server is switched on before the first client is made (the agent refuses a client in a group whose VPN is off),
+// while the group stays suspended until the policy is installed; with the access closed no client is made at all.
+func TestReconcilePendingLabAccessSwitchesTheVPNOnBeforeMakingClients(t *testing.T) {
+	for name, tc := range map[string]struct {
+		vpn  bool
+		want []string
+	}{
+		"access open":   {true, []string{"ensure", "resume", "client", "policy", "group-resume"}},
+		"access closed": {false, []string{"suspend", "group-suspend", "policy"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			q := newFormGateMock(ctrl)
+			infra := &orderedClientInfra{}
+			store := &mapVPNStore{configs: map[uuid.UUID]string{}}
+			uc := event.NewEventUseCase(event.Dependencies{Repo: q, Infra: infra, VPN: store})
+			eventID, teamID, member := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+			q.EXPECT().ListDirtyEventLabAccessSyncs(gomock.Any(), int32(100)).Return([]postgres.ListDirtyEventLabAccessSyncsRow{{EventTeamID: teamID, EventID: eventID, DesiredRevision: 1, UpdatedAt: time.Now(), RuntimeOpen: true, VpnEnabled: tc.vpn}}, nil)
+			q.EXPECT().ListEventLabAccessClients(gomock.Any(), teamID).Return([]uuid.UUID{member}, nil)
+			q.EXPECT().ListEventLabAccessLabs(gomock.Any(), teamID).Return([]postgres.ListEventLabAccessLabsRow{{LabGroupName: testLabGroup(eventID, teamID), LabName: "c", Available: true}}, nil)
+			if err := uc.ReconcilePendingLabAccess(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			if !sameLabAccessOperations(infra.operations, tc.want) {
+				t.Fatalf("operations=%v want=%v", infra.operations, tc.want)
+			}
+		})
+	}
+}
+
 // Group and client names stay inside the 63 characters of a Kubernetes label.
 func TestLabNamesFitKubernetesLabels(t *testing.T) {
 	eventID, teamID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
@@ -418,7 +489,7 @@ func TestReconcilePendingLabAccess_AwaitingReservationStillRevokesOnExistingGrou
 		if exists && (len(rec.policies) != 1 || len(rec.policies[0].AllowedLabs) != 0) {
 			t.Fatalf("revocation not applied on the existing group: %+v", rec.policies)
 		}
-		if exists && !sameLabAccessOperations(rec.operations, []string{"ensure", "policy", "resume", "group-resume"}) {
+		if exists && !sameLabAccessOperations(rec.operations, []string{"ensure", "resume", "policy", "group-resume"}) {
 			t.Fatalf("legacy reservation waiting must preserve reconciliation of an existing group: %v", rec.operations)
 		}
 		if !exists && len(rec.operations) != 0 {

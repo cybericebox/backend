@@ -60,10 +60,21 @@ func (c *Client) DeployLab(
 		(meta.InitialLifecycle.OperationID == uuid.Nil || meta.InitialLifecycle.Revision != 1 || meta.BeforeCreate == nil) {
 		return fmt.Errorf("managed initial lifecycle requires a persisted operation and revision1")
 	}
+	// A new group gets the servers its labs need: the VPN (it always has clients) and the internet gateway when a lab has an
+	// Internet connector; a group that exists keeps its switches and has them turned on below when this lab needs more.
+	needsVPN, needsInternet := topo.HasGateway(exerciseModel.DeviceTypeVPNGateway), topo.HasGateway(exerciseModel.DeviceTypeInternetGateway)
+	servers, _ := infraModel.GroupServersFrom(ctx)
+	ctx = infraModel.WithGroupServers(ctx, infraModel.GroupServers{
+		VPN: true, Internet: servers.Internet || needsInternet || infraModel.PlacementNeedFrom(ctx).Plan.InternetLabs > 0,
+	})
 	if err := c.ensureGroup(ctx, group, meta.GroupLabels, meta.GroupPartID); err != nil {
 		return err
 	}
 	if err := c.awaitGroupNamespace(ctx, group); err != nil {
+		return err
+	}
+	// The servers the lab needs run before the lab is made, or the agent refuses it (GROUP_VPN_OFF, GROUP_INTERNET_OFF).
+	if err := c.ensureServersOn(ctx, group, needsVPN, needsInternet); err != nil {
 		return err
 	}
 	build, err := BuildLabFor(topo, meta.Checks, meta.AgentEnforcesVPNReverse)
@@ -282,12 +293,21 @@ func textCooldownSeconds(message string) (int64, bool) {
 // EnsureVPNGroup creates the stable team group without requiring a Lab.
 // A later DeployLab reuses exactly this group name.
 func (c *Client) EnsureVPNGroup(ctx context.Context, group string) error {
-	return c.ensureGroup(ctx, group, nil, "")
+	return c.ensureGroup(withPlannedServers(ctx), group, nil, "")
 }
 
 // EnsureVPNGroupUnder is EnsureVPNGroup for a group that runs under a reservation (its part id).
 func (c *Client) EnsureVPNGroupUnder(ctx context.Context, group, reservationID string) error {
-	return c.ensureGroup(ctx, group, nil, reservationID)
+	return c.ensureGroup(withPlannedServers(ctx), group, nil, reservationID)
+}
+
+// withPlannedServers sets the switches of a group made before any lab of it: the VPN is on (the group has clients) and the
+// internet gateway is on when the plan has labs that use the internet.
+func withPlannedServers(ctx context.Context) context.Context {
+	servers, _ := infraModel.GroupServersFrom(ctx)
+	servers.VPN = true
+	servers.Internet = servers.Internet || infraModel.PlacementNeedFrom(ctx).Plan.InternetLabs > 0
+	return infraModel.WithGroupServers(ctx, servers)
 }
 
 // groupItem is one group to create. The sizes of its own pods (the VPN by the group's users, the gateway by
@@ -300,6 +320,11 @@ func groupItem(
 	reservationID string,
 ) *labpb.LabGroupItem {
 	item := &labpb.LabGroupItem{Name: group, Labels: labels, ReservationId: reservationID}
+	// Both switches are always sent: an item that sets only one leaves the other off, and one that sets neither has the old
+	// shape (VPN on unless disabled, gateway on). A caller that did not say gets the VPN on (a group has clients) and no gateway.
+	servers, _ := infraModel.GroupServersFrom(ctx)
+	vpn, internet := servers.VPN, servers.Internet
+	item.VpnEnabled, item.InternetEnabled = &vpn, &internet
 	if sizes, ok := infraModel.GroupSizesFrom(ctx); ok {
 		setGroupSizes(item, sizes)
 	}
@@ -430,6 +455,10 @@ func (c *Client) GetVPNClientSubnet(ctx context.Context, group string) (string, 
 // created again, so its new private key is the one returned. The caller serializes calls per client.
 func (c *Client) EnsureLabClient(ctx context.Context, group, client string) (string, error) {
 	if err := c.awaitGroupNamespace(ctx, group); err != nil {
+		return "", err
+	}
+	// A client needs the VPN server (the agent refuses it with GROUP_VPN_OFF otherwise).
+	if err := c.ensureServersOn(ctx, group, true, false); err != nil {
 		return "", err
 	}
 	config, exists, err := c.createLabClient(ctx, group, client)
@@ -717,16 +746,18 @@ func (c *Client) SetLabGroupSuspended(ctx context.Context, group string, suspend
 	return oneResult("set lab group suspended", res.GetResults())
 }
 
-// SetLabGroupVPNDisabled stops only the team's WireGuard server. The gateway
-// and Labs keep their own lifecycle, including for non-VPN challenges.
+// SetLabGroupVPNDisabled switches the team's WireGuard server off or on (vpn_enabled, contract 2.7). The gateway and Labs keep
+// their own lifecycle, including for non-VPN challenges. Switching it off while a lab with a VPN connector (or a client) of
+// the group exists is refused (ErrGroupServerInUse): the caller decides what to do with that, it is not a retry.
 func (c *Client) SetLabGroupVPNDisabled(ctx context.Context, group string, disabled bool) error {
 	probe := !disabled
+	enabled := !disabled
 	res, err := c.UpdateLabGroups(ctx, &labpb.UpdateLabGroupsRequest{
 		Items: []*labpb.UpdateLabGroupItem{
 			{
 				Name: group,
 				Changes: &labpb.LabGroupChanges{
-					VpnDisabled:         &disabled,
+					VpnEnabled:          &enabled,
 					ProbeWhileSuspended: &probe,
 				},
 			},
@@ -846,6 +877,10 @@ func oneResult(op string, results []*labpb.ItemResult) error {
 	r := results[0]
 	if r.GetState() != labpb.ItemState_ITEM_STATE_FAILED {
 		return nil
+	}
+	// The group's switch refusals are a disagreement between plan and group, never a wait: they are not retried as they are.
+	if err := infraModel.ReasonError(r.GetReason()); infraModel.IsPlanningError(err) {
+		return fmt.Errorf("%s: %w: %s", op, err, r.GetError())
 	}
 	if r.GetRetryable() {
 		return &infraModel.TerminatingError{
@@ -1042,4 +1077,35 @@ func unixMilli(ms int64) time.Time {
 		return time.Time{}
 	}
 	return time.UnixMilli(ms)
+}
+
+// ensureServersOn turns on the server switches of an existing group that a lab or client about to be made needs (contract 2.7):
+// the VPN for a lab with a VPN connector or a client, the internet gateway for a lab with an Internet connector. A switch that is
+// on is left alone, and so is the VPN of a group that is suspended on purpose (its access is closed: the lab is then refused
+// with ErrGroupVPNOff and made when the access sync turns the VPN on). Turning a switch off is never done here.
+func (c *Client) ensureServersOn(ctx context.Context, group string, needVPN, needInternet bool) error {
+	if !needVPN && !needInternet {
+		return nil
+	}
+	g, err := c.getGroup(ctx, group)
+	if err != nil {
+		return err
+	}
+	changes := &labpb.LabGroupChanges{}
+	if needVPN && !g.GetVpnEnabled() && !g.GetStatus().GetSuspended() {
+		on := true
+		changes.VpnEnabled = &on
+	}
+	if needInternet && !g.GetInternetEnabled() {
+		on := true
+		changes.InternetEnabled = &on
+	}
+	if changes.VpnEnabled == nil && changes.InternetEnabled == nil {
+		return nil
+	}
+	res, err := c.UpdateLabGroups(ctx, &labpb.UpdateLabGroupsRequest{Items: []*labpb.UpdateLabGroupItem{{Name: group, Changes: changes}}})
+	if err != nil {
+		return agentErr("turn on the lab group servers", err)
+	}
+	return oneResult("turn on the lab group servers", res.GetResults())
 }
