@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"math"
+	"math/rand/v2"
 	"slices"
 	"sort"
 	"strings"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/cybericebox/daemon/internal/delivery/repository/assistantStatsRepo"
 	assistantModel "github.com/cybericebox/daemon/internal/model/assistant"
+	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
 )
 
 // ParticipantFilter says which participants refused that their data is used. Consent comes later; today nobody is
@@ -28,6 +30,14 @@ type ParticipantFilter interface {
 type NoExclusion struct{}
 
 func (NoExclusion) Excluded(context.Context) ([]uuid.UUID, error) { return nil, nil }
+
+// LabActivitySource gives the laboratory's activity reports (VPN bytes, devices touched, console minutes, egress use) of
+// team-instances. It is the seam for the laboratory's activity API: today nothing implements it, so EventsSource leaves
+// those figures null ("not reported yet"). An instance the laboratory has no report for is simply absent from the answer; a
+// nil figure inside an Activity is not reported either. Only figures of the instances asked for may be returned.
+type LabActivitySource interface {
+	Activity(ctx context.Context, instances []assistantStatsRepo.InstanceKey) (map[assistantStatsRepo.InstanceKey]assistantStatsRepo.Activity, error)
+}
 
 // EventStatsStore is what the events source reads.
 type EventStatsStore interface {
@@ -45,6 +55,10 @@ type EventStatsStore interface {
 type EventsSource struct {
 	Store     EventStatsStore
 	Exclusion ParticipantFilter
+	// Activity is the laboratory's activity reports; nil: none are reported.
+	Activity LabActivitySource
+	// Shuffle orders the team records of a task (rand.Shuffle when nil); tests set it to a fixed permutation.
+	Shuffle func(n int, swap func(i, j int))
 }
 
 // Name is the source's key in the platform defaults.
@@ -137,7 +151,22 @@ func (s EventsSource) Aggregates(ctx context.Context, refs []assistantModel.Task
 	if err != nil {
 		return nil, err
 	}
-	all := BuildAggregates(facts, variants, asOf)
+	if s.Activity != nil {
+		keys := make([]assistantStatsRepo.InstanceKey, 0, len(facts))
+		for _, f := range facts {
+			keys = append(keys, f.Instance)
+		}
+		reports, activityErr := s.Activity.Activity(ctx, keys)
+		if activityErr != nil {
+			return nil, activityErr
+		}
+		for i := range facts {
+			if a, ok := reports[facts[i].Instance]; ok {
+				facts[i].Activity = &a
+			}
+		}
+	}
+	all := BuildAggregatesWith(facts, variants, asOf, s.Shuffle)
 	for i := range all {
 		all[i].Source = assistantModel.SourceEvents
 	}
@@ -157,18 +186,32 @@ func (s EventsSource) Aggregates(ctx context.Context, refs []assistantModel.Task
 	return out, nil
 }
 
-// BuildAggregates turns the per-team facts into one aggregate per (task, version, image). solves are the teams that
-// solved every subtask; solve_rate is solves over the teams that engaged with the task; the time figures are over the
-// solving teams; hints_used is how many teams used how many hints. Nothing of a team stays in the result.
+// BuildAggregates turns the per-team facts into one aggregate per (task, version, image), shuffling the team records.
 func BuildAggregates(facts []assistantStatsRepo.Fact, variants map[uuid.UUID][]byte, asOf time.Time) []assistantModel.Aggregate {
+	return BuildAggregatesWith(facts, variants, asOf, nil)
+}
+
+// BuildAggregatesWith is BuildAggregates with the shuffle of the team records given (nil: a random one). solves are the
+// teams that solved every subtask; solve_rate is solves over the teams that engaged with the task (teams_engaged); the time
+// figures are over the solving teams; hints_used is how many teams used how many hints. The wrong submissions are over the
+// solving teams (before their solve) and, apart, over the teams that did not solve. The lab figures are over the teams whose
+// task has a lab; the state checks over the teams that have the subtask. The effort figures and egress_share are over the
+// teams the laboratory reported, and stay null when none were. Nothing of a team stays in the result except its record: no
+// id, no key, only the random team_ref of the team in its event; the records are shuffled.
+func BuildAggregatesWith(facts []assistantStatsRepo.Fact, variants map[uuid.UUID][]byte, asOf time.Time, shuffle func(n int, swap func(i, j int))) []assistantModel.Aggregate {
+	if shuffle == nil {
+		shuffle = rand.Shuffle
+	}
 	type acc struct {
 		ref      assistantModel.TaskRef
 		kind     string
+		egress   bool
 		tried    int64
 		solves   int64
 		attempts int64
 		times    []float64
 		hints    map[int64]int64
+		facts    []assistantStatsRepo.Fact
 	}
 	groups := map[assistantModel.TaskRef]*acc{}
 	for _, f := range facts {
@@ -176,13 +219,14 @@ func BuildAggregates(facts []assistantStatsRepo.Fact, variants map[uuid.UUID][]b
 		ref := assistantModel.TaskRef{TaskRef: f.ExerciseID.String(), Version: f.VersionID.String(), Image: image}
 		g := groups[ref]
 		if g == nil {
-			g = &acc{ref: ref, kind: kind, hints: map[int64]int64{}}
+			g = &acc{ref: ref, kind: kind, egress: egressEnabled(variants[f.VersionID]), hints: map[int64]int64{}}
 			groups[ref] = g
 		}
 		g.tried++
 		g.attempts += f.Attempts
 		g.hints[f.Hints]++
-		if f.Subtasks > 0 && f.SolvedSubtasks >= f.Subtasks {
+		g.facts = append(g.facts, f)
+		if solvedAll(f) {
 			g.solves++
 			if f.HasSolveSeconds {
 				g.times = append(g.times, f.SolveSeconds)
@@ -193,7 +237,9 @@ func BuildAggregates(facts []assistantStatsRepo.Fact, variants map[uuid.UUID][]b
 	for _, g := range groups {
 		a := assistantModel.Aggregate{
 			TaskRef: g.ref, Solves: g.solves, Attempts: g.attempts, TaskKind: g.kind, AsOf: asOf,
-			Time: assistantModel.TimeStats{Median: percentile(g.times, 0.5), P25: percentile(g.times, 0.25), P75: percentile(g.times, 0.75)},
+			Time:          assistantModel.TimeStats{Median: percentile(g.times, 0.5), P25: percentile(g.times, 0.25), P75: percentile(g.times, 0.75)},
+			TeamsEngaged:  g.tried,
+			EgressEnabled: g.egress,
 		}
 		if g.tried > 0 {
 			a.SolveRate = float64(g.solves) / float64(g.tried)
@@ -206,6 +252,8 @@ func BuildAggregates(facts []assistantStatsRepo.Fact, variants map[uuid.UUID][]b
 		for _, n := range counts {
 			a.HintsUsed = append(a.HintsUsed, assistantModel.HintBucket{Hints: int(n), Teams: g.hints[n]})
 		}
+		fillLabSignals(&a, g.facts)
+		a.TeamRecords = teamRecords(g.facts, shuffle)
 		out = append(out, a)
 	}
 	sort.Slice(out, func(i, j int) bool {
@@ -218,6 +266,135 @@ func BuildAggregates(facts []assistantStatsRepo.Fact, variants map[uuid.UUID][]b
 		return out[i].Image < out[j].Image
 	})
 	return out
+}
+
+func solvedAll(f assistantStatsRepo.Fact) bool {
+	return f.Subtasks > 0 && f.SolvedSubtasks >= f.Subtasks
+}
+
+// distribution is the quartiles of values; nil for no values (there is nothing to say, not zero).
+func distribution(values []float64) *assistantModel.Distribution {
+	if len(values) == 0 {
+		return nil
+	}
+	return &assistantModel.Distribution{P25: percentile(values, 0.25), Median: percentile(values, 0.5), P75: percentile(values, 0.75)}
+}
+
+// fillLabSignals sets the wrong-submission, state-check, lab-health and activity figures of one task from its teams' facts.
+func fillLabSignals(a *assistantModel.Aggregate, facts []assistantStatsRepo.Fact) {
+	var wrongSolvers, wrongOthers, ready []float64
+	var restarts float64
+	var labTeams, broken int64
+	stateOnly := len(facts) > 0
+	type stateAcc struct {
+		passed int64
+		times  []float64
+	}
+	states := map[string]*stateAcc{}
+	var stateOrder []string
+	var egressReported, egressUsed int64
+	var vpn, devices, console []float64
+	for _, f := range facts {
+		if solvedAll(f) {
+			wrongSolvers = append(wrongSolvers, float64(f.WrongSubmissions))
+		} else {
+			wrongOthers = append(wrongOthers, float64(f.WrongSubmissions))
+		}
+		if len(f.StateChecks) == 0 || int64(len(f.StateChecks)) < f.Subtasks {
+			stateOnly = false
+		}
+		for _, c := range f.StateChecks {
+			s := states[c.SubtaskRef]
+			if s == nil {
+				s = &stateAcc{}
+				states[c.SubtaskRef] = s
+				stateOrder = append(stateOrder, c.SubtaskRef)
+			}
+			if c.Passed {
+				s.passed++
+				s.times = append(s.times, c.PassSeconds)
+			}
+		}
+		if f.Lab != nil {
+			labTeams++
+			restarts += float64(f.Lab.Restarts)
+			if f.Lab.Broken {
+				broken++
+			}
+			if f.Lab.HasReady {
+				ready = append(ready, f.Lab.ReadySeconds)
+			}
+		}
+		if act := f.Activity; act != nil {
+			if act.EgressUsed != nil {
+				egressReported++
+				if *act.EgressUsed {
+					egressUsed++
+				}
+			}
+			if act.VPNBytes != nil {
+				vpn = append(vpn, *act.VPNBytes)
+			}
+			if act.DevicesTouched != nil {
+				devices = append(devices, *act.DevicesTouched)
+			}
+			if act.ConsoleMinutes != nil {
+				console = append(console, *act.ConsoleMinutes)
+			}
+		}
+	}
+	if !stateOnly {
+		a.WrongSubmissionsPerTeam = distribution(wrongSolvers)
+		a.WrongSubmissionsPerNonsolver = distribution(wrongOthers)
+	}
+	slices.Sort(stateOrder)
+	for _, ref := range stateOrder {
+		s := states[ref]
+		sc := assistantModel.StateCheck{SubtaskRef: ref, TeamsPassed: s.passed}
+		if d := distribution(s.times); d != nil {
+			sc.TimeToPassS = *d
+		}
+		a.StateChecks = append(a.StateChecks, sc)
+	}
+	if labTeams > 0 {
+		a.LabHealth = &assistantModel.LabHealth{
+			ReadyTimeS: distribution(ready), RestartsPerTeam: restarts / float64(labTeams), BrokenShare: float64(broken) / float64(labTeams),
+		}
+	}
+	if egressReported > 0 {
+		share := float64(egressUsed) / float64(egressReported)
+		a.EgressShare = &share
+	}
+	a.VPNBytesPerTeam, a.DevicesTouchedPerTeam, a.ConsoleMinutesPerTeam = distribution(vpn), distribution(devices), distribution(console)
+}
+
+// teamRecords are the anonymous per-team rows of a task, in a shuffled order.
+func teamRecords(facts []assistantStatsRepo.Fact, shuffle func(n int, swap func(i, j int))) []assistantModel.TeamRecord {
+	records := make([]assistantModel.TeamRecord, 0, len(facts))
+	for _, f := range facts {
+		r := assistantModel.TeamRecord{
+			TeamRef: f.TeamRef, Solved: solvedAll(f), WrongSubmissions: f.WrongSubmissions, HintsUsed: f.Hints,
+			StateChecks: []assistantModel.TeamStateCheck{},
+		}
+		if r.Solved && f.HasSolveSeconds {
+			t := f.SolveSeconds
+			r.SolveTimeS = &t
+		}
+		for _, c := range f.StateChecks {
+			sc := assistantModel.TeamStateCheck{SubtaskRef: c.SubtaskRef}
+			if c.Passed {
+				t := c.PassSeconds
+				sc.TimeToPassS = &t
+			}
+			r.StateChecks = append(r.StateChecks, sc)
+		}
+		if act := f.Activity; act != nil {
+			r.VPNBytes, r.DevicesTouched, r.ConsoleMinutes, r.EgressUsed = act.VPNBytes, act.DevicesTouched, act.ConsoleMinutes, act.EgressUsed
+		}
+		records = append(records, r)
+	}
+	shuffle(len(records), func(i, j int) { records[i], records[j] = records[j], records[i] })
+	return records
 }
 
 // percentile is the continuous percentile (linear between the two nearest values, like percentile_cont); 0 for no data.
@@ -264,4 +441,26 @@ func imageAndKind(variants []byte) (image, kind string) {
 	sort.Strings(refs)
 	sum := sha256.Sum256([]byte(strings.Join(refs, "\n")))
 	return hex.EncodeToString(sum[:]), "dynamic"
+}
+
+// egressEnabled says whether the topology has an Internet gateway in any variant (the task's lab can reach the Internet).
+func egressEnabled(variants []byte) bool {
+	var list []struct {
+		Topology struct {
+			Devices []struct {
+				Type string `json:"type"`
+			} `json:"devices"`
+		} `json:"topology"`
+	}
+	if json.Unmarshal(variants, &list) != nil {
+		return false
+	}
+	for _, v := range list {
+		for _, d := range v.Topology.Devices {
+			if exerciseModel.DeviceType(d.Type) == exerciseModel.DeviceTypeInternetGateway {
+				return true
+			}
+		}
+	}
+	return false
 }

@@ -5,6 +5,10 @@ package assistantStatsRepo
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/gofrs/uuid"
@@ -23,16 +27,61 @@ type Queries interface {
 	ListAssistantStatsEnabledEventTasks(context.Context, postgres.ListAssistantStatsEnabledEventTasksParams) ([]postgres.ListAssistantStatsEnabledEventTasksRow, error)
 	ListAssistantStatsTeamFacts(context.Context, postgres.ListAssistantStatsTeamFactsParams) ([]postgres.ListAssistantStatsTeamFactsRow, error)
 	ListAssistantStatsTaskVersions(context.Context, []uuid.UUID) ([]postgres.ListAssistantStatsTaskVersionsRow, error)
+	ListAssistantStatsTeamRefs(context.Context, []uuid.UUID) ([]postgres.ListAssistantStatsTeamRefsRow, error)
+	InsertAssistantStatsTeamRefs(context.Context, postgres.InsertAssistantStatsTeamRefsParams) error
 }
 
-type Repository struct{ q Queries }
+type Repository struct {
+	q Queries
+	// NewRef makes the random id of a team in the statistics of an event; Now stamps the stored mapping.
+	NewRef func() string
+	Now    func() time.Time
+}
 
-func New(q Queries) *Repository { return &Repository{q: q} }
+func New(q Queries) *Repository { return &Repository{q: q, NewRef: randomRef, Now: time.Now} }
+
+// randomRef is 128 random bits: it is not derived from anything, so it cannot be traced back to a team or linked to another
+// event's id.
+func randomRef() string {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		panic(fmt.Sprintf("no randomness for a team ref: %v", err))
+	}
+	return hex.EncodeToString(b[:])
+}
 
 // Task is an exercise with the version an event pinned.
 type Task struct{ ExerciseID, VersionID uuid.UUID }
 
-// Fact is what one engaged team did with one task. Nothing in it says which team.
+// InstanceKey names one team's run of one task in the platform: what the laboratory's activity reports are asked by. It
+// stays inside the daemon: the aggregates are built without it.
+type InstanceKey struct{ EventID, TeamID, EventExerciseID uuid.UUID }
+
+// LabFact is how the lab of one team-instance went. HasReady is false while the lab never came up.
+type LabFact struct {
+	ReadySeconds float64
+	HasReady     bool
+	Restarts     int64
+	Broken       bool
+}
+
+// StateCheckFact is one state-checked subtask of a team: Passed says whether it passed, PassSeconds is from the lab being
+// ready to the pass.
+type StateCheckFact struct {
+	SubtaskRef  string
+	Passed      bool
+	PassSeconds float64
+}
+
+// Activity is what the laboratory's activity reports say of one team-instance. A nil figure is not reported (an older
+// laboratory, or the reports are off); it is never a measured zero.
+type Activity struct {
+	EgressUsed                               *bool
+	VPNBytes, DevicesTouched, ConsoleMinutes *float64
+}
+
+// Fact is what one engaged team did with one task. It names the team only by TeamRef, a random id of the team in its
+// event; Instance is for the activity source and is never copied into an aggregate.
 type Fact struct {
 	Task
 	Subtasks, Attempts, SolvedSubtasks int64
@@ -41,6 +90,15 @@ type Fact struct {
 	SolveSeconds    float64
 	HasSolveSeconds bool
 	Hints           int64
+	// WrongSubmissions are the team's wrong answers (those before its solve, when it solved the task).
+	WrongSubmissions int64
+	// Lab is nil for a task without a lab.
+	Lab         *LabFact
+	StateChecks []StateCheckFact
+	TeamRef     string
+	Instance    InstanceKey
+	// Activity is filled by the statistics source from the laboratory's activity reports; nil: nothing reported.
+	Activity *Activity
 }
 
 // Defaults are the platform default modes by source; a source without one is off.
@@ -107,12 +165,98 @@ func (r *Repository) TeamFacts(ctx context.Context, platformDefault assistantMod
 	if err != nil {
 		return nil, err
 	}
+	refs, err := r.teamRefs(ctx, rows)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]Fact, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, Fact{
+		fact := Fact{
 			Task: Task{ExerciseID: row.ExerciseID, VersionID: row.ExerciseVersionID}, Subtasks: row.Subtasks, Attempts: row.Attempts,
 			SolvedSubtasks: row.SolvedSubtasks, SolveSeconds: row.SolveSeconds, HasSolveSeconds: row.HasSolveSeconds, Hints: row.Hints,
-		})
+			WrongSubmissions: row.WrongSubmissions,
+			TeamRef:          refs[teamKey{row.EventID, row.TeamID}],
+			Instance:         InstanceKey{EventID: row.EventID, TeamID: row.TeamID, EventExerciseID: row.EventExerciseID},
+		}
+		if row.HasLab {
+			fact.Lab = &LabFact{ReadySeconds: row.ReadySeconds, HasReady: row.HasReadySeconds, Restarts: row.Restarts, Broken: row.Broken}
+		}
+		var checks []struct {
+			SubtaskRef string   `json:"subtask_ref"`
+			TimeToPass *float64 `json:"time_to_pass_s"`
+		}
+		if len(row.StateChecks) > 0 {
+			if err = json.Unmarshal(row.StateChecks, &checks); err != nil {
+				return nil, fmt.Errorf("read the state checks: %w", err)
+			}
+		}
+		for _, c := range checks {
+			sc := StateCheckFact{SubtaskRef: c.SubtaskRef}
+			if c.TimeToPass != nil {
+				sc.Passed, sc.PassSeconds = true, *c.TimeToPass
+			}
+			fact.StateChecks = append(fact.StateChecks, sc)
+		}
+		out = append(out, fact)
+	}
+	return out, nil
+}
+
+type teamKey struct{ event, team uuid.UUID }
+
+// teamRefs gives every (event, team) of the rows its random id: the one stored, or a new one that is stored now so it stays
+// the same in every later push. Two writers racing keep the first stored id (the second reads it back).
+func (r *Repository) teamRefs(ctx context.Context, rows []postgres.ListAssistantStatsTeamFactsRow) (map[teamKey]string, error) {
+	wanted := map[teamKey]bool{}
+	eventSet := map[uuid.UUID]bool{}
+	var events []uuid.UUID
+	for _, row := range rows {
+		wanted[teamKey{row.EventID, row.TeamID}] = true
+		if !eventSet[row.EventID] {
+			eventSet[row.EventID] = true
+			events = append(events, row.EventID)
+		}
+	}
+	out := make(map[teamKey]string, len(wanted))
+	if len(wanted) == 0 {
+		return out, nil
+	}
+	load := func() error {
+		stored, err := r.q.ListAssistantStatsTeamRefs(ctx, events)
+		if err != nil {
+			return err
+		}
+		for _, s := range stored {
+			out[teamKey{s.EventID, s.TeamID}] = s.Ref
+		}
+		return nil
+	}
+	if err := load(); err != nil {
+		return nil, err
+	}
+	type newRef struct {
+		Event uuid.UUID `json:"event_id"`
+		Team  uuid.UUID `json:"team_id"`
+		Ref   string    `json:"ref"`
+	}
+	var fresh []newRef
+	for key := range wanted {
+		if _, ok := out[key]; !ok {
+			fresh = append(fresh, newRef{key.event, key.team, r.NewRef()})
+		}
+	}
+	if len(fresh) == 0 {
+		return out, nil
+	}
+	body, err := json.Marshal(fresh)
+	if err != nil {
+		return nil, err
+	}
+	if err = r.q.InsertAssistantStatsTeamRefs(ctx, postgres.InsertAssistantStatsTeamRefsParams{Now: r.Now().UTC(), Refs: body}); err != nil {
+		return nil, err
+	}
+	if err = load(); err != nil {
+		return nil, err
 	}
 	return out, nil
 }

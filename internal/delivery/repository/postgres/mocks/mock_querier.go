@@ -6982,6 +6982,20 @@ func (mr *MockQuerierMockRecorder) InsertAssistantRunEvent(ctx, arg any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAssistantRunEvent", reflect.TypeOf((*MockQuerier)(nil).InsertAssistantRunEvent), ctx, arg)
 }
 
+// InsertAssistantStatsTeamRefs mocks base method.
+func (m *MockQuerier) InsertAssistantStatsTeamRefs(ctx context.Context, arg postgres.InsertAssistantStatsTeamRefsParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertAssistantStatsTeamRefs", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertAssistantStatsTeamRefs indicates an expected call of InsertAssistantStatsTeamRefs.
+func (mr *MockQuerierMockRecorder) InsertAssistantStatsTeamRefs(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAssistantStatsTeamRefs", reflect.TypeOf((*MockQuerier)(nil).InsertAssistantStatsTeamRefs), ctx, arg)
+}
+
 // InsertErrorSample mocks base method.
 func (m *MockQuerier) InsertErrorSample(ctx context.Context, arg postgres.InsertErrorSampleParams) error {
 	m.ctrl.T.Helper()
@@ -7529,6 +7543,21 @@ func (m *MockQuerier) ListAssistantStatsTeamFacts(ctx context.Context, arg postg
 func (mr *MockQuerierMockRecorder) ListAssistantStatsTeamFacts(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAssistantStatsTeamFacts", reflect.TypeOf((*MockQuerier)(nil).ListAssistantStatsTeamFacts), ctx, arg)
+}
+
+// ListAssistantStatsTeamRefs mocks base method.
+func (m *MockQuerier) ListAssistantStatsTeamRefs(ctx context.Context, eventIds []uuid.UUID) ([]postgres.ListAssistantStatsTeamRefsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListAssistantStatsTeamRefs", ctx, eventIds)
+	ret0, _ := ret[0].([]postgres.ListAssistantStatsTeamRefsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListAssistantStatsTeamRefs indicates an expected call of ListAssistantStatsTeamRefs.
+func (mr *MockQuerierMockRecorder) ListAssistantStatsTeamRefs(ctx, eventIds any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAssistantStatsTeamRefs", reflect.TypeOf((*MockQuerier)(nil).ListAssistantStatsTeamRefs), ctx, eventIds)
 }
 
 // ListBroadcastDeliveries mocks base method.
@@ -14375,6 +14404,21 @@ func (m *MockQuerier) SetAssistantRunAnswered(ctx context.Context, arg postgres.
 func (mr *MockQuerierMockRecorder) SetAssistantRunAnswered(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAssistantRunAnswered", reflect.TypeOf((*MockQuerier)(nil).SetAssistantRunAnswered), ctx, arg)
+}
+
+// SetAssistantRunLabReady mocks base method.
+func (m *MockQuerier) SetAssistantRunLabReady(ctx context.Context, arg postgres.SetAssistantRunLabReadyParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetAssistantRunLabReady", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SetAssistantRunLabReady indicates an expected call of SetAssistantRunLabReady.
+func (mr *MockQuerierMockRecorder) SetAssistantRunLabReady(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAssistantRunLabReady", reflect.TypeOf((*MockQuerier)(nil).SetAssistantRunLabReady), ctx, arg)
 }
 
 // SetAssistantRunMeasurement mocks base method.

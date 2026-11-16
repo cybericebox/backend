@@ -259,6 +259,13 @@ var allowedKeys = map[string]bool{
 	"task_ref": true, "version": true, "image": true, "solves": true, "attempts": true, "solve_rate": true,
 	"time": true, "median": true, "p25": true, "p75": true, "hints_used": true, "hints": true, "teams": true,
 	"task_kind": true, "as_of": true, "error": true, "source": true,
+	// the lab-side signals and the anonymous per-team records (team_ref is a random id, never a team id)
+	"teams_engaged": true, "state_checks": true, "subtask_ref": true, "teams_passed": true, "time_to_pass_s": true,
+	"wrong_submissions_per_team": true, "wrong_submissions_per_nonsolver": true, "egress_enabled": true, "egress_share": true,
+	"lab_health": true, "ready_time_s": true, "restarts_per_team": true, "broken_share": true,
+	"vpn_bytes_per_team": true, "devices_touched_per_team": true, "console_minutes_per_team": true,
+	"team_records": true, "team_ref": true, "solved": true, "solve_time_s": true, "wrong_submissions": true,
+	"vpn_bytes": true, "devices_touched": true, "console_minutes": true, "egress_used": true,
 }
 
 var identifying = regexp.MustCompile(`(?i)user|team_id|team_name|member|captain|participant|email|name|ip|addr|client|session|account|login|login`)
@@ -348,7 +355,25 @@ func TestTheAggregateTypeHasOnlyTheDocumentedFields(t *testing.T) {
 			t.Errorf("the aggregate has the field %q", tag)
 		}
 	}
-	if len(tags) != 16 {
+	// Exactly these fields, none more: a new one is a decision about what leaves the daemon.
+	want := map[string]bool{}
+	for _, tag := range strings.Fields(`source task_ref version image solves attempts solve_rate time median p25 p75 hints_used hints teams
+		task_kind as_of teams_engaged state_checks subtask_ref teams_passed time_to_pass_s wrong_submissions_per_team
+		wrong_submissions_per_nonsolver egress_enabled lab_health ready_time_s restarts_per_team broken_share egress_share
+		vpn_bytes_per_team devices_touched_per_team console_minutes_per_team team_records team_ref solved solve_time_s
+		wrong_submissions vpn_bytes devices_touched console_minutes egress_used`) {
+		want[tag] = true
+	}
+	got := map[string]bool{}
+	for _, tag := range tags {
+		got[tag] = true
+	}
+	if len(got) != len(want) {
 		t.Errorf("fields: %v", tags)
+	}
+	for tag := range want {
+		if !got[tag] {
+			t.Errorf("the documented field %q is missing", tag)
+		}
 	}
 }

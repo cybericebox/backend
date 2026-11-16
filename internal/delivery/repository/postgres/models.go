@@ -55,6 +55,7 @@ type AssistantRun struct {
 	FinishedAt      pgtype.Timestamptz `json:"finished_at"`
 	ExpiresAt       time.Time          `json:"expires_at"`
 	Opponent        int32              `json:"opponent"`
+	LabReadyAt      pgtype.Timestamptz `json:"lab_ready_at"`
 }
 
 type BrainConnection struct {

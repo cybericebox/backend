@@ -72,6 +72,13 @@ SET state      = 'running',
 WHERE id = sqlc.arg(id)
   AND state = 'starting';
 
+-- name: SetAssistantRunLabReady :execrows
+-- The first moment the run's test lab was seen ready (later calls keep the first).
+UPDATE assistant_runs
+SET lab_ready_at = COALESCE(lab_ready_at, sqlc.arg(now)::timestamptz),
+    updated_at   = sqlc.arg(now)::timestamptz
+WHERE id = sqlc.arg(id);
+
 -- name: CloseAssistantRun :execrows
 -- Decides how the run ends; the teardown follows and then FinishAssistantRun. Only the first decision counts.
 UPDATE assistant_runs
