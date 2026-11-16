@@ -44,6 +44,8 @@ type (
 		Finish(ctx context.Context, id uuid.UUID, now time.Time) (bool, error)
 		SetMeasurement(ctx context.Context, id uuid.UUID, measurement []byte, now time.Time) error
 		SetStreamDown(ctx context.Context, id uuid.UUID, since, now time.Time) error
+		// SetLabReady records the first moment the run's lab was seen ready (a later call keeps the first).
+		SetLabReady(ctx context.Context, id uuid.UUID, now time.Time) error
 		AppendEvent(ctx context.Context, id uuid.UUID, e assistantModel.RunEvent, now time.Time) (bool, error)
 		Events(ctx context.Context, id uuid.UUID, after int64, limit int) ([]assistantModel.RunEvent, error)
 		AddAnswer(ctx context.Context, id uuid.UUID, seq int64, subtask string, correct bool, now time.Time) (bool, error)

@@ -212,6 +212,8 @@ type RunTarget struct {
 	VariantsJS []byte
 	// HasLab: the variant has devices, so a test of it is a lab a run can join (a variant without devices has none).
 	HasLab bool
+	// EgressEnabled: the variant's topology has an Internet gateway (its lab can reach the Internet).
+	EgressEnabled bool
 	// Opponents are the opponents of the chosen variant (those of its base when it is linked), in the manifest's order.
 	Opponents []exerciseModel.Opponent
 	// Lease is the run length to ask for a lab that lasts at least the wanted time (the longest allowed when none does).
@@ -248,7 +250,7 @@ func (u *ExerciseUseCase) RunTarget(ctx context.Context, versionID, variantID uu
 	allowed, _ := u.TestRunLengths(ctx)
 	return RunTarget{
 		ExerciseID: version.ExerciseID, VersionID: versionID, VariantID: chosen.ID, VariantsJS: raw,
-		HasLab: chosen.Topology.HasLab(), Lease: pickLease(allowed, want), Opponents: opponentsOf(version.Variants, chosen),
+		HasLab: chosen.Topology.HasLab(), EgressEnabled: chosen.Topology.HasGateway(exerciseModel.DeviceTypeInternetGateway), Lease: pickLease(allowed, want), Opponents: opponentsOf(version.Variants, chosen),
 	}, nil
 }
 

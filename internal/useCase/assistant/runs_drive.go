@@ -116,6 +116,9 @@ type runDriver struct {
 	refused  bool
 	// stateFlushed: the verdicts of the state subtasks that never passed were sent (once, before the teardown).
 	stateFlushed bool
+	// factsSent: the lab facts of the run are with the brain; factsTries counts the passes that tried to send them.
+	factsSent  bool
+	factsTries int
 	// materialsSent: the materials of this run are with the brain (kept for this leadership; a new leader sends them again).
 	materialsSent bool
 	revoked       bool
@@ -233,6 +236,11 @@ func (d *runDriver) starting(ctx context.Context, run assistantModel.Run) time.D
 			return 0
 		}
 		return u.runPoll
+	}
+	if run.LabReadyAt.IsZero() {
+		if recordErr := u.runs.SetLabReady(ctx, run.ID, now.UTC()); recordErr != nil {
+			log.Warn().Err(recordErr).Msg("Recording the moment a run's lab was ready failed")
+		}
 	}
 	target, err := u.labs.RunTarget(ctx, run.VersionID, run.VariantID, 0)
 	if err != nil {
@@ -828,11 +836,56 @@ func (d *runDriver) closing(ctx context.Context, run assistantModel.Run) time.Du
 	if failed {
 		return d.backoff()
 	}
+	// The lab facts are not read from the lab (it is gone by now) but from what was recorded, so the brain being down only
+	// delays them: a few passes are spent on it, then the run is finished without them.
+	if run.Role == assistantModel.RoleGrader && !run.StartedAt.IsZero() && !d.factsSent && d.factsTries < labFactsPasses {
+		d.factsTries++
+		if !d.sendLabFacts(ctx, run) {
+			return d.backoff()
+		}
+	}
 	if _, err := u.runs.Finish(ctx, run.ID, u.now().UTC()); err != nil {
 		log.Warn().Err(err).Msg("Finishing a run failed; trying again")
 		return d.backoff()
 	}
 	return 0
+}
+
+// labFactsPasses is how many passes of the teardown try to deliver the lab facts before the run is finished without them.
+const labFactsPasses = 5
+
+// sendLabFacts tells the brain the lab-side facts of a grader run (`POST /v1/runs/{run_id}/lab_facts`): the time the lab took
+// to come up, its restarts, whether the topology has Internet egress, and the laboratory's activity figures (not reported
+// yet: null). They are the single-run counterpart of the lab_health and effort figures of a participants' aggregate. The
+// call is idempotent at the brain (a repeat is a 409, which counts as delivered). It reports whether the brain has them,
+// or nothing can be said (no recorded ready time), so the run does not wait for them.
+func (d *runDriver) sendLabFacts(ctx context.Context, run assistantModel.Run) bool {
+	u := d.u
+	if run.LabReadyAt.IsZero() {
+		d.factsSent = true // a run from before the figure was recorded
+		return true
+	}
+	target, err := u.labs.RunTarget(ctx, run.VersionID, run.VariantID, 0)
+	if err != nil {
+		log.Warn().Err(err).Msg("Reading the task of a run for its lab facts failed")
+		return false
+	}
+	ctx, cancel := context.WithTimeout(ctx, bestEffort)
+	defer cancel()
+	c, err := u.client(ctx)
+	if err != nil {
+		return false
+	}
+	body := assistantModel.LabFacts{
+		ReadyTimeS: max(run.LabReadyAt.Sub(run.CreatedAt).Seconds(), 0), Restarts: 0, EgressEnabled: target.EgressEnabled,
+	}
+	err = c.PostJSON(ctx, "/v1/runs/"+run.ID.String()+"/lab_facts", body)
+	if err == nil || finalRefusal(err) {
+		d.factsSent = true
+		return true
+	}
+	log.Warn().Err(err).Msg("The lab facts of a run were not delivered; trying again")
+	return false
 }
 
 // stopAtBrain sends StopRun best effort: an unreachable brain must not hold the lab, so it is tried a few times and then
