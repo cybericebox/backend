@@ -576,6 +576,10 @@ type (
 		// into the platform image cache (the agent's PrewarmImages); 0 turns it off. With the
 		// default 30 minutes deploy lead the images are warmed an hour before the start.
 		StandPrewarmLead time.Duration `env:"STAND_PREWARM_LEAD" envDefault:"30m"`
+		// StandPrewarmWait is the longest an event's initial stand deploy waits for the prewarm of its images to settle (all
+		// done, or failed): the deploy then goes on anyway and says so in the log. 0: the deploy never waits. The wait counts
+		// from the deploy time, ends at the event start, and does not apply when there is no image cache to warm.
+		StandPrewarmWait time.Duration `env:"STAND_PREWARM_WAIT" envDefault:"10m"`
 		// LabSweepInterval is how often the backend looks for stand and test lab groups whose event,
 		// team or test deploy is gone, and deletes them; LabSweepGrace is how old a group must be
 		// before it is judged (so a deploy that is still creating its group is never raced).
@@ -1005,6 +1009,9 @@ func (c ExerciseConfig) Validate() error {
 	if c.StandPrewarmLead < 0 || c.StandPrewarmLead > 24*time.Hour {
 		return errors.New("exercise: EXERCISE_STAND_PREWARM_LEAD must be between 0 and 24h")
 	}
+	if c.StandPrewarmWait < 0 || c.StandPrewarmWait > 2*time.Hour {
+		return errors.New("exercise: EXERCISE_STAND_PREWARM_WAIT must be between 0 and 2h")
+	}
 	if c.LabSweepInterval < 10*time.Second || c.LabSweepInterval > 24*time.Hour {
 		return errors.New("exercise: EXERCISE_LAB_SWEEP_INTERVAL must be between 10s and 24h")
 	}
@@ -1302,11 +1309,13 @@ type LabLifecycleConfig struct {
 	Batch    int32         `env:"BATCH" envDefault:"100"`
 	RetryMin time.Duration `env:"RETRY_MIN" envDefault:"10s"`
 	RetryMax time.Duration `env:"RETRY_MAX" envDefault:"5m"`
+	// Workers is how many labs one pass observes and moves at the same time (each lab is handled by one worker).
+	Workers int `env:"WORKERS" envDefault:"16"`
 }
 
 func (c LabLifecycleConfig) Validate() error {
-	if c.Interval < time.Second || c.Interval > time.Hour || c.Batch < 1 || c.Batch > 1000 || c.RetryMin < time.Second || c.RetryMax < c.RetryMin || c.RetryMax > time.Hour {
-		return fmt.Errorf("invalid EVENT_LAB_LIFECYCLE interval, batch or retry bounds")
+	if c.Interval < time.Second || c.Interval > time.Hour || c.Batch < 1 || c.Batch > 1000 || c.RetryMin < time.Second || c.RetryMax < c.RetryMin || c.RetryMax > time.Hour || c.Workers < 1 || c.Workers > 128 {
+		return fmt.Errorf("invalid EVENT_LAB_LIFECYCLE interval, batch, workers or retry bounds")
 	}
 	return nil
 }

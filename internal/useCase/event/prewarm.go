@@ -12,6 +12,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
+	eventModel "github.com/cybericebox/daemon/internal/model/event"
 	eventExerciseModel "github.com/cybericebox/daemon/internal/model/eventExercise"
 	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
 	imageRegistryModel "github.com/cybericebox/daemon/internal/model/imageRegistry"
@@ -39,8 +40,14 @@ type PrewarmSummary struct {
 // Settled is true when no image is still being fetched.
 func (s PrewarmSummary) Settled() bool { return s.Warming == 0 && s.Queued == 0 }
 
+// prewarmFresh is how old the agent's last prewarm answer may be to count as the current state; the engine pass repeats the
+// call every few seconds, so an older answer means the calls are failing and nothing is known.
+const prewarmFresh = 2 * time.Minute
+
 type prewarmState struct {
-	mu       sync.Mutex
+	mu sync.Mutex
+	// waitSaid remembers which events were told (in the log) that their deploy waits, or went on without the prewarm.
+	waitSaid map[uuid.UUID]string
 	plans    map[uuid.UUID]cachedPlan
 	summary  map[uuid.UUID]PrewarmSummary
 	failures map[uuid.UUID]string
@@ -67,7 +74,7 @@ type prewarmBatch struct {
 }
 
 func newPrewarmState() *prewarmState {
-	return &prewarmState{plans: map[uuid.UUID]cachedPlan{}, summary: map[uuid.UUID]PrewarmSummary{}, failures: map[uuid.UUID]string{}}
+	return &prewarmState{plans: map[uuid.UUID]cachedPlan{}, summary: map[uuid.UUID]PrewarmSummary{}, failures: map[uuid.UUID]string{}, waitSaid: map[uuid.UUID]string{}}
 }
 
 func (s *prewarmState) summaryOf(eventID uuid.UUID) *PrewarmSummary {
@@ -77,6 +84,45 @@ func (s *prewarmState) summaryOf(eventID uuid.UUID) *PrewarmSummary {
 		return &value
 	}
 	return nil
+}
+
+// holdForPrewarm says the event's initial stand deploy waits one more pass: its images are still being fetched into the image
+// cache, so the burst of labs would pull them from the upstream registries. The wait is bounded: it counts from the deploy time
+// for at most prewarmWait, never goes past the event start, and ends as soon as no image is being fetched (done, failed or
+// skipped); a failed or timed-out prewarm is logged and the deploy goes on anyway. There is no wait when the wait is off, when
+// no prewarm was asked of the agent (no cache, nothing to warm), or when its answer is not current.
+func (u *EventUseCase) holdForPrewarm(e eventModel.Event, deployAt, now time.Time) bool {
+	if u.prewarmWait <= 0 || u.prewarmLead <= 0 || !now.Before(e.Lifecycle.StartAt) {
+		return false
+	}
+	summary := u.prewarm.summaryOf(e.ID)
+	if summary == nil || now.Sub(summary.UpdatedAt) > prewarmFresh || summary.Settled() {
+		return false
+	}
+	deadline := deployAt.Add(u.prewarmWait)
+	if !now.Before(deadline) {
+		u.said(e.ID, "timeout", func() {
+			log.Warn().Str("event_id", e.ID.String()).Int("warming", summary.Warming).Int("queued", summary.Queued).Dur("waited", u.prewarmWait).
+				Msg("Image prewarm did not settle in time: the stands deploy anyway and pull the rest from the upstream registry")
+		})
+		return false
+	}
+	u.said(e.ID, "wait", func() {
+		log.Info().Str("event_id", e.ID.String()).Int("warming", summary.Warming).Int("queued", summary.Queued).Time("until", deadline).
+			Msg("The stand deploy waits for the image prewarm to settle")
+	})
+	return true
+}
+
+// said runs say once per event and kind.
+func (u *EventUseCase) said(eventID uuid.UUID, kind string, say func()) {
+	u.prewarm.mu.Lock()
+	already := u.prewarm.waitSaid[eventID] == kind
+	u.prewarm.waitSaid[eventID] = kind
+	u.prewarm.mu.Unlock()
+	if !already {
+		say()
+	}
 }
 
 // prewarmEventImages fills the platform image cache with the images of the events whose stands deploy
