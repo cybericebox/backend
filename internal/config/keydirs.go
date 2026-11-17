@@ -102,8 +102,27 @@ func (c *Config) ResolveKeys() error {
 		}
 		resolved = append(resolved, spec)
 	}
+	// The signing purposes are stateless: their keys are derived the same way, and the old explicit value (the deprecated
+	// JWT_TOKEN_SIGNATURE and OAUTH_STATE_SIGNATURE) stays as a verify-only key, so the tokens already issued live on.
+	setupKeys, err := secret.SigningKeys(master, c.Auth.TokenSignature, secret.PurposeJWTSetup)
+	if err != nil {
+		return fmt.Errorf("JWT_TOKEN_SIGNATURE: %w", err)
+	}
+	stateKeys, err := secret.SigningKeys(master, c.Auth.OAuth.StateSignature, secret.PurposeOAuthState)
+	if err != nil {
+		return fmt.Errorf("OAUTH_STATE_SIGNATURE: %w", err)
+	}
+	if master != "" {
+		if c.Auth.TokenSignature != "" {
+			log.Warn().Msg("JWT_TOKEN_SIGNATURE is deprecated: it now only verifies setup links issued before the master key; remove it once SETUP_TOKEN_TTL has passed")
+		}
+		if c.Auth.OAuth.StateSignature != "" {
+			log.Warn().Msg("OAUTH_STATE_SIGNATURE is deprecated: it now only verifies sign-in states issued before the master key; remove it after OAUTH_STATE_TTL")
+		}
+	}
 	for i, k := range purposes {
 		*k.key = resolved[i]
 	}
+	c.Auth.SetupTokenKeys, c.Auth.OAuth.StateKeys = setupKeys, stateKeys
 	return nil
 }

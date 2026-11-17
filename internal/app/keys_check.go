@@ -34,6 +34,8 @@ func keyLifetimes(cfg *config.Config) secretkeys.Lifetimes {
 		SessionIdle:      cfg.Auth.SessionIdleTTL,
 		SessionAbsolute:  cfg.Auth.SessionAbsoluteTTL,
 		EventRenderGrant: eventrender.MaxLifetime,
+		SetupToken:       max(cfg.Auth.SetupTokenTTL, cfg.Auth.SignupSetupTokenTTL),
+		OAuthState:       cfg.Auth.OAuth.StateTTL,
 	}
 }
 

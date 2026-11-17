@@ -2,13 +2,14 @@ package oauth
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
 	"github.com/gofrs/uuid"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/oauth2"
+
+	"github.com/cybericebox/daemon/pkg/secret"
 )
 
 const (
@@ -25,8 +26,13 @@ var (
 type Config struct {
 	Google              ClientConfig
 	RedirectURLTemplate string // e.g. "https://api.example.com/api/auth/%s/callback"
-	StateSignature      string
-	StateTTL            time.Duration
+	// StateKeys are the signing keys of the state, current first (secret.SigningKeys): the first signs, a state with a
+	// kid is read by the key of that id, one without is tried against every key.
+	StateKeys []secret.SigningKey
+	// StateSignature is the single value of the older configuration: with no StateKeys it is the only key and its states
+	// carry no kid. Ignored when StateKeys is set.
+	StateSignature string
+	StateTTL       time.Duration
 }
 
 // ClientConfig holds Google OAuth2 app credentials.
@@ -38,7 +44,7 @@ type ClientConfig struct {
 // Client manages Google OAuth2 flow.
 type Client struct {
 	googleCfg *oauth2.Config
-	signKey   []byte
+	keys      []secret.SigningKey
 	stateTTL  time.Duration
 
 	// usedStates remembers the ids of the states that already came back, until
@@ -52,7 +58,11 @@ type Client struct {
 
 // New constructs a Client, returning an error on invalid config.
 func New(cfg Config) (*Client, error) {
-	if cfg.StateSignature == "" {
+	keys := cfg.StateKeys
+	if len(keys) == 0 && cfg.StateSignature != "" {
+		keys = []secret.SigningKey{{Key: []byte(cfg.StateSignature)}}
+	}
+	if len(keys) == 0 {
 		return nil, ErrEmptyStateSignature
 	}
 	ttl := cfg.StateTTL
@@ -61,7 +71,7 @@ func New(cfg Config) (*Client, error) {
 	}
 	return &Client{
 		googleCfg:  newGoogleClientConfig(cfg.Google, cfg.RedirectURLTemplate),
-		signKey:    []byte(cfg.StateSignature),
+		keys:       keys,
 		stateTTL:   ttl,
 		usedStates: map[string]time.Time{},
 	}, nil
@@ -96,20 +106,14 @@ func (c *Client) newStateToken(redirect string) (string, error) {
 		},
 		Redirect: redirect,
 	}
-	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return tok.SignedString(c.signKey)
+	return secret.SignHS256(claims, c.keys[0])
 }
 
 func (c *Client) parseStateToken(tokenStr string) (*stateClaims, error) {
-	tok, err := jwt.ParseWithClaims(
+	tok, err := secret.ParseHS256(
 		tokenStr,
 		&stateClaims{},
-		func(t *jwt.Token) (any, error) {
-			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, fmt.Errorf("unexpected alg: %v", t.Header["alg"])
-			}
-			return c.signKey, nil
-		},
+		c.keys,
 		jwt.WithIssuer(stateIssuer),
 		jwt.WithExpirationRequired(),
 	)

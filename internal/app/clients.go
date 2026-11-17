@@ -38,6 +38,7 @@ func setupClients(cfg *config.Config) *clients {
 				ClientSecret: cfg.Auth.OAuth.Google.ClientSecret,
 			},
 			RedirectURLTemplate: cfg.Auth.OAuth.RedirectURLTemplate,
+			StateKeys:           cfg.Auth.OAuth.StateKeys,
 			StateSignature:      cfg.Auth.OAuth.StateSignature,
 			StateTTL:            cfg.Auth.OAuth.StateTTL,
 		},
@@ -66,6 +67,7 @@ func setupClients(cfg *config.Config) *clients {
 
 	cls.tokenClient = token.MustNew(
 		token.Config{
+			Keys:           cfg.Auth.SetupTokenKeys,
 			TokenSignature: cfg.Auth.TokenSignature,
 			SetupTokenTTL:  cfg.Auth.SetupTokenTTL,
 		},
