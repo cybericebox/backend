@@ -147,17 +147,26 @@ func TestMaster_WalksEveryPurposeThroughTheTable(t *testing.T) {
 	require.True(t, v.Derived)
 	require.Equal(t, "m1", v.MasterID)
 
-	l := secretkeys.Lifetimes{SessionIdle: 12 * time.Hour, SessionAbsolute: 168 * time.Hour, EventRenderGrant: 5 * time.Minute}
+	l := secretkeys.Lifetimes{SessionIdle: 12 * time.Hour, SessionAbsolute: 168 * time.Hour, EventRenderGrant: 5 * time.Minute,
+		SetupToken: 168 * time.Hour, OAuthState: 15 * time.Minute}
 	m, err := rep.Master("m1", l)
 	require.NoError(t, err)
 	require.False(t, m.AllScannedRetirable, "vpn is not done")
 	require.Len(t, m.Scanned, 3)
-	require.Len(t, m.Unscanned, 1)
+	require.Len(t, m.Unscanned, 3)
 	require.Contains(t, m.Unscanned[0], "session")
 	require.Contains(t, m.Unscanned[0], "SESSION_IDLE_TTL=12h0m0s")
 	require.Contains(t, m.Unscanned[0], "SESSION_ABSOLUTE_TTL=168h0m0s")
 	require.Contains(t, m.Unscanned[0], "5m0s")
 	require.Contains(t, m.Unscanned[0], "cannot know when the instances switched")
+	// the signing purposes store nothing: the rule is a time, printed from the configured lifetimes
+	require.Contains(t, m.Unscanned[1], "jwt-setup")
+	require.Contains(t, m.Unscanned[1], "valid for at most 168h0m0s (the longer of SETUP_TOKEN_TTL and SIGNUP_SETUP_TOKEN_TTL)")
+	require.Contains(t, m.Unscanned[1], "retirable after 168h0m0s since EVERY instance loaded the new master key")
+	require.Contains(t, m.Unscanned[2], "oauth-state")
+	require.Contains(t, m.Unscanned[2], "OAUTH_STATE_TTL=15m0s")
+	require.Contains(t, m.Unscanned[2], "retirable after 15m0s since EVERY instance loaded the new master key")
+	require.NotContains(t, m.Unscanned[1]+m.Unscanned[2], "row", "nothing is scanned: there is no stored value to count")
 
 	// an explicit key has no master rule
 	plain := verdict(t, cleanReport(), secretkeys.FamilyPlatform, "k1")

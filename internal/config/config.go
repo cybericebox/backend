@@ -292,9 +292,14 @@ type (
 		MainSiteURL string `env:"MAIN_SITE_URL"`
 		// TermsURL (TERMS_URL) and PrivacyURL (PRIVACY_URL), optional, are the installation's Terms and Privacy Policy.
 		// Empty means the document does not exist: it is not linked and not required on account creation.
-		TermsURL       string `env:"TERMS_URL"`
-		PrivacyURL     string `env:"PRIVACY_URL"`
+		TermsURL   string `env:"TERMS_URL"`
+		PrivacyURL string `env:"PRIVACY_URL"`
+		// TokenSignature (JWT_TOKEN_SIGNATURE) is deprecated: the signature of the setup links now comes from the master key
+		// (purpose jwt-setup, see SetupTokenKeys). Set next to a master key it only verifies the links already mailed, and
+		// can be removed once SETUP_TOKEN_TTL has passed. Without a master key it is the one signing value, as before.
 		TokenSignature string `env:"JWT_TOKEN_SIGNATURE"`
+		// SetupTokenKeys are the signing keys of the setup links, current first, settled by ResolveKeys.
+		SetupTokenKeys []secret.SigningKey
 		// SetupTokenTTL is the life of a setup link (account setup and invitations).
 		SetupTokenTTL time.Duration `env:"SETUP_TOKEN_TTL" envDefault:"168h"`
 		// SessionIdleTTL is the life of a session cookie after it was issued: a cookie in use is re-issued, so the
@@ -313,6 +318,9 @@ type (
 		SessionEncryptionSeal string `env:"SESSION_ENCRYPTION_SEAL"`
 		// RenderSecret is shared with the event-frontend server, the only caller of /api/render/*. Secret.
 		RenderSecret string `env:"RENDER_SECRET"`
+		// RenderSecretNext (RENDER_SECRET_NEXT) is a second value of the render secret that is accepted too: rotation puts
+		// the new value here, switches the event frontend, then moves it to RENDER_SECRET and clears this one. Empty: off.
+		RenderSecretNext string `env:"RENDER_SECRET_NEXT"`
 		// SessionRevocationStaleAfter is how long the poll of the revoked-session list may keep failing before the
 		// replica refuses signed-in requests rather than trust a stale list.
 		SessionRevocationStaleAfter time.Duration `env:"SESSION_REVOCATION_STALE_AFTER" envDefault:"30s"`
@@ -349,8 +357,13 @@ type (
 	OAuthConfig struct {
 		Google              OAuthProviderConfig `envPrefix:"GOOGLE_"`
 		RedirectURLTemplate string              // derived from Domain in MustGetConfig
-		StateSignature      string              `                    env:"OAUTH_STATE_SIGNATURE"`
-		StateTTL            time.Duration       `                    env:"OAUTH_STATE_TTL"       envDefault:"15m"`
+		// StateSignature (OAUTH_STATE_SIGNATURE) is deprecated: the state is now signed with a key derived from the master
+		// key (purpose oauth-state, see StateKeys). Set next to a master key it only verifies states already issued;
+		// without a master key it is the one signing value, as before.
+		StateSignature string `                    env:"OAUTH_STATE_SIGNATURE"`
+		// StateKeys are the signing keys of the Google sign-in state, current first, settled by ResolveKeys.
+		StateKeys []secret.SigningKey
+		StateTTL  time.Duration `                    env:"OAUTH_STATE_TTL"       envDefault:"15m"`
 	}
 
 	OAuthProviderConfig struct {
@@ -1088,6 +1101,9 @@ func (c MediaConfig) Validate() error {
 	return nil
 }
 
+// MinRenderSecretLen is the shortest RENDER_SECRET (and RENDER_SECRET_NEXT) accepted.
+const MinRenderSecretLen = 32
+
 // ValidateSession checks the session lifetimes and that the cookie key opens as a key or keyring.
 func (c AuthConfig) ValidateSession() error {
 	if c.SessionEncryptionKey == "" {
@@ -1096,8 +1112,16 @@ func (c AuthConfig) ValidateSession() error {
 	if _, err := secret.New(c.SessionEncryptionKey); err != nil {
 		return fmt.Errorf("session: SESSION_ENCRYPTION_KEY is invalid (one 64-hex-char key, or a keyring of id:hex entries): %w", err)
 	}
-	if len(c.RenderSecret) < 32 {
+	if len(c.RenderSecret) < MinRenderSecretLen {
 		return errors.New("render: RENDER_SECRET is required (at least 32 characters, shared with the event frontend)")
+	}
+	if c.RenderSecretNext != "" {
+		if len(c.RenderSecretNext) < MinRenderSecretLen {
+			return fmt.Errorf("render: RENDER_SECRET_NEXT must be at least %d characters", MinRenderSecretLen)
+		}
+		if c.RenderSecretNext == c.RenderSecret {
+			return errors.New("render: RENDER_SECRET_NEXT must differ from RENDER_SECRET")
+		}
 	}
 	if c.SessionIdleTTL < time.Minute {
 		return errors.New("session: SESSION_IDLE_TTL must be at least 1m")
@@ -1125,12 +1149,17 @@ const MinRecaptchaScore = 0.3
 // logged, so a throw-away development key keeps working.
 func (c AuthConfig) Weaknesses() []string {
 	var out []string
-	if len(c.TokenSignature) < MinSigningSecretBytes {
+	// The signing keys come from the master key, or from the explicit value. An explicit value is checked wherever it is
+	// set: next to a master key it still verifies, so a weak one would still be accepted.
+	switch {
+	case c.TokenSignature != "" && len(c.TokenSignature) < MinSigningSecretBytes:
 		out = append(out, fmt.Sprintf("JWT_TOKEN_SIGNATURE must be random and at least %d bytes", MinSigningSecretBytes))
+	case c.TokenSignature == "" && len(c.SetupTokenKeys) == 0:
+		out = append(out, "there is no key for the setup links: set a master key (SECRETS_MASTER_KEY) or JWT_TOKEN_SIGNATURE")
 	}
 	switch {
-	case c.OAuth.Google.ClientID != "" && c.OAuth.StateSignature == "":
-		out = append(out, "GOOGLE_CLIENT_ID is set but OAUTH_STATE_SIGNATURE is empty: Google sign-in would be silently disabled")
+	case c.OAuth.Google.ClientID != "" && c.OAuth.StateSignature == "" && len(c.OAuth.StateKeys) == 0:
+		out = append(out, "GOOGLE_CLIENT_ID is set but there is no key for the sign-in state: set a master key or OAUTH_STATE_SIGNATURE; Google sign-in would be silently disabled")
 	case c.OAuth.StateSignature != "" && len(c.OAuth.StateSignature) < MinSigningSecretBytes:
 		out = append(out, fmt.Sprintf("OAUTH_STATE_SIGNATURE must be random and at least %d bytes", MinSigningSecretBytes))
 	}

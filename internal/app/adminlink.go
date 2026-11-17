@@ -29,7 +29,7 @@ func RunAdminLink(ctx context.Context, cfg *config.Config, out io.Writer) error 
 	}
 	uc := authUseCase.NewAuthUseCase(authUseCase.Dependencies{
 		Repo:   repo,
-		Token:  token.MustNew(token.Config{TokenSignature: cfg.Auth.TokenSignature, SetupTokenTTL: cfg.Auth.SetupTokenTTL}),
+		Token:  token.MustNew(token.Config{Keys: cfg.Auth.SetupTokenKeys, TokenSignature: cfg.Auth.TokenSignature, SetupTokenTTL: cfg.Auth.SetupTokenTTL}),
 		Config: cfg.Auth,
 	})
 	return printAdminLink(ctx, uc, out)
