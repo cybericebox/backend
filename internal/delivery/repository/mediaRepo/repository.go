@@ -14,7 +14,11 @@ import (
 )
 
 type Queries interface {
-	CreateFile(ctx context.Context, arg postgres.CreateFileParams) (postgres.File, error)
+	CreateFile(ctx context.Context, arg postgres.CreateFileParams) (postgres.CreateFileRow, error)
+	GetFileBlob(ctx context.Context, contentHash string) (postgres.GetFileBlobRow, error)
+	AdoptBlobEncryption(ctx context.Context, arg postgres.AdoptBlobEncryptionParams) (int64, error)
+	ListPlainBlobs(ctx context.Context, arg postgres.ListPlainBlobsParams) ([]postgres.ListPlainBlobsRow, error)
+	CountPlainBlobs(ctx context.Context) (int64, error)
 	GetFileByID(ctx context.Context, id uuid.UUID) (postgres.File, error)
 	BlobExists(ctx context.Context, contentHash string) (bool, error)
 	ReplaceFileReferences(ctx context.Context, arg postgres.ReplaceFileReferencesParams) error
@@ -23,7 +27,7 @@ type Queries interface {
 	DeleteFileReferences(ctx context.Context, arg postgres.DeleteFileReferencesParams) (int64, error)
 	DeleteFileReferencesBatch(ctx context.Context, arg postgres.DeleteFileReferencesBatchParams) (int64, error)
 	DeleteUnreferencedFiles(ctx context.Context, createdBefore time.Time) ([]postgres.DeleteUnreferencedFilesRow, error)
-	ListOrphanBlobs(ctx context.Context, touchedBefore time.Time) ([]string, error)
+	ListOrphanBlobs(ctx context.Context, touchedBefore time.Time) ([]postgres.ListOrphanBlobsRow, error)
 	DeleteBlob(ctx context.Context, contentHash string) (int64, error)
 	CreateMediaUpload(ctx context.Context, arg postgres.CreateMediaUploadParams) (postgres.MediaUpload, error)
 	GetMediaUpload(ctx context.Context, id uuid.UUID) (postgres.MediaUpload, error)
@@ -74,10 +78,50 @@ func (r *Repository) DeleteUnreferenced(ctx context.Context, createdBefore time.
 	return err
 }
 
-// ListOrphanBlobs returns content hashes of blobs no file references, older than
-// the cutoff.
-func (r *Repository) ListOrphanBlobs(ctx context.Context, touchedBefore time.Time) ([]string, error) {
-	return r.q.ListOrphanBlobs(ctx, touchedBefore)
+// ListOrphanBlobs returns the blobs no file references, older than the cutoff (the hash and where the object lies).
+func (r *Repository) ListOrphanBlobs(ctx context.Context, touchedBefore time.Time) ([]mediaModel.Blob, error) {
+	rows, err := r.q.ListOrphanBlobs(ctx, touchedBefore)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]mediaModel.Blob, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, mediaModel.Blob{ContentHash: row.ContentHash, ObjectKey: row.ObjectKey})
+	}
+	return out, nil
+}
+
+// GetBlob returns the blob of a content hash; not found propagates the raw repo error.
+func (r *Repository) GetBlob(ctx context.Context, contentHash string) (mediaModel.Blob, error) {
+	row, err := r.q.GetFileBlob(ctx, contentHash)
+	if err != nil {
+		return mediaModel.Blob{}, err
+	}
+	return mediaModel.Blob{ContentHash: row.ContentHash, SizeBytes: row.SizeBytes, ObjectKey: row.ObjectKey, WrappedKey: row.WrappedKey}, nil
+}
+
+// AdoptBlobEncryption moves a blob that is still plain to an encrypted object; false when it no longer is plain.
+func (r *Repository) AdoptBlobEncryption(ctx context.Context, contentHash, objectKey, wrappedKey string) (bool, error) {
+	n, err := r.q.AdoptBlobEncryption(ctx, postgres.AdoptBlobEncryptionParams{ContentHash: contentHash, ObjectKey: objectKey, WrappedKey: wrappedKey})
+	return n == 1, err
+}
+
+// ListPlainBlobs returns up to limit plain blobs after the cursor that the encryption pass has to move.
+func (r *Repository) ListPlainBlobs(ctx context.Context, after string, limit int) ([]mediaModel.Blob, error) {
+	rows, err := r.q.ListPlainBlobs(ctx, postgres.ListPlainBlobsParams{After: after, PublicRefTypes: mediaModel.PublicRefTypes, RowLimit: int32(limit)})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]mediaModel.Blob, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, mediaModel.Blob{ContentHash: row.ContentHash, SizeBytes: row.SizeBytes, ObjectKey: row.ObjectKey})
+	}
+	return out, nil
+}
+
+// CountPlainBlobs counts the blobs stored plain.
+func (r *Repository) CountPlainBlobs(ctx context.Context) (int64, error) {
+	return r.q.CountPlainBlobs(ctx)
 }
 
 // DeleteBlob removes a blob by content hash.
@@ -85,8 +129,12 @@ func (r *Repository) DeleteBlob(ctx context.Context, contentHash string) (int64,
 	return r.q.DeleteBlob(ctx, contentHash)
 }
 
-func (r *Repository) CreateFile(ctx context.Context, f mediaModel.File) (mediaModel.File, error) {
+// CreateFile records the file and the use of its blob. blob is the blob as this caller would create it; when the blob
+// already exists it keeps its own object, and the blob returned is the one that now stands.
+func (r *Repository) CreateFile(ctx context.Context, f mediaModel.File, blob mediaModel.Blob) (mediaModel.File, mediaModel.Blob, error) {
 	row, err := r.q.CreateFile(ctx, postgres.CreateFileParams{
+		ObjectKey:   blob.ObjectKey,
+		WrappedKey:  blob.WrappedKey,
 		ID:          f.ID,
 		Name:        f.Name,
 		ContentType: f.ContentType,
@@ -96,9 +144,13 @@ func (r *Repository) CreateFile(ctx context.Context, f mediaModel.File) (mediaMo
 		CreatedBy:   f.CreatedBy,
 	})
 	if err != nil {
-		return mediaModel.File{}, err
+		return mediaModel.File{}, mediaModel.Blob{}, err
 	}
-	return ToDomain(row), nil
+	file := ToDomain(postgres.File{
+		ID: row.ID, Name: row.Name, ContentType: row.ContentType, SizeBytes: row.SizeBytes, ContentHash: row.ContentHash,
+		CreatedAt: row.CreatedAt, CreatedBy: row.CreatedBy,
+	})
+	return file, mediaModel.Blob{ContentHash: row.ContentHash, SizeBytes: row.SizeBytes, ObjectKey: row.BlobObjectKey, WrappedKey: row.BlobWrappedKey}, nil
 }
 
 func (r *Repository) GetFileByID(ctx context.Context, id uuid.UUID) (mediaModel.File, error) {
@@ -127,7 +179,7 @@ func uploadToDomain(row postgres.MediaUpload) mediaModel.Upload {
 	return mediaModel.Upload{
 		ID: row.ID, CreatedBy: row.CreatedBy, Name: row.Name, ContentType: row.ContentType, SizeBytes: row.SizeBytes,
 		ChunkBytes: row.ChunkBytes, ChunksReceived: int(row.ChunksReceived), CreatedAt: row.CreatedAt, ExpiresAt: row.ExpiresAt,
-		Purpose: mediaModel.UploadPurpose(row.Purpose),
+		Purpose: mediaModel.UploadPurpose(row.Purpose), WrappedKey: row.WrappedKey,
 	}
 }
 
@@ -135,7 +187,7 @@ func uploadToDomain(row postgres.MediaUpload) mediaModel.Upload {
 func (r *Repository) CreateUpload(ctx context.Context, u mediaModel.Upload) (mediaModel.Upload, error) {
 	row, err := r.q.CreateMediaUpload(ctx, postgres.CreateMediaUploadParams{
 		ID: u.ID, CreatedBy: u.CreatedBy, Name: u.Name, ContentType: u.ContentType, SizeBytes: u.SizeBytes,
-		ChunkBytes: u.ChunkBytes, CreatedAt: u.CreatedAt, ExpiresAt: u.ExpiresAt, Purpose: string(u.Purpose),
+		ChunkBytes: u.ChunkBytes, CreatedAt: u.CreatedAt, ExpiresAt: u.ExpiresAt, Purpose: string(u.Purpose), WrappedKey: u.WrappedKey,
 	})
 	if err != nil {
 		return mediaModel.Upload{}, err

@@ -157,6 +157,7 @@ type (
 		ExerciseCipher *secret.Cipher // exercise secret env vars
 		VPNCipher      *secret.Cipher // VPN client configs
 		PlatformCipher *secret.Cipher // platform settings secrets (SMTP, image registry tokens)
+		FilesCipher    *secret.Cipher // wraps the per-file keys of the files bucket
 		// PlatformRegistry is the platform's own image registry (PLATFORM_REGISTRY_*); zero: the provider settings.
 		PlatformRegistry imageRegistryUseCase.OwnRegistry
 		// LabAgent is the infrastructure port, the agent fleet; nil in tests without infrastructure.
@@ -280,9 +281,10 @@ func NewUseCase(deps Dependencies) *UseCase {
 	// (inline CID parts), and the aggregate exposes it for the periodic GC job.
 	mediaUC := mediaUseCase.NewMediaUseCase(
 		mediaUseCase.Dependencies{
-			Repo:    deps.Repo,
-			Storage: deps.Storage,
-			Config:  deps.MediaConfig,
+			Repo:        deps.Repo,
+			Storage:     deps.Storage,
+			FilesSealer: deps.FilesCipher,
+			Config:      deps.MediaConfig,
 		},
 	)
 

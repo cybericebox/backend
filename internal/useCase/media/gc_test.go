@@ -21,13 +21,13 @@ func TestCleanupOrphanFiles_RemovesBlobsFromStorage(t *testing.T) {
 	st.objects[mediaModel.BlobKey("dead-hash")] = []byte("x")
 
 	uc := media.NewMediaUseCase(media.Dependencies{
-		Repo: q, Storage: st,
+		Repo: q, Storage: st, FilesSealer: testSealer(t),
 		Config: config.MediaConfig{MaxUploadBytes: 1, GCGrace: 24 * time.Hour},
 	})
 
 	q.EXPECT().ListExpiredMediaUploads(gomock.Any(), gomock.Any()).Return(nil, nil)
 	q.EXPECT().DeleteUnreferencedFiles(gomock.Any(), gomock.Any()).Return(nil, nil)
-	q.EXPECT().ListOrphanBlobs(gomock.Any(), gomock.Any()).Return([]string{"dead-hash"}, nil)
+	q.EXPECT().ListOrphanBlobs(gomock.Any(), gomock.Any()).Return([]postgres.ListOrphanBlobsRow{{ContentHash: "dead-hash"}}, nil)
 	q.EXPECT().DeleteBlob(gomock.Any(), "dead-hash").Return(int64(1), nil)
 
 	if err := uc.CleanupOrphanFiles(context.Background()); err != nil {
@@ -49,7 +49,7 @@ func TestCleanupOrphanFiles_SameGraceCutoffForFilesAndBlobs(t *testing.T) {
 	st := newFakeStorage()
 
 	uc := media.NewMediaUseCase(media.Dependencies{
-		Repo: q, Storage: st,
+		Repo: q, Storage: st, FilesSealer: testSealer(t),
 		Config: config.MediaConfig{MaxUploadBytes: 1, GCGrace: 24 * time.Hour},
 	})
 
@@ -62,7 +62,7 @@ func TestCleanupOrphanFiles_SameGraceCutoffForFilesAndBlobs(t *testing.T) {
 		},
 	)
 	q.EXPECT().ListOrphanBlobs(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, touchedBefore time.Time) ([]string, error) {
+		func(_ context.Context, touchedBefore time.Time) ([]postgres.ListOrphanBlobsRow, error) {
 			blobsCutoff = touchedBefore
 			return nil, nil
 		},

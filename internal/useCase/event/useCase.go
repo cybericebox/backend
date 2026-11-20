@@ -354,6 +354,7 @@ type Dependencies struct {
 // BrandMedia owns the event logo reference independently of email template images.
 type BrandMedia interface {
 	UploadFile(context.Context, string, string, io.Reader, uuid.UUID) (mediaModel.File, error)
+	UploadPublicImage(context.Context, string, string, io.Reader, uuid.UUID) (mediaModel.File, error)
 	GetFile(context.Context, uuid.UUID) (mediaModel.File, error)
 	StreamFile(context.Context, uuid.UUID) (io.ReadCloser, mediaModel.File, error)
 	GetReferences(context.Context, string, uuid.UUID) ([]uuid.UUID, error)

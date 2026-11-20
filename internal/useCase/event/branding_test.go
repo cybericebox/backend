@@ -37,6 +37,10 @@ type brandMediaFake struct {
 	blob        []byte
 }
 
+func (m *brandMediaFake) UploadPublicImage(ctx context.Context, name, contentType string, r io.Reader, by uuid.UUID) (mediaModel.File, error) {
+	return m.UploadFile(ctx, name, contentType, r, by)
+}
+
 func (m *brandMediaFake) UploadFile(_ context.Context, name, contentType string, _ io.Reader, by uuid.UUID) (mediaModel.File, error) {
 	m.mime = contentType
 	m.file.Name = name

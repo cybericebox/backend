@@ -77,7 +77,7 @@ func (u *EventUseCase) UploadEventLogo(ctx context.Context, eventID, userID uuid
 	if err = mediaModel.CheckImagePixels(data); err != nil {
 		return "", err
 	}
-	file, err := u.brandMedia.UploadFile(ctx, "event-logo", contentType, bytes.NewReader(data), userID)
+	file, err := u.brandMedia.UploadPublicImage(ctx, "event-logo", contentType, bytes.NewReader(data), userID)
 	if err != nil {
 		return "", err
 	}
@@ -128,7 +128,7 @@ func (u *EventUseCase) UploadEventPreviewPicture(ctx context.Context, eventID, u
 	if err = mediaModel.CheckImagePixels(data); err != nil {
 		return "", err
 	}
-	file, err := u.brandMedia.UploadFile(ctx, "event-preview-picture", contentType, bytes.NewReader(data), userID)
+	file, err := u.brandMedia.UploadPublicImage(ctx, "event-preview-picture", contentType, bytes.NewReader(data), userID)
 	if err != nil {
 		return "", err
 	}

@@ -110,7 +110,7 @@ func (u *EventUseCase) UploadEventBrandDraft(ctx context.Context, eventID, userI
 			return uuid.Nil, err
 		}
 	}
-	file, err := u.brandMedia.UploadFile(ctx, brandDraftName(eventID, kind), contentType, bytes.NewReader(data), userID)
+	file, err := u.brandMedia.UploadPublicImage(ctx, brandDraftName(eventID, kind), contentType, bytes.NewReader(data), userID)
 	if err != nil {
 		return uuid.Nil, err
 	}

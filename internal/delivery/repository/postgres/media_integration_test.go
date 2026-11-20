@@ -24,7 +24,8 @@ func TestMedia_RefcountAndGC(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CreateFile: %v", err)
 		}
-		return row
+		return postgres.File{ID: row.ID, Name: row.Name, ContentType: row.ContentType, SizeBytes: row.SizeBytes,
+			ContentHash: row.ContentHash, CreatedAt: row.CreatedAt, CreatedBy: row.CreatedBy}
 	}
 
 	f1 := mk("hash-a", now.Add(-48*time.Hour))
@@ -82,7 +83,7 @@ func TestMedia_RefcountAndGC(t *testing.T) {
 	}
 	graceCutoff := now.Add(-24 * time.Hour)
 	orphans, err := db.Queries.ListOrphanBlobs(ctx, graceCutoff)
-	if err != nil || len(orphans) != 1 || orphans[0] != "hash-a" {
+	if err != nil || len(orphans) != 1 || orphans[0].ContentHash != "hash-a" {
 		t.Fatalf("orphans: %v err=%v", orphans, err)
 	}
 	if n, err := db.Queries.DeleteBlob(ctx, "hash-a"); err != nil || n != 1 {
@@ -114,14 +115,14 @@ func TestMedia_RefcountAndGC(t *testing.T) {
 		t.Fatalf("ListOrphanBlobs after touch: %v", err)
 	}
 	for _, h := range orphans {
-		if h == hashD {
+		if h.ContentHash == hashD {
 			t.Fatalf("freshly touched orphan blob %q must not be listed for GC removal: %v", hashD, orphans)
 		}
 	}
 	// Once the touch itself ages past the grace window with no further
 	// activity, the same blob is genuinely stale and must be listed again.
 	orphans, err = db.Queries.ListOrphanBlobs(ctx, now.Add(48*time.Hour))
-	if err != nil || len(orphans) != 1 || orphans[0] != hashD {
+	if err != nil || len(orphans) != 1 || orphans[0].ContentHash != hashD {
 		t.Fatalf("stale-touch orphan blob must be listed once its own grace expires: orphans=%v err=%v", orphans, err)
 	}
 	if n, err := db.Queries.DeleteBlob(ctx, hashD); err != nil || n != 1 {
@@ -148,7 +149,8 @@ func TestMedia_GetFileReferenceIDs_OrderedNewestFirst(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CreateFile: %v", err)
 		}
-		return row
+		return postgres.File{ID: row.ID, Name: row.Name, ContentType: row.ContentType, SizeBytes: row.SizeBytes,
+			ContentHash: row.ContentHash, CreatedAt: row.CreatedAt, CreatedBy: row.CreatedBy}
 	}
 
 	older := mk("hash-old", now.Add(-time.Hour))
@@ -196,5 +198,78 @@ func TestMedia_GetFileReferenceIDs_OrderedNewestFirst(t *testing.T) {
 	})
 	if err != nil || len(tieIDs) != 2 || tieIDs[0] != wantFirst || tieIDs[1] != wantSecond {
 		t.Fatalf("equal-created_at tiebreak must be file_id DESC: want [%v %v], got %v (err=%v)", wantFirst, wantSecond, tieIDs, err)
+	}
+}
+
+// The blob keeps the object and the wrapped key of whoever created it, a plain blob is moved once, and the encryption pass lists
+// every plain blob except one that only public images use.
+func TestEncryptedBlobQueries(t *testing.T) {
+	db := testhelpers.SetupTestDB(t)
+	ctx := context.Background()
+	now := time.Date(2026, 11, 20, 10, 0, 0, 0, time.UTC)
+
+	create := func(hash, objectKey, wrapped string) postgres.CreateFileRow {
+		row, err := db.Queries.CreateFile(ctx, postgres.CreateFileParams{
+			ID: uuid.Must(uuid.NewV7()), Name: "f", ContentType: "t", SizeBytes: 3, ContentHash: hash, CreatedAt: now,
+			ObjectKey: objectKey, WrappedKey: wrapped,
+		})
+		if err != nil {
+			t.Fatalf("CreateFile: %v", err)
+		}
+		return row
+	}
+	reference := func(kind string, fileID uuid.UUID) {
+		if err := db.Queries.ReplaceFileReferences(ctx, postgres.ReplaceFileReferencesParams{
+			RefType: kind, RefID: uuid.Must(uuid.NewV7()), FileIds: []uuid.UUID{fileID},
+		}); err != nil {
+			t.Fatalf("ReplaceFileReferences: %v", err)
+		}
+	}
+
+	first := create("hash-a", "media/enc/a", "wrapped-1")
+	second := create("hash-a", "media/enc/b", "wrapped-2") // a dedup hit: the blob keeps the first writer's object and key
+	if first.BlobObjectKey != "media/enc/a" || second.BlobObjectKey != "media/enc/a" || second.BlobWrappedKey != "wrapped-1" {
+		t.Fatalf("the standing blob must be returned to the later writer: %+v / %+v", first, second)
+	}
+
+	create("hash-p", "", "") // plain, no owner yet
+	logo := create("hash-l", "", "")
+	reference("event_logo", logo.ID)
+	shared := create("hash-m", "", "")
+	reference("event_logo", shared.ID)
+	reference("exercise_version", shared.ID) // a public image and a private file share these bytes
+
+	public := []string{"event_logo", "event_favicon", "event_preview_picture", "event_content_image"}
+	list := func(after string) []string {
+		rows, err := db.Queries.ListPlainBlobs(ctx, postgres.ListPlainBlobsParams{After: after, PublicRefTypes: public, RowLimit: 10})
+		if err != nil {
+			t.Fatalf("ListPlainBlobs: %v", err)
+		}
+		var out []string
+		for _, r := range rows {
+			out = append(out, r.ContentHash)
+		}
+		return out
+	}
+	if got := list(""); len(got) != 2 || got[0] != "hash-m" || got[1] != "hash-p" {
+		t.Fatalf("the pass must list the shared and the unowned blob, not the logo or the encrypted one: %v", got)
+	}
+	if got := list("hash-m"); len(got) != 1 || got[0] != "hash-p" {
+		t.Fatalf("after the cursor: %v", got)
+	}
+
+	moved, err := db.Queries.AdoptBlobEncryption(ctx, postgres.AdoptBlobEncryptionParams{ContentHash: "hash-p", ObjectKey: "media/enc/p", WrappedKey: "wrapped-p"})
+	if err != nil || moved != 1 {
+		t.Fatalf("a plain blob moves once: %d %v", moved, err)
+	}
+	if moved, err = db.Queries.AdoptBlobEncryption(ctx, postgres.AdoptBlobEncryptionParams{ContentHash: "hash-p", ObjectKey: "media/enc/other", WrappedKey: "x"}); err != nil || moved != 0 {
+		t.Fatalf("an encrypted blob must not be overwritten: %d %v", moved, err)
+	}
+	blob, err := db.Queries.GetFileBlob(ctx, "hash-p")
+	if err != nil || blob.ObjectKey != "media/enc/p" || blob.WrappedKey != "wrapped-p" {
+		t.Fatalf("blob %+v %v", blob, err)
+	}
+	if n, err := db.Queries.CountPlainBlobs(ctx); err != nil || n != 2 { // hash-l and hash-m
+		t.Fatalf("plain blobs left: %d %v", n, err)
 	}
 }

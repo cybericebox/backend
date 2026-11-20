@@ -7,7 +7,6 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/cybericebox/daemon/internal/model"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
 )
 
 // CleanupOrphanFiles is the GC pass: drop grace-expired unreferenced files,
@@ -39,11 +38,13 @@ func (u *MediaUseCase) CleanupOrphanFiles(ctx context.Context) error {
 	if err != nil {
 		return model.ErrPlatform.WithError(err).WithMessage("Failed to list orphan blobs").Err()
 	}
-	for _, hash := range orphans {
-		if err = u.storage.Remove(ctx, mediaModel.BlobKey(hash)); err != nil {
+	for _, blob := range orphans {
+		hash := blob.ContentHash
+		if err = u.storage.Remove(ctx, blob.Key()); err != nil {
 			log.Warn().Err(err).Str("blob", hash).Msg("media gc: blob removal failed, will retry next pass")
 			continue
 		}
+		// The row goes with the wrapped key: from here nothing can read a copy of the object that a versioned bucket keeps.
 		if _, err = u.files.DeleteBlob(ctx, hash); err != nil {
 			return model.ErrPlatform.WithError(err).WithMessage("Failed to delete blob row").Err()
 		}

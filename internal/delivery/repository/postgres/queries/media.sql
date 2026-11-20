@@ -4,15 +4,69 @@
 -- call's `now` — both on first insert and on a dedup-hit conflict — so GC's
 -- orphan listing (ListOrphanBlobs) never targets a blob a concurrent upload
 -- just referenced (see file_blobs.touched_at, migration 0015).
+-- object_key and wrapped_key are those of the blob when it is created; on a
+-- dedup hit the blob keeps its own, and the row returned says which they are,
+-- so the caller can drop the object it stored if it lost the race.
 WITH blob AS (
-    INSERT INTO file_blobs (content_hash, size_bytes, ref_count, created_at, touched_at)
-        VALUES (sqlc.arg(content_hash), sqlc.arg(size_bytes), 1, sqlc.arg(created_at), sqlc.arg(created_at))
-        ON CONFLICT (content_hash) DO UPDATE SET ref_count = file_blobs.ref_count + 1, touched_at = excluded.touched_at)
-INSERT
-INTO files (id, name, content_type, size_bytes, content_hash, created_at, created_by)
-VALUES (sqlc.arg(id), sqlc.arg(name), sqlc.arg(content_type), sqlc.arg(size_bytes), sqlc.arg(content_hash),
-        sqlc.arg(created_at), sqlc.arg(created_by))
-RETURNING *;
+    INSERT INTO file_blobs (content_hash, size_bytes, ref_count, created_at, touched_at, object_key, wrapped_key)
+        VALUES (sqlc.arg(content_hash), sqlc.arg(size_bytes), 1, sqlc.arg(created_at), sqlc.arg(created_at),
+                sqlc.arg(object_key), sqlc.arg(wrapped_key))
+        ON CONFLICT (content_hash) DO UPDATE SET ref_count = file_blobs.ref_count + 1, touched_at = excluded.touched_at
+        RETURNING object_key, wrapped_key),
+     created AS (
+         INSERT INTO files (id, name, content_type, size_bytes, content_hash, created_at, created_by)
+             VALUES (sqlc.arg(id), sqlc.arg(name), sqlc.arg(content_type), sqlc.arg(size_bytes), sqlc.arg(content_hash),
+                     sqlc.arg(created_at), sqlc.arg(created_by))
+             RETURNING id, name, content_type, size_bytes, content_hash, created_at, created_by)
+SELECT created.id,
+       created.name,
+       created.content_type,
+       created.size_bytes,
+       created.content_hash,
+       created.created_at,
+       created.created_by,
+       blob.object_key  AS blob_object_key,
+       blob.wrapped_key AS blob_wrapped_key
+FROM created,
+     blob;
+
+-- name: GetFileBlob :one
+SELECT content_hash, size_bytes, object_key, wrapped_key
+FROM file_blobs
+WHERE content_hash = $1;
+
+-- name: AdoptBlobEncryption :execrows
+-- Moves a plain blob to an encrypted object: only while the blob is still plain, so of two writers one wins.
+UPDATE file_blobs
+SET object_key  = sqlc.arg(object_key),
+    wrapped_key = sqlc.arg(wrapped_key)
+WHERE content_hash = sqlc.arg(content_hash)
+  AND wrapped_key = '';
+
+-- name: ListPlainBlobs :many
+-- The blobs still stored plain that the encryption pass has to move, after the cursor: every plain blob except one that
+-- only public images use (some file of it is referenced by a public kind and none by any other).
+SELECT b.content_hash, b.size_bytes, b.object_key
+FROM file_blobs b
+WHERE b.wrapped_key = ''
+  AND b.content_hash > sqlc.arg(after)
+  AND NOT (EXISTS (SELECT 1
+                   FROM files f
+                            JOIN file_references r ON r.file_id = f.id
+                   WHERE f.content_hash = b.content_hash
+                     AND r.ref_type = ANY (sqlc.arg(public_ref_types)::text[]))
+    AND NOT EXISTS (SELECT 1
+                    FROM files f
+                             JOIN file_references r ON r.file_id = f.id
+                    WHERE f.content_hash = b.content_hash
+                      AND NOT (r.ref_type = ANY (sqlc.arg(public_ref_types)::text[]))))
+ORDER BY b.content_hash
+LIMIT sqlc.arg(row_limit);
+
+-- name: CountPlainBlobs :one
+SELECT count(*)::bigint
+FROM file_blobs
+WHERE wrapped_key = '';
 
 -- name: GetFileByID :one
 SELECT *
@@ -88,7 +142,7 @@ RETURNING b.content_hash, b.ref_count;
 -- uses) gives a concurrent dedup upload of this exact content a grace window
 -- to complete its CreateFile bump before GC ever considers the blob a
 -- deletion candidate — see file_blobs.touched_at, migration 0015.
-SELECT content_hash
+SELECT content_hash, object_key
 FROM file_blobs
 WHERE ref_count <= 0
   AND touched_at < sqlc.arg(touched_before);

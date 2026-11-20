@@ -18,6 +18,8 @@ type Querier interface {
 	// An email image is owned by its draft as soon as it is uploaded. Inserting
 	// one link avoids a read/replace race when uploads finish concurrently.
 	AddFileReference(ctx context.Context, arg AddFileReferenceParams) error
+	// Moves a plain blob to an encrypted object: only while the blob is still plain, so of two writers one wins.
+	AdoptBlobEncryption(ctx context.Context, arg AdoptBlobEncryptionParams) (int64, error)
 	AdvanceAssistantRunSeq(ctx context.Context, arg AdvanceAssistantRunSeqParams) (int64, error)
 	AdvanceEventResultRevision(ctx context.Context, arg AdvanceEventResultRevisionParams) (AdvanceEventResultRevisionRow, error)
 	// A chunk is accepted only as the next one in order; zero rows means the client is out of step (it reads the
@@ -165,6 +167,7 @@ type Querier interface {
 	CountPendingExerciseResourceElevations(ctx context.Context) (int64, error)
 	CountPendingResourceChangeRequests(ctx context.Context) (int64, error)
 	CountPendingTeamInvitations(ctx context.Context, arg CountPendingTeamInvitationsParams) (int64, error)
+	CountPlainBlobs(ctx context.Context) (int64, error)
 	// The stand counts split by kind: moderators = the moderators team stand, else an event team stand.
 	CountPlatformStandsByKindStatus(ctx context.Context) ([]CountPlatformStandsByKindStatusRow, error)
 	CountPlatformStandsByStatus(ctx context.Context) ([]CountPlatformStandsByStatusRow, error)
@@ -257,7 +260,10 @@ type Querier interface {
 	// call's `now` — both on first insert and on a dedup-hit conflict — so GC's
 	// orphan listing (ListOrphanBlobs) never targets a blob a concurrent upload
 	// just referenced (see file_blobs.touched_at, migration 0015).
-	CreateFile(ctx context.Context, arg CreateFileParams) (File, error)
+	// object_key and wrapped_key are those of the blob when it is created; on a
+	// dedup hit the blob keeps its own, and the row returned says which they are,
+	// so the caller can drop the object it stored if it lost the race.
+	CreateFile(ctx context.Context, arg CreateFileParams) (CreateFileRow, error)
 	// Idempotent per team and hint: a repeated unlock returns the first one.
 	CreateHintUnlock(ctx context.Context, arg CreateHintUnlockParams) (CreateHintUnlockRow, error)
 	// An empty category stores the default tab (personal). A request whose
@@ -661,6 +667,7 @@ type Querier interface {
 	GetExerciseProposal(ctx context.Context, id uuid.UUID) (ExerciseProposal, error)
 	GetExerciseResourceElevation(ctx context.Context, id uuid.UUID) (ExerciseResourceElevation, error)
 	GetExerciseVersionByID(ctx context.Context, id uuid.UUID) (ExerciseVersion, error)
+	GetFileBlob(ctx context.Context, contentHash string) (GetFileBlobRow, error)
 	GetFileByID(ctx context.Context, id uuid.UUID) (File, error)
 	// Read path for an owner's current file set (e.g. resolving a user's avatar
 	// file before streaming it). Ordered newest-file-first (files.created_at
@@ -1446,7 +1453,7 @@ type Querier interface {
 	// uses) gives a concurrent dedup upload of this exact content a grace window
 	// to complete its CreateFile bump before GC ever considers the blob a
 	// deletion candidate — see file_blobs.touched_at, migration 0015.
-	ListOrphanBlobs(ctx context.Context, touchedBefore time.Time) ([]string, error)
+	ListOrphanBlobs(ctx context.Context, touchedBefore time.Time) ([]ListOrphanBlobsRow, error)
 	ListOrphanEventLabs(ctx context.Context, limitVal int32) ([]EventTeamLab, error)
 	// The caller's team roster with each member's public name (pseudonym when
 	// allowed and set, else the real name). Captain first, then by name.
@@ -1473,6 +1480,9 @@ type Querier interface {
 	ListPendingLabGroupCleanupRequests(ctx context.Context) ([]string, error)
 	ListPendingStoppedEventTeamLabs(ctx context.Context, arg ListPendingStoppedEventTeamLabsParams) ([]EventTeamLab, error)
 	ListPendingTeamInvitations(ctx context.Context, arg ListPendingTeamInvitationsParams) ([]ListPendingTeamInvitationsRow, error)
+	// The blobs still stored plain that the encryption pass has to move, after the cursor: every plain blob except one that
+	// only public images use (some file of it is referenced by a public kind and none by any other).
+	ListPlainBlobs(ctx context.Context, arg ListPlainBlobsParams) ([]ListPlainBlobsRow, error)
 	// Active platform administrators (super admins and admins; read-only admin
 	// viewers cannot act on requests).
 	ListPlatformAdminUserIDs(ctx context.Context) ([]uuid.UUID, error)

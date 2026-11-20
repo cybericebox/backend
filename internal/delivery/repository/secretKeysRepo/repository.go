@@ -142,6 +142,31 @@ func (r *Repository) VPNConfigs(ctx context.Context, visit func(userID uuid.UUID
 		})
 }
 
+// FileBlobKeys visits the wrapped key of every encrypted blob (file_blobs.wrapped_key), with the content hash it is bound to.
+func (r *Repository) FileBlobKeys(ctx context.Context, visit func(contentHash, ciphertext string) error) error {
+	return r.each(ctx, `SELECT content_hash, wrapped_key FROM file_blobs WHERE wrapped_key <> ''`,
+		func(row interface{ Scan(...any) error }) error {
+			var hash, ct string
+			if err := row.Scan(&hash, &ct); err != nil {
+				return err
+			}
+			return visit(hash, ct)
+		})
+}
+
+// UploadKeys visits the wrapped key of every upload in progress that has one (media_uploads.wrapped_key).
+func (r *Repository) UploadKeys(ctx context.Context, visit func(id uuid.UUID, ciphertext string) error) error {
+	return r.each(ctx, `SELECT id, wrapped_key FROM media_uploads WHERE wrapped_key <> ''`,
+		func(row interface{ Scan(...any) error }) error {
+			var id uuid.UUID
+			var ct string
+			if err := row.Scan(&id, &ct); err != nil {
+				return err
+			}
+			return visit(id, ct)
+		})
+}
+
 // ExerciseVersions visits the variants document of every exercise version that holds a secret env value; the secrets
 // are sealed inside it (topology.devices[].bootstrap.env[]).
 func (r *Repository) ExerciseVersions(ctx context.Context, visit func(versionID uuid.UUID, variants []byte) error) error {

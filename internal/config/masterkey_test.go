@@ -22,7 +22,7 @@ func TestOneMasterKeyGivesEveryPurposeItsOwnKey(t *testing.T) {
 	require.NoError(t, c.ResolveKeys())
 	specs := map[string]string{
 		"session": c.Auth.SessionEncryptionKey, "platform": c.Platform.SecretsKey,
-		"vpn": c.VPN.SecretsKey, "exercise": c.Exercise.SecretsKey,
+		"vpn": c.VPN.SecretsKey, "exercise": c.Exercise.SecretsKey, "files": c.Files.SecretsKey,
 	}
 	seen := map[string]string{}
 	for name, spec := range specs {

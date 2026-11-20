@@ -87,6 +87,21 @@ func (mr *MockQuerierMockRecorder) AddFileReference(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddFileReference", reflect.TypeOf((*MockQuerier)(nil).AddFileReference), ctx, arg)
 }
 
+// AdoptBlobEncryption mocks base method.
+func (m *MockQuerier) AdoptBlobEncryption(ctx context.Context, arg postgres.AdoptBlobEncryptionParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AdoptBlobEncryption", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AdoptBlobEncryption indicates an expected call of AdoptBlobEncryption.
+func (mr *MockQuerierMockRecorder) AdoptBlobEncryption(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AdoptBlobEncryption", reflect.TypeOf((*MockQuerier)(nil).AdoptBlobEncryption), ctx, arg)
+}
+
 // AdvanceAssistantRunSeq mocks base method.
 func (m *MockQuerier) AdvanceAssistantRunSeq(ctx context.Context, arg postgres.AdvanceAssistantRunSeqParams) (int64, error) {
 	m.ctrl.T.Helper()
@@ -1249,6 +1264,21 @@ func (mr *MockQuerierMockRecorder) CountPendingTeamInvitations(ctx, arg any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountPendingTeamInvitations", reflect.TypeOf((*MockQuerier)(nil).CountPendingTeamInvitations), ctx, arg)
 }
 
+// CountPlainBlobs mocks base method.
+func (m *MockQuerier) CountPlainBlobs(ctx context.Context) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountPlainBlobs", ctx)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountPlainBlobs indicates an expected call of CountPlainBlobs.
+func (mr *MockQuerierMockRecorder) CountPlainBlobs(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountPlainBlobs", reflect.TypeOf((*MockQuerier)(nil).CountPlainBlobs), ctx)
+}
+
 // CountPlatformStandsByKindStatus mocks base method.
 func (m *MockQuerier) CountPlatformStandsByKindStatus(ctx context.Context) ([]postgres.CountPlatformStandsByKindStatusRow, error) {
 	m.ctrl.T.Helper()
@@ -2065,10 +2095,10 @@ func (mr *MockQuerierMockRecorder) CreateExerciseTestDeploy(ctx, arg any) *gomoc
 }
 
 // CreateFile mocks base method.
-func (m *MockQuerier) CreateFile(ctx context.Context, arg postgres.CreateFileParams) (postgres.File, error) {
+func (m *MockQuerier) CreateFile(ctx context.Context, arg postgres.CreateFileParams) (postgres.CreateFileRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateFile", ctx, arg)
-	ret0, _ := ret[0].(postgres.File)
+	ret0, _ := ret[0].(postgres.CreateFileRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -5719,6 +5749,21 @@ func (m *MockQuerier) GetExerciseVersionByID(ctx context.Context, id uuid.UUID) 
 func (mr *MockQuerierMockRecorder) GetExerciseVersionByID(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExerciseVersionByID", reflect.TypeOf((*MockQuerier)(nil).GetExerciseVersionByID), ctx, id)
+}
+
+// GetFileBlob mocks base method.
+func (m *MockQuerier) GetFileBlob(ctx context.Context, contentHash string) (postgres.GetFileBlobRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetFileBlob", ctx, contentHash)
+	ret0, _ := ret[0].(postgres.GetFileBlobRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetFileBlob indicates an expected call of GetFileBlob.
+func (mr *MockQuerierMockRecorder) GetFileBlob(ctx, contentHash any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFileBlob", reflect.TypeOf((*MockQuerier)(nil).GetFileBlob), ctx, contentHash)
 }
 
 // GetFileByID mocks base method.
@@ -10590,10 +10635,10 @@ func (mr *MockQuerierMockRecorder) ListOpenResourceAlarmsOfReservation(ctx, rese
 }
 
 // ListOrphanBlobs mocks base method.
-func (m *MockQuerier) ListOrphanBlobs(ctx context.Context, touchedBefore time.Time) ([]string, error) {
+func (m *MockQuerier) ListOrphanBlobs(ctx context.Context, touchedBefore time.Time) ([]postgres.ListOrphanBlobsRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListOrphanBlobs", ctx, touchedBefore)
-	ret0, _ := ret[0].([]string)
+	ret0, _ := ret[0].([]postgres.ListOrphanBlobsRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -10797,6 +10842,21 @@ func (m *MockQuerier) ListPendingTeamInvitations(ctx context.Context, arg postgr
 func (mr *MockQuerierMockRecorder) ListPendingTeamInvitations(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListPendingTeamInvitations", reflect.TypeOf((*MockQuerier)(nil).ListPendingTeamInvitations), ctx, arg)
+}
+
+// ListPlainBlobs mocks base method.
+func (m *MockQuerier) ListPlainBlobs(ctx context.Context, arg postgres.ListPlainBlobsParams) ([]postgres.ListPlainBlobsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListPlainBlobs", ctx, arg)
+	ret0, _ := ret[0].([]postgres.ListPlainBlobsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListPlainBlobs indicates an expected call of ListPlainBlobs.
+func (mr *MockQuerierMockRecorder) ListPlainBlobs(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListPlainBlobs", reflect.TypeOf((*MockQuerier)(nil).ListPlainBlobs), ctx, arg)
 }
 
 // ListPlatformAdminUserIDs mocks base method.

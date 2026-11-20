@@ -38,6 +38,50 @@ const RefTypeEmailTemplate = "notification_email_template"
 // block preset: the uploaded images its image blocks use.
 const RefTypeEmailBlockPreset = "notification_email_block_preset"
 
+// PublicRefTypes are the kinds of file that are public images: an event logo, favicon, preview picture or page image, and
+// the images of an email template or block preset. They are served to anyone who opens the page or the mail, so they are
+// stored plain; every other kind of file (task files and archives, exports, avatars, participants' answer files, whatever
+// has no owner yet) is stored encrypted. A kind that is not listed here is encrypted, so a new kind is private by default.
+var PublicRefTypes = []string{
+	RefTypeEventLogo,
+	RefTypeEventFavicon,
+	RefTypeEventPreviewPicture,
+	RefTypeEventContentImage,
+	RefTypeEmailTemplate,
+	RefTypeEmailBlockPreset,
+}
+
+// IsPublicRefType reports whether files of the kind are public images.
+func IsPublicRefType(refType string) bool {
+	for _, t := range PublicRefTypes {
+		if t == refType {
+			return true
+		}
+	}
+	return false
+}
+
+// Blob is the stored object behind one or more files (they share it by content hash).
+type Blob struct {
+	ContentHash string
+	SizeBytes   int64
+	// ObjectKey is where the object lies; empty means the older place BlobKey(ContentHash).
+	ObjectKey string
+	// WrappedKey is the key of the object, wrapped with the `files` purpose key; empty means the object is plain.
+	WrappedKey string
+}
+
+// Encrypted reports whether the object is stored encrypted.
+func (b Blob) Encrypted() bool { return b.WrappedKey != "" }
+
+// Key is the object key of the blob in the bucket.
+func (b Blob) Key() string {
+	if b.ObjectKey != "" {
+		return b.ObjectKey
+	}
+	return BlobKey(b.ContentHash)
+}
+
 // File is a logical uploaded file. The S3 object lives under
 // media/blobs/<ContentHash>; several File rows may share one blob.
 type File struct {
@@ -54,6 +98,12 @@ type File struct {
 // BlobKey returns the S3 object key for a content hash.
 func BlobKey(contentHash string) string {
 	return "media/blobs/" + contentHash
+}
+
+// EncryptedBlobKey is the object key of a new encrypted blob. The name is random and says nothing about the content, so
+// the bucket shows neither which files are equal nor lets a holder of a file test whether it is stored.
+func EncryptedBlobKey(id uuid.UUID) string {
+	return "media/enc/" + id.String()
 }
 
 // TmpKey returns the S3 key for an in-flight upload.
@@ -95,6 +145,9 @@ type Upload struct {
 	ExpiresAt      time.Time
 	// Purpose: an ordinary file, or an image blob (never becomes a media file).
 	Purpose UploadPurpose
+	// WrappedKey is the key of the chunk objects, wrapped with the `files` purpose key; empty for an upload started
+	// before encryption existed, whose chunks are plain.
+	WrappedKey string
 }
 
 // NewUpload opens an upload. ttl is how long it waits for the next chunk.

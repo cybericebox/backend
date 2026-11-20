@@ -47,6 +47,7 @@ type (
 		LabAccess      LabAccessConfig      `                                   envPrefix:"LAB_ACCESS_"`
 		LabSession     LabSessionConfig     `                                   envPrefix:"LAB_SESSION_"`
 		Tunables       TunablesConfig       `                                   envPrefix:""`
+		Files          FilesConfig          `                                   envPrefix:"FILES_"`
 		VPN            VPNConfig            `                                   envPrefix:"VPN_"`
 		Platform       PlatformConfig       `                                   envPrefix:"PLATFORM_"`
 		Keys           KeysConfig           `                                   envPrefix:""`
@@ -487,6 +488,16 @@ type (
 		GCGrace   time.Duration `env:"GC_GRACE"         envDefault:"24h"`
 	}
 
+	// FilesConfig is the key that wraps the per-file keys of the objects in the files bucket. The files themselves are
+	// sealed with a random key of their own; this key only wraps those keys, which sit in the database.
+	FilesConfig struct {
+		SecretsKey string `env:"SECRETS_KEY"` // 64 hex chars → AES-256
+		// SecretsKeyDir (FILES_SECRETS_KEY_DIR) is the keyring read from a directory instead; it wins over the key above.
+		SecretsKeyDir string `env:"SECRETS_KEY_DIR"`
+		// SecretsSeal (FILES_SECRETS_SEAL) is "derived" (default with a master key) or "explicit": see SessionEncryptionSeal.
+		SecretsSeal string `env:"SECRETS_SEAL"`
+	}
+
 	// VPNConfig seals the stored VPN client configs (participants' and test deploys'
 	// keys). Empty key disables VPN config storage; an invalid one is fatal.
 	VPNConfig struct {
@@ -500,7 +511,7 @@ type (
 	// KeysConfig is how the daemon treats the keys of the sealed data (see the key directories above).
 	KeysConfig struct {
 		// SecretsMasterKey (SECRETS_MASTER_KEY) is the one key of the platform: one 64-hex-char key, or a keyring of
-		// id:hex master versions whose first one is current. The key of each purpose (platform, vpn, exercise, session)
+		// id:hex master versions whose first one is current. The key of each purpose (platform, vpn, exercise, session, files)
 		// is derived from it with HKDF-SHA256. The per-purpose variables stay as the way to load keys sealed before the
 		// master key existed, or to override one purpose. Secret.
 		SecretsMasterKey string `env:"SECRETS_MASTER_KEY"`

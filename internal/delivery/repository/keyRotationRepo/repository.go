@@ -31,6 +31,7 @@ const (
 	FamilyPlatform = "platform"
 	FamilyVPN      = "vpn"
 	FamilyExercise = "exercise"
+	FamilyFiles    = "files"
 )
 
 // Contexts build the authenticated context each sealed value was bound to. They are the same builders the code uses
@@ -44,6 +45,8 @@ type Contexts struct {
 	EventRegistry func(id uuid.UUID) []byte
 	VPN           func(userID uuid.UUID, scope string, scopeRef uuid.NullUUID) []byte
 	ExerciseEnv   func(variantID uuid.UUID, device, env string) []byte
+	FileKey       func(contentHash string) []byte
+	UploadKey     func(id uuid.UUID) []byte
 }
 
 type Repository struct {
@@ -70,7 +73,9 @@ func (r *Repository) Sources(family string) []secret.Source {
 }
 
 // Families lists the families that have sources.
-func (r *Repository) Families() []string { return []string{FamilyPlatform, FamilyVPN, FamilyExercise} }
+func (r *Repository) Families() []string {
+	return []string{FamilyPlatform, FamilyVPN, FamilyExercise, FamilyFiles}
+}
 
 const afterID = `COALESCE(NULLIF($1, ''), '00000000-0000-0000-0000-000000000000')::uuid`
 
@@ -138,6 +143,21 @@ func (r *Repository) allSources() []secret.Source {
 				return secret.Row{ID: id.String(), Items: []secret.Item{{Ciphertext: ct, Context: c.VPN(userID, scope, ref)}}}, nil
 			}),
 		&exerciseVersions{pool: p, env: c.ExerciseEnv, afterLock: r.AfterLock, lockTimeout: r.LockTimeout},
+		// The wrapped keys of the files: only these short values are rewritten on a master key change, never a file.
+		single(FamilyFiles, "file_blobs.wrapped_key",
+			`SELECT content_hash, wrapped_key FROM file_blobs WHERE wrapped_key <> '' AND content_hash > $1 ORDER BY content_hash LIMIT $2`,
+			`UPDATE file_blobs SET wrapped_key = $3 WHERE content_hash = $1 AND wrapped_key = $2`,
+			func(rows pgx.Rows) (secret.Row, error) {
+				var hash, ct string
+				if err := rows.Scan(&hash, &ct); err != nil {
+					return secret.Row{}, err
+				}
+				return secret.Row{ID: hash, Items: []secret.Item{{Ciphertext: ct, Context: c.FileKey(hash)}}}, nil
+			}),
+		single(FamilyFiles, "media_uploads.wrapped_key",
+			`SELECT id, wrapped_key FROM media_uploads WHERE wrapped_key <> '' AND id > `+afterID+` ORDER BY id LIMIT $2`,
+			`UPDATE media_uploads SET wrapped_key = $3 WHERE id = $1::uuid AND wrapped_key = $2`,
+			idCt(c.UploadKey)),
 	}
 }
 

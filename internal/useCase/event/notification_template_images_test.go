@@ -41,7 +41,7 @@ func (f *templateMediaFake) addFile(size int64) uuid.UUID {
 	return id
 }
 
-func (f *templateMediaFake) UploadFile(_ context.Context, name, contentType string, reader io.Reader, _ uuid.UUID) (mediaModel.File, error) {
+func (f *templateMediaFake) UploadPublicImage(_ context.Context, name, contentType string, reader io.Reader, _ uuid.UUID) (mediaModel.File, error) {
 	data, err := io.ReadAll(reader)
 	if err != nil {
 		return mediaModel.File{}, err

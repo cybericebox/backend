@@ -43,6 +43,7 @@ var PurposeRules = map[secret.Purpose]PurposeRule{
 	secret.PurposePlatform: {Kind: ScannedPurpose, Family: FamilyPlatform},
 	secret.PurposeVPN:      {Kind: ScannedPurpose, Family: FamilyVPN},
 	secret.PurposeExercise: {Kind: ScannedPurpose, Family: FamilyExercise},
+	secret.PurposeFiles:    {Kind: ScannedPurpose, Family: FamilyFiles},
 	secret.PurposeSession: {Kind: LifetimeBoundPurpose, Rule: func(l Lifetimes) string {
 		return fmt.Sprintf("the session cookie key: a cookie sealed by it is valid for at most SESSION_IDLE_TTL=%s after it was issued "+
 			"(a cookie in use is sealed again with the current key); SESSION_ABSOLUTE_TTL=%s ends a session however it is used; "+

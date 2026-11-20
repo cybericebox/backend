@@ -190,7 +190,37 @@ func (u *AuthUseCase) GetAvatar(ctx context.Context, userID uuid.UUID) (io.ReadC
 	if !u.storageConfigured {
 		return nil, "", authModel.ErrStorageUnavailable.WithError(errors.New("avatar-get: object storage not configured")).Err()
 	}
-	return u.storage.Get(ctx, avatarKey(userID))
+	rc, contentType, err := u.storage.Get(ctx, avatarKey(userID))
+	if err != nil {
+		return nil, "", err
+	}
+	// The legacy object is plain and has no database record, so no background pass can find it: it is moved into the media
+	// store (encrypted) the first time it is read, and the old object is removed. A failed move leaves it as it was, and it
+	// is served all the same.
+	data, err := io.ReadAll(io.LimitReader(rc, MaxAvatarBytes+1))
+	_ = rc.Close()
+	if err != nil {
+		return nil, "", model.ErrPlatform.WithError(err).WithMessage("Failed to read the avatar").Err()
+	}
+	if int64(len(data)) <= MaxAvatarBytes {
+		u.moveLegacyAvatar(ctx, userID, contentType, data)
+	}
+	return io.NopCloser(bytes.NewReader(data)), contentType, nil
+}
+
+// moveLegacyAvatar stores a legacy avatar as a media file (private, so encrypted), points the user's avatar reference at
+// it and removes the old object. Best effort.
+func (u *AuthUseCase) moveLegacyAvatar(ctx context.Context, userID uuid.UUID, contentType string, data []byte) {
+	file, err := u.avatar.UploadFile(ctx, "avatar", contentType, bytes.NewReader(data), userID)
+	if err == nil {
+		err = u.avatar.ReplaceReferences(ctx, mediaModel.RefTypeUserAvatar, userID, []uuid.UUID{file.ID})
+	}
+	if err == nil {
+		err = u.storage.Remove(ctx, avatarKey(userID))
+	}
+	if err != nil {
+		log.Warn().Err(err).Str("userID", userID.String()).Msg("avatar: the legacy object could not be moved into the media store")
+	}
 }
 
 // adoptProviderAvatar re-hosts a provider avatar into our storage and points the

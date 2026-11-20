@@ -18,7 +18,7 @@ import (
 func TestGetReferences_ReturnsFileIDs(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	q := postgresMocks.NewMockQuerier(ctrl)
-	uc := media.NewMediaUseCase(media.Dependencies{Repo: q, Storage: newFakeStorage(), Config: config.MediaConfig{MaxUploadBytes: 1024}})
+	uc := media.NewMediaUseCase(media.Dependencies{Repo: q, Storage: newFakeStorage(), FilesSealer: testSealer(t), Config: config.MediaConfig{MaxUploadBytes: 1024}})
 
 	refID := uuid.Must(uuid.NewV7())
 	fileID := uuid.Must(uuid.NewV7())
@@ -38,7 +38,7 @@ func TestGetReferences_ReturnsFileIDs(t *testing.T) {
 func TestGetReferences_EmptyWhenUnreferenced(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	q := postgresMocks.NewMockQuerier(ctrl)
-	uc := media.NewMediaUseCase(media.Dependencies{Repo: q, Storage: newFakeStorage(), Config: config.MediaConfig{MaxUploadBytes: 1024}})
+	uc := media.NewMediaUseCase(media.Dependencies{Repo: q, Storage: newFakeStorage(), FilesSealer: testSealer(t), Config: config.MediaConfig{MaxUploadBytes: 1024}})
 
 	refID := uuid.Must(uuid.NewV7())
 	q.EXPECT().GetFileReferenceIDs(gomock.Any(), gomock.Any()).Return([]uuid.UUID{}, nil)
@@ -55,7 +55,7 @@ func TestGetReferences_EmptyWhenUnreferenced(t *testing.T) {
 func TestGetReferences_PropagatesRepoErrorAsPlatformError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	q := postgresMocks.NewMockQuerier(ctrl)
-	uc := media.NewMediaUseCase(media.Dependencies{Repo: q, Storage: newFakeStorage(), Config: config.MediaConfig{MaxUploadBytes: 1024}})
+	uc := media.NewMediaUseCase(media.Dependencies{Repo: q, Storage: newFakeStorage(), FilesSealer: testSealer(t), Config: config.MediaConfig{MaxUploadBytes: 1024}})
 
 	refID := uuid.Must(uuid.NewV7())
 	q.EXPECT().GetFileReferenceIDs(gomock.Any(), gomock.Any()).Return(nil, errors.New("db down"))

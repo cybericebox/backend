@@ -138,6 +138,7 @@ func TestOpenFileAt_ReadsTheBlob(t *testing.T) {
 	id := uuid.Must(uuid.NewV7())
 	st.objects[mediaModel.BlobKey("abc")] = []byte("zip bytes here")
 	q.EXPECT().GetFileByID(gomock.Any(), id).Return(postgres.File{ID: id, Name: "a.zip", SizeBytes: 14, ContentHash: "abc"}, nil)
+	q.EXPECT().GetFileBlob(gomock.Any(), "abc").Return(postgres.GetFileBlobRow{ContentHash: "abc", SizeBytes: 14}, nil) // an older, plain blob
 	r, f, err := uc.OpenFileAt(context.Background(), id)
 	if err != nil || f.SizeBytes != 14 {
 		t.Fatalf("file %+v err %v", f, err)

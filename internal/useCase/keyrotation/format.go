@@ -19,7 +19,7 @@ var Preconditions = []string{
 // Help is the text of `daemon keys reencrypt`.
 const Help = `usage: daemon keys reencrypt <family> [--dry-run] [--yes] [--expect-key <id>]
 
-Moves every stored ciphertext of a key family (platform, vpn, exercise) to the current key of its keyring. Each value is
+Moves every stored ciphertext of a key family (platform, vpn, exercise, files) to the current key of its keyring. Each value is
 opened with its row context, sealed again, opened once more and compared before one compare-and-swap write. A value that
 cannot be opened is never changed; its row is listed (a row of an exercise version can still receive a value it shares
 with another version of the same exercise, and is then marked partly rotated). No key and no row is deleted. Safe to

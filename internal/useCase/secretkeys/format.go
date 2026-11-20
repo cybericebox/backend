@@ -17,7 +17,7 @@ func (r Report) Write(w io.Writer) {
 		mode = "every value opened with its row context"
 	}
 	fmt.Fprintf(w, "Check: %s\n\nLoaded keys (the first one seals):\n", mode)
-	for _, f := range []Family{FamilyPlatform, FamilyVPN, FamilyExercise} {
+	for _, f := range []Family{FamilyPlatform, FamilyVPN, FamilyExercise, FamilyFiles} {
 		if ids := r.Keys[f]; len(ids) > 0 {
 			labels := make([]string, len(ids))
 			for i, id := range ids {

@@ -9,6 +9,7 @@ import (
 
 	"github.com/cybericebox/daemon/internal/config"
 	"github.com/cybericebox/daemon/internal/delivery/repository/mediaRepo"
+	"github.com/cybericebox/daemon/pkg/secret"
 )
 
 // IRepository is the narrow data port: the whole mediaRepo query slice (file
@@ -32,7 +33,12 @@ type MediaUseCase struct {
 	files             *mediaRepo.Repository
 	storage           IStorage
 	storageConfigured bool
-	cfg               config.MediaConfig
+	// sealer wraps and unwraps the per-file keys with the key of the files purpose. Without it nothing can be stored
+	// (every new object is encrypted except a public image) and an encrypted object cannot be read.
+	sealer           secret.Sealer
+	sealerConfigured bool
+	cfg              config.MediaConfig
+	progress         ProgressStore
 	// archiveUploadLimit is the largest task archive upload (SetArchiveUploadLimit); nil: the default limits'.
 	archiveUploadLimit func(context.Context) int64
 }
@@ -46,7 +52,9 @@ func (u *MediaUseCase) SetArchiveUploadLimit(limit func(context.Context) int64) 
 type Dependencies struct {
 	Repo    IRepository
 	Storage IStorage
-	Config  config.MediaConfig
+	// FilesSealer is the keyring of the files purpose (secret.Cipher).
+	FilesSealer secret.Sealer
+	Config      config.MediaConfig
 }
 
 func NewMediaUseCase(deps Dependencies) *MediaUseCase {
@@ -54,6 +62,8 @@ func NewMediaUseCase(deps Dependencies) *MediaUseCase {
 		files:             mediaRepo.New(deps.Repo),
 		storage:           deps.Storage,
 		storageConfigured: isStorageConfigured(deps.Storage),
+		sealer:            deps.FilesSealer,
+		sealerConfigured:  isSealerConfigured(deps.FilesSealer),
 		cfg:               deps.Config,
 	}
 }
@@ -61,6 +71,14 @@ func NewMediaUseCase(deps Dependencies) *MediaUseCase {
 // isStorageConfigured mirrors auth's guard: true only for a non-nil interface
 // holding a non-nil concrete value (typed-nil safe).
 func isStorageConfigured(s IStorage) bool {
+	if s == nil {
+		return false
+	}
+	v := reflect.ValueOf(s)
+	return v.Kind() != reflect.Ptr || !v.IsNil()
+}
+
+func isSealerConfigured(s secret.Sealer) bool {
 	if s == nil {
 		return false
 	}

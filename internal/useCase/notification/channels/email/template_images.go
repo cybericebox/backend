@@ -23,7 +23,7 @@ import (
 // (platform and Event): image upload/stream, file lookups for validation and
 // ownership references so the media GC keeps referenced images.
 type TemplateMedia interface {
-	UploadFile(ctx context.Context, name, contentType string, r io.Reader, createdBy uuid.UUID) (mediaModel.File, error)
+	UploadPublicImage(ctx context.Context, name, contentType string, r io.Reader, createdBy uuid.UUID) (mediaModel.File, error)
 	StreamFile(ctx context.Context, id uuid.UUID) (io.ReadCloser, mediaModel.File, error)
 	GetFile(ctx context.Context, id uuid.UUID) (mediaModel.File, error)
 	ReplaceReferences(ctx context.Context, refType string, refID uuid.UUID, fileIDs []uuid.UUID) error
@@ -70,7 +70,7 @@ func (t *TemplateImages) UploadForTemplate(ctx context.Context, templateID uuid.
 	if name == "" {
 		name = templateImageName
 	}
-	file, err := t.media.UploadFile(ctx, name, contentType, bytes.NewReader(data), userID)
+	file, err := t.media.UploadPublicImage(ctx, name, contentType, bytes.NewReader(data), userID)
 	if err != nil {
 		return mediaModel.File{}, err
 	}
