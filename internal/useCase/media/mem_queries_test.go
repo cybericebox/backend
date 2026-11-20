@@ -30,6 +30,8 @@ type memQueries struct {
 	// users maps a user id to "deleted"; avatars maps a user id to the file their avatar reference points at.
 	users   map[uuid.UUID]bool
 	avatars map[uuid.UUID]uuid.UUID
+	// noPicture marks a user whose picture was cleared (the owner removed the avatar).
+	noPicture map[uuid.UUID]bool
 	// beforeAdopt runs just before AdoptLegacyAvatar looks at the user: a test uses it to delete the avatar or the account.
 	beforeAdopt func(userID uuid.UUID)
 	// removals is the table of objects that could not be removed.
@@ -40,7 +42,7 @@ func newMemQueries() *memQueries {
 	return &memQueries{
 		files: map[uuid.UUID]postgres.File{}, blobs: map[string]*postgres.GetFileBlobRow{},
 		refs: map[uuid.UUID][]string{}, uploads: map[uuid.UUID]postgres.MediaUpload{},
-		users: map[uuid.UUID]bool{}, avatars: map[uuid.UUID]uuid.UUID{}, removals: map[string]time.Time{},
+		users: map[uuid.UUID]bool{}, avatars: map[uuid.UUID]uuid.UUID{}, noPicture: map[uuid.UUID]bool{}, removals: map[string]time.Time{},
 	}
 }
 
@@ -316,7 +318,7 @@ func (m *memQueries) ListUserIDsAfter(_ context.Context, arg postgres.ListUserID
 	return out, nil
 }
 
-// AdoptLegacyAvatar mirrors the SQL: only for a user who exists, is not deleted and has no avatar reference.
+// AdoptLegacyAvatar mirrors the SQL: only for a user who exists, is not deleted, still has a picture and has no avatar reference.
 func (m *memQueries) AdoptLegacyAvatar(_ context.Context, arg postgres.AdoptLegacyAvatarParams) (int64, error) {
 	if m.beforeAdopt != nil {
 		m.beforeAdopt(arg.UserID)
@@ -324,7 +326,7 @@ func (m *memQueries) AdoptLegacyAvatar(_ context.Context, arg postgres.AdoptLega
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	deleted, exists := m.users[arg.UserID]
-	if !exists || deleted {
+	if !exists || deleted || m.noPicture[arg.UserID] {
 		return 0, nil
 	}
 	if _, has := m.avatars[arg.UserID]; has {

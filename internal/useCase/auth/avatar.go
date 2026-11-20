@@ -153,8 +153,8 @@ func (u *AuthUseCase) removeAvatars(ctx context.Context, userID uuid.UUID) {
 	}
 }
 
-// RemoveAvatar drops the user's current avatar reference (letting media GC
-// reclaim the now-unreferenced file) and clears users.picture. It also
+// RemoveAvatar clears users.picture (first, see below), drops the user's current avatar reference (letting media GC
+// reclaim the now-unreferenced file) It also
 // best-effort removes a legacy pre-migration avatar object stored directly
 // under the old key, so an old-style avatar actually disappears; that removal
 // is best-effort only (a missing key is not an error, and any other failure
@@ -164,16 +164,22 @@ func (u *AuthUseCase) RemoveAvatar(ctx context.Context, userID uuid.UUID) error 
 	if !u.storageConfigured {
 		return authModel.ErrStorageUnavailable.WithError(errors.New("avatar-remove: object storage not configured")).Err()
 	}
+	// The picture is cleared FIRST, and that write commits before anything else is touched. The pass that moves a legacy
+	// avatar publishes its reference only while the picture is still set (and holds the user row while it does), so once
+	// the picture is gone no pass can bring the photo back; the reference and the legacy object are removed after.
+	if err := u.mutateUser(ctx, userID, func(user *userModel.User) error {
+		user.SetPicture("", time.Now())
+		return nil
+	}); err != nil {
+		return err
+	}
 	if err := u.avatar.ReplaceReferences(ctx, mediaModel.RefTypeUserAvatar, userID, nil); err != nil {
 		return err
 	}
 	if err := u.storage.Remove(ctx, avatarKey(userID)); err != nil {
 		log.Warn().Err(err).Str("userID", userID.String()).Msg("avatar remove: legacy object removal failed")
 	}
-	return u.mutateUser(ctx, userID, func(user *userModel.User) error {
-		user.SetPicture("", time.Now())
-		return nil
-	})
+	return nil
 }
 
 // GetAvatar opens the current avatar stream. It resolves the user's current

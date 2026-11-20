@@ -74,7 +74,7 @@ func (q *Queries) AdoptBlobEncryption(ctx context.Context, arg AdoptBlobEncrypti
 const adoptLegacyAvatar = `-- name: AdoptLegacyAvatar :execrows
 INSERT INTO file_references (ref_type, ref_id, file_id)
 SELECT 'user_avatar', u.id, $1::uuid
-FROM (SELECT id FROM users WHERE id = $2 AND deleted_at IS NULL FOR UPDATE) u
+FROM (SELECT id FROM users WHERE id = $2 AND deleted_at IS NULL AND picture <> '' FOR UPDATE) u
 WHERE NOT EXISTS (SELECT 1 FROM file_references r WHERE r.ref_type = 'user_avatar' AND r.ref_id = u.id)
 `
 
@@ -83,9 +83,11 @@ type AdoptLegacyAvatarParams struct {
 	UserID uuid.UUID `json:"user_id"`
 }
 
-// Gives a user the avatar reference, in this one statement, only if the user still exists (not deleted) and still has
-// no avatar reference. The user row is locked, so a deletion cannot slip between the check and the insert. Zero rows: the
-// user is gone or has an avatar of their own, and the file stays unreferenced (media GC takes it).
+// Gives a user the avatar reference, in this one statement, only while the legacy avatar is still the user's current one:
+// the user exists (not deleted), still has a picture (RemoveAvatar clears it first, in a write that commits before it touches
+// anything else) and has no avatar reference. The user row is locked FOR UPDATE, so a removal or a deletion cannot slip between
+// the check and the insert. Zero rows: the avatar was removed, the user is gone or has an avatar of their own; the file stays
+// unreferenced and the media GC takes it.
 func (q *Queries) AdoptLegacyAvatar(ctx context.Context, arg AdoptLegacyAvatarParams) (int64, error) {
 	result, err := q.db.Exec(ctx, adoptLegacyAvatar, arg.FileID, arg.UserID)
 	if err != nil {

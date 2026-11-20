@@ -33,10 +33,10 @@ func (u *MediaUseCase) EncryptLegacyObjects(ctx context.Context) error {
 // the media store, which encrypts them. The backend may not list the bucket, so it walks the users and probes the key of
 // each. It runs in the background, never from a request:
 //   - a deleted user's legacy object is removed, never adopted;
-//   - for a live user the encrypted copy is stored first, then the legacy object is removed, then the reference is
-//     published, in one statement that holds only if the user still exists and still has no avatar reference. A user who
-//     deleted the avatar or the account meanwhile does not get the photo back; the copy is left unreferenced and the media
-//     GC removes it;
+//   - for a live user the encrypted copy is stored first, then the reference is published in one statement that locks the
+//     user row and holds only while the legacy avatar is still the user's current one (the user exists, the picture is set,
+//     no reference yet), and only then is the legacy object removed. A user who removed the avatar or the account meanwhile
+//     does not get the photo back, and the copy is left unreferenced for the media GC;
 //   - until a user's object is moved, the read path serves it plain as before.
 func (u *MediaUseCase) MoveLegacyAvatars(ctx context.Context) (secret.Progress, error) {
 	started := time.Now()
@@ -118,14 +118,17 @@ func (u *MediaUseCase) moveLegacyAvatar(ctx context.Context, userID uuid.UUID, d
 	if err != nil {
 		return false, err
 	}
-	// The legacy object goes before the reference is published, so a refused publish never leaves a plain copy behind.
-	if err = u.storage.Remove(ctx, key); err != nil {
+	// Publish first, in one statement that locks the user row and re-checks that the legacy avatar is still the user's current
+	// one (the user exists, the picture is set, no reference yet). No retry: a failed statement leaves everything as it is
+	// for the next pass, and a refusal is final. The legacy object goes only after this, so a crash in between leaves a
+	// duplicate that the next pass cleans (its adopt is refused, the reference stands), never a photo that comes back.
+	if _, err = u.files.AdoptLegacyAvatar(ctx, userID, file.ID); err != nil {
 		return false, err
 	}
-	for attempt := 0; attempt < 2; attempt++ { // a refusal is not an error; only a failed statement is retried
-		if _, err = u.files.AdoptLegacyAvatar(ctx, userID, file.ID); err == nil {
-			break
-		}
+	// Adopted or refused, the legacy object is not wanted any more. A refused adopt leaves the new file unreferenced, which
+	// is what makes it eligible for the media GC.
+	if err = u.storage.Remove(ctx, key); err != nil {
+		return true, err
 	}
-	return true, err
+	return true, nil
 }

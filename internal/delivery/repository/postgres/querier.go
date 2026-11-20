@@ -22,9 +22,11 @@ type Querier interface {
 	AddObjectRemoval(ctx context.Context, arg AddObjectRemovalParams) error
 	// Moves a plain blob to an encrypted object: only while the blob is still plain, so of two writers one wins.
 	AdoptBlobEncryption(ctx context.Context, arg AdoptBlobEncryptionParams) (int64, error)
-	// Gives a user the avatar reference, in this one statement, only if the user still exists (not deleted) and still has
-	// no avatar reference. The user row is locked, so a deletion cannot slip between the check and the insert. Zero rows: the
-	// user is gone or has an avatar of their own, and the file stays unreferenced (media GC takes it).
+	// Gives a user the avatar reference, in this one statement, only while the legacy avatar is still the user's current one:
+	// the user exists (not deleted), still has a picture (RemoveAvatar clears it first, in a write that commits before it touches
+	// anything else) and has no avatar reference. The user row is locked FOR UPDATE, so a removal or a deletion cannot slip between
+	// the check and the insert. Zero rows: the avatar was removed, the user is gone or has an avatar of their own; the file stays
+	// unreferenced and the media GC takes it.
 	AdoptLegacyAvatar(ctx context.Context, arg AdoptLegacyAvatarParams) (int64, error)
 	AdvanceAssistantRunSeq(ctx context.Context, arg AdvanceAssistantRunSeqParams) (int64, error)
 	AdvanceEventResultRevision(ctx context.Context, arg AdvanceEventResultRevisionParams) (AdvanceEventResultRevisionRow, error)

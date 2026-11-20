@@ -802,3 +802,85 @@ func TestABrokenBlobIsRetriedWithABackoff(t *testing.T) {
 		t.Fatalf("the delay grows: %d", reads)
 	}
 }
+
+// The owner removes the avatar between the pass's read and its adopt: RemoveAvatar clears the picture first, and the adopt
+// sees that, so the photo does not come back. No retry publishes it later, the legacy object is gone, and the copy is
+// left unreferenced for the media GC.
+func TestRemovalBetweenReadAndAdoptLeavesNoAvatar(t *testing.T) {
+	uc, q, st := encUC(t)
+	id := legacyAvatar(t, q, st, false, pattern(900))
+	adopts := 0
+	q.beforeAdopt = func(userID uuid.UUID) {
+		adopts++
+		q.noPicture[userID] = true // RemoveAvatar's first write has committed
+	}
+	if _, err := uc.MoveLegacyAvatars(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if adopts != 1 {
+		t.Fatalf("the adopt is tried once, never again after a refusal: %d", adopts)
+	}
+	if _, ok := q.avatars[id]; ok {
+		t.Fatal("the removed photo came back")
+	}
+	if _, left := st.objects[mediaModel.LegacyAvatarKey(id)]; left {
+		t.Fatal("the legacy object must be removed")
+	}
+	if len(q.files) != 1 {
+		t.Fatalf("the uploaded copy exists and is unreferenced (for the media GC): %d files", len(q.files))
+	}
+	for fileID := range q.files {
+		for _, ref := range q.avatars {
+			if ref == fileID {
+				t.Fatal("the copy must not be referenced")
+			}
+		}
+	}
+}
+
+// The account is deleted between the read and the adopt: the same, and nothing is adopted.
+func TestAccountDeletionBetweenReadAndAdoptLeavesNoAvatar(t *testing.T) {
+	uc, q, st := encUC(t)
+	id := legacyAvatar(t, q, st, false, pattern(900))
+	q.beforeAdopt = func(userID uuid.UUID) { q.users[userID] = true }
+	if _, err := uc.MoveLegacyAvatars(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := q.avatars[id]; ok {
+		t.Fatal("a deleted account must not get an avatar")
+	}
+	if _, left := st.objects[mediaModel.LegacyAvatarKey(id)]; left {
+		t.Fatal("the legacy object of a deleted account must be removed")
+	}
+}
+
+// A crash after the reference is published and before the legacy object is removed leaves a duplicate: the next pass cleans
+// it, and the reference that was published stands (the photo is neither lost nor replaced).
+func TestACrashBetweenPublishAndLegacyDeleteIsCleanedByTheNextPass(t *testing.T) {
+	q, st := newMemQueries(), newFakeStorage()
+	hs := &hookStorage{fakeStorage: st}
+	uc := media.NewMediaUseCase(media.Dependencies{Repo: q, Storage: hs, FilesSealer: testhelpers.FilesSealer(), Config: encCfg})
+	id := legacyAvatar(t, q, st, false, pattern(600))
+	legacyKey := mediaModel.LegacyAvatarKey(id)
+	hs.failRemove = map[string]bool{legacyKey: true} // the process dies (or the delete fails) right after the publish
+
+	got, err := uc.MoveLegacyAvatars(context.Background())
+	if err != nil || got.Failed != 1 {
+		t.Fatalf("first pass %+v %v", got, err)
+	}
+	published, ok := q.avatars[id]
+	if !ok || st.objects[legacyKey] == nil {
+		t.Fatal("the reference is published and the legacy object is still there")
+	}
+
+	hs.failRemove = nil
+	if got, err = uc.MoveLegacyAvatars(context.Background()); err != nil || got.Failed != 0 {
+		t.Fatalf("second pass %+v %v", got, err)
+	}
+	if st.objects[legacyKey] != nil {
+		t.Fatal("the next pass must remove the duplicate")
+	}
+	if q.avatars[id] != published {
+		t.Fatal("the published avatar must stand, not be replaced by the duplicate")
+	}
+}

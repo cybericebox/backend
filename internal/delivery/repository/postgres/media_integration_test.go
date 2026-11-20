@@ -279,14 +279,14 @@ func TestAdoptLegacyAvatarIsConditional(t *testing.T) {
 	db := testhelpers.SetupTestDB(t)
 	ctx := context.Background()
 	now := time.Date(2026, 11, 20, 10, 0, 0, 0, time.UTC)
-	user := func(email, status string, deleted bool) uuid.UUID {
+	user := func(email, status string, deleted bool, picture string) uuid.UUID {
 		id := uuid.Must(uuid.NewV7())
 		var deletedAt any
 		if deleted {
 			deletedAt = now
 		}
-		if _, err := db.Pool.Exec(ctx, `INSERT INTO users (id, email, first_name, last_name, role, status, email_confirmed, last_seen, created_at, deleted_at)
-VALUES ($1, $2, 'a', 'b', 'user', $3, true, $4, $4, $5)`, id, email, status, now, deletedAt); err != nil {
+		if _, err := db.Pool.Exec(ctx, `INSERT INTO users (id, email, first_name, last_name, role, status, email_confirmed, last_seen, created_at, deleted_at, picture)
+VALUES ($1, $2, 'a', 'b', 'user', $3, true, $4, $4, $5, $6)`, id, email, status, now, deletedAt, picture); err != nil {
 			t.Fatalf("insert user: %v", err)
 		}
 		return id
@@ -308,21 +308,24 @@ VALUES ($1, $2, 'a', 'b', 'user', $3, true, $4, $4, $5)`, id, email, status, now
 		return n
 	}
 
-	live := user("live@x.test", "active", false)
+	live := user("live@x.test", "active", false, "/api/auth/avatar/x?v=1")
 	if adopt(live) != 1 {
 		t.Fatal("a live user without an avatar gets the reference")
 	}
 	if adopt(live) != 0 {
 		t.Fatal("a user who has an avatar keeps it")
 	}
-	if adopt(user("gone@x.test", "deleted", true)) != 0 {
+	if adopt(user("gone@x.test", "deleted", true, "/api/auth/avatar/y?v=1")) != 0 {
 		t.Fatal("a deleted user must not get a reference")
+	}
+	if adopt(user("removed@x.test", "active", false, "")) != 0 {
+		t.Fatal("a user whose avatar was removed (picture cleared) must not get it back")
 	}
 	if adopt(uuid.Must(uuid.NewV7())) != 0 {
 		t.Fatal("an unknown user must not get a reference")
 	}
 	rows, err := db.Queries.ListUserIDsAfter(ctx, postgres.ListUserIDsAfterParams{After: uuid.Nil, RowLimit: 10})
-	if err != nil || len(rows) != 2 {
+	if err != nil || len(rows) != 3 {
 		t.Fatalf("the pass lists every user, deleted ones too: %d %v", len(rows), err)
 	}
 }
