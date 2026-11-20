@@ -4,8 +4,8 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"io"
-	"time"
 
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
@@ -44,8 +44,12 @@ func (u *MediaUseCase) UploadFile(ctx context.Context, name, contentType string,
 }
 
 // UploadPublicImage stores a public image: it is served to anyone who opens the page or the mail it belongs to, so it is
-// stored plain (see mediaModel.PublicRefTypes). Nothing but those kinds of image may be stored through it.
-func (u *MediaUseCase) UploadPublicImage(ctx context.Context, name, contentType string, r io.Reader, createdBy uuid.UUID) (mediaModel.File, error) {
+// stored plain (see mediaModel.PublicRefTypes). refType is the kind the image is for, and anything that is not a public kind
+// is refused: a file that is not a public image cannot be stored plain by this call.
+func (u *MediaUseCase) UploadPublicImage(ctx context.Context, refType, name, contentType string, r io.Reader, createdBy uuid.UUID) (mediaModel.File, error) {
+	if !mediaModel.IsPublicRefType(refType) {
+		return mediaModel.File{}, mediaModel.ErrUploadInvalid.Err()
+	}
 	return u.upload(ctx, name, contentType, r, createdBy, u.cfg.MaxUploadBytes, true)
 }
 
@@ -77,7 +81,7 @@ func (u *MediaUseCase) upload(ctx context.Context, name, contentType string, r i
 		if fileKey, err = filecrypt.NewKey(); err != nil {
 			return mediaModel.File{}, model.ErrPlatform.WithError(err).WithMessage("Failed to make a file key").Err()
 		}
-		putErr = u.encryptedPut(ctx, tmpKey, fileKey, 0, counter, -1, "application/octet-stream")
+		putErr = u.encryptedPut(ctx, tmpKey, fileKey, counter, -1, "application/octet-stream")
 	}
 	if putErr != nil {
 		_ = u.storage.Remove(ctx, tmpKey)
@@ -119,16 +123,40 @@ func (u *MediaUseCase) publish(
 	hash string,
 	createdBy uuid.UUID,
 ) (mediaModel.File, error) {
+	// A blob that was collected between the look-up and the row (it was found, nothing was stored, then it went) is not
+	// brought back as an empty row: the row is refused and the whole step starts again with what is there now.
+	for attempt := 0; ; attempt++ {
+		file, err := u.publishOnce(ctx, fileID, tmpKey, wrapped, name, contentType, size, hash, createdBy)
+		if errors.Is(err, errBlobVanished) && attempt < 2 {
+			continue
+		}
+		return file, err
+	}
+}
+
+// errBlobVanished: the blob this upload reused was removed before its row was written.
+var errBlobVanished = errors.New("media: the blob was removed meanwhile")
+
+func (u *MediaUseCase) publishOnce(
+	ctx context.Context,
+	fileID uuid.UUID,
+	tmpKey, wrapped, name, contentType string,
+	size int64,
+	hash string,
+	createdBy uuid.UUID,
+) (mediaModel.File, error) {
 	private := wrapped != ""
 	blob, found, err := u.getBlob(ctx, hash)
 	if err != nil {
 		return mediaModel.File{}, model.ErrPlatform.WithError(err).WithMessage("Failed to look up blob").Err()
 	}
 	fresh := mediaModel.Blob{ContentHash: hash, SizeBytes: size}
-	ownKey := "" // the encrypted object this call stores, if any
+	ownKey := ""         // the encrypted object this call stores, if any
+	copiedPlain := false // this call stored the plain object of a public image
+	reuse := false       // nothing is stored: the blob that was found is used
 	switch {
 	case found && (blob.Encrypted() || !private):
-		// Reuse: nothing to store.
+		reuse = true
 	case !private:
 		exists, statErr := u.storage.Stat(ctx, mediaModel.BlobKey(hash))
 		if statErr != nil {
@@ -138,6 +166,7 @@ func (u *MediaUseCase) publish(
 			if err = u.storage.Copy(ctx, tmpKey, mediaModel.BlobKey(hash)); err != nil {
 				return mediaModel.File{}, model.ErrPlatform.WithError(err).WithMessage("Failed to promote blob").Err()
 			}
+			copiedPlain = true
 		}
 	default:
 		ownKey = mediaModel.EncryptedBlobKey(uuid.Must(uuid.NewV7()))
@@ -153,17 +182,25 @@ func (u *MediaUseCase) publish(
 		ContentType: contentType,
 		SizeBytes:   size,
 		ContentHash: hash,
-		CreatedAt:   time.Now(),
+		CreatedAt:   u.now(),
 		CreatedBy:   uuid.NullUUID{UUID: createdBy, Valid: createdBy != uuid.Nil},
-	}, fresh)
+	}, fresh, reuse)
 	if err != nil {
 		if ownKey != "" {
 			u.removeQuietly(ctx, ownKey)
+		}
+		if reuse && repositoryTools.IsObjectNotFoundError(err) {
+			return mediaModel.File{}, errBlobVanished
 		}
 		return mediaModel.File{}, model.ErrPlatform.WithError(err).WithMessage("Failed to record file").Err()
 	}
 	if ownKey != "" && standing.ObjectKey != ownKey {
 		u.settleBlob(ctx, hash, ownKey, wrapped, standing)
+	}
+	// A public copy that raced with a private upload of the same bytes: the row is encrypted, so the plain object this call
+	// just stored is a plain copy of a private file and goes.
+	if copiedPlain && standing.Encrypted() {
+		u.removeQuietly(ctx, mediaModel.BlobKey(hash))
 	}
 	return created, nil
 }
@@ -186,9 +223,16 @@ func (u *MediaUseCase) settleBlob(ctx context.Context, hash, ownKey, wrapped str
 	u.removeQuietly(ctx, standing.Key())
 }
 
+// removeQuietly removes an object. A failed removal is not lost: the key goes into the table of objects to remove, which the
+// media GC works through, so a plain copy or a surplus object is retried until it is gone.
 func (u *MediaUseCase) removeQuietly(ctx context.Context, key string) {
-	if err := u.storage.Remove(ctx, key); err != nil {
-		log.Warn().Err(err).Str("object", key).Msg("media: an object could not be removed")
+	err := u.storage.Remove(ctx, key)
+	if err == nil {
+		return
+	}
+	log.Warn().Err(err).Str("object", key).Msg("media: an object could not be removed, it is kept in the removal list")
+	if aerr := u.files.AddObjectRemoval(context.WithoutCancel(ctx), key, u.now()); aerr != nil {
+		log.Error().Err(aerr).Str("object", key).Msg("media: an object that could not be removed could not be listed for a retry either")
 	}
 }
 

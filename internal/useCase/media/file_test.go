@@ -93,7 +93,7 @@ func plainOf(t *testing.T, st *fakeStorage, key, wrapped, hash string) []byte {
 	if err != nil {
 		t.Fatalf("unwrap: %v", err)
 	}
-	r, err := filecrypt.NewDecryptReader(fileKey, 0, bytes.NewReader(st.objects[key]))
+	r, err := filecrypt.NewDecryptReader(fileKey, bytes.NewReader(st.objects[key]))
 	if err != nil {
 		t.Fatal(err)
 	}

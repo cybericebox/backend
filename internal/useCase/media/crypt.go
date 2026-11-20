@@ -13,13 +13,12 @@ import (
 var ErrFilesKeyMissing = errors.New("media: the files key is not configured")
 
 // object is one stored object and how to open it: where it lies, and (when it is encrypted) the key that was wrapped for it,
-// the context the wrapping is bound to, and the stream number of its frames. size is the plain size, needed to read a
+// and the context the wrapping is bound to. size is the plain size, needed to read a
 // range of an encrypted object.
 type object struct {
 	key     string
 	wrapped string // empty: the object is plain
 	ctx     []byte
-	stream  uint32
 	size    int64
 }
 
@@ -39,9 +38,9 @@ func (u *MediaUseCase) unwrap(wrapped string, ctx []byte) ([]byte, error) {
 	return u.sealer.DecryptWithContext(wrapped, ctx)
 }
 
-// encryptedPut stores r (plainSize bytes, or -1 when unknown) under key, encrypted with fileKey as the given stream.
-func (u *MediaUseCase) encryptedPut(ctx context.Context, key string, fileKey []byte, stream uint32, r io.Reader, plainSize int64, contentType string) error {
-	enc, err := filecrypt.NewEncryptReader(fileKey, stream, r)
+// encryptedPut stores r (plainSize bytes, or -1 when unknown) under key, encrypted with fileKey (a salt of its own is drawn for every write).
+func (u *MediaUseCase) encryptedPut(ctx context.Context, key string, fileKey []byte, r io.Reader, plainSize int64, contentType string) error {
+	enc, err := filecrypt.NewEncryptReader(fileKey, r)
 	if err != nil {
 		return err
 	}
@@ -66,7 +65,7 @@ func (u *MediaUseCase) open(ctx context.Context, o object) (io.ReadCloser, error
 		_ = rc.Close()
 		return nil, fmt.Errorf("unwrap the key of %s: %w", o.key, err)
 	}
-	dec, err := filecrypt.NewDecryptReader(fileKey, o.stream, rc)
+	dec, err := filecrypt.NewDecryptReader(fileKey, rc)
 	if err != nil {
 		_ = rc.Close()
 		return nil, err
@@ -83,7 +82,7 @@ func (u *MediaUseCase) openRange(ctx context.Context, o object, offset, length i
 	if err != nil {
 		return nil, fmt.Errorf("unwrap the key of %s: %w", o.key, err)
 	}
-	return filecrypt.OpenRange(fileKey, o.stream, o.size, offset, length, func(off, n int64) (io.ReadCloser, error) {
+	return filecrypt.OpenRange(fileKey, o.size, offset, length, func(off, n int64) (io.ReadCloser, error) {
 		return u.storage.GetRange(ctx, o.key, off, n)
 	})
 }

@@ -128,7 +128,7 @@ func (u *MediaUseCase) PutChunk(ctx context.Context, id, owner uuid.UUID, index 
 	} else if fileKey, kerr := u.unwrap(upload.WrappedKey, secretctx.UploadKey(upload.ID)); kerr != nil {
 		return mediaModel.Upload{}, model.ErrPlatform.WithError(kerr).WithMessage("Failed to open the upload key").Err()
 	} else {
-		err = u.encryptedPut(ctx, key, fileKey, uint32(index), counter, want, "application/octet-stream")
+		err = u.encryptedPut(ctx, key, fileKey, counter, want, "application/octet-stream")
 	}
 	if err != nil || counter.n != want {
 		_ = u.storage.Remove(ctx, key)
@@ -194,7 +194,7 @@ func (u *MediaUseCase) CompleteUpload(ctx context.Context, id, owner uuid.UUID, 
 		_ = pr.Close()
 		return mediaModel.File{}, model.ErrPlatform.WithError(err).WithMessage("Failed to make a file key").Err()
 	}
-	putErr := u.encryptedPut(ctx, tmpKey, fileKey, 0, counter, upload.SizeBytes, "application/octet-stream")
+	putErr := u.encryptedPut(ctx, tmpKey, fileKey, counter, upload.SizeBytes, "application/octet-stream")
 	_ = pr.Close()
 	// Best-effort tmp cleanup on every exit path below.
 	defer func() { _ = u.storage.Remove(ctx, tmpKey) }()
@@ -234,12 +234,13 @@ func (u *MediaUseCase) copyChunks(ctx context.Context, upload mediaModel.Upload,
 	return nil
 }
 
-// chunkObject says how to open chunk i of an upload: encrypted with the key of the upload as stream i, or plain for an
+// chunkObject says how to open chunk i of an upload: encrypted with the key of the upload (each write of a chunk has its
+// own salt, so a chunk that is sent again never repeats a nonce), or plain for an
 // upload that was started before encryption existed.
 func (u *MediaUseCase) chunkObject(upload mediaModel.Upload, i int) object {
 	return object{
 		key: mediaModel.ChunkKey(upload.ID, i), wrapped: upload.WrappedKey, ctx: secretctx.UploadKey(upload.ID),
-		stream: uint32(i), size: upload.ChunkSize(i),
+		size: upload.ChunkSize(i),
 	}
 }
 

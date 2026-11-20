@@ -100,6 +100,35 @@ required value.
 Everything else is optional with a default: HTTP and TLS listeners, SMTP, object storage, Google sign-in, laboratory
 agent bootstrap, rate limits and data retention periods.
 
+## Files bucket encryption
+
+Every object the backend stores in the files bucket is encrypted before upload, except public images (an event logo, favicon,
+preview picture or page image, and the images of email templates and presets: `mediaModel.PublicRefTypes`). Each object has a
+random key; the key is wrapped with the key of the `files` purpose (`FILES_SECRETS_KEY`, or derived from `SECRETS_MASTER_KEY`)
+and kept in `file_blobs.wrapped_key` / `media_uploads.wrapped_key`. The format is in `pkg/filecrypt`. A master key change
+rewraps these keys (`daemon keys reencrypt files`) and never touches a file. A blob row without a wrapped key is a plain
+object, served as before.
+
+Preconditions and limits:
+
+- **The deploy creates the bucket.** The backend only checks that it exists, and needs no right to create or configure it or
+  to delete object versions. The daemon does not start without the bucket, and does not start with storage configured but no
+  key for the `files` purpose.
+- **The bucket needs a rule that expires non-current versions** (for example 30 days). Without it, the plain versions of the
+  objects the background pass moves to encrypted ones, and of public copies replaced by encrypted ones, stay readable.
+  `daemon keys status` says so once the pass has moved something.
+- **The upgrade is not rolling.** A binary from before this change cannot read an encrypted blob. Stop the old replicas before
+  the new one starts, and do not roll back to it once an encrypted file exists. The down migration `0245` refuses while an
+  encrypted blob or upload exists.
+- **What is not swept.** The backend may not list the bucket, so it cannot find an object that no row names: an object left
+  by a crash between the copy and the row, a plain `media/tmp/<id>` object of a crashed upload from before this change, and
+  the plain chunks of an upload started before it (the upload expiry removes those by key within the upload TTL). A failed
+  removal is kept in `object_removals` and retried by the media GC; a removal that never succeeds stays listed.
+- A legacy `avatars/<user>` object moves into the media store in the background (never from a request); until then it is
+  served plain.
+- Tests: run `go test` with `GOWORK=off` in a worktree (the repository-root `go.work` does not list worktrees). Tests that need
+  a database use Docker (testcontainers); without a working Docker they hang until the test timeout, so pass `-timeout`.
+
 ## Development
 
 | Command | What it does |

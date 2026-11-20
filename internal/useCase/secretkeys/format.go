@@ -71,6 +71,14 @@ func (r Report) Write(w io.Writer) {
 				s.UpdatedAt.UTC().Format("2006-01-02 15:04:05Z"))
 		}
 	}
+	for _, s := range r.Rotation {
+		if s.Family == string(FamilyFiles) && s.Done > 0 {
+			fmt.Fprintln(w, "\nNote (files): the plain versions of the objects that were moved to encrypted ones stay readable in a versioned bucket "+
+				"until its rule that expires non-current versions removes them. Set that rule (the deploy owns it); until then they are "+
+				"still there.")
+			break
+		}
+	}
 	fmt.Fprintln(w, "\nNot covered (short-lived):")
 	for _, s := range NotScanned {
 		fmt.Fprintf(w, "  %s\n", s)

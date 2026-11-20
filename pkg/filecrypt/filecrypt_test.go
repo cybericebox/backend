@@ -2,9 +2,12 @@ package filecrypt
 
 import (
 	"bytes"
+	"crypto/hkdf"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"io"
+	"strings"
 	"testing"
 	"testing/iotest"
 )
@@ -20,9 +23,9 @@ func pattern(n int) []byte {
 	return b
 }
 
-func encrypt(t *testing.T, key []byte, stream uint32, plain []byte) []byte {
+func encrypt(t *testing.T, key []byte, salt byte, plain []byte) []byte {
 	t.Helper()
-	r, err := NewEncryptReader(key, stream, bytes.NewReader(plain))
+	r, err := newEncryptReader(key, [SaltSize]byte(bytes.Repeat([]byte{salt}, SaltSize)), bytes.NewReader(plain))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,8 +36,8 @@ func encrypt(t *testing.T, key []byte, stream uint32, plain []byte) []byte {
 	return out
 }
 
-func decrypt(key []byte, stream uint32, enc []byte) ([]byte, error) {
-	r, err := NewDecryptReader(key, stream, bytes.NewReader(enc))
+func decrypt(key []byte, enc []byte) ([]byte, error) {
+	r, err := NewDecryptReader(key, bytes.NewReader(enc))
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +56,7 @@ func TestRoundTripAndSizes(t *testing.T) {
 		if got, err := PlainSize(int64(len(enc))); err != nil || got != int64(n) {
 			t.Errorf("size %d: PlainSize = %d, %v", n, got, err)
 		}
-		got, err := decrypt(testKey, 3, enc)
+		got, err := decrypt(testKey, enc)
 		if err != nil || !bytes.Equal(got, plain) {
 			t.Errorf("size %d: round trip failed: %v", n, err)
 		}
@@ -62,7 +65,7 @@ func TestRoundTripAndSizes(t *testing.T) {
 
 func TestRoundTripWithSlowReaders(t *testing.T) {
 	plain := pattern(2*FrameSize + 5)
-	r, err := NewEncryptReader(testKey, 0, iotest.OneByteReader(bytes.NewReader(plain)))
+	r, err := NewEncryptReader(testKey, iotest.OneByteReader(bytes.NewReader(plain)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +73,7 @@ func TestRoundTripWithSlowReaders(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	d, err := NewDecryptReader(testKey, 0, iotest.HalfReader(bytes.NewReader(enc)))
+	d, err := NewDecryptReader(testKey, iotest.HalfReader(bytes.NewReader(enc)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,10 +89,10 @@ func TestFixedVector(t *testing.T) {
 	if len(enc) != HeaderSize+11+TagSize {
 		t.Fatalf("length %d", len(enc))
 	}
-	if hex.EncodeToString(enc[:HeaderSize]) != "4349424601000000" {
+	if hex.EncodeToString(enc[:HeaderSize]) != "4349424602000000"+strings.Repeat("01", SaltSize) {
 		t.Fatalf("header %x", enc[:HeaderSize])
 	}
-	if got, err := decrypt(testKey, 1, enc); err != nil || string(got) != "cybericebox" {
+	if got, err := decrypt(testKey, enc); err != nil || string(got) != "cybericebox" {
 		t.Fatalf("decrypt: %q %v", got, err)
 	}
 	if hex.EncodeToString(enc) != fixedVector {
@@ -121,7 +124,7 @@ func TestTamperIsDetected(t *testing.T) {
 		"first frame removed":   append(append([]byte{}, enc[:HeaderSize]...), enc[HeaderSize+frame:]...),
 	}
 	for name, bad := range cases {
-		if _, err := decrypt(testKey, 0, bad); err == nil {
+		if _, err := decrypt(testKey, bad); err == nil {
 			t.Errorf("%s: accepted", name)
 		}
 	}
@@ -140,20 +143,58 @@ func swap(b []byte, a, c, n int) []byte {
 	return out
 }
 
-func TestWrongKeyStreamAndFormat(t *testing.T) {
+func TestWrongKeyAndFormat(t *testing.T) {
 	enc := encrypt(t, testKey, 5, pattern(100))
 	other := bytes.Repeat([]byte{0x43}, KeySize)
-	if _, err := decrypt(other, 5, enc); !errors.Is(err, ErrCorrupt) {
+	if _, err := decrypt(other, enc); !errors.Is(err, ErrCorrupt) {
 		t.Errorf("wrong key: %v", err)
 	}
-	if _, err := decrypt(testKey, 6, enc); !errors.Is(err, ErrCorrupt) {
-		t.Errorf("wrong stream: %v", err)
-	}
-	if _, err := decrypt(testKey, 5, pattern(100)); !errors.Is(err, ErrNotEncrypted) {
+	if _, err := decrypt(testKey, pattern(100)); !errors.Is(err, ErrNotEncrypted) {
 		t.Errorf("plain data: %v", err)
 	}
-	if _, err := NewEncryptReader(testKey[:5], 0, bytes.NewReader(nil)); !errors.Is(err, ErrBadKey) {
+	if _, err := NewEncryptReader(testKey[:5], bytes.NewReader(nil)); !errors.Is(err, ErrBadKey) {
 		t.Errorf("short key: %v", err)
+	}
+}
+
+// Writing the same bytes twice with the same file key (a chunk sent again, two requests for the same chunk) must never share a
+// key and nonce: each write draws its own salt, so the frame keys and the ciphertexts differ.
+func TestEveryWriteHasItsOwnNonceSpace(t *testing.T) {
+	plain := pattern(3000)
+	write := func() []byte {
+		r, err := NewEncryptReader(testKey, bytes.NewReader(plain))
+		if err != nil {
+			t.Fatal(err)
+		}
+		out, err := io.ReadAll(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+	a, b := write(), write()
+	if bytes.Equal(a[8:HeaderSize], b[8:HeaderSize]) {
+		t.Fatal("two writes drew the same salt")
+	}
+	if bytes.Equal(a[HeaderSize:], b[HeaderSize:]) {
+		t.Fatal("the same file key and plain bytes gave the same frame: the nonce space is shared")
+	}
+	for _, o := range [][]byte{a, b} {
+		if got, err := decrypt(testKey, o); err != nil || !bytes.Equal(got, plain) {
+			t.Fatalf("round trip: %v", err)
+		}
+	}
+	// And the same salt does give the same object: nothing but the salt varies.
+	if !bytes.Equal(encrypt(t, testKey, 9, plain), encrypt(t, testKey, 9, plain)) {
+		t.Fatal("the format is not deterministic for a given salt")
+	}
+}
+
+// The frame key is HKDF-SHA256(file key, salt, info); the expected value was computed with an independent HKDF (Python hmac).
+func TestFrameKeyDerivation(t *testing.T) {
+	frameKey, err := hkdf.Key(sha256.New, testKey, bytes.Repeat([]byte{1}, SaltSize), frameKeyInfo, KeySize)
+	if err != nil || hex.EncodeToString(frameKey) != "115fff4784b35032ee2aef5765ad793d578c78988c12b07a05eee4ac2f3f3324" {
+		t.Fatalf("frame key %x %v", frameKey, err)
 	}
 }
 
@@ -187,7 +228,7 @@ func TestOpenRange(t *testing.T) {
 	}
 	for _, c := range cases {
 		src := &bytesFetch{obj: encrypt(t, testKey, 9, plain)}
-		rc, err := OpenRange(testKey, 9, size, c.offset, c.length, src.fetch)
+		rc, err := OpenRange(testKey, size, c.offset, c.length, src.fetch)
 		if err != nil {
 			t.Fatalf("%s: %v", c.name, err)
 		}
@@ -203,14 +244,15 @@ func TestOpenRange(t *testing.T) {
 func TestOpenRangeFetchesOnlyNeededFrames(t *testing.T) {
 	plain := pattern(10 * FrameSize)
 	src := &bytesFetch{obj: encrypt(t, testKey, 0, plain)}
-	rc, err := OpenRange(testKey, 0, int64(len(plain)), 3*FrameSize+1, 10, src.fetch)
+	rc, err := OpenRange(testKey, int64(len(plain)), 3*FrameSize+1, 10, src.fetch)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err = io.ReadAll(rc); err != nil {
 		t.Fatal(err)
 	}
-	if len(src.asked) != 1 || src.asked[0][0] != HeaderSize+3*(FrameSize+TagSize) || src.asked[0][1] != FrameSize+TagSize {
+	// One read of the header (the salt), one of the covering frame.
+	if len(src.asked) != 2 || src.asked[0] != [2]int64{0, HeaderSize} || src.asked[1][0] != HeaderSize+3*(FrameSize+TagSize) || src.asked[1][1] != FrameSize+TagSize {
 		t.Fatalf("asked %v", src.asked)
 	}
 }
@@ -220,7 +262,7 @@ func TestOpenRangeDetectsDamageAndBadRanges(t *testing.T) {
 	enc := encrypt(t, testKey, 0, plain)
 	size := int64(len(plain))
 	bad := &bytesFetch{obj: flip(enc, HeaderSize+FrameSize+TagSize+2)}
-	rc, err := OpenRange(testKey, 0, size, FrameSize, 5, bad.fetch)
+	rc, err := OpenRange(testKey, size, FrameSize, 5, bad.fetch)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -230,13 +272,13 @@ func TestOpenRangeDetectsDamageAndBadRanges(t *testing.T) {
 	// A frame that was the last of the file is not accepted as a middle frame of a longer one, nor the reverse.
 	short := &bytesFetch{obj: enc}
 	for _, r := range [][2]int64{{-1, 1}, {0, size + 1}, {size, 1}, {1, -1}} {
-		if _, err = OpenRange(testKey, 0, size, r[0], r[1], short.fetch); !errors.Is(err, ErrRange) {
+		if _, err = OpenRange(testKey, size, r[0], r[1], short.fetch); !errors.Is(err, ErrRange) {
 			t.Errorf("range %v: %v", r, err)
 		}
 	}
 	// A plain size that is too large for the object (cut short) fails on the missing frame.
 	cut := &bytesFetch{obj: enc[:len(enc)-5]}
-	rc, err = OpenRange(testKey, 0, size, 2*FrameSize, 3, func(o, l int64) (io.ReadCloser, error) {
+	rc, err = OpenRange(testKey, size, 2*FrameSize, 3, func(o, l int64) (io.ReadCloser, error) {
 		return io.NopCloser(bytes.NewReader(cut.obj[o:])), nil
 	})
 	if err != nil {
@@ -247,4 +289,5 @@ func TestOpenRangeDetectsDamageAndBadRanges(t *testing.T) {
 	}
 }
 
-const fixedVector = "4349424601000000e83f59061b2b9655ab9ce9cfc48913227bce44d04c5a48b536f03f"
+// fixedVector freezes version 2 (key "42"*32, salt "01"*16, plain "cybericebox"); only the frame key derivation is independently checked.
+const fixedVector = "434942460200000001010101010101010101010101010101ec854736779ad3e2c5186af79451fd165d62813332afb22245b226"

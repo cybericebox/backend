@@ -32,13 +32,15 @@ type memQueries struct {
 	avatars map[uuid.UUID]uuid.UUID
 	// beforeAdopt runs just before AdoptLegacyAvatar looks at the user: a test uses it to delete the avatar or the account.
 	beforeAdopt func(userID uuid.UUID)
+	// removals is the table of objects that could not be removed.
+	removals map[string]time.Time
 }
 
 func newMemQueries() *memQueries {
 	return &memQueries{
 		files: map[uuid.UUID]postgres.File{}, blobs: map[string]*postgres.GetFileBlobRow{},
 		refs: map[uuid.UUID][]string{}, uploads: map[uuid.UUID]postgres.MediaUpload{},
-		users: map[uuid.UUID]bool{}, avatars: map[uuid.UUID]uuid.UUID{},
+		users: map[uuid.UUID]bool{}, avatars: map[uuid.UUID]uuid.UUID{}, removals: map[string]time.Time{},
 	}
 }
 
@@ -48,6 +50,9 @@ func (m *memQueries) CreateFile(_ context.Context, arg postgres.CreateFileParams
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if _, ok := m.blobs[arg.ContentHash]; !ok && arg.RequireExisting {
+		return postgres.CreateFileRow{}, pgx.ErrNoRows // nothing is created for a blob that was expected to be there
+	}
 	if _, ok := m.blobs[arg.ContentHash]; !ok {
 		m.blobs[arg.ContentHash] = &postgres.GetFileBlobRow{
 			ContentHash: arg.ContentHash, SizeBytes: arg.SizeBytes, ObjectKey: arg.ObjectKey, WrappedKey: arg.WrappedKey,
@@ -200,6 +205,44 @@ func (m *memQueries) ListExpiredMediaUploads(context.Context, postgres.ListExpir
 	return nil, nil
 }
 
+func (m *memQueries) DeleteEncryptedBlob(_ context.Context, arg postgres.DeleteEncryptedBlobParams) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	b, ok := m.blobs[arg.ContentHash]
+	if !ok || b.WrappedKey == "" {
+		return "", pgx.ErrNoRows
+	}
+	delete(m.blobs, arg.ContentHash)
+	return b.ObjectKey, nil
+}
+
+func (m *memQueries) AddObjectRemoval(_ context.Context, arg postgres.AddObjectRemovalParams) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.removals[arg.ObjectKey] = arg.CreatedAt
+	return nil
+}
+
+func (m *memQueries) ListObjectRemovals(_ context.Context, arg postgres.ListObjectRemovalsParams) ([]string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var out []string
+	for key, at := range m.removals {
+		if at.Before(arg.CreatedAt) {
+			out = append(out, key)
+		}
+	}
+	sort.Strings(out)
+	return out, nil
+}
+
+func (m *memQueries) DeleteObjectRemoval(_ context.Context, key string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.removals, key)
+	return nil
+}
+
 func (m *memQueries) ListOrphanBlobs(context.Context, time.Time) ([]postgres.ListOrphanBlobsRow, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -210,7 +253,7 @@ func (m *memQueries) ListOrphanBlobs(context.Context, time.Time) ([]postgres.Lis
 			used = used || f.ContentHash == hash
 		}
 		if !used {
-			out = append(out, postgres.ListOrphanBlobsRow{ContentHash: hash, ObjectKey: b.ObjectKey})
+			out = append(out, postgres.ListOrphanBlobsRow{ContentHash: hash, ObjectKey: b.ObjectKey, Encrypted: b.WrappedKey != ""})
 		}
 	}
 	return out, nil
@@ -219,6 +262,9 @@ func (m *memQueries) ListOrphanBlobs(context.Context, time.Time) ([]postgres.Lis
 func (m *memQueries) DeleteBlob(_ context.Context, hash string) (int64, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if b, ok := m.blobs[hash]; ok && b.WrappedKey != "" {
+		return 0, nil
+	}
 	delete(m.blobs, hash)
 	return 1, nil
 }

@@ -7,16 +7,28 @@
 -- object_key and wrapped_key are those of the blob when it is created; on a
 -- dedup hit the blob keeps its own, and the row returned says which they are,
 -- so the caller can drop the object it stored if it lost the race.
-WITH blob AS (
-    INSERT INTO file_blobs (content_hash, size_bytes, ref_count, created_at, touched_at, object_key, wrapped_key)
-        VALUES (sqlc.arg(content_hash), sqlc.arg(size_bytes), 1, sqlc.arg(created_at), sqlc.arg(created_at),
-                sqlc.arg(object_key), sqlc.arg(wrapped_key))
-        ON CONFLICT (content_hash) DO UPDATE SET ref_count = file_blobs.ref_count + 1, touched_at = excluded.touched_at
+-- require_existing: the caller stored no object because it found the blob. Then the
+-- blob is only bumped, never created: if the collector removed it meanwhile, nothing is
+-- inserted and no row comes back (the caller starts again), so a blob can never come
+-- back as an empty row that points at an object that is gone.
+WITH bumped AS (
+    UPDATE file_blobs
+        SET ref_count = ref_count + 1, touched_at = sqlc.arg(created_at)
+        WHERE file_blobs.content_hash = sqlc.arg(content_hash) AND sqlc.arg(require_existing)::boolean
         RETURNING object_key, wrapped_key),
+     inserted AS (
+         INSERT INTO file_blobs (content_hash, size_bytes, ref_count, created_at, touched_at, object_key, wrapped_key)
+             SELECT sqlc.arg(content_hash), sqlc.arg(size_bytes), 1, sqlc.arg(created_at), sqlc.arg(created_at),
+                    sqlc.arg(object_key), sqlc.arg(wrapped_key)
+             WHERE NOT sqlc.arg(require_existing)::boolean
+             ON CONFLICT (content_hash) DO UPDATE SET ref_count = file_blobs.ref_count + 1, touched_at = excluded.touched_at
+             RETURNING object_key, wrapped_key),
+     blob AS (SELECT object_key, wrapped_key FROM bumped UNION ALL SELECT object_key, wrapped_key FROM inserted),
      created AS (
          INSERT INTO files (id, name, content_type, size_bytes, content_hash, created_at, created_by)
-             VALUES (sqlc.arg(id), sqlc.arg(name), sqlc.arg(content_type), sqlc.arg(size_bytes), sqlc.arg(content_hash),
-                     sqlc.arg(created_at), sqlc.arg(created_by))
+             SELECT sqlc.arg(id), sqlc.arg(name), sqlc.arg(content_type), sqlc.arg(size_bytes), sqlc.arg(content_hash),
+                    sqlc.arg(created_at), sqlc.arg(created_by)
+             WHERE EXISTS (SELECT 1 FROM blob)
              RETURNING id, name, content_type, size_bytes, content_hash, created_at, created_by)
 SELECT created.id,
        created.name,
@@ -142,7 +154,7 @@ RETURNING b.content_hash, b.ref_count;
 -- uses) gives a concurrent dedup upload of this exact content a grace window
 -- to complete its CreateFile bump before GC ever considers the blob a
 -- deletion candidate — see file_blobs.touched_at, migration 0015.
-SELECT content_hash, object_key
+SELECT content_hash, object_key, (wrapped_key <> '')::boolean AS encrypted
 FROM file_blobs
 WHERE ref_count <= 0
   AND touched_at < sqlc.arg(touched_before);
@@ -153,7 +165,37 @@ WHERE ref_count <= 0
 DELETE
 FROM file_blobs
 WHERE content_hash = $1
-  AND ref_count <= 0;
+  AND ref_count <= 0
+  AND wrapped_key = '';
+
+-- name: DeleteEncryptedBlob :one
+-- The row goes first and says which object it held at that moment (the pass that encrypts older blobs may have moved it
+-- since the listing); the caller removes that object. Guarded as DeleteBlob, and only for a blob that is encrypted now.
+DELETE
+FROM file_blobs
+WHERE content_hash = sqlc.arg(content_hash)
+  AND ref_count <= 0
+  AND touched_at < sqlc.arg(touched_before)
+  AND wrapped_key <> ''
+RETURNING object_key;
+
+-- name: AddObjectRemoval :exec
+-- An object that could not be removed: kept here until a pass removes it.
+INSERT INTO object_removals (object_key, created_at)
+VALUES ($1, $2)
+ON CONFLICT DO NOTHING;
+
+-- name: ListObjectRemovals :many
+SELECT object_key
+FROM object_removals
+WHERE created_at < $1
+ORDER BY created_at
+LIMIT $2;
+
+-- name: DeleteObjectRemoval :exec
+DELETE
+FROM object_removals
+WHERE object_key = $1;
 
 -- name: ListUserIDsAfter :many
 -- Every user, deleted ones too, after the cursor: the pass that moves legacy avatars probes avatars/<id> for each.

@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"io"
 	"strings"
 	"testing"
@@ -65,9 +66,9 @@ func upload(t *testing.T, uc *media.MediaUseCase, data []byte) mediaModel.File {
 	return f
 }
 
-func uploadPublic(t *testing.T, uc *media.MediaUseCase, data []byte) mediaModel.File {
+func uploadPublic(t *testing.T, uc *media.MediaUseCase, refType string, data []byte) mediaModel.File {
 	t.Helper()
-	f, err := uc.UploadPublicImage(context.Background(), "logo.png", "image/png", bytes.NewReader(data), uuid.Nil)
+	f, err := uc.UploadPublicImage(context.Background(), refType, "logo.png", "image/png", bytes.NewReader(data), uuid.Nil)
 	if err != nil {
 		t.Fatalf("UploadPublicImage: %v", err)
 	}
@@ -149,7 +150,7 @@ func TestEmptyPrivateFile(t *testing.T) {
 func TestPublicImageStaysPlainAtItsContentAddress(t *testing.T) {
 	uc, q, st := encUC(t)
 	data := pattern(3000)
-	f := uploadPublic(t, uc, data)
+	f := uploadPublic(t, uc, mediaModel.RefTypeEventLogo, data)
 	blob := q.blob(f.ContentHash)
 	if blob.WrappedKey != "" || blob.ObjectKey != "" {
 		t.Fatalf("a public image is a plain blob at the older place: %+v", blob)
@@ -166,7 +167,7 @@ func TestPublicImageStaysPlainAtItsContentAddress(t *testing.T) {
 func TestPrivateUploadMovesAPlainBlobToAnEncryptedObject(t *testing.T) {
 	uc, q, st := encUC(t)
 	data := pattern(3000)
-	pub := uploadPublic(t, uc, data)
+	pub := uploadPublic(t, uc, mediaModel.RefTypeEventLogo, data)
 	priv := upload(t, uc, data)
 
 	blob := q.blob(pub.ContentHash)
@@ -185,7 +186,7 @@ func TestPublicUploadReusesAnEncryptedBlob(t *testing.T) {
 	uc, q, st := encUC(t)
 	data := pattern(3000)
 	priv := upload(t, uc, data)
-	pub := uploadPublic(t, uc, data)
+	pub := uploadPublic(t, uc, mediaModel.RefTypeEventLogo, data)
 	if len(st.objects) != 1 || q.blob(priv.ContentHash).WrappedKey == "" {
 		t.Fatalf("no second object may be stored, got %d", len(st.objects))
 	}
@@ -237,7 +238,7 @@ func TestWithoutAFilesKeyOnlyPublicImagesAreStored(t *testing.T) {
 	if len(st.objects) != 0 {
 		t.Fatalf("nothing may be stored, got %d objects", len(st.objects))
 	}
-	if _, err := uc.UploadPublicImage(context.Background(), "a", "image/png", bytes.NewReader(pattern(10)), uuid.Nil); err != nil {
+	if _, err := uc.UploadPublicImage(context.Background(), mediaModel.RefTypeEventLogo, "a", "image/png", bytes.NewReader(pattern(10)), uuid.Nil); err != nil {
 		t.Fatalf("a public image needs no key: %v", err)
 	}
 }
@@ -554,5 +555,250 @@ func TestMoveLegacyAvatarsOnlyRunsUntilItIsDone(t *testing.T) {
 	late := legacyAvatar(t, q, st, false, pattern(101))
 	if got, _ := uc.MoveLegacyAvatars(context.Background()); got.Total != 0 || st.objects[mediaModel.LegacyAvatarKey(late)] == nil {
 		t.Fatalf("a finished pass must not run again: %+v", got)
+	}
+}
+
+// A chunk that is written again (a retry after a lost answer, or two requests for the same chunk) with different bytes is a
+// different write: it must not reuse the key and nonce of the first, or the two objects XOR to the XOR of the plain bytes.
+func TestAChunkWrittenAgainDoesNotReuseTheNonceSpace(t *testing.T) {
+	uc, q, st := encUC(t)
+	owner := uuid.Must(uuid.NewV7())
+	up, err := uc.StartUpload(context.Background(), "a.bin", "application/octet-stream", 140000, owner, mediaModel.UploadPurposeFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := mediaModel.ChunkKey(up.ID, 0)
+	if _, err = uc.PutChunk(context.Background(), up.ID, owner, 0, bytes.NewReader(pattern(70000))); err != nil {
+		t.Fatal(err)
+	}
+	first := append([]byte{}, st.objects[key]...)
+
+	// The answer was lost and the advance never happened: the same index comes again, with other bytes.
+	u := q.uploads[up.ID]
+	u.ChunksReceived = 0
+	q.uploads[up.ID] = u
+	other := bytes.Repeat([]byte{7}, 70000)
+	if _, err = uc.PutChunk(context.Background(), up.ID, owner, 0, bytes.NewReader(other)); err != nil {
+		t.Fatal(err)
+	}
+	second := st.objects[key]
+	if bytes.Equal(first[8:filecrypt.HeaderSize], second[8:filecrypt.HeaderSize]) {
+		t.Fatal("both writes of the chunk used the same salt")
+	}
+	// With a shared key and nonce the first frame would XOR to the XOR of the plain bytes; it must not.
+	frame1, frame2 := first[filecrypt.HeaderSize:filecrypt.HeaderSize+64], second[filecrypt.HeaderSize:filecrypt.HeaderSize+64]
+	p1, p2 := pattern(70000)[:64], other[:64]
+	same := true
+	for i := range frame1 {
+		same = same && frame1[i]^frame2[i] == p1[i]^p2[i]
+	}
+	if same {
+		t.Fatal("the two writes share a keystream")
+	}
+}
+
+// hookStorage lets a test act when the use case removes an object, or make a removal fail.
+type hookStorage struct {
+	*fakeStorage
+	onRemove   func(key string)
+	failRemove map[string]bool
+	gets       map[string]int
+}
+
+func (h *hookStorage) Get(ctx context.Context, key string) (io.ReadCloser, string, error) {
+	if h.gets == nil {
+		h.gets = map[string]int{}
+	}
+	h.gets[key]++
+	return h.fakeStorage.Get(ctx, key)
+}
+
+func (h *hookStorage) Remove(ctx context.Context, key string) error {
+	if h.onRemove != nil {
+		h.onRemove(key)
+	}
+	if h.failRemove[key] {
+		return io.ErrClosedPipe
+	}
+	return h.fakeStorage.Remove(ctx, key)
+}
+
+// A public image and a private upload of the same bytes race and the private row wins: the plain object the public upload just
+// stored is a plain copy of a private file, and it is removed.
+func TestAPublicCopyThatLostToAPrivateRowIsRemoved(t *testing.T) {
+	uc, q, st := encUC(t)
+	data := pattern(1500)
+	hash := hashOf(data)
+	q.beforeCreate = func(arg postgresArg) {
+		q.blobs[arg.ContentHash] = &blobRowOf{ContentHash: hash, SizeBytes: int64(len(data)), ObjectKey: "media/enc/winner", WrappedKey: "v1:t1:w"}
+		q.beforeCreate = nil
+	}
+	uploadPublic(t, uc, mediaModel.RefTypeEventLogo, data)
+	if _, left := st.objects[mediaModel.BlobKey(hash)]; left {
+		t.Fatal("the plain copy of a blob that is encrypted must be removed")
+	}
+}
+
+// A failed removal is not forgotten: it is kept, and the media GC removes the object once it is past the grace.
+func TestAFailedRemovalIsRetriedByTheGC(t *testing.T) {
+	q, st := newMemQueries(), newFakeStorage()
+	hs := &hookStorage{fakeStorage: st, failRemove: map[string]bool{}}
+	uc := media.NewMediaUseCase(media.Dependencies{Repo: q, Storage: hs, FilesSealer: testhelpers.FilesSealer(), Config: encCfg})
+	t0 := time.Date(2026, 11, 21, 9, 0, 0, 0, time.UTC)
+	uc.SetClock(func() time.Time { return t0 })
+
+	f := upload(t, uc, pattern(700))
+	key := q.blob(f.ContentHash).ObjectKey
+	delete(q.files, f.ID) // no file uses the blob
+	hs.failRemove[key] = true
+	if err := uc.CleanupOrphanFiles(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if st.objects[key] == nil || q.blob(f.ContentHash).ContentHash != "" {
+		t.Fatal("the row is gone and the object is still there, kept for a retry")
+	}
+	if _, listed := q.removals[key]; !listed {
+		t.Fatal("the failed removal must be remembered")
+	}
+
+	hs.failRemove[key] = false
+	if err := uc.CleanupOrphanFiles(context.Background()); err != nil || st.objects[key] == nil {
+		t.Fatalf("an entry younger than the grace is not retried yet: %v", err)
+	}
+	uc.SetClock(func() time.Time { return t0.Add(2 * time.Hour) })
+	if err := uc.CleanupOrphanFiles(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if st.objects[key] != nil || len(q.removals) != 0 {
+		t.Fatal("the object must be removed and the entry forgotten")
+	}
+}
+
+// A retry never removes a plain object that is live again under the same content address.
+func TestARemovalRetryLeavesALivePlainBlob(t *testing.T) {
+	uc, q, st := encUC(t)
+	t0 := time.Date(2026, 11, 21, 9, 0, 0, 0, time.UTC)
+	uc.SetClock(func() time.Time { return t0.Add(48 * time.Hour) })
+	pub := uploadPublic(t, uc, mediaModel.RefTypeEventLogo, pattern(300))
+	q.removals[mediaModel.BlobKey(pub.ContentHash)] = t0
+	if err := uc.CleanupOrphanFiles(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if st.objects[mediaModel.BlobKey(pub.ContentHash)] == nil || len(q.removals) != 0 {
+		t.Fatal("a live plain blob must stay, and only the entry goes")
+	}
+}
+
+// The collector removed the blob an upload had found: the row is not written as an empty blob; the upload starts again and
+// stores its own object.
+func TestABlobCollectedAfterItWasFoundIsNotResurrectedEmpty(t *testing.T) {
+	uc, q, st := encUC(t)
+	data := pattern(900)
+	first := upload(t, uc, data)
+	q.beforeCreate = func(arg postgresArg) { // the collector runs between the look-up and the row
+		old := q.blobs[arg.ContentHash]
+		delete(st.objects, old.ObjectKey)
+		delete(q.blobs, arg.ContentHash)
+		q.beforeCreate = nil
+	}
+	second := upload(t, uc, data)
+	blob := q.blob(second.ContentHash)
+	if blob.WrappedKey == "" || blob.ObjectKey == "" || st.objects[blob.ObjectKey] == nil {
+		t.Fatalf("the blob must be stored again, encrypted: %+v", blob)
+	}
+	if !bytes.Equal(streamAll(t, uc, second.ID), data) {
+		t.Fatal("the new file must read back")
+	}
+	_ = first
+}
+
+// The pass moves a blob while the collector is removing its stale plain key: the collector must not delete the row that now
+// names the encrypted object; the next pass collects the encrypted object by its own key.
+func TestCollectorAndEncryptionPassDoNotOrphanAnObject(t *testing.T) {
+	q, st := newMemQueries(), newFakeStorage()
+	hs := &hookStorage{fakeStorage: st}
+	uc := media.NewMediaUseCase(media.Dependencies{Repo: q, Storage: hs, FilesSealer: testhelpers.FilesSealer(), Config: encCfg})
+	uc.SetClock(func() time.Time { return time.Date(2026, 11, 21, 9, 0, 0, 0, time.UTC) })
+	data := pattern(400)
+	hash := hashOf(data)
+	st.objects[mediaModel.BlobKey(hash)] = append([]byte{}, data...)
+	_, _ = q.CreateFile(context.Background(), createParams(uuid.Must(uuid.NewV7()), hash, int64(len(data))))
+	for id := range q.files {
+		delete(q.files, id) // an orphan blob
+	}
+	hs.onRemove = func(key string) { // while the collector removes the stale plain key, the pass moves the blob
+		hs.onRemove = nil
+		if _, err := uc.EncryptLegacyBlobs(context.Background()); err != nil {
+			t.Error(err)
+		}
+	}
+	if err := uc.CleanupOrphanFiles(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	blob := q.blob(hash)
+	if blob.WrappedKey == "" {
+		t.Fatal("the row that names the encrypted object must survive the collector's stale decision")
+	}
+	if err := uc.CleanupOrphanFiles(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(st.objects) != 0 || q.blob(hash).ContentHash != "" {
+		t.Fatalf("the next pass must collect the encrypted object by its own key: %d objects left", len(st.objects))
+	}
+}
+
+// A call for a public image refuses a kind of file that is not public: it cannot be used to store a private file plain.
+func TestUploadPublicImageRefusesAKindThatIsNotPublic(t *testing.T) {
+	uc, _, st := encUC(t)
+	for _, kind := range []string{"exercise_version", "user_avatar", "event_answer_file", ""} {
+		_, err := uc.UploadPublicImage(context.Background(), kind, "a", "image/png", bytes.NewReader(pattern(10)), uuid.Nil)
+		if !errors.Is(err, mediaModel.ErrUploadInvalid.Err()) {
+			t.Fatalf("%q: %v", kind, err)
+		}
+	}
+	if len(st.objects) != 0 {
+		t.Fatalf("nothing may be stored: %d objects", len(st.objects))
+	}
+	for _, kind := range mediaModel.PublicRefTypes {
+		if _, err := uc.UploadPublicImage(context.Background(), kind, "a", "image/png", bytes.NewReader(pattern(10)), uuid.Nil); err != nil {
+			t.Fatalf("%q must be accepted: %v", kind, err)
+		}
+	}
+}
+
+// A blob that cannot be encrypted is not read again every hour: it is tried again after a growing delay, and still counted as failed.
+func TestABrokenBlobIsRetriedWithABackoff(t *testing.T) {
+	q, st := newMemQueries(), newFakeStorage()
+	hs := &hookStorage{fakeStorage: st}
+	uc := media.NewMediaUseCase(media.Dependencies{Repo: q, Storage: hs, FilesSealer: testhelpers.FilesSealer(), Config: encCfg})
+	now := time.Date(2026, 11, 21, 9, 0, 0, 0, time.UTC)
+	uc.SetClock(func() time.Time { return now })
+	data := pattern(5000)
+	hash := hashOf(data)
+	st.objects[mediaModel.BlobKey(hash)] = append([]byte{}, data...)
+	st.objects[mediaModel.BlobKey(hash)][1] ^= 1 // no longer matches its hash
+	_, _ = q.CreateFile(context.Background(), createParams(uuid.Must(uuid.NewV7()), hash, int64(len(data))))
+
+	run := func() int {
+		got, err := uc.EncryptLegacyBlobs(context.Background())
+		if err != nil || got.Failed != 1 || got.Total != 1 {
+			t.Fatalf("pass %+v %v", got, err)
+		}
+		return hs.gets[mediaModel.BlobKey(hash)]
+	}
+	if reads := run(); reads != 1 {
+		t.Fatalf("first pass reads the object once: %d", reads)
+	}
+	now = now.Add(time.Hour) // the hourly job comes again: still inside the delay
+	if reads := run(); reads != 1 {
+		t.Fatalf("a blob in its delay is not read again: %d", reads)
+	}
+	now = now.Add(2 * time.Hour)
+	if reads := run(); reads != 2 {
+		t.Fatalf("after the delay it is tried again: %d", reads)
+	}
+	now = now.Add(2 * time.Hour) // the second delay is longer (4 hours)
+	if reads := run(); reads != 2 {
+		t.Fatalf("the delay grows: %d", reads)
 	}
 }

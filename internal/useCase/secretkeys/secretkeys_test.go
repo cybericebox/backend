@@ -292,3 +292,14 @@ func TestTheFilesFamilyIsScanned(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, NoFamilyKey, column(t, rep, "file_blobs.wrapped_key").ProblemRefs[0].Kind)
 }
+
+// The report says that plain versions of moved objects may remain in a versioned bucket, once the pass has moved something.
+func TestTheReportWarnsAboutPlainVersionsOfMovedFiles(t *testing.T) {
+	var out bytes.Buffer
+	Report{Rotation: []RotationState{{Family: "files", Source: "file_blobs.legacy_objects_to_encrypted", State: "finished", Done: 3}}}.Write(&out)
+	require.Contains(t, out.String(), "plain versions of the objects that were moved")
+
+	out.Reset()
+	Report{Rotation: []RotationState{{Family: "files", Source: "file_blobs.legacy_objects_to_encrypted", State: "finished"}}}.Write(&out)
+	require.NotContains(t, out.String(), "plain versions")
+}

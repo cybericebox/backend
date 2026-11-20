@@ -18,6 +18,8 @@ type Querier interface {
 	// An email image is owned by its draft as soon as it is uploaded. Inserting
 	// one link avoids a read/replace race when uploads finish concurrently.
 	AddFileReference(ctx context.Context, arg AddFileReferenceParams) error
+	// An object that could not be removed: kept here until a pass removes it.
+	AddObjectRemoval(ctx context.Context, arg AddObjectRemovalParams) error
 	// Moves a plain blob to an encrypted object: only while the blob is still plain, so of two writers one wins.
 	AdoptBlobEncryption(ctx context.Context, arg AdoptBlobEncryptionParams) (int64, error)
 	// Gives a user the avatar reference, in this one statement, only if the user still exists (not deleted) and still has
@@ -267,6 +269,10 @@ type Querier interface {
 	// object_key and wrapped_key are those of the blob when it is created; on a
 	// dedup hit the blob keeps its own, and the row returned says which they are,
 	// so the caller can drop the object it stored if it lost the race.
+	// require_existing: the caller stored no object because it found the blob. Then the
+	// blob is only bumped, never created: if the collector removed it meanwhile, nothing is
+	// inserted and no row comes back (the caller starts again), so a blob can never come
+	// back as an empty row that points at an object that is gone.
 	CreateFile(ctx context.Context, arg CreateFileParams) (CreateFileRow, error)
 	// Idempotent per team and hint: a repeated unlock returns the first one.
 	CreateHintUnlock(ctx context.Context, arg CreateHintUnlockParams) (CreateHintUnlockRow, error)
@@ -336,6 +342,9 @@ type Querier interface {
 	DeleteClusterReservation(ctx context.Context, id uuid.UUID) error
 	DeleteEmailBlockPreset(ctx context.Context, id uuid.UUID) error
 	DeleteEmailTemplate(ctx context.Context, id uuid.UUID) (int64, error)
+	// The row goes first and says which object it held at that moment (the pass that encrypts older blobs may have moved it
+	// since the listing); the caller removes that object. Guarded as DeleteBlob, and only for a blob that is encrypted now.
+	DeleteEncryptedBlob(ctx context.Context, arg DeleteEncryptedBlobParams) (string, error)
 	DeleteErrorTelegramChatsNotIn(ctx context.Context, keep []string) error
 	DeleteEvent(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteEventChallengeGroup(ctx context.Context, arg DeleteEventChallengeGroupParams) (int64, error)
@@ -389,6 +398,7 @@ type Querier interface {
 	DeleteMediaUpload(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteNonOwnerEventManager(ctx context.Context, arg DeleteNonOwnerEventManagerParams) (int64, error)
 	DeleteNotificationBroadcastTemplate(ctx context.Context, arg DeleteNotificationBroadcastTemplateParams) (int64, error)
+	DeleteObjectRemoval(ctx context.Context, objectKey string) error
 	DeleteOwnedExerciseTestDeploy(ctx context.Context, arg DeleteOwnedExerciseTestDeployParams) (int64, error)
 	// Withdraws a pending request that has nothing left to ask (the working copy is inside the frame or covered by
 	// approvals); a decided request is history and stays. 0 rows: it was decided or removed meanwhile.
@@ -1446,6 +1456,7 @@ type Querier interface {
 	// otherwise the Event id.
 	ListNotificationBroadcasts(ctx context.Context, arg ListNotificationBroadcastsParams) ([]ListNotificationBroadcastsRow, error)
 	ListNotificationSettings(ctx context.Context) ([]NotificationSetting, error)
+	ListObjectRemovals(ctx context.Context, arg ListObjectRemovalsParams) ([]string, error)
 	// Sessions a new handshake may still extend: those ending at or after
 	// ended_after.
 	ListOpenEventVPNSessions(ctx context.Context, arg ListOpenEventVPNSessionsParams) ([]EventVpnSession, error)

@@ -82,8 +82,19 @@ func (u *MediaUseCase) EncryptLegacyBlobs(ctx context.Context) (secret.Progress,
 				return p, ctx.Err()
 			}
 			p.Total++
+			if u.inBackoff(blob.ContentHash) {
+				// Tried and failed lately: not read again yet, but still counted, so `keys status` keeps showing it.
+				p.Failed++
+				if p.ByReason == nil {
+					p.ByReason = map[secret.Reason]int{}
+				}
+				p.ByReason[secret.ReasonCorrupt]++
+				after = blob.ContentHash
+				continue
+			}
 			switch encErr := u.encryptBlob(ctx, blob); {
 			case encErr == nil:
+				u.forgetFailure(blob.ContentHash)
 				p.Done++
 			case errors.Is(encErr, errBlobChanged):
 				p.Conflicts++
@@ -96,7 +107,8 @@ func (u *MediaUseCase) EncryptLegacyBlobs(ctx context.Context) (secret.Progress,
 					p.ByReason = map[secret.Reason]int{}
 				}
 				p.ByReason[secret.ReasonCorrupt]++
-				log.Warn().Err(encErr).Str("blob", blob.ContentHash).Msg("media: a plain blob could not be encrypted, it stays as it is")
+				retryAt := u.rememberFailure(blob.ContentHash)
+				log.Warn().Time("retry_at", retryAt).Err(encErr).Str("blob", blob.ContentHash).Msg("media: a plain blob could not be encrypted, it stays as it is")
 			}
 			after = blob.ContentHash
 		}
@@ -109,6 +121,47 @@ func (u *MediaUseCase) EncryptLegacyBlobs(ctx context.Context) (secret.Progress,
 		save(keyRotationRepo.StateFinished)
 	}
 	return p, nil
+}
+
+// blobFailure is what the pass remembers of a blob it could not encrypt.
+type blobFailure struct {
+	failures int
+	retryAt  time.Time
+}
+
+const (
+	legacyBackoffBase = 2 * time.Hour
+	legacyBackoffMax  = 7 * 24 * time.Hour
+)
+
+// inBackoff reports whether a blob failed lately and is not to be read again yet.
+func (u *MediaUseCase) inBackoff(hash string) bool {
+	u.legacyFailuresMu.Lock()
+	defer u.legacyFailuresMu.Unlock()
+	f, ok := u.legacyFailures[hash]
+	return ok && u.now().Before(f.retryAt)
+}
+
+// rememberFailure records a failure and returns when the blob may be tried again: after 2 hours, then twice as long each time,
+// at most a week. The memory is the process's: a restart tries every broken blob once more.
+func (u *MediaUseCase) rememberFailure(hash string) time.Time {
+	u.legacyFailuresMu.Lock()
+	defer u.legacyFailuresMu.Unlock()
+	if u.legacyFailures == nil {
+		u.legacyFailures = map[string]blobFailure{}
+	}
+	f := u.legacyFailures[hash]
+	f.failures++
+	delay := legacyBackoffBase << min(f.failures-1, 10)
+	f.retryAt = u.now().Add(min(delay, legacyBackoffMax))
+	u.legacyFailures[hash] = f
+	return f.retryAt
+}
+
+func (u *MediaUseCase) forgetFailure(hash string) {
+	u.legacyFailuresMu.Lock()
+	defer u.legacyFailuresMu.Unlock()
+	delete(u.legacyFailures, hash)
 }
 
 // errBlobChanged: another writer moved the blob while this pass worked on it; it is no longer plain, nothing is wrong.
@@ -136,7 +189,7 @@ func (u *MediaUseCase) encryptBlob(ctx context.Context, blob mediaModel.Blob) er
 	hasher := sha256.New()
 	counter := &countingReader{r: io.TeeReader(io.LimitReader(src, blob.SizeBytes+1), hasher)}
 	newKey := mediaModel.EncryptedBlobKey(uuid.Must(uuid.NewV7()))
-	if err = u.encryptedPut(ctx, newKey, fileKey, 0, counter, blob.SizeBytes, "application/octet-stream"); err != nil {
+	if err = u.encryptedPut(ctx, newKey, fileKey, counter, blob.SizeBytes, "application/octet-stream"); err != nil {
 		u.removeQuietly(ctx, newKey)
 		return fmt.Errorf("write the encrypted object: %w", err)
 	}

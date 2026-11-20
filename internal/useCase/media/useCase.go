@@ -6,7 +6,9 @@ import (
 	"context"
 	"io"
 	"reflect"
+	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/cybericebox/daemon/internal/config"
 	"github.com/cybericebox/daemon/internal/delivery/repository/mediaRepo"
@@ -40,6 +42,11 @@ type MediaUseCase struct {
 	sealerConfigured bool
 	cfg              config.MediaConfig
 	progress         ProgressStore
+	// legacyFailures remembers, per blob, the failures of the encryption pass and when to try it again.
+	legacyFailuresMu sync.Mutex
+	legacyFailures   map[string]blobFailure
+	// clock is the time of the use case; tests set it.
+	clock func() time.Time
 	// legacyAvatarsDone is set when a pass over the legacy avatars finished without a failure: nothing writes avatars/<id>
 	// any more, so there is nothing new to find until the process starts again.
 	legacyAvatarsDone atomic.Bool
@@ -89,6 +96,17 @@ func isSealerConfigured(s secret.Sealer) bool {
 	v := reflect.ValueOf(s)
 	return v.Kind() != reflect.Ptr || !v.IsNil()
 }
+
+// now is the current time of the use case.
+func (u *MediaUseCase) now() time.Time {
+	if u.clock != nil {
+		return u.clock()
+	}
+	return time.Now()
+}
+
+// SetClock sets the clock (tests).
+func (u *MediaUseCase) SetClock(now func() time.Time) { u.clock = now }
 
 // MaxUploadBytes exposes the configured upload cap so delivery-layer callers
 // (the multipart handler) can enforce the SAME limit at the HTTP boundary —

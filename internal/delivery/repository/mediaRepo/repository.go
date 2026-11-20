@@ -5,9 +5,11 @@ package mediaRepo
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/gofrs/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
 	mediaModel "github.com/cybericebox/daemon/internal/model/media"
@@ -31,6 +33,10 @@ type Queries interface {
 	DeleteUnreferencedFiles(ctx context.Context, createdBefore time.Time) ([]postgres.DeleteUnreferencedFilesRow, error)
 	ListOrphanBlobs(ctx context.Context, touchedBefore time.Time) ([]postgres.ListOrphanBlobsRow, error)
 	DeleteBlob(ctx context.Context, contentHash string) (int64, error)
+	DeleteEncryptedBlob(ctx context.Context, arg postgres.DeleteEncryptedBlobParams) (string, error)
+	AddObjectRemoval(ctx context.Context, arg postgres.AddObjectRemovalParams) error
+	ListObjectRemovals(ctx context.Context, arg postgres.ListObjectRemovalsParams) ([]string, error)
+	DeleteObjectRemoval(ctx context.Context, objectKey string) error
 	CreateMediaUpload(ctx context.Context, arg postgres.CreateMediaUploadParams) (postgres.MediaUpload, error)
 	GetMediaUpload(ctx context.Context, id uuid.UUID) (postgres.MediaUpload, error)
 	AdvanceMediaUpload(ctx context.Context, arg postgres.AdvanceMediaUploadParams) (int64, error)
@@ -80,17 +86,54 @@ func (r *Repository) DeleteUnreferenced(ctx context.Context, createdBefore time.
 	return err
 }
 
-// ListOrphanBlobs returns the blobs no file references, older than the cutoff (the hash and where the object lies).
-func (r *Repository) ListOrphanBlobs(ctx context.Context, touchedBefore time.Time) ([]mediaModel.Blob, error) {
+// OrphanBlob is a blob no file references: where its object lies and whether it is encrypted.
+type OrphanBlob struct {
+	ContentHash string
+	ObjectKey   string
+	Encrypted   bool
+}
+
+// Key is the object key of the blob.
+func (o OrphanBlob) Key() string {
+	return mediaModel.Blob{ContentHash: o.ContentHash, ObjectKey: o.ObjectKey}.Key()
+}
+
+// ListOrphanBlobs returns the blobs no file references, older than the cutoff.
+func (r *Repository) ListOrphanBlobs(ctx context.Context, touchedBefore time.Time) ([]OrphanBlob, error) {
 	rows, err := r.q.ListOrphanBlobs(ctx, touchedBefore)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]mediaModel.Blob, 0, len(rows))
+	out := make([]OrphanBlob, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, mediaModel.Blob{ContentHash: row.ContentHash, ObjectKey: row.ObjectKey})
+		out = append(out, OrphanBlob{ContentHash: row.ContentHash, ObjectKey: row.ObjectKey, Encrypted: row.Encrypted})
 	}
 	return out, nil
+}
+
+// DeleteEncryptedBlob removes the row of an encrypted orphan blob and returns the key of the object it held at that moment;
+// found is false when the row is gone, referenced again, touched again or no longer encrypted.
+func (r *Repository) DeleteEncryptedBlob(ctx context.Context, contentHash string, touchedBefore time.Time) (objectKey string, found bool, err error) {
+	key, err := r.q.DeleteEncryptedBlob(ctx, postgres.DeleteEncryptedBlobParams{ContentHash: contentHash, TouchedBefore: touchedBefore})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", false, nil
+	}
+	return key, err == nil, err
+}
+
+// AddObjectRemoval remembers an object that could not be removed.
+func (r *Repository) AddObjectRemoval(ctx context.Context, key string, at time.Time) error {
+	return r.q.AddObjectRemoval(ctx, postgres.AddObjectRemovalParams{ObjectKey: key, CreatedAt: at})
+}
+
+// ListObjectRemovals returns up to limit remembered objects older than the cutoff.
+func (r *Repository) ListObjectRemovals(ctx context.Context, before time.Time, limit int) ([]string, error) {
+	return r.q.ListObjectRemovals(ctx, postgres.ListObjectRemovalsParams{CreatedAt: before, Limit: int32(limit)})
+}
+
+// DeleteObjectRemoval forgets a remembered object.
+func (r *Repository) DeleteObjectRemoval(ctx context.Context, key string) error {
+	return r.q.DeleteObjectRemoval(ctx, key)
 }
 
 // GetBlob returns the blob of a content hash; not found propagates the raw repo error.
@@ -133,17 +176,21 @@ func (r *Repository) DeleteBlob(ctx context.Context, contentHash string) (int64,
 
 // CreateFile records the file and the use of its blob. blob is the blob as this caller would create it; when the blob
 // already exists it keeps its own object, and the blob returned is the one that now stands.
-func (r *Repository) CreateFile(ctx context.Context, f mediaModel.File, blob mediaModel.Blob) (mediaModel.File, mediaModel.Blob, error) {
+//
+// requireExisting: the caller stored no object because it found the blob; then the blob is only bumped, and if it is gone
+// the error is pgx.ErrNoRows and nothing was written.
+func (r *Repository) CreateFile(ctx context.Context, f mediaModel.File, blob mediaModel.Blob, requireExisting bool) (mediaModel.File, mediaModel.Blob, error) {
 	row, err := r.q.CreateFile(ctx, postgres.CreateFileParams{
-		ObjectKey:   blob.ObjectKey,
-		WrappedKey:  blob.WrappedKey,
-		ID:          f.ID,
-		Name:        f.Name,
-		ContentType: f.ContentType,
-		SizeBytes:   f.SizeBytes,
-		ContentHash: f.ContentHash,
-		CreatedAt:   f.CreatedAt,
-		CreatedBy:   f.CreatedBy,
+		RequireExisting: requireExisting,
+		ObjectKey:       blob.ObjectKey,
+		WrappedKey:      blob.WrappedKey,
+		ID:              f.ID,
+		Name:            f.Name,
+		ContentType:     f.ContentType,
+		SizeBytes:       f.SizeBytes,
+		ContentHash:     f.ContentHash,
+		CreatedAt:       f.CreatedAt,
+		CreatedBy:       f.CreatedBy,
 	})
 	if err != nil {
 		return mediaModel.File{}, mediaModel.Blob{}, err

@@ -54,7 +54,7 @@ func (u *EventUseCase) UploadLiveLogo(ctx context.Context, eventID, userID uuid.
 	if err != nil {
 		return "", err
 	}
-	file, err := u.brandMedia.UploadPublicImage(ctx, "event-live-logo", contentType, bytes.NewReader(clean), userID)
+	file, err := u.brandMedia.UploadPublicImage(ctx, mediaModel.RefTypeEventContentImage, "event-live-logo", contentType, bytes.NewReader(clean), userID)
 	if err != nil {
 		return "", err
 	}

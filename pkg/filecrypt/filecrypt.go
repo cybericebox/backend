@@ -2,25 +2,29 @@
 // memory, a stream is encrypted and decrypted as it passes, and a range of the plain bytes is read by fetching only the
 // frames that cover it.
 //
-// Format of an encrypted object:
+// Format of an encrypted object (version 2, the only one):
 //
-//	header   8 bytes: "CIBF" + version 1 + 3 zero bytes
+//	header   24 bytes: "CIBF" + version 2 + 3 zero bytes + a random salt of 16 bytes
 //	frame 0  ciphertext of plain bytes [0, FrameSize) + 16 byte AES-256-GCM tag
 //	frame 1  ...
 //	frame n  the last frame holds what is left (0 to FrameSize plain bytes); an empty file is one empty frame
 //
-// Every frame is sealed with the one key of the file and the nonce stream(4 bytes, big endian) | frame index (8 bytes,
-// big endian). A key is therefore used for one stream only: a caller that keeps several objects under one key (the chunks
-// of an upload) gives each its own stream number. The additional data of a frame is one byte, 1 for the last frame and 0
-// for any other, so cutting an object short, appending to it or reordering its frames fails to open. The plain size is
-// not stored: it follows from the object size (PlainSize), and the caller keeps it in its own record.
+// The frame key of an object is HKDF-SHA256(file key, salt, "cybericebox/filecrypt/v2/frame"), and the nonce of a frame is
+// its index (8 bytes, big endian) after 4 zero bytes. The salt is drawn at random every time an object is written, so two
+// writes never share a (key, nonce) pair even when they use the same file key: a chunk of an upload that is sent again, or
+// two requests for the same chunk, give two different frame keys. The additional data of a frame is one byte, 1 for the
+// last frame and 0 for any other, so cutting an object short, appending to it or reordering its frames fails to open. The
+// plain size is not stored: it follows from the object size (PlainSize), and the caller keeps it in its own record.
 package filecrypt
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/hkdf"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/binary"
 	"errors"
 	"io"
@@ -31,13 +35,18 @@ const (
 	FrameSize = 64 << 10
 	// TagSize is the authentication tag every frame adds.
 	TagSize = 16
+	// SaltSize is the length of the random salt in the header.
+	SaltSize = 16
 	// HeaderSize is the length of the object header.
-	HeaderSize = 8
+	HeaderSize = 8 + SaltSize
 	// KeySize is the length of a file key.
 	KeySize = 32
 )
 
-var header = [HeaderSize]byte{'C', 'I', 'B', 'F', 1, 0, 0, 0}
+// magic starts every object: the format name, the version, and three reserved bytes.
+var magic = [8]byte{'C', 'I', 'B', 'F', 2, 0, 0, 0}
+
+const frameKeyInfo = "cybericebox/filecrypt/v2/frame"
 
 var (
 	// ErrBadKey: the key is not KeySize bytes.
@@ -88,20 +97,24 @@ func PlainSize(enc int64) (int64, error) {
 	return 0, ErrCorrupt
 }
 
-func newAEAD(key []byte) (cipher.AEAD, error) {
+// newAEAD derives the frame key of one object from the file key and the salt of its header.
+func newAEAD(key, salt []byte) (cipher.AEAD, error) {
 	if len(key) != KeySize {
 		return nil, ErrBadKey
 	}
-	block, err := aes.NewCipher(key)
+	frameKey, err := hkdf.Key(sha256.New, key, salt, frameKeyInfo, KeySize)
+	if err != nil {
+		return nil, err
+	}
+	block, err := aes.NewCipher(frameKey)
 	if err != nil {
 		return nil, err
 	}
 	return cipher.NewGCM(block)
 }
 
-func nonce(stream uint32, index uint64) []byte {
+func nonce(index uint64) []byte {
 	var n [12]byte
-	binary.BigEndian.PutUint32(n[:4], stream)
 	binary.BigEndian.PutUint64(n[4:], index)
 	return n[:]
 }
@@ -156,23 +169,32 @@ func (f *frames) next(buf []byte) (n int, final bool, err error) {
 }
 
 type encryptReader struct {
-	aead   cipher.AEAD
-	stream uint32
-	fr     frames
-	plain  []byte
-	out    []byte
-	hdr    bool
-	err    error
+	aead  cipher.AEAD
+	salt  [SaltSize]byte
+	fr    frames
+	plain []byte
+	out   []byte
+	hdr   bool
+	err   error
 }
 
 // NewEncryptReader returns the encrypted object of src: the header, then the frames, produced as src is read.
-func NewEncryptReader(key []byte, stream uint32, src io.Reader) (io.Reader, error) {
-	aead, err := newAEAD(key)
+func NewEncryptReader(key []byte, src io.Reader) (io.Reader, error) {
+	var salt [SaltSize]byte
+	if _, err := io.ReadFull(rand.Reader, salt[:]); err != nil {
+		return nil, err
+	}
+	return newEncryptReader(key, salt, src)
+}
+
+// newEncryptReader is NewEncryptReader with the salt given (tests give a fixed one).
+func newEncryptReader(key []byte, salt [SaltSize]byte, src io.Reader) (io.Reader, error) {
+	aead, err := newAEAD(key, salt[:])
 	if err != nil {
 		return nil, err
 	}
 	return &encryptReader{
-		aead: aead, stream: stream, plain: make([]byte, FrameSize),
+		aead: aead, salt: salt, plain: make([]byte, FrameSize),
 		fr: frames{br: bufio.NewReaderSize(src, 4096), size: FrameSize},
 	}, nil
 }
@@ -184,7 +206,7 @@ func (e *encryptReader) Read(p []byte) (int, error) {
 		}
 		if !e.hdr {
 			e.hdr = true
-			e.out = append(e.out[:0], header[:]...)
+			e.out = append(append(e.out[:0], magic[:]...), e.salt[:]...)
 			continue
 		}
 		idx := e.fr.index
@@ -193,7 +215,7 @@ func (e *encryptReader) Read(p []byte) (int, error) {
 			e.err = err
 			continue
 		}
-		e.out = e.aead.Seal(e.out[:0], nonce(e.stream, idx), e.plain[:n], flag(final))
+		e.out = e.aead.Seal(e.out[:0], nonce(idx), e.plain[:n], flag(final))
 		if final {
 			e.err = io.EOF
 		}
@@ -204,13 +226,11 @@ func (e *encryptReader) Read(p []byte) (int, error) {
 }
 
 type decryptReader struct {
-	aead   cipher.AEAD
-	stream uint32
-	fr     frames
-	enc    []byte
-	out    []byte
-	hdr    bool
-	err    error
+	aead cipher.AEAD
+	fr   frames
+	enc  []byte
+	out  []byte
+	err  error
 	// skip is how many plain bytes of the first frame are dropped; limit is how many are delivered (negative: all).
 	skip  int
 	limit int64
@@ -220,8 +240,13 @@ type decryptReader struct {
 // NewDecryptReader returns the plain bytes of an encrypted object read from src, checking every frame as it passes. A
 // damaged or cut object ends with ErrCorrupt after the frames before it were delivered; the caller must treat the
 // stream as failed whenever the error is not io.EOF.
-func NewDecryptReader(key []byte, stream uint32, src io.Reader) (io.ReadCloser, error) {
-	d, err := newDecryptReader(key, stream, src, true)
+func NewDecryptReader(key []byte, src io.Reader) (io.ReadCloser, error) {
+	br := bufio.NewReaderSize(src, 4096)
+	salt, err := readHeader(br)
+	if err != nil {
+		return nil, err
+	}
+	d, err := newDecryptReader(key, salt, br)
 	if err != nil {
 		return nil, err
 	}
@@ -231,14 +256,24 @@ func NewDecryptReader(key []byte, stream uint32, src io.Reader) (io.ReadCloser, 
 	return d, nil
 }
 
-func newDecryptReader(key []byte, stream uint32, src io.Reader, withHeader bool) (*decryptReader, error) {
-	aead, err := newAEAD(key)
+// readHeader reads the header of an object and returns its salt.
+func readHeader(r io.Reader) ([]byte, error) {
+	var h [HeaderSize]byte
+	if _, err := io.ReadFull(r, h[:]); err != nil || !bytes.Equal(h[:8], magic[:]) {
+		return nil, ErrNotEncrypted
+	}
+	return h[8:], nil
+}
+
+// newDecryptReader reads frames from br, which stands at the first frame.
+func newDecryptReader(key, salt []byte, br *bufio.Reader) (*decryptReader, error) {
+	aead, err := newAEAD(key, salt)
 	if err != nil {
 		return nil, err
 	}
 	return &decryptReader{
-		aead: aead, stream: stream, enc: make([]byte, FrameSize+TagSize), hdr: !withHeader, limit: -1,
-		fr: frames{br: bufio.NewReaderSize(src, 4096), size: FrameSize + TagSize},
+		aead: aead, enc: make([]byte, FrameSize+TagSize), limit: -1,
+		fr: frames{br: br, size: FrameSize + TagSize},
 	}, nil
 }
 
@@ -258,15 +293,6 @@ func (d *decryptReader) Read(p []byte) (int, error) {
 			d.err = io.EOF
 			continue
 		}
-		if !d.hdr {
-			var h [HeaderSize]byte
-			if _, err := io.ReadFull(d.fr.br, h[:]); err != nil || h != header {
-				d.err = ErrNotEncrypted
-				continue
-			}
-			d.hdr = true
-			continue
-		}
 		idx := d.fr.index
 		n, final, err := d.fr.next(d.enc)
 		if err != nil {
@@ -277,7 +303,7 @@ func (d *decryptReader) Read(p []byte) (int, error) {
 			d.err = ErrCorrupt
 			continue
 		}
-		plain, err := d.aead.Open(d.enc[:0], nonce(d.stream, idx), d.enc[:n], flag(final))
+		plain, err := d.aead.Open(d.enc[:0], nonce(idx), d.enc[:n], flag(final))
 		if err != nil {
 			d.err = ErrCorrupt
 			continue
@@ -307,7 +333,7 @@ type Fetch func(offset, length int64) (io.ReadCloser, error)
 
 // OpenRange returns length plain bytes of a file from offset, of a file of plainSize bytes stored encrypted. It asks
 // fetch for the frames that cover the range only and checks each of them.
-func OpenRange(key []byte, stream uint32, plainSize, offset, length int64, fetch Fetch) (io.ReadCloser, error) {
+func OpenRange(key []byte, plainSize, offset, length int64, fetch Fetch) (io.ReadCloser, error) {
 	if offset < 0 || length < 0 || offset+length > plainSize {
 		return nil, ErrRange
 	}
@@ -319,11 +345,21 @@ func OpenRange(key []byte, stream uint32, plainSize, offset, length int64, fetch
 	last := (offset + length - 1) / FrameSize
 	start := HeaderSize + first*(FrameSize+TagSize)
 	end := min(EncryptedSize(plainSize), HeaderSize+(last+1)*(FrameSize+TagSize))
+	// The salt is in the header, which is not part of the frames asked for below: it is one small read of its own.
+	hrc, err := fetch(0, HeaderSize)
+	if err != nil {
+		return nil, err
+	}
+	salt, err := readHeader(hrc)
+	_ = hrc.Close()
+	if err != nil {
+		return nil, err
+	}
 	rc, err := fetch(start, end-start)
 	if err != nil {
 		return nil, err
 	}
-	d, err := newDecryptReader(key, stream, rc, false)
+	d, err := newDecryptReader(key, salt, bufio.NewReaderSize(rc, 4096))
 	if err != nil {
 		_ = rc.Close()
 		return nil, err

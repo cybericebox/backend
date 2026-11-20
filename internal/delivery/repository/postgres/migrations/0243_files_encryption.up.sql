@@ -14,3 +14,10 @@ ALTER TABLE file_blobs
 
 ALTER TABLE media_uploads
     ADD COLUMN wrapped_key text NOT NULL DEFAULT '';
+
+-- Objects that could not be removed from the bucket (a failed delete): a pass retries them, so no object is forgotten.
+CREATE TABLE object_removals
+(
+    object_key text PRIMARY KEY,
+    created_at timestamptz NOT NULL
+);

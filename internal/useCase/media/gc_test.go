@@ -29,6 +29,7 @@ func TestCleanupOrphanFiles_RemovesBlobsFromStorage(t *testing.T) {
 	q.EXPECT().DeleteUnreferencedFiles(gomock.Any(), gomock.Any()).Return(nil, nil)
 	q.EXPECT().ListOrphanBlobs(gomock.Any(), gomock.Any()).Return([]postgres.ListOrphanBlobsRow{{ContentHash: "dead-hash"}}, nil)
 	q.EXPECT().DeleteBlob(gomock.Any(), "dead-hash").Return(int64(1), nil)
+	q.EXPECT().ListObjectRemovals(gomock.Any(), gomock.Any()).Return(nil, nil)
 
 	if err := uc.CleanupOrphanFiles(context.Background()); err != nil {
 		t.Fatalf("CleanupOrphanFiles: %v", err)
@@ -67,6 +68,7 @@ func TestCleanupOrphanFiles_SameGraceCutoffForFilesAndBlobs(t *testing.T) {
 			return nil, nil
 		},
 	)
+	q.EXPECT().ListObjectRemovals(gomock.Any(), gomock.Any()).Return(nil, nil)
 
 	if err := uc.CleanupOrphanFiles(context.Background()); err != nil {
 		t.Fatalf("CleanupOrphanFiles: %v", err)

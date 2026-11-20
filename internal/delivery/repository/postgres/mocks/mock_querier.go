@@ -87,6 +87,20 @@ func (mr *MockQuerierMockRecorder) AddFileReference(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddFileReference", reflect.TypeOf((*MockQuerier)(nil).AddFileReference), ctx, arg)
 }
 
+// AddObjectRemoval mocks base method.
+func (m *MockQuerier) AddObjectRemoval(ctx context.Context, arg postgres.AddObjectRemovalParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddObjectRemoval", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// AddObjectRemoval indicates an expected call of AddObjectRemoval.
+func (mr *MockQuerierMockRecorder) AddObjectRemoval(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddObjectRemoval", reflect.TypeOf((*MockQuerier)(nil).AddObjectRemoval), ctx, arg)
+}
+
 // AdoptBlobEncryption mocks base method.
 func (m *MockQuerier) AdoptBlobEncryption(ctx context.Context, arg postgres.AdoptBlobEncryptionParams) (int64, error) {
 	m.ctrl.T.Helper()
@@ -2729,6 +2743,21 @@ func (mr *MockQuerierMockRecorder) DeleteEmailTemplate(ctx, id any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteEmailTemplate", reflect.TypeOf((*MockQuerier)(nil).DeleteEmailTemplate), ctx, id)
 }
 
+// DeleteEncryptedBlob mocks base method.
+func (m *MockQuerier) DeleteEncryptedBlob(ctx context.Context, arg postgres.DeleteEncryptedBlobParams) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteEncryptedBlob", ctx, arg)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteEncryptedBlob indicates an expected call of DeleteEncryptedBlob.
+func (mr *MockQuerierMockRecorder) DeleteEncryptedBlob(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteEncryptedBlob", reflect.TypeOf((*MockQuerier)(nil).DeleteEncryptedBlob), ctx, arg)
+}
+
 // DeleteErrorTelegramChatsNotIn mocks base method.
 func (m *MockQuerier) DeleteErrorTelegramChatsNotIn(ctx context.Context, keep []string) error {
 	m.ctrl.T.Helper()
@@ -3327,6 +3356,20 @@ func (m *MockQuerier) DeleteNotificationBroadcastTemplate(ctx context.Context, a
 func (mr *MockQuerierMockRecorder) DeleteNotificationBroadcastTemplate(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteNotificationBroadcastTemplate", reflect.TypeOf((*MockQuerier)(nil).DeleteNotificationBroadcastTemplate), ctx, arg)
+}
+
+// DeleteObjectRemoval mocks base method.
+func (m *MockQuerier) DeleteObjectRemoval(ctx context.Context, objectKey string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteObjectRemoval", ctx, objectKey)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteObjectRemoval indicates an expected call of DeleteObjectRemoval.
+func (mr *MockQuerierMockRecorder) DeleteObjectRemoval(ctx, objectKey any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteObjectRemoval", reflect.TypeOf((*MockQuerier)(nil).DeleteObjectRemoval), ctx, objectKey)
 }
 
 // DeleteOwnedExerciseTestDeploy mocks base method.
@@ -10602,6 +10645,21 @@ func (m *MockQuerier) ListNotificationSettings(ctx context.Context) ([]postgres.
 func (mr *MockQuerierMockRecorder) ListNotificationSettings(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListNotificationSettings", reflect.TypeOf((*MockQuerier)(nil).ListNotificationSettings), ctx)
+}
+
+// ListObjectRemovals mocks base method.
+func (m *MockQuerier) ListObjectRemovals(ctx context.Context, arg postgres.ListObjectRemovalsParams) ([]string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListObjectRemovals", ctx, arg)
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListObjectRemovals indicates an expected call of ListObjectRemovals.
+func (mr *MockQuerierMockRecorder) ListObjectRemovals(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListObjectRemovals", reflect.TypeOf((*MockQuerier)(nil).ListObjectRemovals), ctx, arg)
 }
 
 // ListOpenEventVPNSessions mocks base method.
