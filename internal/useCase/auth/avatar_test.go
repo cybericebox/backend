@@ -302,35 +302,9 @@ func TestGetAvatar_FallsBackToLegacyWhenNoMediaReference(t *testing.T) {
 	if string(data) != "legacy-bytes" {
 		t.Fatalf("unexpected legacy stream content: %q", data)
 	}
-	// Read once, the legacy object moves into the media store (which encrypts it) and is removed.
-	if av.uploadedName != "avatar" || av.uploadedContentType != "image/jpeg" || av.uploadedBy != uid {
-		t.Fatalf("the legacy avatar must be re-stored as a media file: %+v", av)
-	}
-	if av.replacedRefType != mediaModel.RefTypeUserAvatar || av.replacedRefID != uid || len(av.replacedIDs) != 1 {
-		t.Fatalf("the avatar reference must point at the new file: %+v", av)
-	}
-	if st.removeCalls != 1 || st.removeKey != "avatars/"+uid.String() {
-		t.Fatalf("the legacy object must be removed: calls=%d key=%q", st.removeCalls, st.removeKey)
-	}
-}
-
-// A move that fails leaves the legacy object in place and still serves it.
-func TestGetAvatar_LegacyIsServedAndKeptWhenTheMoveFails(t *testing.T) {
-	uid := uuid.Must(uuid.NewV7())
-	av := &fakeAvatarStorage{uploadErr: errors.New("storage down")}
-	st := &fakeLegacyStorage{getReader: io.NopCloser(strings.NewReader("legacy-bytes")), getType: "image/png"}
-	uc, _ := newAvatarUC(t, st, av)
-
-	rc, _, err := uc.GetAvatar(context.Background(), uid)
-	if err != nil {
-		t.Fatalf("GetAvatar: %v", err)
-	}
-	defer func() { _ = rc.Close() }()
-	if data, _ := io.ReadAll(rc); string(data) != "legacy-bytes" {
-		t.Fatalf("content %q", data)
-	}
-	if st.removeCalls != 0 || av.replaceCalls != 0 {
-		t.Fatalf("nothing may change when the move fails: removes=%d replaces=%d", st.removeCalls, av.replaceCalls)
+	// Reading never changes anything: no move, no removal, no reference (that is the job of the background pass).
+	if av.uploadedName != "" || av.replaceCalls != 0 || st.removeCalls != 0 {
+		t.Fatalf("a read must not move the legacy avatar: %+v removes=%d", av, st.removeCalls)
 	}
 }
 

@@ -100,6 +100,12 @@ func BlobKey(contentHash string) string {
 	return "media/blobs/" + contentHash
 }
 
+// LegacyAvatarKey is the key under which a user's avatar was stored directly, before avatars moved onto media files.
+func LegacyAvatarKey(userID uuid.UUID) string { return "avatars/" + userID.String() }
+
+// MaxLegacyAvatarBytes bounds what the pass that moves a legacy avatar reads; a larger object is left where it is.
+const MaxLegacyAvatarBytes = 8 << 20
+
 // EncryptedBlobKey is the object key of a new encrypted blob. The name is random and says nothing about the content, so
 // the bucket shows neither which files are equal nor lets a holder of a file test whether it is stored.
 func EncryptedBlobKey(id uuid.UUID) string {

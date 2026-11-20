@@ -273,3 +273,56 @@ func TestEncryptedBlobQueries(t *testing.T) {
 		t.Fatalf("plain blobs left: %d %v", n, err)
 	}
 }
+
+// The avatar reference of a legacy avatar is published in one statement, only for a user who exists and has no avatar yet.
+func TestAdoptLegacyAvatarIsConditional(t *testing.T) {
+	db := testhelpers.SetupTestDB(t)
+	ctx := context.Background()
+	now := time.Date(2026, 11, 20, 10, 0, 0, 0, time.UTC)
+	user := func(email, status string, deleted bool) uuid.UUID {
+		id := uuid.Must(uuid.NewV7())
+		var deletedAt any
+		if deleted {
+			deletedAt = now
+		}
+		if _, err := db.Pool.Exec(ctx, `INSERT INTO users (id, email, first_name, last_name, role, status, email_confirmed, last_seen, created_at, deleted_at)
+VALUES ($1, $2, 'a', 'b', 'user', $3, true, $4, $4, $5)`, id, email, status, now, deletedAt); err != nil {
+			t.Fatalf("insert user: %v", err)
+		}
+		return id
+	}
+	file := func() uuid.UUID {
+		row, err := db.Queries.CreateFile(ctx, postgres.CreateFileParams{
+			ID: uuid.Must(uuid.NewV7()), Name: "avatar", ContentType: "image/png", SizeBytes: 3, ContentHash: uuid.Must(uuid.NewV7()).String(), CreatedAt: now,
+		})
+		if err != nil {
+			t.Fatalf("CreateFile: %v", err)
+		}
+		return row.ID
+	}
+	adopt := func(userID uuid.UUID) int64 {
+		n, err := db.Queries.AdoptLegacyAvatar(ctx, postgres.AdoptLegacyAvatarParams{UserID: userID, FileID: file()})
+		if err != nil {
+			t.Fatalf("AdoptLegacyAvatar: %v", err)
+		}
+		return n
+	}
+
+	live := user("live@x.test", "active", false)
+	if adopt(live) != 1 {
+		t.Fatal("a live user without an avatar gets the reference")
+	}
+	if adopt(live) != 0 {
+		t.Fatal("a user who has an avatar keeps it")
+	}
+	if adopt(user("gone@x.test", "deleted", true)) != 0 {
+		t.Fatal("a deleted user must not get a reference")
+	}
+	if adopt(uuid.Must(uuid.NewV7())) != 0 {
+		t.Fatal("an unknown user must not get a reference")
+	}
+	rows, err := db.Queries.ListUserIDsAfter(ctx, postgres.ListUserIDsAfterParams{After: uuid.Nil, RowLimit: 10})
+	if err != nil || len(rows) != 2 {
+		t.Fatalf("the pass lists every user, deleted ones too: %d %v", len(rows), err)
+	}
+}

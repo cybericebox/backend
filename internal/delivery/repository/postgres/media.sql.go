@@ -54,6 +54,29 @@ func (q *Queries) AdoptBlobEncryption(ctx context.Context, arg AdoptBlobEncrypti
 	return result.RowsAffected(), nil
 }
 
+const adoptLegacyAvatar = `-- name: AdoptLegacyAvatar :execrows
+INSERT INTO file_references (ref_type, ref_id, file_id)
+SELECT 'user_avatar', u.id, $1::uuid
+FROM (SELECT id FROM users WHERE id = $2 AND deleted_at IS NULL FOR UPDATE) u
+WHERE NOT EXISTS (SELECT 1 FROM file_references r WHERE r.ref_type = 'user_avatar' AND r.ref_id = u.id)
+`
+
+type AdoptLegacyAvatarParams struct {
+	FileID uuid.UUID `json:"file_id"`
+	UserID uuid.UUID `json:"user_id"`
+}
+
+// Gives a user the avatar reference, in this one statement, only if the user still exists (not deleted) and still has
+// no avatar reference. The user row is locked, so a deletion cannot slip between the check and the insert. Zero rows: the
+// user is gone or has an avatar of their own, and the file stays unreferenced (media GC takes it).
+func (q *Queries) AdoptLegacyAvatar(ctx context.Context, arg AdoptLegacyAvatarParams) (int64, error) {
+	result, err := q.db.Exec(ctx, adoptLegacyAvatar, arg.FileID, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const blobExists = `-- name: BlobExists :one
 SELECT EXISTS(SELECT 1 FROM file_blobs WHERE content_hash = $1)::boolean
 `
@@ -425,6 +448,45 @@ func (q *Queries) ListPlainBlobs(ctx context.Context, arg ListPlainBlobsParams) 
 	for rows.Next() {
 		var i ListPlainBlobsRow
 		if err := rows.Scan(&i.ContentHash, &i.SizeBytes, &i.ObjectKey); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUserIDsAfter = `-- name: ListUserIDsAfter :many
+SELECT id, (deleted_at IS NOT NULL)::boolean AS deleted
+FROM users
+WHERE id > $1
+ORDER BY id
+LIMIT $2
+`
+
+type ListUserIDsAfterParams struct {
+	After    uuid.UUID `json:"after"`
+	RowLimit int32     `json:"row_limit"`
+}
+
+type ListUserIDsAfterRow struct {
+	ID      uuid.UUID `json:"id"`
+	Deleted bool      `json:"deleted"`
+}
+
+// Every user, deleted ones too, after the cursor: the pass that moves legacy avatars probes avatars/<id> for each.
+func (q *Queries) ListUserIDsAfter(ctx context.Context, arg ListUserIDsAfterParams) ([]ListUserIDsAfterRow, error) {
+	rows, err := q.db.Query(ctx, listUserIDsAfter, arg.After, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListUserIDsAfterRow{}
+	for rows.Next() {
+		var i ListUserIDsAfterRow
+		if err := rows.Scan(&i.ID, &i.Deleted); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

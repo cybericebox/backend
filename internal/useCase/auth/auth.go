@@ -305,6 +305,7 @@ func (u *AuthUseCase) deleteUserCascade(ctx context.Context, userID uuid.UUID, a
 	if _, err := u.passkeys.DeleteAll(ctx, userID); err != nil {
 		return model.ErrPlatform.WithError(err).WithMessage("Failed to delete user passkeys").Err()
 	}
+	u.removeAvatars(ctx, userID)
 	if u.inboxRequests != nil {
 		// Best-effort: the account is already removed.
 		if err := u.inboxRequests.UserDeleted(ctx, userID); err != nil {

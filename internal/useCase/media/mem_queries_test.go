@@ -1,6 +1,7 @@
 package media_test
 
 import (
+	"bytes"
 	"context"
 	"slices"
 	"sort"
@@ -26,12 +27,18 @@ type memQueries struct {
 	uploads map[uuid.UUID]postgres.MediaUpload
 	// beforeCreate runs inside CreateFile before the blob is looked at: a test uses it to let another writer win a race.
 	beforeCreate func(arg postgres.CreateFileParams)
+	// users maps a user id to "deleted"; avatars maps a user id to the file their avatar reference points at.
+	users   map[uuid.UUID]bool
+	avatars map[uuid.UUID]uuid.UUID
+	// beforeAdopt runs just before AdoptLegacyAvatar looks at the user: a test uses it to delete the avatar or the account.
+	beforeAdopt func(userID uuid.UUID)
 }
 
 func newMemQueries() *memQueries {
 	return &memQueries{
 		files: map[uuid.UUID]postgres.File{}, blobs: map[string]*postgres.GetFileBlobRow{},
 		refs: map[uuid.UUID][]string{}, uploads: map[uuid.UUID]postgres.MediaUpload{},
+		users: map[uuid.UUID]bool{}, avatars: map[uuid.UUID]uuid.UUID{},
 	}
 }
 
@@ -245,4 +252,38 @@ func postgresUpload(id, owner uuid.UUID, size, chunk int64, received int32) post
 		ID: id, CreatedBy: owner, Name: "old.bin", ContentType: "application/octet-stream", SizeBytes: size, ChunkBytes: chunk,
 		ChunksReceived: received, CreatedAt: time.Now(), ExpiresAt: time.Now().Add(time.Hour),
 	}
+}
+
+func (m *memQueries) ListUserIDsAfter(_ context.Context, arg postgres.ListUserIDsAfterParams) ([]postgres.ListUserIDsAfterRow, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var out []postgres.ListUserIDsAfterRow
+	for id, deleted := range m.users {
+		if bytes.Compare(id.Bytes(), arg.After.Bytes()) > 0 {
+			out = append(out, postgres.ListUserIDsAfterRow{ID: id, Deleted: deleted})
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return bytes.Compare(out[i].ID.Bytes(), out[j].ID.Bytes()) < 0 })
+	if int(arg.RowLimit) < len(out) {
+		out = out[:arg.RowLimit]
+	}
+	return out, nil
+}
+
+// AdoptLegacyAvatar mirrors the SQL: only for a user who exists, is not deleted and has no avatar reference.
+func (m *memQueries) AdoptLegacyAvatar(_ context.Context, arg postgres.AdoptLegacyAvatarParams) (int64, error) {
+	if m.beforeAdopt != nil {
+		m.beforeAdopt(arg.UserID)
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	deleted, exists := m.users[arg.UserID]
+	if !exists || deleted {
+		return 0, nil
+	}
+	if _, has := m.avatars[arg.UserID]; has {
+		return 0, nil
+	}
+	m.avatars[arg.UserID] = arg.FileID
+	return 1, nil
 }

@@ -6,6 +6,7 @@ import (
 	"context"
 	"io"
 	"reflect"
+	"sync/atomic"
 
 	"github.com/cybericebox/daemon/internal/config"
 	"github.com/cybericebox/daemon/internal/delivery/repository/mediaRepo"
@@ -39,6 +40,9 @@ type MediaUseCase struct {
 	sealerConfigured bool
 	cfg              config.MediaConfig
 	progress         ProgressStore
+	// legacyAvatarsDone is set when a pass over the legacy avatars finished without a failure: nothing writes avatars/<id>
+	// any more, so there is nothing new to find until the process starts again.
+	legacyAvatarsDone atomic.Bool
 	// archiveUploadLimit is the largest task archive upload (SetArchiveUploadLimit); nil: the default limits'.
 	archiveUploadLimit func(context.Context) int64
 }

@@ -19,6 +19,8 @@ type Queries interface {
 	AdoptBlobEncryption(ctx context.Context, arg postgres.AdoptBlobEncryptionParams) (int64, error)
 	ListPlainBlobs(ctx context.Context, arg postgres.ListPlainBlobsParams) ([]postgres.ListPlainBlobsRow, error)
 	CountPlainBlobs(ctx context.Context) (int64, error)
+	ListUserIDsAfter(ctx context.Context, arg postgres.ListUserIDsAfterParams) ([]postgres.ListUserIDsAfterRow, error)
+	AdoptLegacyAvatar(ctx context.Context, arg postgres.AdoptLegacyAvatarParams) (int64, error)
 	GetFileByID(ctx context.Context, id uuid.UUID) (postgres.File, error)
 	BlobExists(ctx context.Context, contentHash string) (bool, error)
 	ReplaceFileReferences(ctx context.Context, arg postgres.ReplaceFileReferencesParams) error
@@ -228,4 +230,30 @@ func (r *Repository) ListExpiredUploads(ctx context.Context, cutoff time.Time, l
 		out = append(out, uploadToDomain(row))
 	}
 	return out, nil
+}
+
+// UserRef is a user as the legacy avatar pass sees it.
+type UserRef struct {
+	ID      uuid.UUID
+	Deleted bool
+}
+
+// ListUsers returns up to limit users (deleted ones too) with an id after the cursor.
+func (r *Repository) ListUsers(ctx context.Context, after uuid.UUID, limit int) ([]UserRef, error) {
+	rows, err := r.q.ListUserIDsAfter(ctx, postgres.ListUserIDsAfterParams{After: after, RowLimit: int32(limit)})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]UserRef, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, UserRef{ID: row.ID, Deleted: row.Deleted})
+	}
+	return out, nil
+}
+
+// AdoptLegacyAvatar publishes the avatar reference in one statement, only for a user who still exists and has no avatar
+// reference; false when it was refused.
+func (r *Repository) AdoptLegacyAvatar(ctx context.Context, userID, fileID uuid.UUID) (bool, error) {
+	n, err := r.q.AdoptLegacyAvatar(ctx, postgres.AdoptLegacyAvatarParams{UserID: userID, FileID: fileID})
+	return n == 1, err
 }

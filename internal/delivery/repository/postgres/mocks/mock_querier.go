@@ -102,6 +102,21 @@ func (mr *MockQuerierMockRecorder) AdoptBlobEncryption(ctx, arg any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AdoptBlobEncryption", reflect.TypeOf((*MockQuerier)(nil).AdoptBlobEncryption), ctx, arg)
 }
 
+// AdoptLegacyAvatar mocks base method.
+func (m *MockQuerier) AdoptLegacyAvatar(ctx context.Context, arg postgres.AdoptLegacyAvatarParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AdoptLegacyAvatar", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AdoptLegacyAvatar indicates an expected call of AdoptLegacyAvatar.
+func (mr *MockQuerierMockRecorder) AdoptLegacyAvatar(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AdoptLegacyAvatar", reflect.TypeOf((*MockQuerier)(nil).AdoptLegacyAvatar), ctx, arg)
+}
+
 // AdvanceAssistantRunSeq mocks base method.
 func (m *MockQuerier) AdvanceAssistantRunSeq(ctx context.Context, arg postgres.AdvanceAssistantRunSeqParams) (int64, error) {
 	m.ctrl.T.Helper()
@@ -12012,6 +12027,21 @@ func (m *MockQuerier) ListUserEventMemberships(ctx context.Context, userID uuid.
 func (mr *MockQuerierMockRecorder) ListUserEventMemberships(ctx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListUserEventMemberships", reflect.TypeOf((*MockQuerier)(nil).ListUserEventMemberships), ctx, userID)
+}
+
+// ListUserIDsAfter mocks base method.
+func (m *MockQuerier) ListUserIDsAfter(ctx context.Context, arg postgres.ListUserIDsAfterParams) ([]postgres.ListUserIDsAfterRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListUserIDsAfter", ctx, arg)
+	ret0, _ := ret[0].([]postgres.ListUserIDsAfterRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListUserIDsAfter indicates an expected call of ListUserIDsAfter.
+func (mr *MockQuerierMockRecorder) ListUserIDsAfter(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListUserIDsAfter", reflect.TypeOf((*MockQuerier)(nil).ListUserIDsAfter), ctx, arg)
 }
 
 // ListUserNames mocks base method.

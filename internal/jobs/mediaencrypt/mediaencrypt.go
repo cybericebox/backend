@@ -8,11 +8,10 @@ import (
 	"github.com/riverqueue/river"
 
 	jobsModel "github.com/cybericebox/daemon/internal/model/jobs"
-	"github.com/cybericebox/daemon/pkg/secret"
 )
 
 type IUseCase interface {
-	EncryptLegacyBlobs(ctx context.Context) (secret.Progress, error)
+	EncryptLegacyObjects(ctx context.Context) error
 }
 
 type mediaencryptWorker struct {
@@ -27,8 +26,7 @@ func (w *mediaencryptWorker) Timeout(*river.Job[jobsModel.MediaEncryptArgs]) tim
 }
 
 func (w *mediaencryptWorker) Work(ctx context.Context, _ *river.Job[jobsModel.MediaEncryptArgs]) error {
-	_, err := w.uc.EncryptLegacyBlobs(ctx)
-	return err
+	return w.uc.EncryptLegacyObjects(ctx)
 }
 
 // NewWorker builds this job's River worker from its narrow use-case port.

@@ -20,6 +20,10 @@ type Querier interface {
 	AddFileReference(ctx context.Context, arg AddFileReferenceParams) error
 	// Moves a plain blob to an encrypted object: only while the blob is still plain, so of two writers one wins.
 	AdoptBlobEncryption(ctx context.Context, arg AdoptBlobEncryptionParams) (int64, error)
+	// Gives a user the avatar reference, in this one statement, only if the user still exists (not deleted) and still has
+	// no avatar reference. The user row is locked, so a deletion cannot slip between the check and the insert. Zero rows: the
+	// user is gone or has an avatar of their own, and the file stays unreferenced (media GC takes it).
+	AdoptLegacyAvatar(ctx context.Context, arg AdoptLegacyAvatarParams) (int64, error)
 	AdvanceAssistantRunSeq(ctx context.Context, arg AdvanceAssistantRunSeqParams) (int64, error)
 	AdvanceEventResultRevision(ctx context.Context, arg AdvanceEventResultRevisionParams) (AdvanceEventResultRevisionRow, error)
 	// A chunk is accepted only as the next one in order; zero rows means the client is out of step (it reads the
@@ -1769,6 +1773,8 @@ type Querier interface {
 	ListUnsyncedClusterReservationAgents(ctx context.Context) ([]uuid.UUID, error)
 	// The events a user is a member of, for the exercises app rights summary.
 	ListUserEventMemberships(ctx context.Context, userID uuid.UUID) ([]ListUserEventMembershipsRow, error)
+	// Every user, deleted ones too, after the cursor: the pass that moves legacy avatars probes avatars/<id> for each.
+	ListUserIDsAfter(ctx context.Context, arg ListUserIDsAfterParams) ([]ListUserIDsAfterRow, error)
 	// First and last name of the authors an exercise response shows (never the email).
 	ListUserNames(ctx context.Context, ids []uuid.UUID) ([]ListUserNamesRow, error)
 	// Where the person takes part (a participant, with the team and the role in it) or works (an event manager), newest

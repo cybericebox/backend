@@ -154,3 +154,20 @@ DELETE
 FROM file_blobs
 WHERE content_hash = $1
   AND ref_count <= 0;
+
+-- name: ListUserIDsAfter :many
+-- Every user, deleted ones too, after the cursor: the pass that moves legacy avatars probes avatars/<id> for each.
+SELECT id, (deleted_at IS NOT NULL)::boolean AS deleted
+FROM users
+WHERE id > sqlc.arg(after)
+ORDER BY id
+LIMIT sqlc.arg(row_limit);
+
+-- name: AdoptLegacyAvatar :execrows
+-- Gives a user the avatar reference, in this one statement, only if the user still exists (not deleted) and still has
+-- no avatar reference. The user row is locked, so a deletion cannot slip between the check and the insert. Zero rows: the
+-- user is gone or has an avatar of their own, and the file stays unreferenced (media GC takes it).
+INSERT INTO file_references (ref_type, ref_id, file_id)
+SELECT 'user_avatar', u.id, sqlc.arg(file_id)::uuid
+FROM (SELECT id FROM users WHERE id = sqlc.arg(user_id) AND deleted_at IS NULL FOR UPDATE) u
+WHERE NOT EXISTS (SELECT 1 FROM file_references r WHERE r.ref_type = 'user_avatar' AND r.ref_id = u.id);

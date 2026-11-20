@@ -245,3 +245,28 @@ func TestDeleteAccount_GoogleOnlyNeedsARecentSignIn(t *testing.T) {
 		})
 	}
 }
+
+// Deleting an account drops its avatar: the media reference and the legacy avatars/<id> object, which nothing else removes.
+func TestDeleteAccount_RemovesTheAvatarAndTheLegacyObject(t *testing.T) {
+	uid := uuid.Must(uuid.NewV7())
+	av, st := &fakeAvatarStorage{}, &fakeLegacyStorage{}
+	uc, repo := newAvatarUC(t, st, av)
+	repo.EXPECT().GetUserByID(gomock.Any(), uid).
+		Return(postgres.User{ID: uid, Status: "active", HashedPassword: hashedPassword(t, "Correct!1")}, nil).Times(2)
+	repo.EXPECT().UpdateUser(gomock.Any(), gomock.Any()).Return(int64(1), nil)
+	repo.EXPECT().RevokeUserSessions(gomock.Any(), gomock.Any()).Return(revokedRows(1), nil)
+	repo.EXPECT().DeleteUserProviders(gomock.Any(), uid).Return(int64(0), nil)
+	repo.EXPECT().DeleteTemporalCodesForUser(gomock.Any(), gomock.Any()).Return(int64(0), nil).Times(3)
+	repo.EXPECT().DeleteAllUserTablePrefs(gomock.Any(), uid).Return(int64(0), nil)
+	repo.EXPECT().DeleteUserPasskeys(gomock.Any(), uid).Return(int64(0), nil)
+
+	if err := uc.DeleteAccount(context.Background(), uid, "Correct!1"); err != nil {
+		t.Fatalf("DeleteAccount: %v", err)
+	}
+	if av.replaceCalls != 1 || av.replacedRefID != uid || len(av.replacedIDs) != 0 {
+		t.Fatalf("the avatar reference must be dropped: %+v", av)
+	}
+	if st.removeCalls != 1 || st.removeKey != "avatars/"+uid.String() {
+		t.Fatalf("the legacy object must be removed: calls=%d key=%q", st.removeCalls, st.removeKey)
+	}
+}

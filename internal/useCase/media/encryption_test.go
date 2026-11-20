@@ -475,3 +475,84 @@ func (c *cancelOnPut) Put(ctx context.Context, key string, r io.Reader, size int
 	}
 	return c.fakeStorage.Put(ctx, key, r, size, ct)
 }
+
+func legacyAvatar(t *testing.T, q *memQueries, st *fakeStorage, deleted bool, data []byte) uuid.UUID {
+	t.Helper()
+	id := uuid.Must(uuid.NewV7())
+	q.users[id] = deleted
+	st.objects[mediaModel.LegacyAvatarKey(id)] = data
+	return id
+}
+
+// A live user's legacy avatar is stored encrypted, the plain object goes, and the reference is published.
+func TestMoveLegacyAvatarsMovesALiveUsersAvatar(t *testing.T) {
+	uc, q, st := encUC(t)
+	data := pattern(3000)
+	id := legacyAvatar(t, q, st, false, data)
+	got, err := uc.MoveLegacyAvatars(context.Background())
+	if err != nil || got.Done != 1 || got.Failed != 0 {
+		t.Fatalf("progress %+v %v", got, err)
+	}
+	if _, left := st.objects[mediaModel.LegacyAvatarKey(id)]; left {
+		t.Fatal("the legacy object must be removed")
+	}
+	fileID, ok := q.avatars[id]
+	if !ok || !bytes.Equal(streamAll(t, uc, fileID), data) {
+		t.Fatal("the avatar must be published and read back")
+	}
+	if blob := q.blob(hashOf(data)); blob.WrappedKey == "" {
+		t.Fatal("the moved avatar must be encrypted")
+	}
+}
+
+// The legacy object of a deleted user is removed and never adopted.
+func TestMoveLegacyAvatarsRemovesADeletedUsersObject(t *testing.T) {
+	uc, q, st := encUC(t)
+	id := legacyAvatar(t, q, st, true, pattern(500))
+	if _, err := uc.MoveLegacyAvatars(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(st.objects) != 0 || len(q.files) != 0 || len(q.avatars) != 0 {
+		t.Fatalf("nothing may be kept or adopted for %s: %d objects, %d files", id, len(st.objects), len(q.files))
+	}
+}
+
+// The owner deletes the account (or the avatar) after the pass copied the object and before it publishes: the photo does not
+// come back, no plain copy is left, and the unreferenced copy is for the media GC.
+func TestMoveLegacyAvatarsDoesNotRestoreWhatWasDeletedMeanwhile(t *testing.T) {
+	usersOwn := uuid.Must(uuid.NewV7())
+	cases := map[string]struct {
+		intervene func(q *memQueries, id uuid.UUID)
+		wantRef   uuid.UUID // the reference the user must end with (Nil: none)
+	}{
+		"account deleted":    {func(q *memQueries, id uuid.UUID) { q.users[id] = true }, uuid.Nil},
+		"avatar set by user": {func(q *memQueries, id uuid.UUID) { q.avatars[id] = usersOwn }, usersOwn},
+	}
+	for name, c := range cases {
+		uc, q, st := encUC(t)
+		id := legacyAvatar(t, q, st, false, pattern(800))
+		q.beforeAdopt = func(userID uuid.UUID) { c.intervene(q, userID) }
+		if _, err := uc.MoveLegacyAvatars(context.Background()); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if _, left := st.objects[mediaModel.LegacyAvatarKey(id)]; left {
+			t.Fatalf("%s: the plain legacy object must be gone", name)
+		}
+		if got := q.avatars[id]; got != c.wantRef {
+			t.Fatalf("%s: the reference is %s, want %s", name, got, c.wantRef)
+		}
+	}
+}
+
+// Once a pass ended clean, the next run does not probe again.
+func TestMoveLegacyAvatarsOnlyRunsUntilItIsDone(t *testing.T) {
+	uc, q, st := encUC(t)
+	legacyAvatar(t, q, st, false, pattern(100))
+	if _, err := uc.MoveLegacyAvatars(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	late := legacyAvatar(t, q, st, false, pattern(101))
+	if got, _ := uc.MoveLegacyAvatars(context.Background()); got.Total != 0 || st.objects[mediaModel.LegacyAvatarKey(late)] == nil {
+		t.Fatalf("a finished pass must not run again: %+v", got)
+	}
+}
