@@ -388,13 +388,15 @@ type moderatorsLabLinkRequest struct {
 }
 
 type moderatorsLabLinkResponse struct {
+	// URL is https://<host>/_auth, without a query or a fragment; Grant is posted to it in the form field `grant`.
 	URL       string
+	Grant     string
 	ExpiresAt time.Time
 }
 
 // moderatorsLabLink godoc
-// @Summary Get the link that opens one web device of a moderators team task's lab
-// @Description Returns https://<device>-<code>.<base>/_auth?t=... for the event owner and write moderators testing tasks as the hidden moderators team. The link lives about two minutes and is single use; the page fetches it on every click. The laboratory proxy sets its own session cookie; the platform sets none.
+// @Summary Get the access grant that opens one web device of a moderators team task's lab
+// @Description Returns URL (https://<device>-<code><letter>.<base>/_auth, no query) and Grant (a signed JWS) for the event owner and write moderators testing tasks as the hidden moderators team; the page posts Grant to URL in a form. The page fetches a new grant on every click. The laboratory proxy sets its own session cookie; the platform sets none.
 // @Tags events
 // @Accept json
 // @Produce json
@@ -429,7 +431,7 @@ func (h *Handler) moderatorsLabLink(ctx *gin.Context) {
 		return
 	}
 	ctx.Header("Cache-Control", "private, no-store")
-	response.AbortWithData(ctx, moderatorsLabLinkResponse{URL: link.URL, ExpiresAt: link.ExpiresAt})
+	response.AbortWithData(ctx, moderatorsLabLinkResponse{URL: link.URL, Grant: link.Grant, ExpiresAt: link.ExpiresAt})
 }
 
 type standVPNProbeResponse struct {

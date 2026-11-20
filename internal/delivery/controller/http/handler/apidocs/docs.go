@@ -10006,7 +10006,7 @@ const docTemplate = `{
         },
         "/events/{id}/manage/labs/moderators/challenges/{challengeID}/lab/link": {
             "post": {
-                "description": "Returns https://\u003cdevice\u003e-\u003ccode\u003e.\u003cbase\u003e/_auth?t=... for the event owner and write moderators testing tasks as the hidden moderators team. The link lives about two minutes and is single use; the page fetches it on every click. The laboratory proxy sets its own session cookie; the platform sets none.",
+                "description": "Returns URL (https://\u003cdevice\u003e-\u003ccode\u003e\u003cletter\u003e.\u003cbase\u003e/_auth, no query) and Grant (a signed JWS) for the event owner and write moderators testing tasks as the hidden moderators team; the page posts Grant to URL in a form. The page fetches a new grant on every click. The laboratory proxy sets its own session cookie; the platform sets none.",
                 "consumes": [
                     "application/json"
                 ],
@@ -10016,7 +10016,7 @@ const docTemplate = `{
                 "tags": [
                     "events"
                 ],
-                "summary": "Get the link that opens one web device of a moderators team task's lab",
+                "summary": "Get the access grant that opens one web device of a moderators team task's lab",
                 "parameters": [
                     {
                         "type": "string",
@@ -17027,7 +17027,7 @@ const docTemplate = `{
         },
         "/events/{id}/teams/challenges/{challengeID}/lab/link": {
             "post": {
-                "description": "Returns https://\u003cdevice\u003e-\u003ccode\u003e.\u003cbase\u003e/_auth?t=..., signed for the caller's team lab group and client. The link lives about two minutes. It is a stateless signed token (no jti, by the proxy protocol), so it is NOT single use within that time: treat it like a password and do not share it. The page fetches it on every click and opens it. The laboratory proxy turns it into its own session cookie; the platform sets no cookie. expires_at is the end of the session the link grants.",
+                "description": "Returns URL (https://\u003cdevice\u003e-\u003ccode\u003e\u003cletter\u003e.\u003cbase\u003e/_auth, no query) and Grant, a JWS signed for the caller's team lab group, lab, device and client; the page posts Grant to URL in a form (field grant, optional next). A grant is a bearer without replay memory: treat it like a password, never put it in an address. It lasts until the event ends (plus a buffer), capped by the laboratory's limit; the page fetches a new one on every click. The laboratory proxy turns it into its own session cookie; the platform sets no cookie. ExpiresAt is the end of the grant.",
                 "consumes": [
                     "application/json"
                 ],
@@ -17037,7 +17037,7 @@ const docTemplate = `{
                 "tags": [
                     "events-self"
                 ],
-                "summary": "Get the link that opens one web device of a task's lab",
+                "summary": "Get the access grant that opens one web device of a task's lab",
                 "parameters": [
                     {
                         "type": "string",
@@ -18703,7 +18703,7 @@ const docTemplate = `{
         },
         "/exercises/deploys/{deployID}/link": {
             "post": {
-                "description": "Returns https://\u003cdevice\u003e-\u003ccode\u003e.\u003cbase\u003e/_auth?t=... for the author of the deploy. The link lives about two minutes and is single use; the page fetches it on every click. The laboratory proxy sets its own session cookie, which lasts until the deploy's lease ends; the platform sets none. Test traffic is never counted for an event.",
+                "description": "Returns URL (https://\u003cdevice\u003e-\u003ccode\u003e\u003cletter\u003e.\u003cbase\u003e/_auth, no query) and Grant (a signed JWS) for the author of the deploy; the page posts Grant to URL in a form (field grant, optional next). The grant lasts until the deploy's lease ends, capped by the laboratory's limit; the page fetches a new one on every click. The laboratory proxy sets its own cookie; the platform sets none. Test traffic is never counted for an event.",
                 "consumes": [
                     "application/json"
                 ],
@@ -18713,7 +18713,7 @@ const docTemplate = `{
                 "tags": [
                     "exercises"
                 ],
-                "summary": "Get the link that opens one web device of a ready test deploy",
+                "summary": "Get the access grant that opens one device of a ready test deploy",
                 "parameters": [
                     {
                         "type": "string",
@@ -33616,7 +33616,11 @@ const docTemplate = `{
                 "expiresAt": {
                     "type": "string"
                 },
+                "grant": {
+                    "type": "string"
+                },
                 "url": {
+                    "description": "URL is https://\u003chost\u003e/_auth, without a query or a fragment; Grant is posted to it in the form field ` + "`" + `grant` + "`" + `.",
                     "type": "string"
                 }
             }
@@ -38775,6 +38779,9 @@ const docTemplate = `{
                 "ExpiresAt": {
                     "type": "string"
                 },
+                "Grant": {
+                    "type": "string"
+                },
                 "LabID": {
                     "type": "string"
                 },
@@ -38782,6 +38789,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "URL": {
+                    "description": "URL is https://\u003chost\u003e/_auth, without a query or a fragment; Grant is posted to it in the form field ` + "`" + `grant` + "`" + `.",
                     "type": "string"
                 }
             }
@@ -40669,7 +40677,12 @@ const docTemplate = `{
                 "ExpiresAt": {
                     "type": "string"
                 },
+                "Grant": {
+                    "description": "Grant is the signed access grant the frontend posts to URL in the form field ` + "`" + `grant` + "`" + `; never put it in an address.",
+                    "type": "string"
+                },
                 "URL": {
+                    "description": "URL is https://\u003chost\u003e/_auth, without a query or a fragment.",
                     "type": "string"
                 }
             }
@@ -43917,10 +43930,6 @@ const docTemplate = `{
                 "Configured": {
                     "type": "boolean"
                 },
-                "Managed": {
-                    "description": "Managed: the platform's own registry set by the deployment is in use; Provider is \"own\" and the settings\ncannot be changed here.",
-                    "type": "boolean"
-                },
                 "Provider": {
                     "type": "string"
                 },
@@ -44334,15 +44343,8 @@ const docTemplate = `{
                 "PersistenceWriteQuotaBytes": {
                     "type": "integer"
                 },
-                "ProxyAccessTokenMaxTTLSeconds": {
-                    "description": "ProxyAccessTokenMaxTTLSeconds is the longest a web link can be opened; ProxySessionMaxTTLSeconds the\nlongest a proxy session lives (a longer event window means a new link is opened).",
-                    "type": "integer"
-                },
-                "ProxySessionIdleTTLSeconds": {
-                    "description": "ProxySessionIdleTTLSeconds is how long a proxy session lives without use (it slides while in use).",
-                    "type": "integer"
-                },
-                "ProxySessionMaxTTLSeconds": {
+                "ProxyGrantMaxTTLSeconds": {
+                    "description": "ProxyGrantMaxTTLSeconds is the longest an access grant (web or console) lives: the proxy accepts no longer one,\nand a longer event window means the device is opened again for a new grant.",
                     "type": "integer"
                 },
                 "SchedulerEnabled": {
@@ -45104,22 +45106,22 @@ const docTemplate = `{
         "labaccess.Link": {
             "type": "object",
             "properties": {
-                "expiresAt": {
-                    "description": "ExpiresAt is the end of the session the proxy will grant.",
+                "ExpiresAt": {
+                    "description": "ExpiresAt is the end of the grant (its exp).",
                     "type": "string"
                 },
-                "labID": {
+                "Grant": {
+                    "description": "Grant is the signed JWS, posted in the form field ` + "`" + `grant` + "`" + `.",
                     "type": "string"
                 },
-                "revision": {
+                "LabID": {
                     "type": "string"
                 },
-                "token": {
-                    "description": "Token is the signed JWT inside the link.",
+                "Revision": {
                     "type": "string"
                 },
-                "url": {
-                    "description": "URL is the full link to open in the browser.",
+                "URL": {
+                    "description": "URL is https://\u003chost\u003e/_auth, never with a query or a fragment: the grant must not be in a URL.",
                     "type": "string"
                 }
             }

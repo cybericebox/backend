@@ -53,9 +53,6 @@ func (u *ImageRegistryUseCase) InspectImageArchive(ctx context.Context, archive 
 	if err != nil {
 		return ArchiveImageInspection{}, err
 	}
-	if ref, err = u.ownRef(ctx, ref); err != nil {
-		return ArchiveImageInspection{}, err
-	}
 	have, found, err := u.inspectManifest(ctx, ref)
 	if err != nil {
 		return ArchiveImageInspection{}, err
@@ -73,14 +70,6 @@ func (u *ImageRegistryUseCase) InspectImageArchive(ctx context.Context, archive 
 // a token): the HTTP answer of a 409 does not reach the server log otherwise.
 func (u *ImageRegistryUseCase) inspectManifest(ctx context.Context, ref imageRegistryModel.PlatformRef) (string, bool, error) {
 	tag := ref.Tag()
-	if u.own.Enabled() {
-		have, found, err := u.ownClient(ref.Repository()).ManifestDigest(ctx, tag)
-		if err != nil {
-			log.Warn().Err(err).Str("tag", tag).Msg("image archive: manifest check failed")
-			return "", false, RegistryFailure(err, pushTokenName)
-		}
-		return have, found, nil
-	}
 	s, pullToken, err := u.platformToken(ctx, false)
 	if err != nil {
 		return "", false, err

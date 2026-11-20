@@ -139,16 +139,15 @@ func Run(cfg *config.Config) {
 		VPNCipher:          cls.vpnCipher,
 		PlatformCipher:     cls.platformCipher,
 		FilesCipher:        cls.filesCipher,
-		PlatformRegistry:   platformRegistry(cfg),
 		ErrorJournal:       errorJournalConfig(cfg),
 		Telegram:           telegram.New(cfg.Telegram.BotToken),
 	}
 	applyTunables(cfg.Tunables)
 	labIssuer, err := labaccess.New(labaccess.Config{
-		TokenTTL: cfg.LabAccess.TokenTTL, SessionTTL: cfg.LabSession.TTL,
+		SessionTTL: cfg.LabSession.TTL,
 	})
 	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to configure the lab access token issuer")
+		log.Fatal().Err(err).Msg("Failed to configure the lab access grant issuer")
 	}
 	var ucs *useCase.UseCase // set below; the monitors start only after it exists
 	// The infrastructure port is the agent fleet: every enrolled agent in the database. It reports

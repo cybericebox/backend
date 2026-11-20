@@ -487,13 +487,16 @@ type deployLinkRequest struct {
 }
 
 type deployLinkResponse struct {
-	URL       string    `json:"URL"`
+	// URL is https://<host>/_auth, without a query or a fragment.
+	URL string `json:"URL"`
+	// Grant is the signed access grant the frontend posts to URL in the form field `grant`; never put it in an address.
+	Grant     string    `json:"Grant"`
 	ExpiresAt time.Time `json:"ExpiresAt"`
 }
 
 // deployLink godoc
-// @Summary  Get the link that opens one web device of a ready test deploy
-// @Description Returns https://<device>-<code>.<base>/_auth?t=... for the author of the deploy. The link lives about two minutes and is single use; the page fetches it on every click. The laboratory proxy sets its own session cookie, which lasts until the deploy's lease ends; the platform sets none. Test traffic is never counted for an event.
+// @Summary  Get the access grant that opens one device of a ready test deploy
+// @Description Returns URL (https://<device>-<code><letter>.<base>/_auth, no query) and Grant (a signed JWS) for the author of the deploy; the page posts Grant to URL in a form (field grant, optional next). The grant lasts until the deploy's lease ends, capped by the laboratory's limit; the page fetches a new one on every click. The laboratory proxy sets its own cookie; the platform sets none. Test traffic is never counted for an event.
 // @Tags     exercises
 // @Accept   json
 // @Produce  json
@@ -533,7 +536,7 @@ func (h *Handler) deployLink(ctx *gin.Context) {
 		return
 	}
 	ctx.Header("Cache-Control", "private, no-store")
-	response.AbortWithData(ctx, deployLinkResponse{URL: link.URL, ExpiresAt: link.ExpiresAt})
+	response.AbortWithData(ctx, deployLinkResponse{URL: link.URL, Grant: link.Grant, ExpiresAt: link.ExpiresAt})
 }
 
 // resetDeployDevice godoc

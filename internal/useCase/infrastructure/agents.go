@@ -767,12 +767,12 @@ func (u *AgentsUseCase) seal(id uuid.UUID, field, plaintext string) (string, err
 }
 
 // accessKeyRetention is how long a rotated-out access key stays at the agent: three times the longest
-// link its proxy accepts (the agent reports it), never less than MinAccessKeyRetention.
+// grant its proxy accepts (the agent reports it), never less than MinAccessKeyRetention.
 func accessKeyRetention(r infraModel.AgentRecord) time.Duration {
 	if r.Features == nil {
 		return MinAccessKeyRetention
 	}
-	return max(MinAccessKeyRetention, 3*time.Duration(r.Features.Proxy.AccessTokenMaxTTLSeconds)*time.Second)
+	return max(MinAccessKeyRetention, 3*time.Duration(r.Features.Proxy.GrantMaxTTLSeconds)*time.Second)
 }
 
 // renewDue says the agent's client certificate is past two thirds of its own lifetime. The lifetime

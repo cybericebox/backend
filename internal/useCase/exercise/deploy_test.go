@@ -455,7 +455,7 @@ type fakeSessions struct {
 func (f *fakeSessions) Issue(_ context.Context, s labaccess.Session, _ time.Time) (labaccess.Link, error) {
 	f.got = s
 	f.calls++
-	return labaccess.Link{URL: s.AccessURL + "/_auth?t=signed", Token: "signed", ExpiresAt: s.ExpiresAt}, nil
+	return labaccess.Link{URL: s.AccessURL + "/_auth", Grant: "signed", ExpiresAt: s.ExpiresAt}, nil
 }
 
 func TestDeployVariantTest_AllowsTheAuthorInTheGroupPolicy(t *testing.T) {
@@ -745,7 +745,8 @@ func TestOpenTestDeployConsoleLink_OpensTheConsolePageOfTheDevice(t *testing.T) 
 	if _, err := uc.OpenTestDeployConsoleLink(context.Background(), userID, deployID, "db"); err != nil {
 		t.Fatal(err)
 	}
-	if sessions.got.AccessURL != "https://db-def456t.challenges.example.com" || sessions.got.Next != "" ||
+	if sessions.got.AccessURL != "https://db-def456t.challenges.example.com" || sessions.got.Kind != labaccess.KindConsole ||
+		sessions.got.Lab != "l-one" || sessions.got.Device != "db" ||
 		sessions.got.Group != "t-"+deployID.String() || !sessions.got.ExpiresAt.Equal(expires) {
 		t.Fatalf("session: %+v", sessions.got)
 	}
@@ -1699,7 +1700,7 @@ func TestOpenTestDeployConsoleLink_UsesTheTerminalEntryURL(t *testing.T) {
 	if _, err := uc.OpenTestDeployConsoleLink(context.Background(), userID, deployID, "db"); err != nil {
 		t.Fatal(err)
 	}
-	if sessions.got.AccessURL != "https://db-abc123t.labs.example.com" || sessions.got.Next != "" {
+	if sessions.got.AccessURL != "https://db-abc123t.labs.example.com" || sessions.got.Kind != labaccess.KindConsole || sessions.got.Device != "db" {
 		t.Fatalf("session: %+v", sessions.got)
 	}
 	for name, status := range map[string]exerciseModel.LabDeployStatus{

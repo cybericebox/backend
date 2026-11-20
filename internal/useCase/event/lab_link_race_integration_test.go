@@ -23,7 +23,7 @@ func (s *waitingIssuer) Issue(ctx context.Context, _ labaccess.Session, _ time.T
 	close(s.entered)
 	select {
 	case <-s.release:
-		return labaccess.Link{URL: "https://web.example/_auth?t=secret"}, nil
+		return labaccess.Link{URL: "https://web.example/_auth", Grant: "secret"}, nil
 	case <-ctx.Done():
 		return labaccess.Link{}, ctx.Err()
 	}

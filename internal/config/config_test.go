@@ -3,6 +3,7 @@ package config
 import (
 	"net/url"
 	"os"
+	"reflect"
 	"testing"
 	"time"
 
@@ -186,17 +187,18 @@ func TestSecretKeys_AreThreeSeparateEnvVars(t *testing.T) {
 	}
 }
 
-func TestPlatformRegistry_ReadsItsThreeVariablesAndIsOffByDefault(t *testing.T) {
+// A deployment that still sets the retired own-registry variables (PLATFORM_REGISTRY_*) or LAB_ACCESS_TOKEN_TTL starts as if
+// they were not there: the feature is gone from the code, so they cannot enable anything.
+func TestRetiredVariablesAreIgnored(t *testing.T) {
 	t.Setenv("RECAPTCHA_SECRET", "rsecret")
-	if got := MustGetConfig().Platform; got.RegistryHost != "" || got.RegistryUsername != "" || got.RegistryPassword != "" {
-		t.Fatalf("the own registry is off by default: %+v", got)
-	}
+	want := MustGetConfig()
 	t.Setenv("PLATFORM_REGISTRY_HOST", "laboratory-registry.lab.svc:5000")
 	t.Setenv("PLATFORM_REGISTRY_USERNAME", "platform-writer")
 	t.Setenv("PLATFORM_REGISTRY_PASSWORD", "pw")
-	got := MustGetConfig().Platform
-	if got.RegistryHost != "laboratory-registry.lab.svc:5000" || got.RegistryUsername != "platform-writer" || got.RegistryPassword != "pw" {
-		t.Fatalf("registry variables: %+v", got)
+	t.Setenv("LAB_ACCESS_TOKEN_TTL", "5m")
+	got := MustGetConfig()
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("a retired variable changed the configuration:\n got %+v\nwant %+v", got, want)
 	}
 }
 

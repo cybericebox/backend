@@ -1554,8 +1554,6 @@ type Querier interface {
 	// kind: all | roles | users. Only active, non-deleted accounts with an email.
 	ListPlatformBroadcastAudience(ctx context.Context, arg ListPlatformBroadcastAudienceParams) ([]ListPlatformBroadcastAudienceRow, error)
 	ListPlatformGroupAllocations(ctx context.Context) ([]EventTeamGroupAllocation, error)
-	// Every recorded platform image (one row per digest and tag), oldest first: what `images migrate-uploads` walks.
-	ListPlatformImages(ctx context.Context) ([]PlatformImage, error)
 	// Capacity over time from the agents' capacity observations, downsampled to buckets of
 	// step_seconds (the caller picks the step so a period has at most about 300 points). Inside a bucket
 	// every agent contributes its average; the agents are then summed. An agent reports the platform's
@@ -1684,9 +1682,6 @@ type Querier interface {
 	ListPublishedVariantDevices(ctx context.Context, ids []uuid.UUID) ([]ListPublishedVariantDevicesRow, error)
 	// The judged answers of the run since a moment, oldest first (the answer rate limit).
 	ListRecentAssistantRunAnswers(ctx context.Context, arg ListRecentAssistantRunAnswersParams) ([]ListRecentAssistantRunAnswersRow, error)
-	// Every distinct platform:<name>@<digest> a device of any exercise version (draft, published, any status) names.
-	// `images migrate-uploads` copies each of them into the own registry under exactly that name.
-	ListReferencedPlatformImages(ctx context.Context) ([]string, error)
 	// Open alarms first, then the resolved ones, newest first; only_open leaves the resolved out.
 	ListResourceAlarms(ctx context.Context, arg ListResourceAlarmsParams) ([]ListResourceAlarmsRow, error)
 	// Newest first; status and event narrow it (a null argument matches everything).
@@ -1921,9 +1916,6 @@ type Querier interface {
 	ObserveClusterReservation(ctx context.Context, arg ObserveClusterReservationParams) error
 	OpenEventStandRollout(ctx context.Context, arg OpenEventStandRolloutParams) error
 	OpenReadyEventLabRevealBarriers(ctx context.Context, arg OpenReadyEventLabRevealBarriersParams) (int64, error)
-	// The name an earlier upload recorded for a digest (the newest row). In the platform's own registry a digest lives in
-	// one repository, platform/<name>, so a second upload of the same image reuses that name.
-	PlatformImageNameByDigest(ctx context.Context, digest string) (string, error)
 	// Whether a row of another digest already maps this tag: CreateImage refuses then instead of re-pointing the tag.
 	PlatformImageTagTakenByOtherDigest(ctx context.Context, arg PlatformImageTagTakenByOtherDigestParams) (bool, error)
 	// Ready -> Published for board-published challenges. A challenge without a lab

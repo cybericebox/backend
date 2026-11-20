@@ -48,7 +48,7 @@ type IInfrastructure interface {
 	LabClientHandshake(ctx context.Context, group, client string) (time.Time, error)
 }
 
-// ITestSessions signs the author's handoff link of the laboratory L7 proxy for a test
+// ITestSessions signs the author's access grant of the laboratory L7 proxy and device-access for a test
 // deploy: the deploy's group and the author's client. It is nil when no proxy key
 // is configured.
 type ITestSessions interface {
@@ -922,12 +922,13 @@ func (u *ExerciseUseCase) CheckTestFlag(ctx context.Context, userID, deployID, t
 	return false, nil
 }
 
-// OpenTestDeployLink returns the author's link that opens one web device of a
-// ready test deploy. It names the deploy's lab group and the author's client only
-// (the group policy still decides which labs it reaches), and the session it
-// grants lasts until the deploy's lease ends. Test traffic is never counted for
-// an event. The link is short-lived and fetched fresh on every click; the
-// platform sets no cookie on the lab domain.
+// OpenTestDeployLink returns the author's access grant for one web device of a
+// ready test deploy: a query-free URL (https://<host>/_auth) and the grant the
+// frontend posts to it. The grant names the deploy's lab group, the lab, the
+// device and the author's client (the group policy still decides which labs it
+// reaches) and lasts until the deploy's lease ends, capped by the agent's limit.
+// Test traffic is never counted for an event. It is fetched fresh on every click;
+// the platform sets no cookie on the lab domain.
 func (u *ExerciseUseCase) OpenTestDeployLink(ctx context.Context, userID, deployID uuid.UUID, device string, port int32) (labaccess.Link, error) {
 	deploy, status, now, err := u.readyOwnedDeploy(ctx, userID, deployID)
 	if err != nil {
@@ -937,14 +938,14 @@ func (u *ExerciseUseCase) OpenTestDeployLink(ctx context.Context, userID, deploy
 	if !ok {
 		return labaccess.Link{}, exerciseModel.ErrTestDeployNoWebDevice.Err()
 	}
-	link, err := u.sessions.Issue(ctx, labaccess.Session{Group: deploy.GroupName, Client: testClientName(userID), AccessURL: accessURL, ExpiresAt: deploy.ExpiresAt}, now)
+	link, err := u.sessions.Issue(ctx, labaccess.Session{Group: deploy.GroupName, Client: testClientName(userID), Lab: deploy.LabName, Device: device, Kind: labaccess.KindWeb, AccessURL: accessURL, ExpiresAt: deploy.ExpiresAt}, now)
 	if err != nil {
-		return labaccess.Link{}, model.ErrPlatform.WithError(err).WithMessage("Failed to issue the test laboratory web link").Err()
+		return labaccess.Link{}, model.ErrPlatform.WithError(err).WithMessage("Failed to issue the test laboratory web grant").Err()
 	}
 	return link, nil
 }
 
-// OpenTestDeployConsoleLink is the same for the console of one device (the `terminal` access entry): the link is the url of
+// OpenTestDeployConsoleLink is the same for the console of one device (the `terminal` access entry): the URL is the url of
 // the device's terminal entry in the lab status (the laboratory gives every device its own console host, so nothing is built
 // here). A lab that serves no console, a device the lab does not have, or an entry with no url yet answers ErrTestDeployNoConsole.
 func (u *ExerciseUseCase) OpenTestDeployConsoleLink(ctx context.Context, userID, deployID uuid.UUID, device string) (labaccess.Link, error) {
@@ -963,9 +964,9 @@ func (u *ExerciseUseCase) OpenTestDeployConsoleLink(ctx context.Context, userID,
 	if !ok {
 		return labaccess.Link{}, exerciseModel.ErrTestDeployNoConsole.Err()
 	}
-	link, err := u.sessions.Issue(ctx, labaccess.Session{Group: deploy.GroupName, Client: testClientName(userID), AccessURL: accessURL, ExpiresAt: deploy.ExpiresAt}, now)
+	link, err := u.sessions.Issue(ctx, labaccess.Session{Group: deploy.GroupName, Client: testClientName(userID), Lab: deploy.LabName, Device: device, Kind: labaccess.KindConsole, AccessURL: accessURL, ExpiresAt: deploy.ExpiresAt}, now)
 	if err != nil {
-		return labaccess.Link{}, model.ErrPlatform.WithError(err).WithMessage("Failed to issue the test laboratory console link").Err()
+		return labaccess.Link{}, model.ErrPlatform.WithError(err).WithMessage("Failed to issue the test laboratory console grant").Err()
 	}
 	return link, nil
 }

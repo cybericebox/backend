@@ -2678,7 +2678,11 @@ definitions:
     properties:
       expiresAt:
         type: string
+      grant:
+        type: string
       url:
+        description: URL is https://<host>/_auth, without a query or a fragment; Grant
+          is posted to it in the form field `grant`.
         type: string
     type: object
   event.moderatorsLabRefResponse:
@@ -6195,11 +6199,15 @@ definitions:
     properties:
       ExpiresAt:
         type: string
+      Grant:
+        type: string
       LabID:
         type: string
       Revision:
         type: string
       URL:
+        description: URL is https://<host>/_auth, without a query or a fragment; Grant
+          is posted to it in the form field `grant`.
         type: string
     type: object
   eventself.labStatusResponse:
@@ -7513,7 +7521,12 @@ definitions:
     properties:
       ExpiresAt:
         type: string
+      Grant:
+        description: Grant is the signed access grant the frontend posts to URL in
+          the form field `grant`; never put it in an address.
+        type: string
       URL:
+        description: URL is https://<host>/_auth, without a query or a fragment.
         type: string
     type: object
   exercise.deployListItem:
@@ -9880,11 +9893,6 @@ definitions:
         type: string
       Configured:
         type: boolean
-      Managed:
-        description: |-
-          Managed: the platform's own registry set by the deployment is in use; Provider is "own" and the settings
-          cannot be changed here.
-        type: boolean
       Provider:
         type: string
       PullCheck:
@@ -10191,16 +10199,10 @@ definitions:
         x-nullable: true
       PersistenceWriteQuotaBytes:
         type: integer
-      ProxyAccessTokenMaxTTLSeconds:
+      ProxyGrantMaxTTLSeconds:
         description: |-
-          ProxyAccessTokenMaxTTLSeconds is the longest a web link can be opened; ProxySessionMaxTTLSeconds the
-          longest a proxy session lives (a longer event window means a new link is opened).
-        type: integer
-      ProxySessionIdleTTLSeconds:
-        description: ProxySessionIdleTTLSeconds is how long a proxy session lives
-          without use (it slides while in use).
-        type: integer
-      ProxySessionMaxTTLSeconds:
+          ProxyGrantMaxTTLSeconds is the longest an access grant (web or console) lives: the proxy accepts no longer one,
+          and a longer event window means the device is opened again for a new grant.
         type: integer
       SchedulerEnabled:
         type: boolean
@@ -10707,18 +10709,19 @@ definitions:
     type: object
   labaccess.Link:
     properties:
-      expiresAt:
-        description: ExpiresAt is the end of the session the proxy will grant.
+      ExpiresAt:
+        description: ExpiresAt is the end of the grant (its exp).
         type: string
-      labID:
+      Grant:
+        description: Grant is the signed JWS, posted in the form field `grant`.
         type: string
-      revision:
+      LabID:
         type: string
-      token:
-        description: Token is the signed JWT inside the link.
+      Revision:
         type: string
-      url:
-        description: URL is the full link to open in the browser.
+      URL:
+        description: 'URL is https://<host>/_auth, never with a query or a fragment:
+          the grant must not be in a URL.'
         type: string
     type: object
   labview.BootstrapResponse:
@@ -20409,11 +20412,11 @@ paths:
     post:
       consumes:
       - application/json
-      description: Returns https://<device>-<code>.<base>/_auth?t=... for the event
-        owner and write moderators testing tasks as the hidden moderators team. The
-        link lives about two minutes and is single use; the page fetches it on every
-        click. The laboratory proxy sets its own session cookie; the platform sets
-        none.
+      description: Returns URL (https://<device>-<code><letter>.<base>/_auth, no query)
+        and Grant (a signed JWS) for the event owner and write moderators testing
+        tasks as the hidden moderators team; the page posts Grant to URL in a form.
+        The page fetches a new grant on every click. The laboratory proxy sets its
+        own session cookie; the platform sets none.
       parameters:
       - description: event ID
         in: path
@@ -20443,8 +20446,8 @@ paths:
                 data:
                   $ref: '#/definitions/event.moderatorsLabLinkResponse'
               type: object
-      summary: Get the link that opens one web device of a moderators team task's
-        lab
+      summary: Get the access grant that opens one web device of a moderators team
+        task's lab
       tags:
       - events
   /events/{id}/manage/labs/moderators/challenges/{challengeID}/solves:
@@ -24829,13 +24832,14 @@ paths:
     post:
       consumes:
       - application/json
-      description: 'Returns https://<device>-<code>.<base>/_auth?t=..., signed for
-        the caller''s team lab group and client. The link lives about two minutes.
-        It is a stateless signed token (no jti, by the proxy protocol), so it is NOT
-        single use within that time: treat it like a password and do not share it.
-        The page fetches it on every click and opens it. The laboratory proxy turns
-        it into its own session cookie; the platform sets no cookie. expires_at is
-        the end of the session the link grants.'
+      description: 'Returns URL (https://<device>-<code><letter>.<base>/_auth, no
+        query) and Grant, a JWS signed for the caller''s team lab group, lab, device
+        and client; the page posts Grant to URL in a form (field grant, optional next).
+        A grant is a bearer without replay memory: treat it like a password, never
+        put it in an address. It lasts until the event ends (plus a buffer), capped
+        by the laboratory''s limit; the page fetches a new one on every click. The
+        laboratory proxy turns it into its own session cookie; the platform sets no
+        cookie. ExpiresAt is the end of the grant.'
       parameters:
       - description: event ID
         in: path
@@ -24865,7 +24869,7 @@ paths:
                 data:
                   $ref: '#/definitions/eventself.labLinkResponse'
               type: object
-      summary: Get the link that opens one web device of a task's lab
+      summary: Get the access grant that opens one web device of a task's lab
       tags:
       - events-self
   /events/{id}/teams/challenges/{challengeID}/open:
@@ -27321,11 +27325,12 @@ paths:
     post:
       consumes:
       - application/json
-      description: Returns https://<device>-<code>.<base>/_auth?t=... for the author
-        of the deploy. The link lives about two minutes and is single use; the page
-        fetches it on every click. The laboratory proxy sets its own session cookie,
-        which lasts until the deploy's lease ends; the platform sets none. Test traffic
-        is never counted for an event.
+      description: Returns URL (https://<device>-<code><letter>.<base>/_auth, no query)
+        and Grant (a signed JWS) for the author of the deploy; the page posts Grant
+        to URL in a form (field grant, optional next). The grant lasts until the deploy's
+        lease ends, capped by the laboratory's limit; the page fetches a new one on
+        every click. The laboratory proxy sets its own cookie; the platform sets none.
+        Test traffic is never counted for an event.
       parameters:
       - description: test deployment id
         in: path
@@ -27354,7 +27359,7 @@ paths:
           description: Conflict
           schema:
             $ref: '#/definitions/response.Response'
-      summary: Get the link that opens one web device of a ready test deploy
+      summary: Get the access grant that opens one device of a ready test deploy
       tags:
       - exercises
   /exercises/deploys/{deployID}/tasks/{taskID}/run-checks:
