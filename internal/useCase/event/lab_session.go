@@ -13,6 +13,7 @@ import (
 
 	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
 	"github.com/cybericebox/daemon/internal/model"
+	eventModel "github.com/cybericebox/daemon/internal/model/event"
 	eventStandModel "github.com/cybericebox/daemon/internal/model/eventStand"
 	labBindingModel "github.com/cybericebox/daemon/internal/model/labBinding"
 	vpnModel "github.com/cybericebox/daemon/internal/model/vpn"
@@ -95,6 +96,14 @@ func (u *EventUseCase) OpenModeratorsLabLink(ctx context.Context, eventID, userI
 // issueLabLink finds the device's web address in the live lab status and signs
 // the grant for it.
 func (u *EventUseCase) issueLabLink(ctx context.Context, eventID, userID uuid.UUID, binding labBindingModel.Binding, device string, port int32) (labaccess.Link, error) {
+	now := time.Now()
+	finish, err := u.labEventFinish(ctx, eventID)
+	if err != nil {
+		return labaccess.Link{}, err
+	}
+	if err = requireBeforeFinish(finish, now); err != nil {
+		return labaccess.Link{}, err
+	}
 	var pinned *eventLabModel.Lab
 	if binding.LabID.Valid {
 		// A short canonical transaction pins the revision, then releases every lock
@@ -137,7 +146,6 @@ func (u *EventUseCase) issueLabLink(ctx context.Context, eventID, userID uuid.UU
 		return labaccess.Link{}, infraUnavailable()
 	}
 	var status exerciseModel.LabDeployStatus
-	var err error
 	if pinned == nil || pinned.ReadyForAccess() {
 		status, err = u.infra.LabStatus(ctx, binding.LabGroupName, binding.LabName)
 	}
@@ -151,11 +159,7 @@ func (u *EventUseCase) issueLabLink(ctx context.Context, eventID, userID uuid.UU
 	if !ok {
 		return labaccess.Link{}, eventStandModel.ErrStandLabNoWebDevice.Err()
 	}
-	now := time.Now()
-	expiresAt, err := u.labSessionExpiry(ctx, eventID, now)
-	if err != nil {
-		return labaccess.Link{}, err
-	}
+	expiresAt := labSessionExpiryAt(finish, now)
 	link, err := u.labSessions.Issue(ctx, labaccess.Session{Group: binding.LabGroupName, Client: participantLabClientName(userID), Lab: binding.LabName, Device: device, Kind: labaccess.KindWeb, AccessURL: accessURL, ExpiresAt: expiresAt}, now)
 	if err != nil {
 		return labaccess.Link{}, model.ErrPlatform.WithError(err).WithMessage("Failed to issue the laboratory web grant").Err()
@@ -184,17 +188,28 @@ func (u *EventUseCase) issueLabLink(ctx context.Context, eventID, userID uuid.UU
 // so a request in flight at the finish does not fail on the session.
 const labSessionFinishBuffer = time.Hour
 
-// labSessionExpiry is the wanted end of a lab session: the event's effective
-// finish plus the buffer. It is zero (the issuer's TTL applies) for an event
-// without a finish or whose finish has passed.
-func (u *EventUseCase) labSessionExpiry(ctx context.Context, eventID uuid.UUID, now time.Time) (time.Time, error) {
+// labEventFinish is the effective finish of the event (nil: none scheduled and none made by a manager).
+func (u *EventUseCase) labEventFinish(ctx context.Context, eventID uuid.UUID) (*time.Time, error) {
 	e, err := u.events.GetByID(ctx, eventID)
 	if err != nil {
-		return time.Time{}, model.ErrPlatform.WithError(err).WithMessage("Failed to get event").Err()
+		return nil, model.ErrPlatform.WithError(err).WithMessage("Failed to get event").Err()
 	}
-	return labSessionExpiryAt(e.Lifecycle.EffectiveFinishAt(), now), nil
+	return e.Lifecycle.EffectiveFinishAt(), nil
 }
 
+// requireBeforeFinish refuses a grant at and after the event's effective finish. Participant runtime ends there: the
+// lifecycle closes the event's labs with the reason "event" (stage_lifecycle.go) and the access sync fences them, so a
+// device is not opened any more. The grace of labSessionFinishBuffer only keeps a grant issued before the finish valid a
+// little longer, so a request in flight at the finish does not fail; it is never a reason to issue a new one.
+func requireBeforeFinish(finish *time.Time, now time.Time) error {
+	if finish != nil && !now.Before(*finish) {
+		return eventModel.ErrEventRuntimeNotOpen.Err()
+	}
+	return nil
+}
+
+// labSessionExpiryAt is the wanted end of a lab grant: the event's effective finish plus the buffer. It is zero (the
+// issuer's TTL applies) for an event without a finish.
 func labSessionExpiryAt(finish *time.Time, now time.Time) time.Time {
 	if finish == nil {
 		return time.Time{}
