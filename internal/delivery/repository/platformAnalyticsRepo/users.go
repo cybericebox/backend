@@ -9,7 +9,7 @@ import (
 	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
 )
 
-// UsersQueries are the sqlc statements of «Користувачі»: the existing admin
+// UsersQueries are the sqlc statements of "Users": the existing admin
 // user stats (roles, blocked), the shared new / active account counts of the
 // overview, and the period-bound aggregates.
 type UsersQueries interface {

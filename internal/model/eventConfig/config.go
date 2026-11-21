@@ -276,7 +276,7 @@ func (c *EventConfig) SetTaskRevealMode(mode TaskRevealMode, started bool, now t
 }
 
 // SetStandTiming changes only the stand schedule, so saving it from the
-// «Стенди» page cannot overwrite concurrent general-setting changes.
+// "Stands" page cannot overwrite concurrent general-setting changes.
 func (c *EventConfig) SetStandTiming(timing eventStandModel.Timing, now time.Time, by uuid.UUID) error {
 	validated, err := eventStandModel.NewTiming(timing.TeardownDelayMinutes)
 	if err != nil {
@@ -288,7 +288,7 @@ func (c *EventConfig) SetStandTiming(timing eventStandModel.Timing, now time.Tim
 }
 
 // SetResultsSettings changes the results page settings and the scoreboard
-// visibility together (the «Налаштування результатів» page) without touching
+// visibility together (the "Results settings" page) without touching
 // other fields. The moderator's explicit opening is kept.
 func (c *EventConfig) SetResultsSettings(visibility Visibility, in ResultsSettings, now time.Time, by uuid.UUID) error {
 	if !visibility.valid() {
@@ -307,7 +307,7 @@ func (c *EventConfig) SetResultsSettings(visibility Visibility, in ResultsSettin
 	return nil
 }
 
-// SetResultsOpened records («Відкрити підсумки») or withdraws a moderator's
+// SetResultsOpened records ("Open results") or withdraws a moderator's
 // explicit end of the freeze. Opening twice keeps the first moment.
 func (c *EventConfig) SetResultsOpened(opened bool, now time.Time, by uuid.UUID) {
 	switch {

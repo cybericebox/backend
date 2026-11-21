@@ -14,7 +14,7 @@ import (
 	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
 )
 
-// ParticipantQueries are the statements of «Учасники» and «Комунікації»
+// ParticipantQueries are the statements of "Participants" and "Communications"
 // (§6.2, §6.7); Queries embeds it.
 type ParticipantQueries interface {
 	GetEventParticipantFunnel(context.Context, uuid.UUID) (postgres.GetEventParticipantFunnelRow, error)

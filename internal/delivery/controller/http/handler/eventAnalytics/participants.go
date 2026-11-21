@@ -15,14 +15,14 @@ import (
 	eventAnalyticsUseCase "github.com/cybericebox/daemon/internal/useCase/eventAnalytics"
 )
 
-// ParticipantsUseCase is the «Учасники» and «Комунікації» part of IUseCase.
+// ParticipantsUseCase is the Participants and Communications part of IUseCase.
 type ParticipantsUseCase interface {
 	GetEventAnalyticsParticipants(ctx context.Context, eventID uuid.UUID, from, to *time.Time) (eventAnalyticsUseCase.ParticipantsView, error)
 	GetEventAnalyticsSubmissions(ctx context.Context, eventID uuid.UUID) (eventAnalyticsUseCase.SubmissionsView, error)
 	GetEventAnalyticsCommunications(ctx context.Context, eventID uuid.UUID, from, to *time.Time) (eventAnalyticsUseCase.CommunicationsView, error)
 }
 
-// initParticipants registers the «Учасники» and «Комунікації» routes. The
+// initParticipants registers the Participants and Communications routes. The
 // reports hold no wrong answers, so every route needs only the sections level; the CSV exports need the export level.
 // The group carries its own PermSelf gate: tools/checkroutes sees only gates
 // written in the registering function.
@@ -145,7 +145,7 @@ type (
 
 // participants godoc
 // @Summary Participants and registration analytics
-// @Description §6.2 «Учасники й реєстрація»: the participation funnel, registrations per day and channel, team fill, registration form answer distributions and the drop-off list. from/to limit only the registrations per day (open bounds by default); the rest is the current state.
+// @Description §6.2 Participants and registration: the participation funnel, registrations per day and channel, team fill, registration form answer distributions and the drop-off list. from/to limit only the registrations per day (open bounds by default); the rest is the current state.
 // @Tags event-analytics
 // @Produce json
 // @Param id path string true "event ID"
@@ -173,7 +173,7 @@ func (h *Handler) participants(ctx *gin.Context) {
 	response.AbortWithData(ctx, toParticipantsResponse(v))
 }
 
-// maskDropOff masks the addresses of «Затверджені без жодної спроби» for a viewer without the people access (a
+// maskDropOff masks the addresses of Approved without any attempt for a viewer without the people access (a
 // read-only moderator, owner decision 2026-10-19); names stay. It reports whether the request may go on.
 func (h *Handler) maskDropOff(ctx *gin.Context, v *eventAnalyticsUseCase.ParticipantsView) bool {
 	people, ok := h.seesPeople(ctx)

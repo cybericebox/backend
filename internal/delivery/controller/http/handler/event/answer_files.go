@@ -28,7 +28,7 @@ type answerFileResponse struct {
 }
 
 // uploadManagedAnswerFile godoc
-// @Summary  Upload a file for a team «Файл» question on behalf of a team
+// @Summary  Upload a file for a team File question on behalf of a team
 // @Tags     events
 // @Accept   multipart/form-data
 // @Produce  json

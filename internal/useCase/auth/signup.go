@@ -104,7 +104,7 @@ func (u *AuthUseCase) sendContinueRegistration(ctx context.Context, userID uuid.
 	}
 	if strings.TrimSpace(name) == "" {
 		// An account created by an invitation may have no name; the greeting
-		// "Вітаємо, <Name>!" falls back to the address instead of a blank.
+		// "Welcome, <Name>!" falls back to the address instead of a blank.
 		name = emailAddr
 	}
 	link, err := u.issueSetupLink(ctx, userID, u.cfg.SignupSetupTokenTTL, returnTo)

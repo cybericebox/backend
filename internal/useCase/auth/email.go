@@ -51,7 +51,7 @@ func (u *AuthUseCase) RequestEmailChange(ctx context.Context, userID uuid.UUID, 
 		return err
 	}
 
-	// The account's own address is a resend of its confirmation (the «Не підтверджено» button), under the same
+	// The account's own address is a resend of its confirmation (the "Not confirmed" button), under the same
 	// limits and captcha; any other account's address is refused.
 	if existing, err := u.users.GetByEmail(ctx, newEmail); err == nil && existing.ID != userID {
 		return userModel.ErrUserExists.WithError(errors.New("email-change-request: new address already in use")).Err()

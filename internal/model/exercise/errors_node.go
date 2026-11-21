@@ -12,7 +12,7 @@ var (
 	ErrNodeProfileInvalid = err.ErrInvalidData.WithObjectCode(model.NodeProfileObjectCode).
 				WithMessage("Unknown node profile, or a profile on a device that is not a node").
 				WithDetailCode(1)
-	// ErrNodeProfileNotSupported: the platform does not support the profile of a node (the setting «Профілі вузлів»).
+	// ErrNodeProfileNotSupported: the platform does not support the profile of a node (the "Node profiles" setting).
 	ErrNodeProfileNotSupported = err.ErrInvalidData.WithObjectCode(model.NodeProfileObjectCode).
 					WithMessage("The platform does not support this node profile").WithDetailCode(2)
 	// ErrNodeProfileUnavailable: no connected laboratory agent can run the profile now.

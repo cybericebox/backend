@@ -59,7 +59,7 @@ type UpdateStageInput struct {
 	Returnable          *bool
 	OpensWithEvent      *bool
 	ClosesWithEvent     *bool
-	// CloseNow is «Закрити зараз»: an open stage ends now.
+	// CloseNow is "close now": an open stage ends now.
 	CloseNow bool
 }
 

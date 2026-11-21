@@ -301,8 +301,8 @@ func (u *EventUseCase) ListModeratorsBoard(ctx context.Context, eventID uuid.UUI
 	return applyBoardPresentation(views, config.ShowDifficulty, config.HintsDisabled), nil
 }
 
-// applyBoardPresentation makes the moderators board show what the participants' board shows: «Показувати
-// складність» off hides the difficulty of every task, «Підказки» off hides the hints.
+// applyBoardPresentation makes the moderators board show what the participants' board shows: "show difficulty"
+// off hides the difficulty of every task, "hints" off hides the hints.
 func applyBoardPresentation(
 	views []OwnChallengeView,
 	showDifficulty, hintsDisabled bool,

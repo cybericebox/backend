@@ -56,7 +56,7 @@ type ParticipationTeamStatsView struct {
 	Members         []ParticipationMemberView
 }
 
-// ParticipationStatsView is «Моя участь»: the place in the results, the team
+// ParticipationStatsView is "My participation": the place in the results, the team
 // and the caller's own share of it.
 type ParticipationStatsView struct {
 	// Rank is 0 when the results are not shown to the caller (hidden, private
@@ -142,7 +142,7 @@ func withoutOthersIDs(team ParticipationTeamStatsView, userID uuid.UUID) Partici
 	return team
 }
 
-// GetModeratorsParticipationStats is the «Моя участь» of the organizers' preview:
+// GetModeratorsParticipationStats is the "My participation" of the organizers' preview:
 // the real results of the hidden moderators team (roster, solves, counters,
 // timeline) and the caller's own share as a member of it. Any event manager
 // may read it; there is no rank because the team is not in the results.

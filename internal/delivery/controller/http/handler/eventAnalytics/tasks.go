@@ -18,14 +18,14 @@ import (
 	"github.com/cybericebox/daemon/pkg/tools"
 )
 
-// TasksUseCase is the «Завдання» part of IUseCase.
+// TasksUseCase is the Tasks part of IUseCase.
 type TasksUseCase interface {
 	GetEventAnalyticsTasks(ctx context.Context, eventID uuid.UUID, from, to *time.Time) (eventAnalyticsUseCase.TasksView, error)
 	GetEventAnalyticsTaskDetail(ctx context.Context, eventID, challengeID uuid.UUID, from, to *time.Time) (eventAnalyticsUseCase.TaskDetailView, error)
 	GetEventAnalyticsTaskWrongAnswers(ctx context.Context, eventID, challengeID uuid.UUID, from, to *time.Time) (eventAnalyticsUseCase.WrongAnswersView, error)
 }
 
-// initTasks registers the «Завдання» routes on the analytics group. The wrong
+// initTasks registers the Tasks routes on the analytics group. The wrong
 // answer texts are behind requireSensitive; nothing else is.
 func (h *Handler) initTasks(router *gin.RouterGroup) {
 	analytics := router.Group("events/:id/manage/analytics", h.prot.RequirePermission(rbac.PermSelf))
@@ -132,7 +132,7 @@ type (
 
 // tasks godoc
 // @Summary Per-task analytics with the difficulty calibration and group summary
-// @Description §6.3 «Завдання». Attempts, solves, solve rate (solvers ÷ teams that tried), median time to solve from the start and from the first open, first blood, hints and points spent, over the period (default: the event's window).
+// @Description §6.3 Tasks. Attempts, solves, solve rate (solvers ÷ teams that tried), median time to solve from the start and from the first open, first blood, hints and points spent, over the period (default: the event's window).
 // @Tags event-analytics
 // @Produce json
 // @Param id path string true "event ID"

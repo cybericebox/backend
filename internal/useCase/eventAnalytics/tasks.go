@@ -18,7 +18,7 @@ import (
 // wrongAnswersLimit is how many distinct wrong answers the drawer lists.
 const wrongAnswersLimit = 20
 
-// TaskStore is the «Завдання» and «Прогрес» part of Store.
+// TaskStore is the "Tasks" and "Progress" part of Store.
 type TaskStore interface {
 	Challenges(ctx context.Context, eventID uuid.UUID) ([]eventAnalyticsRepo.Challenge, error)
 	Challenge(ctx context.Context, eventID, challengeID uuid.UUID) (eventAnalyticsRepo.Challenge, bool, error)
@@ -57,7 +57,7 @@ func periodView(period eventAnalyticsModel.Period) PeriodView {
 	return PeriodView{From: period.From, To: period.To}
 }
 
-// GetEventAnalyticsTasks is the «Завдання» report (§6.3): the per-task
+// GetEventAnalyticsTasks is the "Tasks" report (§6.3): the per-task
 // table, the difficulty calibration and the group summary.
 func (u *EventAnalyticsUseCase) GetEventAnalyticsTasks(ctx context.Context, eventID uuid.UUID, from, to *time.Time) (TasksView, error) {
 	_, _, period, err := u.reportPeriod(ctx, eventID, from, to)

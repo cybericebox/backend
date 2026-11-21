@@ -15,7 +15,7 @@ import (
 type DeviceType string
 
 const (
-	// DeviceTypeNode is the «Вузол»: a machine of the lab that runs as the container, microVM or VM of its Profile.
+	// DeviceTypeNode is the "Node": a machine of the lab that runs as the container, microVM or VM of its Profile.
 	DeviceTypeNode DeviceType = "node"
 	// DeviceTypeContainer is the former type of a container device. It is only read: Device.Normalize (run by the
 	// JSON decoding and by every import) turns it into a node with the container profile, and nothing writes it.
@@ -53,7 +53,7 @@ const GatewayPort = "eth0"
 // (its VPNFeature.max_gateways).
 const MaxLabGateways = 10
 
-// NodeProfile is how a node runs: «Контейнер», «Мікро-VM» or «VM».
+// NodeProfile is how a node runs: "Container", "Micro-VM" or "VM".
 type NodeProfile string
 
 const (

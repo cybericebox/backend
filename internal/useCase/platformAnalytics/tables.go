@@ -101,7 +101,7 @@ type EventsTable struct {
 	Total  int64
 }
 
-// GetEventsTable is the per-event table of the «Заходи» report: searched, sorted and paged on the server, without a
+// GetEventsTable is the per-event table of the "Events" report: searched, sorted and paged on the server, without a
 // cut at the newest N.
 func (u *PlatformAnalyticsUseCase) GetEventsTable(
 	ctx context.Context,
@@ -133,7 +133,7 @@ type PeopleTable struct {
 	Total int64
 }
 
-// GetUsersPeoplePage is the «Люди» table: every account that joined an event, searched, sorted and paged on the
+// GetUsersPeoplePage is the "People" table: every account that joined an event, searched, sorted and paged on the
 // server. It holds personal data: the caller must hold analytics.users.read.
 func (u *PlatformAnalyticsUseCase) GetUsersPeoplePage(
 	ctx context.Context,

@@ -76,7 +76,7 @@ type Event struct {
 	ScoringProfile    ScoringProfile
 	ForceEventScoring bool
 	// StaticPoints is the one value of static event scoring (required for
-	// static scoring; tasks «Як у заходу» and forced scoring use it).
+	// static scoring; tasks "As in the event" and forced scoring use it).
 	StaticPoints *int32
 	// InfrastructureAllowed is the platform administrator's decision, made
 	// whether the event may use challenges with team stands. It is set at

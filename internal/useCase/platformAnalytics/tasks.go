@@ -35,7 +35,7 @@ var taskLevels = []exerciseModel.Difficulty{
 	exerciseModel.DifficultyHard, exerciseModel.DifficultyInsane,
 }
 
-// GetTasks is the «Каталог завдань» report: how catalog tasks are used and
+// GetTasks is the "Task catalog" report: how catalog tasks are used and
 // how they behave across the events that started in the period. category is an
 // exercise tag, level a task difficulty; empty means no filter.
 func (u *PlatformAnalyticsUseCase) GetTasks(ctx context.Context, from, to *time.Time, category, level string) (TasksView, error) {

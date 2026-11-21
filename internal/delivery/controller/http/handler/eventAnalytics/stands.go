@@ -13,12 +13,12 @@ import (
 	eventAnalyticsUseCase "github.com/cybericebox/daemon/internal/useCase/eventAnalytics"
 )
 
-// StandsUseCase is the «Стенди» part of IUseCase.
+// StandsUseCase is the Stands part of IUseCase.
 type StandsUseCase interface {
 	GetEventAnalyticsStands(ctx context.Context, eventID uuid.UUID, from, to *time.Time) (eventAnalyticsUseCase.StandsView, error)
 }
 
-// initStands registers the «Стенди» routes on the analytics group.
+// initStands registers the Stands routes on the analytics group.
 func (h *Handler) initStands(router *gin.RouterGroup) {
 	analytics := router.Group("events/:id/manage/analytics", h.prot.RequirePermission(rbac.PermSelf))
 	analytics.GET("stands", h.requireSections, h.stands)
@@ -108,7 +108,7 @@ type (
 
 // stands godoc
 // @Summary Team stands: deploy time, status, failures, telemetry, VPN
-// @Description §6.5 «Стенди». Empty (Available=false) for an event without infrastructure. The period bounds the telemetry and VPN figures; deploy and failure history is the event's.
+// @Description §6.5 Stands. Empty (Available=false) for an event without infrastructure. The period bounds the telemetry and VPN figures; deploy and failure history is the event's.
 // @Tags event-analytics
 // @Produce json
 // @Param id path string true "event ID"

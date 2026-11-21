@@ -174,7 +174,7 @@ func (h *Handler) serveRegenerateLiveScreenLink(ctx *gin.Context, screenID uuid.
 }
 
 // revokeLiveScreenLink godoc
-// @Summary Turn the first screen's link off («Вимкнути»)
+// @Summary Turn the first screen's link off (Turn off)
 // @Tags events
 // @Param id path string true "event ID"
 // @Success 204
@@ -184,7 +184,7 @@ func (h *Handler) revokeLiveScreenLink(ctx *gin.Context) {
 }
 
 // revokeLiveScreenLinkOf godoc
-// @Summary Turn a screen's link off («Вимкнути»)
+// @Summary Turn a screen's link off (Turn off)
 // @Tags events
 // @Param id path string true "event ID"
 // @Param screenID path string true "screen ID"

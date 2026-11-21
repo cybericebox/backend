@@ -20,7 +20,7 @@ const MaxDraftDocumentBytes = 8 << 20
 
 // DraftDocument is the working copy of an exercise (the draft, else the published content) as the exercise document, in
 // YAML: the same document the archive carries (schema cib-exercise/1.0, one version, the keys in the order of the
-// specification), for the editor's «Документ» dialog. It reads, never writes:
+// specification), for the editor's "Document" dialog. It reads, never writes:
 //   - secret env values are empty (secret: true stays), as everywhere in a response;
 //   - a reader who may not see flags gets the document without answer values and conditions, like GetWorkingCopy;
 //   - a file of the exercise is written as the same archive path the export gives it (files/...), by its content hash; the

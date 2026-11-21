@@ -153,7 +153,7 @@ type IProfileAvailability interface {
 	RunnableNodeProfiles(ctx context.Context) map[exerciseModel.NodeProfile]bool
 }
 
-// NodeProfilesView is the setting «Профілі вузлів» with, per profile, whether a connected agent can run it now: a
+// NodeProfilesView is the setting "Node profiles" with, per profile, whether a connected agent can run it now: a
 // ticked profile that none can is the one to warn about.
 type NodeProfilesView struct {
 	TypedView

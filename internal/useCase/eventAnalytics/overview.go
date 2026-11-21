@@ -40,7 +40,7 @@ func feedOf(items []eventAnalyticsRepo.FeedItem, freezeAt *time.Time, now time.T
 	return out
 }
 
-// GetEventAnalyticsOverview is the «Огляд» report: the §6.1 counters and the
+// GetEventAnalyticsOverview is the "Overview" report: the §6.1 counters and the
 // 5-minute activity series over the period (nil bounds: the event's own
 // window). It is the reference section: event read → period → cached load.
 func (u *EventAnalyticsUseCase) GetEventAnalyticsOverview(ctx context.Context, eventID uuid.UUID, from, to *time.Time) (OverviewView, error) {

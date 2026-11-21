@@ -1,5 +1,5 @@
 // Package mail is the HTTP layer of the W7 mail settings: the platform SMTP
-// providers (admin «Налаштування → Пошта») and the Event mail section (sender, Reply-To,
+// providers (admin Settings → Mail) and the Event mail section (sender, Reply-To,
 // optional Event SMTP, delivery journal). Both levels share one model:
 // sender + Reply-To + SMTP (the platform has a prioritized list of providers,
 // an Event at most one server).

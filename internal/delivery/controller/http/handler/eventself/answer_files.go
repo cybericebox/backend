@@ -28,7 +28,7 @@ type answerFileResponse struct {
 }
 
 // uploadAnswerFile godoc
-// @Summary  Upload a file for a «Файл» question of the participant form or team fields
+// @Summary  Upload a file for a File question of the participant form or team fields
 // @Tags     events-self
 // @Accept   multipart/form-data
 // @Produce  json

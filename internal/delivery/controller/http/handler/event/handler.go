@@ -1614,7 +1614,7 @@ func (h *Handler) getManagementAccess(ctx *gin.Context) {
 		return
 	}
 	// InfrastructureAllowed (the admin's creation-time decision) lets the
-	// manager shell show «Стенди» without widening the public event info.
+	// manager shell show Stands without widening the public event info.
 	event, getErr := h.useCase.GetEvent(ctx, id)
 	if getErr != nil {
 		response.AbortWithError(ctx, getErr)
@@ -2149,7 +2149,7 @@ func parseEventExerciseParams(ctx *gin.Context) (eventID, exerciseID, userID uui
 }
 
 // updateEventExercise godoc
-// @Summary «Оновити»: switch the attachment in place to the latest (or given) published version, keeping event overrides
+// @Summary Update: switch the attachment in place to the latest (or given) published version, keeping event overrides
 // @Description On a running event whose lab task would ask for more per team (a version with larger devices, an event copy that is larger), the reservation must hold the new size for all teams, else 409 (72508) "Not enough reserved resources, request an extension" and nothing is switched. A change that does not grow the task is not checked.
 // @Description Board challenges keep their rows (id, group, order, points, publication, team copies): a task is the same by id or, when a re-import re-issued the ids, by name. Only labs whose content the new version changes are recreated (topology of the team variant, flag links); labs not started yet are re-prepared in place; the rest is kept. Recreating labs that exist needs RecreateStands=true at any time: otherwise nothing is changed and 409 (71813) lists the affected teams (ID, Name) in status.context.teams. Call .../update/preview first for the dry run. A finished event keeps its Labs.
 // @Tags events
@@ -2193,7 +2193,7 @@ func bindRecreateStands(ctx *gin.Context) (recreateStandsRequest, bool) {
 }
 
 // previewEventExerciseUpdate godoc
-// @Summary Dry run of «Оновити до нової версії»: what the update would do, nothing is changed
+// @Summary Dry run of Update to a new version: what the update would do, nothing is changed
 // @Description Returns how many stands of how many teams would be recreated (StandsRecreated, TeamsAffected, Teams), how many labs are re-prepared in place because they have not started (StandsReset) or are kept as they are (StandsKept), the tasks added, removed or kept under a new task id, removed tasks with attempts that block the update, and whether the reservation is short. RequiresConfirmation is true when the update recreates running stands: repeat the update with RecreateStands=true only after the organizer confirmed.
 // @Tags events
 // @Accept json
@@ -2224,7 +2224,7 @@ func (h *Handler) previewEventExerciseUpdate(ctx *gin.Context) {
 }
 
 // forkEventExercise godoc
-// @Summary «Налаштувати під захід»: switch to the event's own copy of the catalog exercise
+// @Summary Customize for the event: switch to the event's own copy of the catalog exercise
 // @Description On a running event whose lab task would ask for more per team (a version with larger devices, an event copy that is larger), the reservation must hold the new size for all teams, else 409 (72508) "Not enough reserved resources, request an extension" and nothing is switched. A change that does not grow the task is not checked.
 // @Description If the version changes what prepared teams run, their stand Labs are recreated; while the set's stage is running this needs RecreateStands=true, else 409 (71813) lists the affected teams in status.context.teams (same as update).
 // @Tags events
@@ -2253,7 +2253,7 @@ func (h *Handler) forkEventExercise(ctx *gin.Context) {
 }
 
 // revertEventExercise godoc
-// @Summary «Повернути оригінал»: switch a fork attachment back to its catalog source
+// @Summary Restore the original: switch a fork attachment back to its catalog source
 // @Description On a running event whose lab task would ask for more per team (a version with larger devices, an event copy that is larger), the reservation must hold the new size for all teams, else 409 (72508) "Not enough reserved resources, request an extension" and nothing is switched. A change that does not grow the task is not checked.
 // @Description If the version changes what prepared teams run, their stand Labs are recreated; while the set's stage is running this needs RecreateStands=true, else 409 (71813) lists the affected teams in status.context.teams (same as update).
 // @Tags events

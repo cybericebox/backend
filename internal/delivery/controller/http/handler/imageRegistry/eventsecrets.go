@@ -22,7 +22,7 @@ type eventSecretRequest struct {
 	Token            string `json:"Token"`
 }
 
-// eventSecretResponse is a secret as «Панель заходу» sees it: never the token.
+// eventSecretResponse is a secret as Event panel sees it: never the token.
 type eventSecretResponse struct {
 	ID               string    `json:"ID"`
 	Host             string    `json:"Host"`

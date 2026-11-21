@@ -12,7 +12,7 @@ import (
 	eventAnalyticsModel "github.com/cybericebox/daemon/internal/model/eventAnalytics"
 )
 
-// IntegrityQueries are the statements of «Доброчесність» (§6.6); Queries
+// IntegrityQueries are the statements of "Integrity" (§6.6); Queries
 // embeds it.
 type IntegrityQueries interface {
 	ListEventIntegrityAttempts(context.Context, uuid.UUID) ([]postgres.ListEventIntegrityAttemptsRow, error)
@@ -29,7 +29,7 @@ type IntegrityQueries interface {
 	DeleteSolveIntegrityReview(context.Context, postgres.DeleteSolveIntegrityReviewParams) (int64, error)
 }
 
-// SolveReview is an organizer's «перевірено» note on one solve.
+// SolveReview is an organizer's "reviewed" note on one solve.
 type SolveReview struct {
 	TeamChallengeID uuid.UUID
 	Note            string
@@ -38,7 +38,7 @@ type SolveReview struct {
 	ReviewedAt      time.Time
 }
 
-// IntegrityDismissal is a stored «не підсвічувати такі випадки».
+// IntegrityDismissal is a stored "do not highlight such cases".
 type IntegrityDismissal struct {
 	ID            uuid.UUID
 	Scope         eventAnalyticsModel.DismissScope

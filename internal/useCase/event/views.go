@@ -902,7 +902,7 @@ type ResultsDisplayView struct {
 	RowsLimit    *int32
 }
 
-// ResultsSettingsView is the moderator «Налаштування результатів» read model.
+// ResultsSettingsView is the moderator "results settings" read model.
 type ResultsSettingsView struct {
 	ScoreboardVisibility eventConfigModel.Visibility
 	FreezeEnabled        bool

@@ -228,7 +228,7 @@ func importQueue(enq worker.IEnqueuer) exerciseUseCase.ImportJobQueue {
 	}
 }
 
-// exportQueue adapts the River enqueuer to the background export «з образами»: one run per job while queued or running.
+// exportQueue adapts the River enqueuer to the background export "with images": one run per job while queued or running.
 func exportQueue(enq worker.IEnqueuer) exerciseUseCase.ExportJobQueue {
 	return func(ctx context.Context, args jobsModel.ExerciseExportArgs) error {
 		return enq.EnqueueUniqueAt(ctx, args, time.Now())
@@ -437,7 +437,7 @@ func NewUseCase(deps Dependencies) *UseCase {
 	exerciseUC.SetArchiveImport(exerciseUseCase.ArchiveImportDependencies{
 		Images: imageRegistryUC, Sources: mediaUC, Queue: importQueue(deps.EnqueuerFactory.NewEnqueuer()), Sealer: registrySealer,
 	})
-	// Exports «з образами» run in the background too: images read from the registry, the zip stored as a media file.
+	// Exports "with images" run in the background too: images read from the registry, the zip stored as a media file.
 	exerciseUC.SetArchiveExport(exerciseUseCase.ArchiveExportDependencies{
 		Images: imageExporter{uc: imageRegistryUC}, Files: mediaUC, Queue: exportQueue(deps.EnqueuerFactory.NewEnqueuer()), Sealer: registrySealer,
 	})

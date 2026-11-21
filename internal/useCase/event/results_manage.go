@@ -20,7 +20,7 @@ import (
 	signalModel "github.com/cybericebox/daemon/internal/model/signal"
 )
 
-// GetResultsSettings is the moderator «Налаштування результатів» read.
+// GetResultsSettings is the moderator "results settings" read.
 func (u *EventUseCase) GetResultsSettings(ctx context.Context, eventID uuid.UUID) (ResultsSettingsView, error) {
 	// GetEventConfig self-heals a missing config row.
 	if _, err := u.GetEventConfig(ctx, eventID); err != nil {
@@ -49,7 +49,7 @@ func (u *EventUseCase) UpdateResultsSettings(ctx context.Context, eventID uuid.U
 	return u.resultsSettingsView(ctx, cfg)
 }
 
-// SetResultsOpened ends the freeze («Відкрити підсумки») or restores it.
+// SetResultsOpened ends the freeze ("open results") or restores it.
 // Opening announces participant.event.results_published (participants and
 // managers, Activity), but only while the participants can see the results.
 func (u *EventUseCase) SetResultsOpened(ctx context.Context, eventID uuid.UUID, opened bool, by uuid.UUID) (ResultsSettingsView, error) {

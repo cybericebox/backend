@@ -21,7 +21,7 @@ const (
 	dropOffLimit = 500
 )
 
-// ParticipantStore is the «Учасники» and «Комунікації» read port (satisfied by
+// ParticipantStore is the "Participants" and "Communications" read port (satisfied by
 // *eventAnalyticsRepo.Repository); Store embeds it.
 type ParticipantStore interface {
 	ParticipantFunnel(ctx context.Context, eventID uuid.UUID) (eventAnalyticsRepo.ParticipantFunnel, error)
@@ -56,7 +56,7 @@ func windowKey(from, to *time.Time) string {
 	return bound(from) + ":" + bound(to)
 }
 
-// GetEventAnalyticsParticipants is the «Учасники» report (§6.2). The window
+// GetEventAnalyticsParticipants is the "Participants" report (§6.2). The window
 // (nil bounds: open) limits the registrations per day; the funnel, team fill,
 // answers and drop-off list describe the current state.
 func (u *EventAnalyticsUseCase) GetEventAnalyticsParticipants(ctx context.Context, eventID uuid.UUID, from, to *time.Time) (ParticipantsView, error) {

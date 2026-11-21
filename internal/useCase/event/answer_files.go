@@ -74,7 +74,7 @@ func (u *EventUseCase) answerForm(ctx context.Context, eventID uuid.UUID, scope 
 	return form, true, nil
 }
 
-// UploadAnswerFile stores a file for a «Файл» question of the event's
+// UploadAnswerFile stores a file for a "File" question of the event's
 // participant form or team fields. The file must match the question's formats
 // by content and fit its size limit. It stays with the uploader until an
 // answer that references it is saved; unused uploads expire under retention.

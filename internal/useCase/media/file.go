@@ -53,7 +53,7 @@ func (u *MediaUseCase) UploadPublicImage(ctx context.Context, refType, name, con
 	return u.upload(ctx, name, contentType, r, createdBy, u.cfg.MaxUploadBytes, true)
 }
 
-// UploadLargeFile is UploadFile with a cap of its own: the platform's own generated files (an export «з образами»,
+// UploadLargeFile is UploadFile with a cap of its own: the platform's own generated files (an export "with images",
 // up to 512 MiB + 10 GiB) are larger than one file a person uploads (MaxUploadBytes).
 func (u *MediaUseCase) UploadLargeFile(ctx context.Context, name, contentType string, r io.Reader, createdBy uuid.UUID, maxBytes int64) (mediaModel.File, error) {
 	return u.upload(ctx, name, contentType, r, createdBy, maxBytes, false)

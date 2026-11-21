@@ -17,7 +17,7 @@ type labCapabilitiesResponse struct {
 	Observations map[string]string `json:"Observations"`
 	// Access: http, terminal, vnc, rdp. vnc and rdp are "none" (accepted by the schema, not served yet).
 	Access map[string]string `json:"Access"`
-	// Profiles: container, microvm, vm. The platform setting «Профілі вузлів»: "all" when ticked, else "none".
+	// Profiles: container, microvm, vm. The platform setting Node profiles: "all" when ticked, else "none".
 	Profiles map[string]string `json:"Profiles"`
 	// Bootstrap: device initialization (files, script) and the service command.
 	Bootstrap string `json:"Bootstrap"`

@@ -47,7 +47,7 @@ type updateEventStageRequest struct {
 	Returnable          *bool                      `json:"Returnable"`
 	OpensWithEvent      *bool                      `json:"OpensWithEvent"`
 	ClosesWithEvent     *bool                      `json:"ClosesWithEvent"`
-	// CloseNow ends an open stage now («Закрити зараз»).
+	// CloseNow ends an open stage now (Close now).
 	CloseNow bool `json:"CloseNow"`
 }
 

@@ -28,7 +28,7 @@ type exportExercisesRequest struct {
 	IDs            []uuid.UUID `json:"IDs" binding:"required,min=1,max=100"`
 	IncludeSecrets bool        `json:"IncludeSecrets"`
 	Password       string      `json:"Password"`
-	// IncludeImages writes the platform images of the devices into the archive («з образами», up to 10 GiB): the export
+	// IncludeImages writes the platform images of the devices into the archive (with images, up to 10 GiB): the export
 	// then runs in the background, 202 {JobID}.
 	IncludeImages bool `json:"IncludeImages"`
 }
@@ -131,7 +131,7 @@ type exportJobStarted struct {
 	JobID uuid.UUID `json:"JobID"`
 }
 
-// startImageExport records the background export «з образами» of the tasks and answers 202 {JobID}. Every task is
+// startImageExport records the background export with images of the tasks and answers 202 {JobID}. Every task is
 // read first, so an unknown one is refused before any job is recorded.
 func (h *Handler) startImageExport(ctx *gin.Context, user uuid.UUID, req exportExercisesRequest) {
 	var firstName string
@@ -169,7 +169,7 @@ type exportJobResponse struct {
 }
 
 // exportJob godoc
-// @Summary      State of a background export «з образами»
+// @Summary      State of a background export with images
 // @Description  running → done (File: the stored zip, read in chunks like any export) or failed (Error: Code, Message,
 // @Description  Context). Only the user who started it sees it (404 otherwise). The file is kept for the media grace
 // @Description  window (24 h by default).

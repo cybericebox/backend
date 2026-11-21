@@ -104,7 +104,7 @@ type accessResponse struct {
 	Sensitive bool `json:"Sensitive"`
 	// Export: the CSV exports and the report download.
 	Export bool `json:"Export"`
-	// People: per-person rows of «Використання» (names, visits, VPN sessions).
+	// People: per-person rows of Usage (names, visits, VPN sessions).
 	People bool `json:"People"`
 }
 

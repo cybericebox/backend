@@ -102,7 +102,7 @@ type (
 		ArchiveImportJob(ctx context.Context, id, user uuid.UUID) (exerciseUseCase.ImportJobView, error)
 		RunningArchiveImports(ctx context.Context, user uuid.UUID) ([]exerciseUseCase.ImportJobView, error)
 		DismissArchiveImport(ctx context.Context, id, user uuid.UUID) error
-		// background export of tasks «з образами»
+		// background export of tasks with images
 		StartArchiveExport(ctx context.Context, in exerciseUseCase.StartExportInput) (uuid.UUID, error)
 		ArchiveExportJob(ctx context.Context, id, user uuid.UUID) (exerciseUseCase.ExportJobView, error)
 		// files

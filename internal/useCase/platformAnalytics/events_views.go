@@ -9,7 +9,7 @@ import (
 )
 
 type (
-	// EventsView is the «Заходи» report.
+	// EventsView is the "Events" report.
 	EventsView struct {
 		Period platformAnalyticsModel.Period
 		Totals EventsTotals

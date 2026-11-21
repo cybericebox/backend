@@ -14,7 +14,7 @@ import (
 	appErr "github.com/cybericebox/daemon/pkg/err"
 )
 
-// Export «з образами»: the platform images of a task's devices are written into the archive as image archives
+// Export "with images": the platform images of a task's devices are written into the archive as image archives
 // (OCI layout + docker load manifest.json) under images/, placed by the same rule as attachments (assignExportPaths),
 // one file per image per task however many devices use it. The document names the file: `image: {file: …}`.
 

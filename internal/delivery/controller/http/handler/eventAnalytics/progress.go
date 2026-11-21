@@ -15,7 +15,7 @@ import (
 	eventAnalyticsUseCase "github.com/cybericebox/daemon/internal/useCase/eventAnalytics"
 )
 
-// ProgressUseCase is the «Прогрес» part of IUseCase.
+// ProgressUseCase is the Progress part of IUseCase.
 type ProgressUseCase interface {
 	GetEventAnalyticsProgressScores(ctx context.Context, eventID uuid.UUID, from, to *time.Time, top int, teamIDs []uuid.UUID) (eventAnalyticsUseCase.ScoresView, error)
 	GetEventAnalyticsProgressMatrix(ctx context.Context, eventID uuid.UUID, from, to *time.Time) (eventAnalyticsUseCase.MatrixView, error)
@@ -258,7 +258,7 @@ func toMatrixTeams(teams []eventAnalyticsUseCase.MatrixTeamView) []matrixTeamRes
 
 // exportProgressMatrix godoc
 // @Summary Export the team × task matrix as CSV (UTF-8 with BOM)
-// @Description One row per team, one column per task: the solve time (UTC), "спроб: N" for tried, empty for untouched.
+// @Description One row per team, one column per task: the solve time (UTC), an attempts count ("attempts: N" in Ukrainian) for tried, empty for untouched.
 // @Tags event-analytics
 // @Produce text/csv
 // @Param id path string true "event ID"
