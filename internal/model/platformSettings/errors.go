@@ -7,7 +7,7 @@ import (
 )
 
 // Error-code convention: see internal/model/auth/errors.go. Enforced by
-// `make lint-errors`. Each var has exactly one non-test call site. A refused
+// `mise run lint:errors`. Each var has exactly one non-test call site. A refused
 // typed value carries the public context `field` (and `min`/`max` for a range)
 // so the admin form shows the error under that field.
 //

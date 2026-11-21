@@ -6,7 +6,7 @@ import (
 	"github.com/cybericebox/daemon/internal/model"
 )
 
-// Error-code convention: see internal/model/auth/errors.go. Enforced by `make lint-errors`.
+// Error-code convention: see internal/model/auth/errors.go. Enforced by `mise run lint:errors`.
 //
 // PasskeyObjectCode — next free detail code: 7.
 //

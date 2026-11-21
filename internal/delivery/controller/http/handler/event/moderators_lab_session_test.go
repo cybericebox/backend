@@ -21,7 +21,7 @@ type moderatorsLabLinkUC struct {
 
 func (u *moderatorsLabLinkUC) OpenModeratorsLabLink(_ context.Context, eventID, userID, challengeID uuid.UUID, _ string, _ int32) (labaccess.Link, error) {
 	u.calls = append(u.calls, [3]uuid.UUID{eventID, userID, challengeID})
-	return labaccess.Link{URL: "https://web-abc123w.challenges.example.com/_auth?t=jwt", Token: "jwt", ExpiresAt: time.Date(2026, 9, 30, 13, 0, 0, 0, time.UTC)}, nil
+	return labaccess.Link{URL: "https://web-abc123w.challenges.example.com/_auth", Grant: "jws", ExpiresAt: time.Date(2026, 9, 30, 13, 0, 0, 0, time.UTC)}, nil
 }
 
 func linkPath(eventID, challengeID uuid.UUID) string {
@@ -36,7 +36,7 @@ func TestModeratorsLabLinkReturnsTheLinkForTheManager(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, linkPath(eventID, challengeID), strings.NewReader(`{"Device":"web","Port":80}`))
 	req.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(w, req)
-	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"ExpiresAt"`) || !strings.Contains(w.Body.String(), `/_auth?t=jwt`) {
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"ExpiresAt"`) || !strings.Contains(w.Body.String(), `"URL":"https://web-abc123w.challenges.example.com/_auth"`) || !strings.Contains(w.Body.String(), `"Grant":"jws"`) {
 		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
 	}
 	if len(u.calls) != 1 || u.calls[0] != [3]uuid.UUID{eventID, actor, challengeID} {

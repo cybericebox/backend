@@ -50,6 +50,13 @@ func ExerciseEnv(variantID uuid.UUID, device, name string) []byte {
 	return []byte("exercise-env:" + variantID.String() + ":" + device + ":" + name)
 }
 
+// FileKey binds the wrapped key of a stored file to its blob (the content hash): a wrapped key copied to another blob
+// does not open there.
+func FileKey(contentHash string) []byte { return []byte("media-file-key:" + contentHash) }
+
+// UploadKey binds the wrapped key of the chunks of a resumable upload to the upload.
+func UploadKey(id uuid.UUID) []byte { return []byte("media-upload-key:" + id.String()) }
+
 // NotifyPayload binds a queued notification payload to its dispatch.
 func NotifyPayload(dispatchID uuid.UUID) []byte {
 	return []byte("notify-payload:" + dispatchID.String())

@@ -11,10 +11,10 @@ graphify-out/
 .superpowers/
 docs/superpowers/
 
-# Test-data generator: accounts and their password (make seed)
+# Test-data generator: accounts and their password (mise run seed)
 .seed-credentials
 
-# Local workspace file (make work): points the build at ../laboratory
+# Local workspace file (mise run work): points the build at ../../laboratory
 go.work
 go.work.sum
 

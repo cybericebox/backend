@@ -35,6 +35,8 @@ func Contexts() keyRotationRepo.Contexts {
 		EventRegistry: secretctx.EventRegistry,
 		VPN:           secretctx.VPNConfig,
 		ExerciseEnv:   secretctx.ExerciseEnv,
+		FileKey:       secretctx.FileKey,
+		UploadKey:     secretctx.UploadKey,
 	}
 }
 

@@ -10,6 +10,8 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/cybericebox/daemon/internal/secretctx"
+
 	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
 	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
 	vpnModel "github.com/cybericebox/daemon/internal/model/vpn"
@@ -58,6 +60,8 @@ type fakeStore struct {
 	eventToken            string
 	vpn                   string
 	variants              []exerciseModel.Variant
+	fileKeys              map[string]string    // content hash -> wrapped key
+	uploadKeys            map[uuid.UUID]string // upload id -> wrapped key
 }
 
 func (s *fakeStore) SMTPPasswords(_ context.Context, visit func(uuid.UUID, string) error) error {
@@ -81,6 +85,23 @@ func (s *fakeStore) ExerciseVersions(_ context.Context, visit func(uuid.UUID, []
 		return err
 	}
 	return visit(idVer, raw)
+}
+
+func (s *fakeStore) FileBlobKeys(_ context.Context, visit func(string, string) error) error {
+	for hash, ct := range s.fileKeys {
+		if err := visit(hash, ct); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+func (s *fakeStore) UploadKeys(_ context.Context, visit func(uuid.UUID, string) error) error {
+	for id, ct := range s.uploadKeys {
+		if err := visit(id, ct); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func exerciseVariant(sealed string) []exerciseModel.Variant {
@@ -235,4 +256,50 @@ func TestTheReportNamesRowsAndKeysNeverValues(t *testing.T) {
 	require.NotContains(t, text, store.vpn, "the ciphertext is never printed")
 	require.NotContains(t, text, "PRIVATE-WG-KEY")
 	require.NotContains(t, text, hexNew)
+}
+
+// The wrapped per-file keys are a scanned family: the report counts them per key, and a wrapped key that is bound to another
+// blob (copied to the wrong row) is a value that does not open.
+func TestTheFilesFamilyIsScanned(t *testing.T) {
+	old := ring(t, "k1:"+hexOld)
+	both := ring(t, "k2:"+hexNew+",k1:"+hexOld)
+	uploadID := uuid.FromStringOrNil("33333333-3333-7333-8333-333333333333")
+	store := sealedBy(t, both, both, both)
+	store.fileKeys = map[string]string{
+		"hash-a": seal(t, old, "key-a", secretctx.FileKey("hash-a")),
+		"hash-b": seal(t, both, "key-b", secretctx.FileKey("hash-b")),
+	}
+	store.uploadKeys = map[uuid.UUID]string{uploadID: seal(t, both, "key-u", secretctx.UploadKey(uploadID))}
+	uc := New(store, Ciphers{Platform: both, VPN: both, Exercise: both, Files: both})
+
+	rep, err := uc.Check(context.Background(), true)
+	require.NoError(t, err)
+	require.Zero(t, rep.Problems())
+	require.Equal(t, []string{"k2", "k1"}, rep.Keys[FamilyFiles])
+	blobs := column(t, rep, "file_blobs.wrapped_key")
+	require.Equal(t, FamilyFiles, blobs.Family)
+	require.Equal(t, map[string]int{"k1": 1, "k2": 1}, blobs.ByKey)
+	require.Equal(t, map[string]int{"k2": 1}, column(t, rep, "media_uploads.wrapped_key").ByKey)
+
+	store.fileKeys["hash-b"] = seal(t, both, "key-b", secretctx.FileKey("another-hash"))
+	rep, err = uc.Check(context.Background(), true)
+	require.NoError(t, err)
+	require.Equal(t, 1, rep.Problems())
+	require.Equal(t, []Problem{{Kind: CannotOpen, KeyID: "k2", Ref: "hash-b"}}, column(t, rep, "file_blobs.wrapped_key").ProblemRefs)
+
+	// Without a key for the family the wrapped keys cannot be read at all.
+	rep, err = New(store, Ciphers{Platform: both, VPN: both, Exercise: both}).Check(context.Background(), false)
+	require.NoError(t, err)
+	require.Equal(t, NoFamilyKey, column(t, rep, "file_blobs.wrapped_key").ProblemRefs[0].Kind)
+}
+
+// The report says that plain versions of moved objects may remain in a versioned bucket, once the pass has moved something.
+func TestTheReportWarnsAboutPlainVersionsOfMovedFiles(t *testing.T) {
+	var out bytes.Buffer
+	Report{Rotation: []RotationState{{Family: "files", Source: "file_blobs.legacy_objects_to_encrypted", State: "finished", Done: 3}}}.Write(&out)
+	require.Contains(t, out.String(), "plain versions of the objects that were moved")
+
+	out.Reset()
+	Report{Rotation: []RotationState{{Family: "files", Source: "file_blobs.legacy_objects_to_encrypted", State: "finished"}}}.Write(&out)
+	require.NotContains(t, out.String(), "plain versions")
 }

@@ -138,3 +138,66 @@ func TestCopyUsesPartsOnlyPastTheSingleCopyLimit(t *testing.T) {
 		t.Fatalf("large copy calls %v", large)
 	}
 }
+
+// The deploy creates the bucket and its protection: the backend only checks that it is there, and never sends a request that
+// creates it.
+func TestNewDoesNotCreateAMissingBucket(t *testing.T) {
+	var methods []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		methods = append(methods, r.Method)
+		w.Header().Set("Content-Type", "application/xml")
+		w.WriteHeader(http.StatusNotFound)
+		if r.Method != http.MethodHead {
+			_, _ = w.Write([]byte(`<?xml version="1.0"?><Error><Code>NoSuchBucket</Code><Message>no</Message></Error>`))
+		}
+	}))
+	defer srv.Close()
+	_, err := New(Config{Endpoint: strings.TrimPrefix(srv.URL, "http://"), AccessKey: "a", SecretKey: "b", Bucket: "bkt", Region: "us-east-1"})
+	if !errors.Is(err, ErrBucketMissing) {
+		t.Fatalf("want ErrBucketMissing, got %v", err)
+	}
+	for _, m := range methods {
+		if m == http.MethodPut {
+			t.Fatalf("the backend must not create the bucket: %v", methods)
+		}
+	}
+}
+
+// A delete is a plain one: on a versioned bucket it adds a delete marker and needs no right to delete a version, and the
+// MinIO force-delete header (which needs a right of its own) is not sent.
+func TestRemoveIsAPlainDelete(t *testing.T) {
+	var gotHeaders http.Header
+	var gotQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.Trim(r.URL.Path, "/")
+		if r.Method == http.MethodDelete {
+			gotHeaders, gotQuery = r.Header.Clone(), r.URL.RawQuery
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		if !strings.Contains(path, "/") { // the bucket itself exists
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+	c, err := New(Config{Endpoint: strings.TrimPrefix(srv.URL, "http://"), AccessKey: "a", SecretKey: "b", Bucket: "bkt", Region: "us-east-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = c.Remove(context.Background(), "media/enc/x"); err != nil {
+		t.Fatal(err)
+	}
+	if gotHeaders == nil {
+		t.Fatal("no delete request was sent")
+	}
+	for name := range gotHeaders {
+		if strings.Contains(strings.ToLower(name), "force-delete") {
+			t.Fatalf("the force-delete header was sent: %s", name)
+		}
+	}
+	if strings.Contains(gotQuery, "versionId") {
+		t.Fatalf("a delete of a version was requested: %s", gotQuery)
+	}
+}

@@ -1417,7 +1417,7 @@ func TestFileMetaAndChunk_Reader(t *testing.T) {
 // Init() is reachable only through the protection gate — the fakeProt above
 // is a pass-through, so this really just documents which routes exist and
 // that none panics when wired; the actual "every route gated" invariant is
-// enforced statically by tools/checkroutes (make vet).
+// enforced statically by tools/checkroutes (mise run lint).
 func TestEveryRouteRequiresPermission(t *testing.T) {
 	uid := uuid.Must(uuid.NewV7())
 	exID := uuid.Must(uuid.NewV7())
@@ -2049,7 +2049,7 @@ func TestSetExerciseAccess_NoneLevel(t *testing.T) {
 func TestDeployLink_ReturnsTheLinkAndSetsNoCookie(t *testing.T) {
 	uid := uuid.Must(uuid.NewV7())
 	expires := time.Now().Add(time.Hour).UTC().Truncate(time.Second)
-	uc := &fakeUC{sessionLink: labaccess.Link{URL: "https://web-abc123w.challenges.example.com/_auth?t=signed", Token: "signed", ExpiresAt: expires}}
+	uc := &fakeUC{sessionLink: labaccess.Link{URL: "https://web-abc123w.challenges.example.com/_auth", Grant: "signed", ExpiresAt: expires}}
 	r := newEngine(uc, uid)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/exercises/deploys/"+uuid.Must(uuid.NewV7()).String()+"/link", strings.NewReader(`{"Device":"web","Port":80}`))
@@ -2066,16 +2066,17 @@ func TestDeployLink_ReturnsTheLinkAndSetsNoCookie(t *testing.T) {
 	var env struct {
 		Data struct {
 			URL       string
+			Grant     string
 			ExpiresAt time.Time
 		}
 	}
-	if err := json.Unmarshal(w.Body.Bytes(), &env); err != nil || !env.Data.ExpiresAt.Equal(expires) || env.Data.URL != uc.sessionLink.URL {
+	if err := json.Unmarshal(w.Body.Bytes(), &env); err != nil || !env.Data.ExpiresAt.Equal(expires) || env.Data.URL != uc.sessionLink.URL || env.Data.Grant != "signed" || strings.ContainsAny(env.Data.URL, "?#") {
 		t.Fatalf("body: %s err=%v", w.Body.String(), err)
 	}
 }
 
 func TestDeployLink_AccessTerminalOpensTheConsole(t *testing.T) {
-	uc := &fakeUC{sessionLink: labaccess.Link{URL: "https://terminal.challenges.example.com/_auth?t=signed", Token: "signed"}}
+	uc := &fakeUC{sessionLink: labaccess.Link{URL: "https://terminal.challenges.example.com/_auth", Grant: "signed"}}
 	r := newEngine(uc, uuid.Must(uuid.NewV7()))
 	post := func(body string) int {
 		req := httptest.NewRequest(http.MethodPost, "/api/exercises/deploys/"+uuid.Must(uuid.NewV7()).String()+"/link", strings.NewReader(body))

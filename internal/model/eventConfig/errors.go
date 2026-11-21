@@ -8,7 +8,7 @@ import (
 )
 
 // Error-code convention: see internal/model/exercise/errors.go. Enforced by
-// `make lint-errors`. Each var has exactly one non-test call site.
+// `mise run lint:errors`. Each var has exactly one non-test call site.
 //
 // EventConfigObjectCode — next free detail code: 24
 var (

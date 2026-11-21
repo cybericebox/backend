@@ -87,7 +87,7 @@ func validColumn(k string) bool {
 	return k != "" && len(k) <= maxKeyLength && !strings.ContainsAny(k, "\x00\n\r")
 }
 
-// Error-code convention: see internal/model/auth/errors.go. Enforced by `make lint-errors`.
+// Error-code convention: see internal/model/auth/errors.go. Enforced by `mise run lint:errors`.
 //
 // TablePrefsObjectCode — next free detail code: 3.
 //

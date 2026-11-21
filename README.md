@@ -51,7 +51,7 @@ River jobs on the same PostgreSQL database (`internal/jobs`).
   in `internal/delivery/repository/postgres/migrations`, applied on start. Files and images go to an S3-compatible
   object store.
 - **Frontends.** One REST API under `/api`, an OpenAPI spec generated from handler annotations, and server-sent
-  events for live pages. Every route sits behind a permission check (`make vet` fails on a route without one). Errors
+  events for live pages. Every route sits behind a permission check (`mise run lint` fails on a route without one). Errors
   carry numeric codes; the English and Ukrainian texts are in `error-catalog`.
 - **Laboratory.** Laboratory agents are enrolled and then called over gRPC with mutual TLS. The agent contract comes
   from the laboratory Go module pinned in `go.mod`.
@@ -60,10 +60,10 @@ River jobs on the same PostgreSQL database (`internal/jobs`).
 
 ## Requirements
 
-- Go 1.27 (see `go.mod`).
 - PostgreSQL.
 - An S3-compatible object store and an SMTP server, if you need uploads and mail.
-- Docker, for `make sqlcGenerate` and for the integration tests (they skip themselves when Docker is missing).
+- [mise](https://mise.jdx.dev): `mise install` puts the pinned tools (Go, sqlc, gh) in place; `mise tasks` lists the commands.
+- Docker, for the integration tests (they skip themselves when Docker is missing).
 
 ## Run locally
 
@@ -72,15 +72,15 @@ River jobs on the same PostgreSQL database (`internal/jobs`).
 3. Start the daemon:
 
 ```bash
-make run-local   # loads ./.env, then runs go run ./cmd/daemon
+mise run run-local   # loads ./.env, then runs go run ./cmd/daemon
 ```
 
-The daemon reads settings from the process environment only, which is why `make run-local` loads the file first.
+The daemon reads settings from the process environment only, which is why `mise run run-local` loads the file first.
 Set `ENV=development` for a local run; the default is `production`. The service answers on `api.<DOMAIN>`, so route
 that host to the process or send the `Host` header. `GET /api/health` is a public liveness probe. Outside
 `production` the Swagger UI is served at `/docs`.
 
-`make seed` fills a development database with a test event, teams and tasks (`make seed ARGS="--delete"` removes
+`mise run seed` fills a development database with a test event, teams and tasks (`mise run seed -- --delete` removes
 them). It refuses to run with `ENV=production`.
 
 ## Configuration
@@ -95,32 +95,65 @@ required value.
 | `DOMAIN` | The one base domain; every other host is derived from it |
 | `SUPPORT_EMAIL` | Default Reply-To and contact in the mail footer |
 | `POSTGRES_PASSWORD` | Database password (host, port, user and database have defaults) |
+| `HTTP_SERVER_ENTRY_MAIN`, `_ID`, `_ADMIN`, `_EXERCISES`, `_EVENT` | Optional transparent proxy by TLS server name (default off: all five empty). Each is `host:port` of a frontend service; the backend owns the HTTPS port, serves its own API host and passes the TLS stream of the matching host (main = `DOMAIN`, `id`, `admin`, `exercises`, one label under `DOMAIN` for event sites) untouched to that address. A host whose class is empty, any other name, and `labs`, `vpn`, `ctl` are refused. Needs TLS; TCP only (no HTTP/3 for forwarded hosts) |
+| `HTTP_SERVER_TLS_CLIENT_AUTH`, `HTTP_SERVER_TLS_CLIENT_CA_FILE` | Client certificates (authenticated origin pull); `CLIENT_AUTH` is `off` (default), `optional` or `require`. The client address is the peer of the connection; only on a TLS connection whose client certificate was verified against `CLIENT_CA_FILE` (Cloudflare in attack mode) is the single `CF-Connecting-IP` value used instead, when it is exactly one IP address (a missing or malformed value keeps the peer). Applies to HTTPS, HTTP/3 and the entry hand-off alike; no other forwarding header and no PROXY protocol is read |
+| `HTTP_SERVER_HTTP3_ENABLED`, `_PORT`, `_ADVERTISED_PORT` | HTTP/3 (QUIC) served by the backend itself on UDP, same certificate and handler as HTTPS; default off, UDP port = HTTPS port, advertised `443` |
 | `CAPTCHA_PROVIDER` | `turnstile`, `recaptcha` (default) or `none`; `none` is refused in production |
 
 Everything else is optional with a default: HTTP and TLS listeners, SMTP, object storage, Google sign-in, laboratory
 agent bootstrap, rate limits and data retention periods.
 
+## Files bucket encryption
+
+Every object the backend stores in the files bucket is encrypted before upload, except public images (an event logo, favicon,
+preview picture or page image, and the images of email templates and presets: `mediaModel.PublicRefTypes`). Each object has a
+random key; the key is wrapped with the key of the `files` purpose (`FILES_SECRETS_KEY`, or derived from `SECRETS_MASTER_KEY`)
+and kept in `file_blobs.wrapped_key` / `media_uploads.wrapped_key`. The format is in `pkg/filecrypt`. A master key change
+rewraps these keys (`daemon keys reencrypt files`) and never touches a file. A blob row without a wrapped key is a plain
+object, served as before.
+
+Preconditions and limits:
+
+- **The deploy creates the bucket.** The backend only checks that it exists, and needs no right to create or configure it or
+  to delete object versions. The daemon does not start without the bucket, and does not start with storage configured but no
+  key for the `files` purpose.
+- **The bucket needs a rule that expires non-current versions** (for example 30 days). Without it, the plain versions of the
+  objects the background pass moves to encrypted ones, and of public copies replaced by encrypted ones, stay readable.
+  `daemon keys status` says so once the pass has moved something.
+- **The upgrade is not rolling.** A binary from before this change cannot read an encrypted blob. Stop the old replicas before
+  the new one starts, and do not roll back to it once an encrypted file exists. The down migration `0245` refuses while an
+  encrypted blob or upload exists.
+- **What is not swept.** The backend may not list the bucket, so it cannot find an object that no row names: an object left
+  by a crash between the copy and the row, a plain `media/tmp/<id>` object of a crashed upload from before this change, and
+  the plain chunks of an upload started before it (the upload expiry removes those by key within the upload TTL). A failed
+  removal is kept in `object_removals` and retried by the media GC; a removal that never succeeds stays listed.
+- A legacy `avatars/<user>` object moves into the media store in the background (never from a request); until then it is
+  served plain.
+- Tests: run `go test` with `GOWORK=off` in a worktree (the repository-root `go.work` does not list worktrees). Tests that need
+  a database use Docker (testcontainers); without a working Docker they hang until the test timeout, so pass `-timeout`.
+
 ## Development
 
 | Command | What it does |
 |---|---|
-| `make build` | Compiles all packages |
-| `make test` | Runs all tests |
-| `make vet` | `go vet` plus the project lints (error codes, layer imports, route gates, secret contexts) |
-| `make sqlcGenerate` | Regenerates the Go code for SQL queries (sqlc, in Docker) |
+| `mise run build` | Compiles all packages |
+| `mise run test` | Runs all tests |
+| `mise run lint` | `go vet` plus the project lints (error codes, layer imports, route gates, secret contexts) |
+| `mise run sqlc` | Regenerates the Go code for SQL queries |
+| `mise run check` | Build, lint and tests: what the CI check runs |
 | `go generate ./internal/delivery/repository/postgres/` | Regenerates the repository mocks |
-| `make swagger` | Regenerates the OpenAPI spec |
-| `make error-catalog` | Regenerates `error-catalog/errors.en.json` after an error was added or renamed |
-| `make error-catalog-check` | Fails when the error catalog drifts from the code |
-| `make tidy` | `go mod tidy` |
+| `mise run swagger` | Regenerates the OpenAPI spec |
+| `mise run error-catalog` | Regenerates `error-catalog/errors.en.json` after an error was added or renamed |
+| `mise run error-catalog-check` | Fails when the error catalog drifts from the code |
+| `mise run tidy` | `go mod tidy` |
 
 Rules to keep in mind:
 
 - Edit the SQL in `internal/delivery/repository/postgres/queries`, then regenerate. Never edit generated files.
 - Add a Ukrainian text to `error-catalog/errors.uk.json` for every new error.
-- The laboratory module version is pinned in `go.mod`. To build against a local `../laboratory`, run `make work`.
+- The laboratory module version is pinned in `go.mod`. To build against a local `../../laboratory`, run `mise run work`.
 
-The branch cycle (`make dev-start`, `make dev-push`, `make dev-done`) is described in [CONTRIBUTING.md](CONTRIBUTING.md).
+The branch cycle (`mise run dev-start`, `mise run dev-push`, `mise run dev-done`) is described in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Releases
 

@@ -28,7 +28,13 @@ type Client struct {
 	bucket string
 }
 
-// New builds the client and ensures the bucket exists.
+// ErrBucketMissing is returned by New when the bucket does not exist. The deploy creates the bucket and its protection
+// (versioning, lifecycle, policy); the backend holds no right to create or configure it.
+var ErrBucketMissing = errors.New("storage: the bucket does not exist; it is created by the deploy, not by the backend")
+
+// New builds the client and checks that the bucket exists. It never creates the bucket and never changes a setting of it,
+// so the credentials need only object rights (get, put, list, delete of an object, which on a versioned bucket adds a
+// delete marker).
 func New(cfg Config) (*Client, error) {
 	mc, err := minio.New(
 		cfg.Endpoint, &minio.Options{
@@ -48,9 +54,7 @@ func New(cfg Config) (*Client, error) {
 		return nil, err
 	}
 	if !exists {
-		if err = mc.MakeBucket(ctx, cfg.Bucket, minio.MakeBucketOptions{Region: cfg.Region}); err != nil {
-			return nil, err
-		}
+		return nil, ErrBucketMissing
 	}
 
 	return &Client{mc: mc, bucket: cfg.Bucket}, nil
@@ -112,9 +116,11 @@ func (c *Client) GetRange(ctx context.Context, key string, offset, length int64)
 	return obj, nil
 }
 
-// Remove deletes an object. A missing key is not an error.
+// Remove deletes an object. A missing key is not an error. It is a plain delete: on a versioned bucket it adds a delete
+// marker and needs no right to delete a version (the MinIO-only force-delete header, which needs a right of its own, is not
+// sent).
 func (c *Client) Remove(ctx context.Context, key string) error {
-	return c.mc.RemoveObject(ctx, c.bucket, key, minio.RemoveObjectOptions{ForceDelete: true})
+	return c.mc.RemoveObject(ctx, c.bucket, key, minio.RemoveObjectOptions{})
 }
 
 // Stat reports whether the key exists (no error for a clean miss).

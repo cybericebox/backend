@@ -7,7 +7,7 @@ import (
 )
 
 // Error-code convention: see internal/model/auth/errors.go. Enforced by
-// `make lint-errors`.
+// `mise run lint:errors`.
 //
 // UserObjectCode — next free detail code: 7
 var (

@@ -16,6 +16,6 @@ func TestLabSessionExpiryAt(t *testing.T) {
 	}
 	past := now.Add(-2 * time.Hour)
 	if got := labSessionExpiryAt(&past, now); !got.IsZero() {
-		t.Fatalf("a finished event uses the fallback ttl, got %s", got)
+		t.Fatalf("past the buffer the helper gives no end (issueLabLink refuses such an event before it asks), got %s", got)
 	}
 }

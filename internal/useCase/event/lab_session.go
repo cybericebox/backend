@@ -13,27 +13,28 @@ import (
 
 	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
 	"github.com/cybericebox/daemon/internal/model"
+	eventModel "github.com/cybericebox/daemon/internal/model/event"
 	eventStandModel "github.com/cybericebox/daemon/internal/model/eventStand"
 	labBindingModel "github.com/cybericebox/daemon/internal/model/labBinding"
 	vpnModel "github.com/cybericebox/daemon/internal/model/vpn"
 	"github.com/cybericebox/daemon/pkg/labaccess"
 )
 
-// LabSessionIssuer signs the handoff link of the laboratory L7 proxy.
+// LabSessionIssuer signs the access grant of the laboratory L7 proxy.
 type LabSessionIssuer interface {
 	Issue(context.Context, labaccess.Session, time.Time) (labaccess.Link, error)
 }
 
-// OpenOwnLabLink returns the link that opens one web device of the caller's task
-// lab. The participant must be an approved member of an admitted team that has
-// the task published, and the event must have laboratories. The link
-// (https://<device>-<code>.<base>/_auth?t=...) carries the team's lab group and
-// the participant's client, nothing else; the proxy turns it into its own cookie
-// for the lab domain, so the platform sets no cookie. The link lives about two
-// minutes and is fetched fresh on every click; the session it grants lasts until
-// the event's effective finish plus a small buffer (the issuer's TTL is only the
-// fallback) and is never extended. Blocking a person is done by the group access
-// policy, not by the link.
+// OpenOwnLabLink returns what opens one web device of the caller's task lab: the
+// URL https://<device>-<code><letter>.<base>/_auth (no query) and the grant the
+// frontend posts to it. The participant must be an approved member of an admitted
+// team that has the task published, and the event must have laboratories. The
+// grant carries the team's lab group, the lab, the device and the participant's
+// client, nothing else; the proxy turns it into its own cookie for the lab
+// domain, so the platform sets no cookie. It is fetched fresh on every click and
+// lasts until the event's effective finish plus a small buffer (the issuer's TTL
+// is only the fallback), never longer than the agent's grant limit, and is never
+// extended. Blocking a person is done by the group access policy, not by the grant.
 func (u *EventUseCase) OpenOwnLabLink(ctx context.Context, eventID, userID, challengeID uuid.UUID, device string, port int32) (labaccess.Link, error) {
 	if u.labSessions == nil {
 		return labaccess.Link{}, infraUnavailable()
@@ -58,7 +59,7 @@ func (u *EventUseCase) OpenOwnLabLink(ctx context.Context, eventID, userID, chal
 	return u.issueLabLink(ctx, eventID, userID, binding, device, port)
 }
 
-// OpenModeratorsLabLink returns the handoff link of a manager for a device of a
+// OpenModeratorsLabLink returns the access grant of a manager for a device of a
 // task of the hidden moderators team, so staff reach the labs they test like any
 // team does. The route gate admits the owner and write moderators; the link names
 // the manager's client and the moderators team's lab group, and the proxy applies
@@ -93,8 +94,16 @@ func (u *EventUseCase) OpenModeratorsLabLink(ctx context.Context, eventID, userI
 }
 
 // issueLabLink finds the device's web address in the live lab status and signs
-// the handoff for it.
+// the grant for it.
 func (u *EventUseCase) issueLabLink(ctx context.Context, eventID, userID uuid.UUID, binding labBindingModel.Binding, device string, port int32) (labaccess.Link, error) {
+	now := time.Now()
+	finish, err := u.labEventFinish(ctx, eventID)
+	if err != nil {
+		return labaccess.Link{}, err
+	}
+	if err = requireBeforeFinish(finish, now); err != nil {
+		return labaccess.Link{}, err
+	}
 	var pinned *eventLabModel.Lab
 	if binding.LabID.Valid {
 		// A short canonical transaction pins the revision, then releases every lock
@@ -137,7 +146,6 @@ func (u *EventUseCase) issueLabLink(ctx context.Context, eventID, userID uuid.UU
 		return labaccess.Link{}, infraUnavailable()
 	}
 	var status exerciseModel.LabDeployStatus
-	var err error
 	if pinned == nil || pinned.ReadyForAccess() {
 		status, err = u.infra.LabStatus(ctx, binding.LabGroupName, binding.LabName)
 	}
@@ -151,14 +159,10 @@ func (u *EventUseCase) issueLabLink(ctx context.Context, eventID, userID uuid.UU
 	if !ok {
 		return labaccess.Link{}, eventStandModel.ErrStandLabNoWebDevice.Err()
 	}
-	now := time.Now()
-	expiresAt, err := u.labSessionExpiry(ctx, eventID, now)
+	expiresAt := labSessionExpiryAt(finish, now)
+	link, err := u.labSessions.Issue(ctx, labaccess.Session{Group: binding.LabGroupName, Client: participantLabClientName(userID), Lab: binding.LabName, Device: device, Kind: labaccess.KindWeb, AccessURL: accessURL, ExpiresAt: expiresAt}, now)
 	if err != nil {
-		return labaccess.Link{}, err
-	}
-	link, err := u.labSessions.Issue(ctx, labaccess.Session{Group: binding.LabGroupName, Client: participantLabClientName(userID), AccessURL: accessURL, ExpiresAt: expiresAt}, now)
-	if err != nil {
-		return labaccess.Link{}, model.ErrPlatform.WithError(err).WithMessage("Failed to issue the laboratory web link").Err()
+		return labaccess.Link{}, model.ErrPlatform.WithError(err).WithMessage("Failed to issue the laboratory web grant").Err()
 	}
 	if pinned != nil {
 		current, err := u.labs.GetForChallenge(ctx, binding.EventTeamID, binding.EventChallengeID)
@@ -184,17 +188,28 @@ func (u *EventUseCase) issueLabLink(ctx context.Context, eventID, userID uuid.UU
 // so a request in flight at the finish does not fail on the session.
 const labSessionFinishBuffer = time.Hour
 
-// labSessionExpiry is the wanted end of a lab session: the event's effective
-// finish plus the buffer. It is zero (the issuer's TTL applies) for an event
-// without a finish or whose finish has passed.
-func (u *EventUseCase) labSessionExpiry(ctx context.Context, eventID uuid.UUID, now time.Time) (time.Time, error) {
+// labEventFinish is the effective finish of the event (nil: none scheduled and none made by a manager).
+func (u *EventUseCase) labEventFinish(ctx context.Context, eventID uuid.UUID) (*time.Time, error) {
 	e, err := u.events.GetByID(ctx, eventID)
 	if err != nil {
-		return time.Time{}, model.ErrPlatform.WithError(err).WithMessage("Failed to get event").Err()
+		return nil, model.ErrPlatform.WithError(err).WithMessage("Failed to get event").Err()
 	}
-	return labSessionExpiryAt(e.Lifecycle.EffectiveFinishAt(), now), nil
+	return e.Lifecycle.EffectiveFinishAt(), nil
 }
 
+// requireBeforeFinish refuses a grant at and after the event's effective finish. Participant runtime ends there: the
+// lifecycle closes the event's labs with the reason "event" (stage_lifecycle.go) and the access sync fences them, so a
+// device is not opened any more. The grace of labSessionFinishBuffer only keeps a grant issued before the finish valid a
+// little longer, so a request in flight at the finish does not fail; it is never a reason to issue a new one.
+func requireBeforeFinish(finish *time.Time, now time.Time) error {
+	if finish != nil && !now.Before(*finish) {
+		return eventModel.ErrEventRuntimeNotOpen.Err()
+	}
+	return nil
+}
+
+// labSessionExpiryAt is the wanted end of a lab grant: the event's effective finish plus the buffer. It is zero (the
+// issuer's TTL applies) for an event without a finish.
 func labSessionExpiryAt(finish *time.Time, now time.Time) time.Time {
 	if finish == nil {
 		return time.Time{}
@@ -226,7 +241,7 @@ func (u *EventUseCase) EnsureMemberLabClient(ctx context.Context, eventID, teamI
 }
 
 // requireMemberLabClient refuses a session for a member whose client was not
-// created yet: a token for a missing client would be refused by the proxy anyway.
+// created yet: a grant for a missing client would be refused by the proxy anyway.
 func (u *EventUseCase) requireMemberLabClient(ctx context.Context, eventID, userID uuid.UUID) error {
 	if u.vpn != nil {
 		config, err := u.vpn.GetConfig(ctx, userID, vpnModel.ScopeEvent, uuid.NullUUID{UUID: eventID, Valid: true})

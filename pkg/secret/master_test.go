@@ -14,6 +14,7 @@ var goldenDerived = map[Purpose]string{
 	PurposeVPN:      "8bc3aa48d2de5b51244d52675a593e655985ae30813cf5c6fa7ee92429244b0a",
 	PurposeExercise: "96a883cd5f04de973eeca2e8cb31095019d10a900ba4cbd0fa6bab38a244e77e",
 	PurposeSession:  "99de726af2e4bc44b44761eefee891bfe29ad0d0ad77f67d6a0052a77bc4b31d",
+	PurposeFiles:    "d5999a0a91fe5a993a66db67a9b26c6368e1bddcd67a1bd7f95815b35afc7695",
 }
 
 func TestDerivationIsStableAndMatchesAnIndependentHKDF(t *testing.T) {
@@ -27,6 +28,7 @@ func TestDerivationIsStableAndMatchesAnIndependentHKDF(t *testing.T) {
 	}
 	require.Equal(t, "cybericebox/secrets/v1/platform", KDFLabel(PurposePlatform))
 	require.Equal(t, "cybericebox/secrets/v1/session", KDFLabel(PurposeSession))
+	require.Equal(t, "cybericebox/secrets/v1/files", KDFLabel(PurposeFiles))
 }
 
 func TestPurposesGetDifferentKeysAndDoNotOpenEachOther(t *testing.T) {

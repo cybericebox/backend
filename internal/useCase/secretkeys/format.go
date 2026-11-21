@@ -17,7 +17,7 @@ func (r Report) Write(w io.Writer) {
 		mode = "every value opened with its row context"
 	}
 	fmt.Fprintf(w, "Check: %s\n\nLoaded keys (the first one seals):\n", mode)
-	for _, f := range []Family{FamilyPlatform, FamilyVPN, FamilyExercise} {
+	for _, f := range []Family{FamilyPlatform, FamilyVPN, FamilyExercise, FamilyFiles} {
 		if ids := r.Keys[f]; len(ids) > 0 {
 			labels := make([]string, len(ids))
 			for i, id := range ids {
@@ -69,6 +69,14 @@ func (r Report) Write(w io.Writer) {
 			fmt.Fprintf(w, "  [%s] %s: %s, to key %s: %d scanned, %d rewritten, %d failed, %d changed meanwhile (%s), %s\n",
 				s.Family, s.Source, state, s.KeyID, s.Total, s.Done, s.Failed, s.Conflicts, reasonCountsOf(s.FailedByReason),
 				s.UpdatedAt.UTC().Format("2006-01-02 15:04:05Z"))
+		}
+	}
+	for _, s := range r.Rotation {
+		if s.Family == string(FamilyFiles) && s.Done > 0 {
+			fmt.Fprintln(w, "\nNote (files): the plain versions of the objects that were moved to encrypted ones stay readable in a versioned bucket "+
+				"until its rule that expires non-current versions removes them. Set that rule (the deploy owns it); until then they are "+
+				"still there.")
+			break
 		}
 	}
 	fmt.Fprintln(w, "\nNot covered (short-lived):")

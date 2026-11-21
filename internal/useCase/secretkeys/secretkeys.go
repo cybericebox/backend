@@ -25,6 +25,7 @@ const (
 	FamilyPlatform Family = "platform" // PLATFORM_SECRETS_KEY
 	FamilyVPN      Family = "vpn"      // VPN_SECRETS_KEY
 	FamilyExercise Family = "exercise" // EXERCISE_SECRETS_KEY
+	FamilyFiles    Family = "files"    // FILES_SECRETS_KEY: wraps the per-file keys of the files bucket
 )
 
 // Store reads the stored ciphertexts; the repository implements it.
@@ -35,6 +36,8 @@ type Store interface {
 	EventRegistryTokens(ctx context.Context, visit func(id uuid.UUID, ciphertext string) error) error
 	VPNConfigs(ctx context.Context, visit func(userID uuid.UUID, scope string, scopeRef uuid.NullUUID, ciphertext string) error) error
 	ExerciseVersions(ctx context.Context, visit func(versionID uuid.UUID, variants []byte) error) error
+	FileBlobKeys(ctx context.Context, visit func(contentHash, ciphertext string) error) error
+	UploadKeys(ctx context.Context, visit func(id uuid.UUID, ciphertext string) error) error
 }
 
 // ShortLivedStore is a Store that can also count the sealed values in places that expire or finish by themselves. Check
@@ -46,7 +49,7 @@ type ShortLivedStore interface {
 
 // Ciphers are the loaded keyrings; a nil one means the family has no key configured.
 type Ciphers struct {
-	Platform, VPN, Exercise *secret.Cipher
+	Platform, VPN, Exercise, Files *secret.Cipher
 }
 
 func (c Ciphers) of(f Family) *secret.Cipher {
@@ -55,6 +58,8 @@ func (c Ciphers) of(f Family) *secret.Cipher {
 		return c.Platform
 	case FamilyVPN:
 		return c.VPN
+	case FamilyFiles:
+		return c.Files
 	default:
 		return c.Exercise
 	}
@@ -178,7 +183,7 @@ var NotScanned = []string{
 // does).
 func (u *UseCase) Check(ctx context.Context, open bool) (Report, error) {
 	rep := Report{Opened: open, Keys: map[Family][]string{}, SnapshotAt: time.Now().UTC()}
-	for _, f := range []Family{FamilyPlatform, FamilyVPN, FamilyExercise} {
+	for _, f := range []Family{FamilyPlatform, FamilyVPN, FamilyExercise, FamilyFiles} {
 		if c := u.ciphers.of(f); c != nil {
 			rep.Keys[f] = c.KeyIDs()
 		}
@@ -289,6 +294,19 @@ func (u *UseCase) Check(ctx context.Context, open bool) (Report, error) {
 		return nil
 	}); err != nil {
 		return Report{}, fmt.Errorf("read the exercise secrets: %w", err)
+	}
+
+	if err := u.store.FileBlobKeys(ctx, func(hash, ct string) error {
+		record(FamilyFiles, "file_blobs.wrapped_key", hash, ct, secretctx.FileKey(hash))
+		return nil
+	}); err != nil {
+		return Report{}, fmt.Errorf("read the wrapped file keys: %w", err)
+	}
+	if err := u.store.UploadKeys(ctx, func(id uuid.UUID, ct string) error {
+		record(FamilyFiles, "media_uploads.wrapped_key", id.String(), ct, secretctx.UploadKey(id))
+		return nil
+	}); err != nil {
+		return Report{}, fmt.Errorf("read the wrapped upload keys: %w", err)
 	}
 
 	if sl, ok := u.store.(ShortLivedStore); ok {

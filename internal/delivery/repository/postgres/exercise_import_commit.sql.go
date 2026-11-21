@@ -79,7 +79,7 @@ func (q *Queries) LockExerciseImportJob(ctx context.Context, id uuid.UUID) (Exer
 }
 
 const lockExerciseImportUpload = `-- name: LockExerciseImportUpload :one
-SELECT id, created_by, name, content_type, size_bytes, chunk_bytes, chunks_received, created_at, expires_at, purpose FROM media_uploads WHERE id = $1 FOR UPDATE
+SELECT id, created_by, name, content_type, size_bytes, chunk_bytes, chunks_received, created_at, expires_at, purpose, wrapped_key FROM media_uploads WHERE id = $1 FOR UPDATE
 `
 
 // Stabilize source eligibility through the task/outcome transaction; bytes were
@@ -98,6 +98,7 @@ func (q *Queries) LockExerciseImportUpload(ctx context.Context, id uuid.UUID) (M
 		&i.CreatedAt,
 		&i.ExpiresAt,
 		&i.Purpose,
+		&i.WrappedKey,
 	)
 	return i, err
 }

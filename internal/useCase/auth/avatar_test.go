@@ -215,6 +215,11 @@ func TestRemoveAvatar_ClearsMediaReferenceRemovesLegacyAndClearsPicture(t *testi
 			if arg.Picture != "" {
 				return 0, fmt.Errorf("want cleared picture, got %q", arg.Picture)
 			}
+			// The picture is cleared first: when this write commits nothing else has been touched yet, so the pass that
+			// moves a legacy avatar (which needs the picture set) can no longer bring the photo back.
+			if av.replaceCalls != 0 || st.removeCalls != 0 {
+				return 0, fmt.Errorf("the reference or the legacy object was touched before the picture was cleared")
+			}
 			return 1, nil
 		},
 	)
@@ -227,6 +232,21 @@ func TestRemoveAvatar_ClearsMediaReferenceRemovesLegacyAndClearsPicture(t *testi
 	}
 	if st.removeCalls != 1 || st.removeKey != "avatars/"+uid.String() {
 		t.Fatalf("want legacy object removed under avatars/<userID>, got calls=%d key=%q", st.removeCalls, st.removeKey)
+	}
+}
+
+// A failed picture write leaves the avatar as it is: nothing is removed.
+func TestRemoveAvatar_ANotClearedPictureTouchesNothing(t *testing.T) {
+	uid := uuid.Must(uuid.NewV7())
+	av, st := &fakeAvatarStorage{}, &fakeLegacyStorage{}
+	uc, repo := newAvatarUC(t, st, av)
+	repo.EXPECT().GetUserByID(gomock.Any(), uid).Return(postgres.User{ID: uid}, nil).AnyTimes()
+	repo.EXPECT().UpdateUser(gomock.Any(), gomock.Any()).Return(int64(0), errors.New("db down"))
+	if err := uc.RemoveAvatar(context.Background(), uid); err == nil {
+		t.Fatal("the failure must be returned")
+	}
+	if av.replaceCalls != 0 || st.removeCalls != 0 {
+		t.Fatalf("nothing may be removed when the picture could not be cleared: %d %d", av.replaceCalls, st.removeCalls)
 	}
 }
 
@@ -301,6 +321,10 @@ func TestGetAvatar_FallsBackToLegacyWhenNoMediaReference(t *testing.T) {
 	data, _ := io.ReadAll(rc)
 	if string(data) != "legacy-bytes" {
 		t.Fatalf("unexpected legacy stream content: %q", data)
+	}
+	// Reading never changes anything: no move, no removal, no reference (that is the job of the background pass).
+	if av.uploadedName != "" || av.replaceCalls != 0 || st.removeCalls != 0 {
+		t.Fatalf("a read must not move the legacy avatar: %+v removes=%d", av, st.removeCalls)
 	}
 }
 

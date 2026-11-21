@@ -25,6 +25,7 @@ import (
 	"github.com/cybericebox/daemon/internal/jobs/labcleanup"
 	"github.com/cybericebox/daemon/internal/jobs/labgroupsweep"
 	"github.com/cybericebox/daemon/internal/jobs/lablifecycle"
+	"github.com/cybericebox/daemon/internal/jobs/mediaencrypt"
 	"github.com/cybericebox/daemon/internal/jobs/mediagc"
 	"github.com/cybericebox/daemon/internal/jobs/notify"
 	"github.com/cybericebox/daemon/internal/jobs/registrycheck"
@@ -46,6 +47,7 @@ type (
 		notifyJob.IUseCase
 		broadcastsendJob.IUseCase
 		mediagcJob.IUseCase
+		mediaencryptJob.IUseCase
 		idempotencygcJob.IUseCase
 		eventscoringpopulationJob.IUseCase
 		eventformdeliveryJob.IUseCase
@@ -120,6 +122,7 @@ func (wr *workerRegistry) RegisterAll(workers *river.Workers) {
 	river.AddWorker(workers, notifyJob.NewWorker(wr.uc))
 	river.AddWorker(workers, broadcastsendJob.NewWorker(wr.uc))
 	river.AddWorker(workers, mediagcJob.NewWorker(wr.uc))
+	river.AddWorker(workers, mediaencryptJob.NewWorker(wr.uc))
 	river.AddWorker(workers, idempotencygcJob.NewWorker(wr.uc))
 	river.AddWorker(workers, eventscoringpopulationJob.NewWorker(wr.uc))
 	river.AddWorker(workers, eventformdeliveryJob.NewWorker(wr.uc))
@@ -161,6 +164,11 @@ func (wr *workerRegistry) PeriodicJobs() []*river.PeriodicJob {
 			func() (river.JobArgs, *river.InsertOpts) { return jobsModel.MediaGCArgs{}, nil },
 			&river.PeriodicJobOpts{RunOnStart: true},
 		),
+		// Objects stored plain before file encryption existed move to encrypted ones, hourly, one pass at a time. A pass that
+		// finds nothing plain ends at once.
+		river.NewPeriodicJob(river.PeriodicInterval(time.Hour), func() (river.JobArgs, *river.InsertOpts) {
+			return jobsModel.MediaEncryptArgs{}, standPassInsertOpts()
+		}, &river.PeriodicJobOpts{RunOnStart: true}),
 		// Unused platform registry tags (no version uses them, older than a day), hourly, one pass at a time.
 		river.NewPeriodicJob(river.PeriodicInterval(time.Hour), func() (river.JobArgs, *river.InsertOpts) {
 			return jobsModel.ImageRegistryGCArgs{}, standPassInsertOpts()

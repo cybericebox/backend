@@ -22,11 +22,12 @@ const (
 	PurposeJWTSetup Purpose = "jwt-setup"
 	// PurposeOAuthState signs the state of a Google sign-in.
 	PurposeOAuthState Purpose = "oauth-state"
+	PurposeFiles      Purpose = "files" // the per-file keys of the objects in the files bucket (wrapped, never the files themselves)
 )
 
 // AllPurposes lists every purpose a key is derived for. It is the list `keys check` walks to say, for each purpose, whether
 // the daemon scans what it seals; a purpose added above must be added here (a test compares the two).
-var AllPurposes = []Purpose{PurposePlatform, PurposeVPN, PurposeExercise, PurposeSession, PurposeJWTSetup, PurposeOAuthState}
+var AllPurposes = []Purpose{PurposePlatform, PurposeVPN, PurposeExercise, PurposeSession, PurposeJWTSetup, PurposeOAuthState, PurposeFiles}
 
 // derivedPrefix starts the id of a derived key: "d-" and the id of the master version it was derived from. The id is what a
 // ciphertext carries, so a stored value says both that its key was derived and from which master version.
@@ -43,6 +44,7 @@ const maxMasterIDLen = 16 - len(derivedPrefix)
 //	cybericebox/secrets/v1/session
 //	cybericebox/secrets/v1/jwt-setup
 //	cybericebox/secrets/v1/oauth-state
+//	cybericebox/secrets/v1/files
 //
 // The label is part of the stored data's meaning: changing it makes every derived value unreadable. A new scheme gets "v2"
 // and a new key id prefix, never an edit of this one.

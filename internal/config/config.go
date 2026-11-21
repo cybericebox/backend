@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"net"
 	"net/mail"
-	"net/netip"
 	"net/url"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -44,9 +44,9 @@ type (
 		RateLimit      RateLimitConfig      `                                   envPrefix:"RATE_LIMIT_"`
 		Inflight       InflightConfig       `                                   envPrefix:"HTTP_INFLIGHT_"`
 		Retention      RetentionConfig      `                                   envPrefix:"RETENTION_"`
-		LabAccess      LabAccessConfig      `                                   envPrefix:"LAB_ACCESS_"`
 		LabSession     LabSessionConfig     `                                   envPrefix:"LAB_SESSION_"`
 		Tunables       TunablesConfig       `                                   envPrefix:""`
+		Files          FilesConfig          `                                   envPrefix:"FILES_"`
 		VPN            VPNConfig            `                                   envPrefix:"VPN_"`
 		Platform       PlatformConfig       `                                   envPrefix:"PLATFORM_"`
 		Keys           KeysConfig           `                                   envPrefix:""`
@@ -124,16 +124,7 @@ type (
 		WatchInterval time.Duration `env:"WATCH_INTERVAL" envDefault:"1m"`
 	}
 
-	// LabAccessConfig sets how long the lab access tokens (the /_auth links) of the laboratory L7
-	// proxy can be opened. They are signed with the access key of the agent that holds the lab group
-	// (every agent is a tenant with its own key), never with a platform-wide key.
-	LabAccessConfig struct {
-		// TokenTTL is how long an access token can be opened: it is exchanged for
-		// the proxy's own cookie at once. Each agent's proxy states its own cap, which this never exceeds.
-		TokenTTL time.Duration `env:"TOKEN_TTL" envDefault:"1m"`
-	}
-
-	// LabSessionConfig is how long a lab web session lasts when the caller names no end (LAB_SESSION_TTL).
+	// LabSessionConfig is how long a lab access grant lasts when the caller names no end (LAB_SESSION_TTL).
 	LabSessionConfig struct {
 		TTL time.Duration `env:"TTL" envDefault:"24h"`
 	}
@@ -394,11 +385,6 @@ type (
 	HTTPControllerConfig struct {
 		Server            HTTPServerConfig `envPrefix:"HTTP_SERVER_"`
 		EnableSwaggerDocs bool
-		// TrustedProxies are the networks (CIDRs or addresses) of the proxies in front of the daemon (the
-		// ingress, the CDN). The client address is taken from X-Forwarded-For only for a request that comes
-		// from one of them; with none listed (the default) it is the connection's own address and the header
-		// is ignored, so a client cannot choose its address.
-		TrustedProxies []string `env:"TRUSTED_PROXIES"`
 		// HealthBind is the address the optional health listener and the optional internal listener bind to
 		// (HEALTH_BIND); the deploy sets it to the pod IP.
 		HealthBind string `env:"HEALTH_BIND" envDefault:"0.0.0.0"`
@@ -430,20 +416,22 @@ type (
 		InternalPort string `env:"INTERNAL_PORT"`
 		// HTTP3 is the optional HTTP/3 (QUIC, UDP) listener next to the HTTPS one (HTTP_SERVER_HTTP3_*).
 		HTTP3 HTTP3Config `envPrefix:"HTTP3_"`
-		// ProxyProtocolFrom are the networks (CIDRs or addresses) whose connections to the HTTPS listener may carry a
-		// PROXY protocol v2 header with the real client address (HTTP_SERVER_PROXY_PROTOCOL_FROM): the edge
-		// Envoy in front of the daemon. The header is optional for them; any other peer's header is read and
-		// discarded. Empty (default) is off: the listener is not wrapped and the connection address is used.
-		ProxyProtocolFrom []string `env:"PROXY_PROTOCOL_FROM"`
-		// ProxyProtocolSecret (HTTP_SERVER_PROXY_PROTOCOL_SECRET) is the shared secret the edge puts in the custom
-		// TLV 0xE0 of the PROXY header; the daemon takes the header's address only from a trusted peer whose TLV equals
-		// this or ProxyProtocolSecretNext (rotation: the edge switches to the new value, then the old one is
-		// dropped). Empty: the TLV is not required (the list alone decides) and a warning is logged at start.
-		ProxyProtocolSecret     string `env:"PROXY_PROTOCOL_SECRET"`
-		ProxyProtocolSecretNext string `env:"PROXY_PROTOCOL_SECRET_NEXT"`
-		// ProxyProtocolSecretTLV is the PROXY v2 TLV type that carries the secret (HTTP_SERVER_PROXY_PROTOCOL_SECRET_TLV):
-		// 224 (0xE0), within the custom range 224-239.
-		ProxyProtocolSecretTLV int `env:"PROXY_PROTOCOL_SECRET_TLV" envDefault:"224"`
+		// Entry is the optional transparent proxy by server name (HTTP_SERVER_ENTRY_*); off by default.
+		Entry EntryConfig `envPrefix:"ENTRY_"`
+	}
+
+	// EntryConfig is the optional transparent proxy by TLS server name (HTTP_SERVER_ENTRY_*) for the platform's own
+	// frontends: the backend owns the public HTTPS port, terminates TLS for its own API host and passes the TLS
+	// stream of a frontend host, untouched, to the address set here for that host's class. Each value is host:port
+	// of the frontend service. A class left empty is not served: its host gets a TLS alert. All empty (the
+	// default) is off and the backend is the only thing on the port. The host names are never set here: they derive
+	// from DOMAIN (main = DOMAIN, id, admin, exercises, and one label under DOMAIN for an event site).
+	EntryConfig struct {
+		Main      string `env:"MAIN"`
+		ID        string `env:"ID"`
+		Admin     string `env:"ADMIN"`
+		Exercises string `env:"EXERCISES"`
+		Event     string `env:"EVENT"`
 	}
 
 	// HTTP3Config is the HTTP/3 listener: it serves the same handler with the same certificate as the HTTPS
@@ -487,6 +475,16 @@ type (
 		GCGrace   time.Duration `env:"GC_GRACE"         envDefault:"24h"`
 	}
 
+	// FilesConfig is the key that wraps the per-file keys of the objects in the files bucket. The files themselves are
+	// sealed with a random key of their own; this key only wraps those keys, which sit in the database.
+	FilesConfig struct {
+		SecretsKey string `env:"SECRETS_KEY"` // 64 hex chars → AES-256
+		// SecretsKeyDir (FILES_SECRETS_KEY_DIR) is the keyring read from a directory instead; it wins over the key above.
+		SecretsKeyDir string `env:"SECRETS_KEY_DIR"`
+		// SecretsSeal (FILES_SECRETS_SEAL) is "derived" (default with a master key) or "explicit": see SessionEncryptionSeal.
+		SecretsSeal string `env:"SECRETS_SEAL"`
+	}
+
 	// VPNConfig seals the stored VPN client configs (participants' and test deploys'
 	// keys). Empty key disables VPN config storage; an invalid one is fatal.
 	VPNConfig struct {
@@ -500,7 +498,7 @@ type (
 	// KeysConfig is how the daemon treats the keys of the sealed data (see the key directories above).
 	KeysConfig struct {
 		// SecretsMasterKey (SECRETS_MASTER_KEY) is the one key of the platform: one 64-hex-char key, or a keyring of
-		// id:hex master versions whose first one is current. The key of each purpose (platform, vpn, exercise, session)
+		// id:hex master versions whose first one is current. The key of each purpose (platform, vpn, exercise, session, files)
 		// is derived from it with HKDF-SHA256. The per-purpose variables stay as the way to load keys sealed before the
 		// master key existed, or to override one purpose. Secret.
 		SecretsMasterKey string `env:"SECRETS_MASTER_KEY"`
@@ -521,17 +519,6 @@ type (
 		SecretsKeyDir string `env:"SECRETS_KEY_DIR"`
 		// SecretsSeal (…_SECRETS_SEAL) is "derived" (default with a master key) or "explicit": see SessionEncryptionSeal.
 		SecretsSeal string `env:"SECRETS_SEAL"`
-		// RegistryHost (PLATFORM_REGISTRY_HOST) is the platform's own image registry, the zot of the laboratory chart:
-		// host:port without a scheme (laboratory-registry.<namespace>.svc:5000), reached over plain http on the cluster
-		// network. Set: every platform image (uploads, task archives) is stored there and the labs pull it by digest,
-		// and the Docker Hub / GHCR settings of the platform panel no longer apply. Empty: the provider settings
-		// of the panel are used as before.
-		RegistryHost string `env:"REGISTRY_HOST"`
-		// RegistryUsername and RegistryPassword (PLATFORM_REGISTRY_USERNAME / PLATFORM_REGISTRY_PASSWORD) are the
-		// registry's platform-writer account, the one that may write and delete under platform/** (the
-		// laboratory-registry-platform Secret of the chart). The password is a secret and is never logged.
-		RegistryUsername string `env:"REGISTRY_USERNAME"`
-		RegistryPassword string `env:"REGISTRY_PASSWORD"`
 	}
 
 	// ResourcesConfig is the platform's device resources model (RESOURCES_*): a device is one of the preset sizes,
@@ -799,13 +786,6 @@ func (c AgentConfig) Validate() error {
 
 // Validate checks the proxy list and the body cap.
 func (c HTTPControllerConfig) Validate() error {
-	for _, entry := range c.TrustedProxies {
-		if _, err := netip.ParsePrefix(entry); err != nil {
-			if _, addrErr := netip.ParseAddr(entry); addrErr != nil {
-				return fmt.Errorf("TRUSTED_PROXIES: %q is not an address or a CIDR", entry)
-			}
-		}
-	}
 	if c.MaxBodyBytes < 1 {
 		return errors.New("MAX_REQUEST_BODY_BYTES must be at least 1")
 	}
@@ -815,32 +795,29 @@ func (c HTTPControllerConfig) Validate() error {
 // TLSEnabled reports whether the TLS listener runs: the certificate and the key are both set.
 func (c HTTPServerConfig) TLSEnabled() bool { return c.TLS.CertFile != "" && c.TLS.KeyFile != "" }
 
-// MinProxyProtocolSecretLen is the shortest PROXY protocol secret accepted.
-const MinProxyProtocolSecretLen = 16
+// Enabled reports whether the proxy mode is on: at least one upstream is set.
+func (e EntryConfig) Enabled() bool {
+	return e.Main != "" || e.ID != "" || e.Admin != "" || e.Exercises != "" || e.Event != ""
+}
 
-// ParseProxyProtocolFrom reads HTTP_SERVER_PROXY_PROTOCOL_FROM: each entry is a CIDR or a bare address (a /32 or
-// /128). Addresses are unmapped, so an IPv4-mapped IPv6 entry means the IPv4 one.
-func ParseProxyProtocolFrom(entries []string) ([]netip.Prefix, error) {
-	out := make([]netip.Prefix, 0, len(entries))
-	for _, entry := range entries {
-		entry = strings.TrimSpace(entry)
-		if entry == "" {
+// validate checks every set upstream is host:port with a numeric port.
+func (e EntryConfig) validate() error {
+	for name, value := range map[string]string{
+		"HTTP_SERVER_ENTRY_MAIN": e.Main, "HTTP_SERVER_ENTRY_ID": e.ID, "HTTP_SERVER_ENTRY_ADMIN": e.Admin,
+		"HTTP_SERVER_ENTRY_EXERCISES": e.Exercises, "HTTP_SERVER_ENTRY_EVENT": e.Event,
+	} {
+		if value == "" {
 			continue
 		}
-		prefix, err := netip.ParsePrefix(entry)
-		if err != nil {
-			addr, addrErr := netip.ParseAddr(entry)
-			if addrErr != nil {
-				return nil, fmt.Errorf(
-					"HTTP_SERVER_PROXY_PROTOCOL_FROM: %q is not an address or a CIDR",
-					entry,
-				)
-			}
-			prefix = netip.PrefixFrom(addr.Unmap(), addr.Unmap().BitLen())
+		host, port, err := net.SplitHostPort(value)
+		if err != nil || host == "" {
+			return fmt.Errorf("%s must be host:port, got %q", name, value)
 		}
-		out = append(out, prefix.Masked())
+		if n, convErr := strconv.Atoi(port); convErr != nil || n < 1 || n > 65535 {
+			return fmt.Errorf("%s: %q is not a port", name, port)
+		}
 	}
-	return out, nil
+	return nil
 }
 
 // ClientAuthOn reports whether client certificates are asked for (optional or require).
@@ -849,24 +826,11 @@ func (c HTTPServerConfig) ClientAuthOn() bool {
 }
 
 func (c HTTPServerConfig) validate() error {
-	if _, err := ParseProxyProtocolFrom(c.ProxyProtocolFrom); err != nil {
+	if err := c.Entry.validate(); err != nil {
 		return err
 	}
-	if c.ProxyProtocolSecretTLV != 0 &&
-		(c.ProxyProtocolSecretTLV < 224 || c.ProxyProtocolSecretTLV > 239) {
-		return errors.New(
-			"HTTP_SERVER_PROXY_PROTOCOL_SECRET_TLV must be in the custom range 224-239",
-		)
-	}
-	if c.ProxyProtocolSecret == "" && c.ProxyProtocolSecretNext != "" {
-		return errors.New(
-			"HTTP_SERVER_PROXY_PROTOCOL_SECRET_NEXT needs HTTP_SERVER_PROXY_PROTOCOL_SECRET",
-		)
-	}
-	for name, secret := range map[string]string{"HTTP_SERVER_PROXY_PROTOCOL_SECRET": c.ProxyProtocolSecret, "HTTP_SERVER_PROXY_PROTOCOL_SECRET_NEXT": c.ProxyProtocolSecretNext} {
-		if secret != "" && len(secret) < MinProxyProtocolSecretLen {
-			return fmt.Errorf("%s must be at least %d characters", name, MinProxyProtocolSecretLen)
-		}
+	if c.Entry.Enabled() && !c.TLSEnabled() {
+		return errors.New("HTTP_SERVER_ENTRY_* needs HTTP_SERVER_TLS_CERT_FILE and HTTP_SERVER_TLS_KEY_FILE")
 	}
 	if (c.TLS.CertFile == "") != (c.TLS.KeyFile == "") {
 		return errors.New("HTTP_SERVER_TLS_CERT_FILE and HTTP_SERVER_TLS_KEY_FILE must be set together")

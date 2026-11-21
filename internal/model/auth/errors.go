@@ -11,7 +11,7 @@ import (
 // StatusClientClosedRequest is the non-standard 499 the access log uses for a request the client abandoned.
 const StatusClientClosedRequest = 499
 
-// Error-code convention (enforced by `make lint-errors`):
+// Error-code convention (enforced by `mise run lint:errors`):
 //   - one Err* var = one call site in non-test code = unique DetailCode within
 //     the object code; exceptions are documented as multi-site with a category:
 //     category A — security-indistinguishable (client must not tell the cases

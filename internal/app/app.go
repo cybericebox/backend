@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"github.com/cybericebox/daemon/internal/useCase/keyrotation"
 	"github.com/cybericebox/daemon/internal/useCase/notification/startupdefaults"
 	"os"
 	"os/signal"
@@ -20,6 +21,7 @@ import (
 	"github.com/cybericebox/daemon/internal/delivery/repository/agentProfileRepo"
 	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabObservationRepo"
 	"github.com/cybericebox/daemon/internal/delivery/repository/infrastructureAgentRepo"
+	"github.com/cybericebox/daemon/internal/delivery/repository/keyRotationRepo"
 	"github.com/cybericebox/daemon/internal/delivery/repository/labCheckRepo"
 	"github.com/cybericebox/daemon/internal/delivery/repository/labPlacementRepo"
 	"github.com/cybericebox/daemon/internal/delivery/repository/labTrafficRepo"
@@ -72,7 +74,7 @@ func Run(cfg *config.Config) {
 
 	// A key that was dropped while values sealed with it remain is otherwise silent: see SECRETS_GUARD.
 	if err := guardSecrets(ctx, cfg.Keys.SecretsGuard, newSecretKeys(repo, secretkeys.Ciphers{
-		Platform: cls.platformCipher, VPN: cls.vpnCipher, Exercise: cls.exerciseCipher,
+		Platform: cls.platformCipher, VPN: cls.vpnCipher, Exercise: cls.exerciseCipher, Files: cls.filesCipher,
 	})); err != nil {
 		log.Fatal().Err(err).Msg("Secrets guard: refusing to start")
 	}
@@ -136,16 +138,16 @@ func Run(cfg *config.Config) {
 		ExerciseCipher:     cls.exerciseCipher,
 		VPNCipher:          cls.vpnCipher,
 		PlatformCipher:     cls.platformCipher,
-		PlatformRegistry:   platformRegistry(cfg),
+		FilesCipher:        cls.filesCipher,
 		ErrorJournal:       errorJournalConfig(cfg),
 		Telegram:           telegram.New(cfg.Telegram.BotToken),
 	}
 	applyTunables(cfg.Tunables)
 	labIssuer, err := labaccess.New(labaccess.Config{
-		TokenTTL: cfg.LabAccess.TokenTTL, SessionTTL: cfg.LabSession.TTL,
+		SessionTTL: cfg.LabSession.TTL,
 	})
 	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to configure the lab access token issuer")
+		log.Fatal().Err(err).Msg("Failed to configure the lab access grant issuer")
 	}
 	var ucs *useCase.UseCase // set below; the monitors start only after it exists
 	// The infrastructure port is the agent fleet: every enrolled agent in the database. It reports
@@ -264,6 +266,8 @@ func Run(cfg *config.Config) {
 	// Web links are signed with the access key of the agent that holds the lab group.
 	deps.LabSessions = labagent.SessionIssuer{Fleet: fleet, Issuer: labIssuer}
 	ucs = useCase.NewUseCase(deps)
+	// The pass that encrypts older objects shows its counts next to the key re-encryption in `keys status`.
+	ucs.MediaUseCase.SetProgressStore(keyRotationRepo.New(repo.Pool(), keyrotation.Contexts()))
 	// The error journal: capture points anywhere in the process report to it without waiting; its writer and its
 	// periodic checks (job queue, agent certificates) run until shutdown.
 	errorJournal.SetReporter(ucs.Journal)

@@ -46,6 +46,7 @@ func keyLocator(cfg *config.Config) secretkeys.Locator {
 		secretkeys.FamilyPlatform: {cfg.Platform.SecretsKeyDir, "PLATFORM_SECRETS_KEY"},
 		secretkeys.FamilyVPN:      {cfg.VPN.SecretsKeyDir, "VPN_SECRETS_KEY"},
 		secretkeys.FamilyExercise: {cfg.Exercise.SecretsKeyDir, "EXERCISE_SECRETS_KEY"},
+		secretkeys.FamilyFiles:    {cfg.Files.SecretsKeyDir, "FILES_SECRETS_KEY"},
 	}
 	where := func(dir, variable, id string) string {
 		if dir == "" {

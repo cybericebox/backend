@@ -223,7 +223,7 @@ func (u *NotificationEmailTemplateUseCase) UploadEmailImage(ctx context.Context,
 	if name == "" {
 		name = templateImageName
 	}
-	return u.media.UploadFile(ctx, name, contentType, bytes.NewReader(data), userID)
+	return u.media.UploadPublicImage(ctx, mediaModel.RefTypeEmailTemplate, name, contentType, bytes.NewReader(data), userID)
 }
 
 // StreamEmailImage opens an uploaded template image. Only files of the image

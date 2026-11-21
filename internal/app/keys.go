@@ -81,6 +81,7 @@ func loadCiphers(cfg *config.Config) (secretkeys.Ciphers, error) {
 		{"PLATFORM_SECRETS_KEY", cfg.Platform.SecretsKey, &ciphers.Platform},
 		{"VPN_SECRETS_KEY", cfg.VPN.SecretsKey, &ciphers.VPN},
 		{"EXERCISE_SECRETS_KEY", cfg.Exercise.SecretsKey, &ciphers.Exercise},
+		{"FILES_SECRETS_KEY", cfg.Files.SecretsKey, &ciphers.Files},
 	} {
 		if *k.to, err = newCipher(k.spec); err != nil {
 			return ciphers, fmt.Errorf("%s is invalid: %w", k.name, err)
@@ -224,6 +225,7 @@ func RunKeysReencrypt(ctx context.Context, cfg *config.Config, family string, dr
 		keyRotationRepo.FamilyPlatform: ciphers.Platform,
 		keyRotationRepo.FamilyVPN:      ciphers.VPN,
 		keyRotationRepo.FamilyExercise: ciphers.Exercise,
+		keyRotationRepo.FamilyFiles:    ciphers.Files,
 	}
 	uc := keyrotation.New(keyRotationRepo.New(repo.Pool(), keyrotation.Contexts()), rings)
 	ctx, stop := signalContext(ctx)

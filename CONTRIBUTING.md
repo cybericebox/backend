@@ -4,24 +4,24 @@
 
 ## The cycle
 
-1. `make dev-start NAME=<x>`: fetches `develop` and creates `feature/<x>` from it.
+1. `mise run dev-start <x>`: fetches `develop` and creates `feature/<x>` from it.
 2. Work and commit in that branch.
-3. `make dev-push [MINOR=1] [LAB=...]`: pushes the branch (it refuses on `develop` and `main` and warns about uncommitted changes), opens a PR into `develop` or updates the open one, labels it `minor` with `MINOR=1`, and turns on auto-merge: the PR merges by itself once every check is green.
-4. After the merge GitHub deletes the remote branch. `make dev-done` switches to `develop`, pulls it and deletes the local branch.
+3. `[MINOR=1] [LAB=...] mise run dev-push`: pushes the branch (it refuses on `develop` and `main` and warns about uncommitted changes), opens a PR into `develop` or updates the open one, labels it `minor` with `MINOR=1`, and turns on auto-merge: the PR merges by itself once every check is green.
+4. After the merge GitHub deletes the remote branch. `mise run dev-done` switches to `develop`, pulls it and deletes the local branch.
 
-Both targets use `scripts/dev.sh` and need the `gh` CLI, logged in.
+The tasks use `scripts/dev.sh` and need the `gh` CLI, logged in.
 
 ## The laboratory dependency
 
-`go.mod` is the only source of the laboratory version in every build; there is no `replace`. For local work against `../laboratory` run `make work` (it writes `../go.work`, which is gitignored; CI never uses it).
+`go.mod` is the only source of the laboratory version in every build; there is no `replace`. For local work against `../../laboratory` run `mise run work` (it writes `../../go.work`, which is gitignored; CI never uses it).
 
-`make dev-push` handles the pin:
+`mise run dev-push` handles the pin:
 
 - without `LAB`, `go.mod` is left as it is;
-- `LAB=` (empty) pins the commit `../laboratory` is on;
+- `LAB=` (empty) pins the commit `../../laboratory` is on;
 - `LAB=<commit|branch|vX.Y.Z>` pins that.
 
-Before pinning it checks that `../laboratory` has no uncommitted changes and that the commit is already in laboratory `develop` on GitHub; otherwise it stops and suggests `make dev-push` in laboratory first. It warns when the pinned commit differs from the local `../laboratory`. A PR into `main` and a release are refused while `go.mod` pins a commit or a branch instead of a laboratory release; pick one up with `make dev-push LAB=vX.Y.Z`.
+Before pinning it checks that `../../laboratory` has no uncommitted changes and that the commit is already in laboratory `develop` on GitHub; otherwise it stops and suggests `mise run dev-push` in laboratory first. It warns when the pinned commit differs from the local `../../laboratory`. A PR into `main` and a release are refused while `go.mod` pins a commit or a branch instead of a laboratory release; pick one up with `LAB=vX.Y.Z mise run dev-push`.
 
 ## Checks and images
 

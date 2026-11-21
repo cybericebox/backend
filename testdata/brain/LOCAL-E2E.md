@@ -79,7 +79,7 @@ Add to the daemon's environment file (names and defaults are in `internal/config
 Then, from the daemon directory:
 
 ```sh
-make run-local     # loads the environment file, then go run ./cmd/daemon
+mise run run-local     # loads the environment file, then go run ./cmd/daemon
 ```
 
 ## 4. The certificate exchange

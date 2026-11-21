@@ -12,7 +12,7 @@ import (
 // connection to the origin, and closing it after every 10 s pause made the next request wait for a new one.
 func TestNewServer_SetsIdleTimeoutOnEveryListener(t *testing.T) {
 	cfg := config.HTTPServerConfig{Host: "127.0.0.1", Port: "0", InternalPort: "0", ReadTimeout: time.Second, WriteTimeout: time.Second, IdleTimeout: 5 * time.Minute, MaxHeaderMegabytes: 1}
-	s := NewServer(&cfg, "127.0.0.1", http.NotFoundHandler())
+	s := NewServer(&cfg, "127.0.0.1", http.NotFoundHandler(), config.HostsConfig{})
 	if len(s.listeners) == 0 {
 		t.Fatal("no listeners")
 	}

@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/daemon/internal/delivery/controller/http/clientaddr"
 	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
 	authModel "github.com/cybericebox/daemon/internal/model/auth"
 	"github.com/cybericebox/daemon/internal/model/rbac"
@@ -142,13 +143,12 @@ func (h *Handler) revokeOtherSessions(ctx *gin.Context) {
 	response.AbortWithSuccess(ctx)
 }
 
-// sessionMetadata is what a new session records about the request. The address is gin's ClientIP, which is
-// trusted: X-Forwarded-For counts only from a TRUSTED_PROXIES peer and CF-Connecting-IP only on a verified
-// Cloudflare connection (controller.originClientIP). A non-public result (the ingress, a pod, a NAT) is the
+// sessionMetadata is what a new session records about the request. The address is the peer of the connection
+// (clientaddr.FromRequest): the peer, or CF-Connecting-IP on a verified-certificate connection; no other header is read. A non-public result (a pod, a NAT) is the
 // infrastructure, not the client: it is not stored (authModel.SessionIP).
 func sessionMetadata(ctx *gin.Context) authModel.SessionMetadata {
 	return authModel.SessionMetadata{
 		UserAgent: ctx.Request.UserAgent(),
-		IP:        authModel.SessionIP(ctx.ClientIP()),
+		IP:        authModel.SessionIP(clientaddr.FromRequest(ctx.Request)),
 	}
 }

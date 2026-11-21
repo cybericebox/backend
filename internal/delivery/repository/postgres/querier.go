@@ -18,6 +18,16 @@ type Querier interface {
 	// An email image is owned by its draft as soon as it is uploaded. Inserting
 	// one link avoids a read/replace race when uploads finish concurrently.
 	AddFileReference(ctx context.Context, arg AddFileReferenceParams) error
+	// An object that could not be removed: kept here until a pass removes it.
+	AddObjectRemoval(ctx context.Context, arg AddObjectRemovalParams) error
+	// Moves a plain blob to an encrypted object: only while the blob is still plain, so of two writers one wins.
+	AdoptBlobEncryption(ctx context.Context, arg AdoptBlobEncryptionParams) (int64, error)
+	// Gives a user the avatar reference, in this one statement, only while the legacy avatar is still the user's current one:
+	// the user exists (not deleted), still has a picture (RemoveAvatar clears it first, in a write that commits before it touches
+	// anything else) and has no avatar reference. The user row is locked FOR UPDATE, so a removal or a deletion cannot slip between
+	// the check and the insert. Zero rows: the avatar was removed, the user is gone or has an avatar of their own; the file stays
+	// unreferenced and the media GC takes it.
+	AdoptLegacyAvatar(ctx context.Context, arg AdoptLegacyAvatarParams) (int64, error)
 	AdvanceAssistantRunSeq(ctx context.Context, arg AdvanceAssistantRunSeqParams) (int64, error)
 	AdvanceEventResultRevision(ctx context.Context, arg AdvanceEventResultRevisionParams) (AdvanceEventResultRevisionRow, error)
 	// A chunk is accepted only as the next one in order; zero rows means the client is out of step (it reads the
@@ -165,6 +175,7 @@ type Querier interface {
 	CountPendingExerciseResourceElevations(ctx context.Context) (int64, error)
 	CountPendingResourceChangeRequests(ctx context.Context) (int64, error)
 	CountPendingTeamInvitations(ctx context.Context, arg CountPendingTeamInvitationsParams) (int64, error)
+	CountPlainBlobs(ctx context.Context) (int64, error)
 	// The stand counts split by kind: moderators = the moderators team stand, else an event team stand.
 	CountPlatformStandsByKindStatus(ctx context.Context) ([]CountPlatformStandsByKindStatusRow, error)
 	CountPlatformStandsByStatus(ctx context.Context) ([]CountPlatformStandsByStatusRow, error)
@@ -257,7 +268,14 @@ type Querier interface {
 	// call's `now` — both on first insert and on a dedup-hit conflict — so GC's
 	// orphan listing (ListOrphanBlobs) never targets a blob a concurrent upload
 	// just referenced (see file_blobs.touched_at, migration 0015).
-	CreateFile(ctx context.Context, arg CreateFileParams) (File, error)
+	// object_key and wrapped_key are those of the blob when it is created; on a
+	// dedup hit the blob keeps its own, and the row returned says which they are,
+	// so the caller can drop the object it stored if it lost the race.
+	// require_existing: the caller stored no object because it found the blob. Then the
+	// blob is only bumped, never created: if the collector removed it meanwhile, nothing is
+	// inserted and no row comes back (the caller starts again), so a blob can never come
+	// back as an empty row that points at an object that is gone.
+	CreateFile(ctx context.Context, arg CreateFileParams) (CreateFileRow, error)
 	// Idempotent per team and hint: a repeated unlock returns the first one.
 	CreateHintUnlock(ctx context.Context, arg CreateHintUnlockParams) (CreateHintUnlockRow, error)
 	// An empty category stores the default tab (personal). A request whose
@@ -326,6 +344,9 @@ type Querier interface {
 	DeleteClusterReservation(ctx context.Context, id uuid.UUID) error
 	DeleteEmailBlockPreset(ctx context.Context, id uuid.UUID) error
 	DeleteEmailTemplate(ctx context.Context, id uuid.UUID) (int64, error)
+	// The row goes first and says which object it held at that moment (the pass that encrypts older blobs may have moved it
+	// since the listing); the caller removes that object. Guarded as DeleteBlob, and only for a blob that is encrypted now.
+	DeleteEncryptedBlob(ctx context.Context, arg DeleteEncryptedBlobParams) (string, error)
 	DeleteErrorTelegramChatsNotIn(ctx context.Context, keep []string) error
 	DeleteEvent(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteEventChallengeGroup(ctx context.Context, arg DeleteEventChallengeGroupParams) (int64, error)
@@ -379,6 +400,7 @@ type Querier interface {
 	DeleteMediaUpload(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteNonOwnerEventManager(ctx context.Context, arg DeleteNonOwnerEventManagerParams) (int64, error)
 	DeleteNotificationBroadcastTemplate(ctx context.Context, arg DeleteNotificationBroadcastTemplateParams) (int64, error)
+	DeleteObjectRemoval(ctx context.Context, objectKey string) error
 	DeleteOwnedExerciseTestDeploy(ctx context.Context, arg DeleteOwnedExerciseTestDeployParams) (int64, error)
 	// Withdraws a pending request that has nothing left to ask (the working copy is inside the frame or covered by
 	// approvals); a decided request is history and stays. 0 rows: it was decided or removed meanwhile.
@@ -661,6 +683,7 @@ type Querier interface {
 	GetExerciseProposal(ctx context.Context, id uuid.UUID) (ExerciseProposal, error)
 	GetExerciseResourceElevation(ctx context.Context, id uuid.UUID) (ExerciseResourceElevation, error)
 	GetExerciseVersionByID(ctx context.Context, id uuid.UUID) (ExerciseVersion, error)
+	GetFileBlob(ctx context.Context, contentHash string) (GetFileBlobRow, error)
 	GetFileByID(ctx context.Context, id uuid.UUID) (File, error)
 	// Read path for an owner's current file set (e.g. resolving a user's avatar
 	// file before streaming it). Ordered newest-file-first (files.created_at
@@ -1435,6 +1458,7 @@ type Querier interface {
 	// otherwise the Event id.
 	ListNotificationBroadcasts(ctx context.Context, arg ListNotificationBroadcastsParams) ([]ListNotificationBroadcastsRow, error)
 	ListNotificationSettings(ctx context.Context) ([]NotificationSetting, error)
+	ListObjectRemovals(ctx context.Context, arg ListObjectRemovalsParams) ([]string, error)
 	// Sessions a new handshake may still extend: those ending at or after
 	// ended_after.
 	ListOpenEventVPNSessions(ctx context.Context, arg ListOpenEventVPNSessionsParams) ([]EventVpnSession, error)
@@ -1446,7 +1470,7 @@ type Querier interface {
 	// uses) gives a concurrent dedup upload of this exact content a grace window
 	// to complete its CreateFile bump before GC ever considers the blob a
 	// deletion candidate — see file_blobs.touched_at, migration 0015.
-	ListOrphanBlobs(ctx context.Context, touchedBefore time.Time) ([]string, error)
+	ListOrphanBlobs(ctx context.Context, touchedBefore time.Time) ([]ListOrphanBlobsRow, error)
 	ListOrphanEventLabs(ctx context.Context, limitVal int32) ([]EventTeamLab, error)
 	// The caller's team roster with each member's public name (pseudonym when
 	// allowed and set, else the real name). Captain first, then by name.
@@ -1473,6 +1497,9 @@ type Querier interface {
 	ListPendingLabGroupCleanupRequests(ctx context.Context) ([]string, error)
 	ListPendingStoppedEventTeamLabs(ctx context.Context, arg ListPendingStoppedEventTeamLabsParams) ([]EventTeamLab, error)
 	ListPendingTeamInvitations(ctx context.Context, arg ListPendingTeamInvitationsParams) ([]ListPendingTeamInvitationsRow, error)
+	// The blobs still stored plain that the encryption pass has to move, after the cursor: every plain blob except one that
+	// only public images use (some file of it is referenced by a public kind and none by any other).
+	ListPlainBlobs(ctx context.Context, arg ListPlainBlobsParams) ([]ListPlainBlobsRow, error)
 	// Active platform administrators (super admins and admins; read-only admin
 	// viewers cannot act on requests).
 	ListPlatformAdminUserIDs(ctx context.Context) ([]uuid.UUID, error)
@@ -1527,8 +1554,6 @@ type Querier interface {
 	// kind: all | roles | users. Only active, non-deleted accounts with an email.
 	ListPlatformBroadcastAudience(ctx context.Context, arg ListPlatformBroadcastAudienceParams) ([]ListPlatformBroadcastAudienceRow, error)
 	ListPlatformGroupAllocations(ctx context.Context) ([]EventTeamGroupAllocation, error)
-	// Every recorded platform image (one row per digest and tag), oldest first: what `images migrate-uploads` walks.
-	ListPlatformImages(ctx context.Context) ([]PlatformImage, error)
 	// Capacity over time from the agents' capacity observations, downsampled to buckets of
 	// step_seconds (the caller picks the step so a period has at most about 300 points). Inside a bucket
 	// every agent contributes its average; the agents are then summed. An agent reports the platform's
@@ -1657,9 +1682,6 @@ type Querier interface {
 	ListPublishedVariantDevices(ctx context.Context, ids []uuid.UUID) ([]ListPublishedVariantDevicesRow, error)
 	// The judged answers of the run since a moment, oldest first (the answer rate limit).
 	ListRecentAssistantRunAnswers(ctx context.Context, arg ListRecentAssistantRunAnswersParams) ([]ListRecentAssistantRunAnswersRow, error)
-	// Every distinct platform:<name>@<digest> a device of any exercise version (draft, published, any status) names.
-	// `images migrate-uploads` copies each of them into the own registry under exactly that name.
-	ListReferencedPlatformImages(ctx context.Context) ([]string, error)
 	// Open alarms first, then the resolved ones, newest first; only_open leaves the resolved out.
 	ListResourceAlarms(ctx context.Context, arg ListResourceAlarmsParams) ([]ListResourceAlarmsRow, error)
 	// Newest first; status and event narrow it (a null argument matches everything).
@@ -1759,6 +1781,8 @@ type Querier interface {
 	ListUnsyncedClusterReservationAgents(ctx context.Context) ([]uuid.UUID, error)
 	// The events a user is a member of, for the exercises app rights summary.
 	ListUserEventMemberships(ctx context.Context, userID uuid.UUID) ([]ListUserEventMembershipsRow, error)
+	// Every user, deleted ones too, after the cursor: the pass that moves legacy avatars probes avatars/<id> for each.
+	ListUserIDsAfter(ctx context.Context, arg ListUserIDsAfterParams) ([]ListUserIDsAfterRow, error)
 	// First and last name of the authors an exercise response shows (never the email).
 	ListUserNames(ctx context.Context, ids []uuid.UUID) ([]ListUserNamesRow, error)
 	// Where the person takes part (a participant, with the team and the role in it) or works (an event manager), newest
@@ -1892,9 +1916,6 @@ type Querier interface {
 	ObserveClusterReservation(ctx context.Context, arg ObserveClusterReservationParams) error
 	OpenEventStandRollout(ctx context.Context, arg OpenEventStandRolloutParams) error
 	OpenReadyEventLabRevealBarriers(ctx context.Context, arg OpenReadyEventLabRevealBarriersParams) (int64, error)
-	// The name an earlier upload recorded for a digest (the newest row). In the platform's own registry a digest lives in
-	// one repository, platform/<name>, so a second upload of the same image reuses that name.
-	PlatformImageNameByDigest(ctx context.Context, digest string) (string, error)
 	// Whether a row of another digest already maps this tag: CreateImage refuses then instead of re-pointing the tag.
 	PlatformImageTagTakenByOtherDigest(ctx context.Context, arg PlatformImageTagTakenByOtherDigestParams) (bool, error)
 	// Ready -> Published for board-published challenges. A challenge without a lab

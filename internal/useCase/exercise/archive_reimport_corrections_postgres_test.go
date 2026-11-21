@@ -249,7 +249,7 @@ func TestRestoreAndRollbackSerializeContentAndReferencesWithReimport(t *testing.
 }
 
 func correctionMedia(db *testhelpers.TestDB) *mediaUseCase.MediaUseCase {
-	return mediaUseCase.NewMediaUseCase(mediaUseCase.Dependencies{Repo: db.Queries, Storage: testhelpers.NewMemoryStorage(), Config: config.MediaConfig{MaxUploadBytes: 64 << 20, UploadChunkBytes: 64 << 20, UploadTTL: time.Hour}})
+	return mediaUseCase.NewMediaUseCase(mediaUseCase.Dependencies{Repo: db.Queries, Storage: testhelpers.NewMemoryStorage(), FilesSealer: testhelpers.FilesSealer(), Config: config.MediaConfig{MaxUploadBytes: 64 << 20, UploadChunkBytes: 64 << 20, UploadTTL: time.Hour}})
 }
 func correctionSource(t *testing.T, ctx context.Context, media *mediaUseCase.MediaUseCase, by uuid.UUID, body []byte, file bool) exercise.PreviewArchiveInput {
 	t.Helper()

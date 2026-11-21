@@ -7,7 +7,7 @@ import (
 )
 
 // Error-code convention: see internal/model/auth/errors.go. Enforced by
-// `make lint-errors`. Each var has exactly one non-test call site; the
+// `mise run lint:errors`. Each var has exactly one non-test call site; the
 // validation helpers below are structured so every rule fails in one place.
 //
 // ExerciseObjectCode — no free detail code left: 1–99 are taken and 100+ would spill into the next object's full

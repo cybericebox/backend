@@ -83,7 +83,7 @@ func (c *FeatureCell) Set(f infraModel.AgentFeatures) {
 func FeaturesOf(r *labpb.FeaturesResponse) infraModel.AgentFeatures {
 	p, ic, sch, ep, cert, proxy := r.GetStatePersistence(), r.GetImageCache(), r.GetScheduler(), r.GetEndpoints(), r.GetCertificate(), r.GetProxy()
 	life := r.GetLifecycle()
-	return infraModel.AgentFeatures{Lifecycle: infraModel.LifecycleCapabilities{PerLabStop: life.GetPerLabStop(), RequiredSnapshot: life.GetRequiredSnapshot(), ConfirmedRuntime: life.GetConfirmedRuntime(), RetainedRestart: life.GetRetainedRestart(), FullGroupStop: life.GetFullGroupStop()},
+	return infraModel.AgentFeatures{ContractVersion: r.GetContractVersion(), Lifecycle: infraModel.LifecycleCapabilities{PerLabStop: life.GetPerLabStop(), RequiredSnapshot: life.GetRequiredSnapshot(), ConfirmedRuntime: life.GetConfirmedRuntime(), RetainedRestart: life.GetRetainedRestart(), FullGroupStop: life.GetFullGroupStop()},
 		Persistence: infraModel.PersistenceFeature{
 			Available: p.GetAvailable(), DefaultDebounce: p.GetDefaultDebounceMs(), WriteQuotaBytes: p.GetWriteQuotaBytes(),
 			MaxFileSizeBytes: p.GetMaxFileSizeBytes(), ExcludedPaths: p.GetExcludedPaths(),
@@ -98,7 +98,7 @@ func FeaturesOf(r *labpb.FeaturesResponse) infraModel.AgentFeatures {
 			HasMemory: r.GetTenantQuota().GetHasMemoryQuota(), MemoryBytes: r.GetTenantQuota().GetMemoryQuotaBytes(),
 		},
 		Proxy: infraModel.ProxyFeature{
-			AccessTokenMaxTTLSeconds: proxy.GetAccessTokenMaxTtlSeconds(), SessionMaxTTLSeconds: proxy.GetSessionMaxTtlSeconds(), SessionIdleTTLSeconds: proxy.GetSessionIdleTtlSeconds(),
+			GrantMaxTTLSeconds: proxy.GetGrantMaxTtlSeconds(),
 		},
 		Reservations:           infraModel.ReservationsFeature{Required: r.GetReservations().GetRequired(), NoticeSeconds: int64(r.GetReservations().GetEndingNoticeSeconds())},
 		PersistenceUnavailable: infraModel.ParseUnavailableReason(p.GetUnavailableReason()),

@@ -87,6 +87,50 @@ func (mr *MockQuerierMockRecorder) AddFileReference(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddFileReference", reflect.TypeOf((*MockQuerier)(nil).AddFileReference), ctx, arg)
 }
 
+// AddObjectRemoval mocks base method.
+func (m *MockQuerier) AddObjectRemoval(ctx context.Context, arg postgres.AddObjectRemovalParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddObjectRemoval", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// AddObjectRemoval indicates an expected call of AddObjectRemoval.
+func (mr *MockQuerierMockRecorder) AddObjectRemoval(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddObjectRemoval", reflect.TypeOf((*MockQuerier)(nil).AddObjectRemoval), ctx, arg)
+}
+
+// AdoptBlobEncryption mocks base method.
+func (m *MockQuerier) AdoptBlobEncryption(ctx context.Context, arg postgres.AdoptBlobEncryptionParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AdoptBlobEncryption", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AdoptBlobEncryption indicates an expected call of AdoptBlobEncryption.
+func (mr *MockQuerierMockRecorder) AdoptBlobEncryption(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AdoptBlobEncryption", reflect.TypeOf((*MockQuerier)(nil).AdoptBlobEncryption), ctx, arg)
+}
+
+// AdoptLegacyAvatar mocks base method.
+func (m *MockQuerier) AdoptLegacyAvatar(ctx context.Context, arg postgres.AdoptLegacyAvatarParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AdoptLegacyAvatar", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AdoptLegacyAvatar indicates an expected call of AdoptLegacyAvatar.
+func (mr *MockQuerierMockRecorder) AdoptLegacyAvatar(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AdoptLegacyAvatar", reflect.TypeOf((*MockQuerier)(nil).AdoptLegacyAvatar), ctx, arg)
+}
+
 // AdvanceAssistantRunSeq mocks base method.
 func (m *MockQuerier) AdvanceAssistantRunSeq(ctx context.Context, arg postgres.AdvanceAssistantRunSeqParams) (int64, error) {
 	m.ctrl.T.Helper()
@@ -1249,6 +1293,21 @@ func (mr *MockQuerierMockRecorder) CountPendingTeamInvitations(ctx, arg any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountPendingTeamInvitations", reflect.TypeOf((*MockQuerier)(nil).CountPendingTeamInvitations), ctx, arg)
 }
 
+// CountPlainBlobs mocks base method.
+func (m *MockQuerier) CountPlainBlobs(ctx context.Context) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountPlainBlobs", ctx)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountPlainBlobs indicates an expected call of CountPlainBlobs.
+func (mr *MockQuerierMockRecorder) CountPlainBlobs(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountPlainBlobs", reflect.TypeOf((*MockQuerier)(nil).CountPlainBlobs), ctx)
+}
+
 // CountPlatformStandsByKindStatus mocks base method.
 func (m *MockQuerier) CountPlatformStandsByKindStatus(ctx context.Context) ([]postgres.CountPlatformStandsByKindStatusRow, error) {
 	m.ctrl.T.Helper()
@@ -2065,10 +2124,10 @@ func (mr *MockQuerierMockRecorder) CreateExerciseTestDeploy(ctx, arg any) *gomoc
 }
 
 // CreateFile mocks base method.
-func (m *MockQuerier) CreateFile(ctx context.Context, arg postgres.CreateFileParams) (postgres.File, error) {
+func (m *MockQuerier) CreateFile(ctx context.Context, arg postgres.CreateFileParams) (postgres.CreateFileRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateFile", ctx, arg)
-	ret0, _ := ret[0].(postgres.File)
+	ret0, _ := ret[0].(postgres.CreateFileRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -2684,6 +2743,21 @@ func (mr *MockQuerierMockRecorder) DeleteEmailTemplate(ctx, id any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteEmailTemplate", reflect.TypeOf((*MockQuerier)(nil).DeleteEmailTemplate), ctx, id)
 }
 
+// DeleteEncryptedBlob mocks base method.
+func (m *MockQuerier) DeleteEncryptedBlob(ctx context.Context, arg postgres.DeleteEncryptedBlobParams) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteEncryptedBlob", ctx, arg)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteEncryptedBlob indicates an expected call of DeleteEncryptedBlob.
+func (mr *MockQuerierMockRecorder) DeleteEncryptedBlob(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteEncryptedBlob", reflect.TypeOf((*MockQuerier)(nil).DeleteEncryptedBlob), ctx, arg)
+}
+
 // DeleteErrorTelegramChatsNotIn mocks base method.
 func (m *MockQuerier) DeleteErrorTelegramChatsNotIn(ctx context.Context, keep []string) error {
 	m.ctrl.T.Helper()
@@ -3282,6 +3356,20 @@ func (m *MockQuerier) DeleteNotificationBroadcastTemplate(ctx context.Context, a
 func (mr *MockQuerierMockRecorder) DeleteNotificationBroadcastTemplate(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteNotificationBroadcastTemplate", reflect.TypeOf((*MockQuerier)(nil).DeleteNotificationBroadcastTemplate), ctx, arg)
+}
+
+// DeleteObjectRemoval mocks base method.
+func (m *MockQuerier) DeleteObjectRemoval(ctx context.Context, objectKey string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteObjectRemoval", ctx, objectKey)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteObjectRemoval indicates an expected call of DeleteObjectRemoval.
+func (mr *MockQuerierMockRecorder) DeleteObjectRemoval(ctx, objectKey any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteObjectRemoval", reflect.TypeOf((*MockQuerier)(nil).DeleteObjectRemoval), ctx, objectKey)
 }
 
 // DeleteOwnedExerciseTestDeploy mocks base method.
@@ -5719,6 +5807,21 @@ func (m *MockQuerier) GetExerciseVersionByID(ctx context.Context, id uuid.UUID) 
 func (mr *MockQuerierMockRecorder) GetExerciseVersionByID(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExerciseVersionByID", reflect.TypeOf((*MockQuerier)(nil).GetExerciseVersionByID), ctx, id)
+}
+
+// GetFileBlob mocks base method.
+func (m *MockQuerier) GetFileBlob(ctx context.Context, contentHash string) (postgres.GetFileBlobRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetFileBlob", ctx, contentHash)
+	ret0, _ := ret[0].(postgres.GetFileBlobRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetFileBlob indicates an expected call of GetFileBlob.
+func (mr *MockQuerierMockRecorder) GetFileBlob(ctx, contentHash any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFileBlob", reflect.TypeOf((*MockQuerier)(nil).GetFileBlob), ctx, contentHash)
 }
 
 // GetFileByID mocks base method.
@@ -10544,6 +10647,21 @@ func (mr *MockQuerierMockRecorder) ListNotificationSettings(ctx any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListNotificationSettings", reflect.TypeOf((*MockQuerier)(nil).ListNotificationSettings), ctx)
 }
 
+// ListObjectRemovals mocks base method.
+func (m *MockQuerier) ListObjectRemovals(ctx context.Context, arg postgres.ListObjectRemovalsParams) ([]string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListObjectRemovals", ctx, arg)
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListObjectRemovals indicates an expected call of ListObjectRemovals.
+func (mr *MockQuerierMockRecorder) ListObjectRemovals(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListObjectRemovals", reflect.TypeOf((*MockQuerier)(nil).ListObjectRemovals), ctx, arg)
+}
+
 // ListOpenEventVPNSessions mocks base method.
 func (m *MockQuerier) ListOpenEventVPNSessions(ctx context.Context, arg postgres.ListOpenEventVPNSessionsParams) ([]postgres.EventVpnSession, error) {
 	m.ctrl.T.Helper()
@@ -10590,10 +10708,10 @@ func (mr *MockQuerierMockRecorder) ListOpenResourceAlarmsOfReservation(ctx, rese
 }
 
 // ListOrphanBlobs mocks base method.
-func (m *MockQuerier) ListOrphanBlobs(ctx context.Context, touchedBefore time.Time) ([]string, error) {
+func (m *MockQuerier) ListOrphanBlobs(ctx context.Context, touchedBefore time.Time) ([]postgres.ListOrphanBlobsRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListOrphanBlobs", ctx, touchedBefore)
-	ret0, _ := ret[0].([]string)
+	ret0, _ := ret[0].([]postgres.ListOrphanBlobsRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -10799,6 +10917,21 @@ func (mr *MockQuerierMockRecorder) ListPendingTeamInvitations(ctx, arg any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListPendingTeamInvitations", reflect.TypeOf((*MockQuerier)(nil).ListPendingTeamInvitations), ctx, arg)
 }
 
+// ListPlainBlobs mocks base method.
+func (m *MockQuerier) ListPlainBlobs(ctx context.Context, arg postgres.ListPlainBlobsParams) ([]postgres.ListPlainBlobsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListPlainBlobs", ctx, arg)
+	ret0, _ := ret[0].([]postgres.ListPlainBlobsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListPlainBlobs indicates an expected call of ListPlainBlobs.
+func (mr *MockQuerierMockRecorder) ListPlainBlobs(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListPlainBlobs", reflect.TypeOf((*MockQuerier)(nil).ListPlainBlobs), ctx, arg)
+}
+
 // ListPlatformAdminUserIDs mocks base method.
 func (m *MockQuerier) ListPlatformAdminUserIDs(ctx context.Context) ([]uuid.UUID, error) {
 	m.ctrl.T.Helper()
@@ -10947,21 +11080,6 @@ func (m *MockQuerier) ListPlatformGroupAllocations(ctx context.Context) ([]postg
 func (mr *MockQuerierMockRecorder) ListPlatformGroupAllocations(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListPlatformGroupAllocations", reflect.TypeOf((*MockQuerier)(nil).ListPlatformGroupAllocations), ctx)
-}
-
-// ListPlatformImages mocks base method.
-func (m *MockQuerier) ListPlatformImages(ctx context.Context) ([]postgres.PlatformImage, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListPlatformImages", ctx)
-	ret0, _ := ret[0].([]postgres.PlatformImage)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// ListPlatformImages indicates an expected call of ListPlatformImages.
-func (mr *MockQuerierMockRecorder) ListPlatformImages(ctx any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListPlatformImages", reflect.TypeOf((*MockQuerier)(nil).ListPlatformImages), ctx)
 }
 
 // ListPlatformInfraCapacity mocks base method.
@@ -11367,21 +11485,6 @@ func (m *MockQuerier) ListRecentAssistantRunAnswers(ctx context.Context, arg pos
 func (mr *MockQuerierMockRecorder) ListRecentAssistantRunAnswers(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListRecentAssistantRunAnswers", reflect.TypeOf((*MockQuerier)(nil).ListRecentAssistantRunAnswers), ctx, arg)
-}
-
-// ListReferencedPlatformImages mocks base method.
-func (m *MockQuerier) ListReferencedPlatformImages(ctx context.Context) ([]string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListReferencedPlatformImages", ctx)
-	ret0, _ := ret[0].([]string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// ListReferencedPlatformImages indicates an expected call of ListReferencedPlatformImages.
-func (mr *MockQuerierMockRecorder) ListReferencedPlatformImages(ctx any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListReferencedPlatformImages", reflect.TypeOf((*MockQuerier)(nil).ListReferencedPlatformImages), ctx)
 }
 
 // ListResourceAlarms mocks base method.
@@ -11952,6 +12055,21 @@ func (m *MockQuerier) ListUserEventMemberships(ctx context.Context, userID uuid.
 func (mr *MockQuerierMockRecorder) ListUserEventMemberships(ctx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListUserEventMemberships", reflect.TypeOf((*MockQuerier)(nil).ListUserEventMemberships), ctx, userID)
+}
+
+// ListUserIDsAfter mocks base method.
+func (m *MockQuerier) ListUserIDsAfter(ctx context.Context, arg postgres.ListUserIDsAfterParams) ([]postgres.ListUserIDsAfterRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListUserIDsAfter", ctx, arg)
+	ret0, _ := ret[0].([]postgres.ListUserIDsAfterRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListUserIDsAfter indicates an expected call of ListUserIDsAfter.
+func (mr *MockQuerierMockRecorder) ListUserIDsAfter(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListUserIDsAfter", reflect.TypeOf((*MockQuerier)(nil).ListUserIDsAfter), ctx, arg)
 }
 
 // ListUserNames mocks base method.
@@ -12929,21 +13047,6 @@ func (m *MockQuerier) OpenReadyEventLabRevealBarriers(ctx context.Context, arg p
 func (mr *MockQuerierMockRecorder) OpenReadyEventLabRevealBarriers(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OpenReadyEventLabRevealBarriers", reflect.TypeOf((*MockQuerier)(nil).OpenReadyEventLabRevealBarriers), ctx, arg)
-}
-
-// PlatformImageNameByDigest mocks base method.
-func (m *MockQuerier) PlatformImageNameByDigest(ctx context.Context, digest string) (string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PlatformImageNameByDigest", ctx, digest)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// PlatformImageNameByDigest indicates an expected call of PlatformImageNameByDigest.
-func (mr *MockQuerierMockRecorder) PlatformImageNameByDigest(ctx, digest any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PlatformImageNameByDigest", reflect.TypeOf((*MockQuerier)(nil).PlatformImageNameByDigest), ctx, digest)
 }
 
 // PlatformImageTagTakenByOtherDigest mocks base method.

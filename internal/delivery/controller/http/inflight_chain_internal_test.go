@@ -149,7 +149,7 @@ func TestNewServer_MarksOnlyTheInternalListener(t *testing.T) {
 		InternalPort:       "0",
 		MaxHeaderMegabytes: 1,
 	}
-	s := NewServer(&cfg, "127.0.0.1", http.NotFoundHandler())
+	s := NewServer(&cfg, "127.0.0.1", http.NotFoundHandler(), config.HostsConfig{})
 	seen := false
 	for _, l := range s.listeners {
 		ctx := context.Background()

@@ -1018,6 +1018,7 @@ type MediaUpload struct {
 	CreatedAt      time.Time `json:"created_at"`
 	ExpiresAt      time.Time `json:"expires_at"`
 	Purpose        string    `json:"purpose"`
+	WrappedKey     string    `json:"wrapped_key"`
 }
 
 type NotificationBroadcast struct {

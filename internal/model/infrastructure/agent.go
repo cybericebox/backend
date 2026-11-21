@@ -96,14 +96,16 @@ type AgentMaintenanceWindow struct {
 // AgentFeatures is what a laboratory agent offers the platform's tenant. The platform keeps no copy of
 // these settings in its own configuration: it stores the last report of each agent.
 type AgentFeatures struct {
-	Lifecycle   LifecycleCapabilities `json:"lifecycle"`
-	Persistence PersistenceFeature    `json:"persistence"`
-	ImageCache  ImageCacheFeature     `json:"image_cache"`
-	Scheduler   SchedulerFeature      `json:"scheduler"`
-	Endpoints   EndpointsFeature      `json:"endpoints"`
-	Certificate CertificateFeature    `json:"certificate"`
-	Proxy       ProxyFeature          `json:"proxy"`
-	Limits      LimitsFeature         `json:"limits"`
+	// ContractVersion is the agent API contract ("major.minor") the agent reported; empty when it is older than the field.
+	ContractVersion string                `json:"contract_version,omitempty"`
+	Lifecycle       LifecycleCapabilities `json:"lifecycle"`
+	Persistence     PersistenceFeature    `json:"persistence"`
+	ImageCache      ImageCacheFeature     `json:"image_cache"`
+	Scheduler       SchedulerFeature      `json:"scheduler"`
+	Endpoints       EndpointsFeature      `json:"endpoints"`
+	Certificate     CertificateFeature    `json:"certificate"`
+	Proxy           ProxyFeature          `json:"proxy"`
+	Limits          LimitsFeature         `json:"limits"`
 	// TenantQuota is the cluster owner's limit for this platform; the calendar's capacity comes from it.
 	TenantQuota TenantQuotaFeature `json:"tenant_quota"`
 	// Reservations is how the agent's reservations work.
@@ -418,14 +420,10 @@ type EndpointsFeature struct {
 	VPNEndpoint string `json:"vpn_endpoint"`
 }
 
-// ProxyFeature are the limits of the laboratory L7 proxy for web links: the longest a link can be opened
-// and the longest a session lives (the proxy cuts a longer one).
+// ProxyFeature are the limits of the laboratory L7 proxy and the device-access service for access grants:
+// GrantMaxTTLSeconds is the longest exp - iat of a grant they accept. There is no session on the proxy side.
 type ProxyFeature struct {
-	AccessTokenMaxTTLSeconds int64 `json:"access_token_max_ttl_seconds"`
-	SessionMaxTTLSeconds     int64 `json:"session_max_ttl_seconds"`
-	// SessionIdleTTLSeconds is how long a proxy session lives without use; the proxy extends it by itself, never
-	// past the session end the link states.
-	SessionIdleTTLSeconds int64 `json:"session_idle_ttl_seconds"`
+	GrantMaxTTLSeconds int64 `json:"grant_max_ttl_seconds"`
 }
 
 // CertificateFeature is the client certificate of the platform's connection and the lifetime of the ones

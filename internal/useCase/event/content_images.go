@@ -44,7 +44,7 @@ func (u *EventUseCase) UploadEventContentImage(ctx context.Context, eventID, use
 	if err = mediaModel.CheckImagePixels(data); err != nil {
 		return "", err
 	}
-	file, err := u.brandMedia.UploadFile(ctx, "event-content-image", contentType, bytes.NewReader(data), userID)
+	file, err := u.brandMedia.UploadPublicImage(ctx, mediaModel.RefTypeEventContentImage, "event-content-image", contentType, bytes.NewReader(data), userID)
 	if err != nil {
 		return "", err
 	}

@@ -774,13 +774,13 @@ func TestAccessKeyRetentionFollowsTheAgentsProxyTokenLimit(t *testing.T) {
 	if accessKeyRetention(r) != MinAccessKeyRetention {
 		t.Fatalf("no report: %v", accessKeyRetention(r))
 	}
-	r.Features = &infraModel.AgentFeatures{Proxy: infraModel.ProxyFeature{AccessTokenMaxTTLSeconds: 300}}
+	r.Features = &infraModel.AgentFeatures{Proxy: infraModel.ProxyFeature{GrantMaxTTLSeconds: 300}}
 	if accessKeyRetention(r) != 15*time.Minute {
-		t.Fatalf("5m tokens: %v", accessKeyRetention(r))
+		t.Fatalf("5m grants: %v", accessKeyRetention(r))
 	}
-	r.Features.Proxy.AccessTokenMaxTTLSeconds = 1200
+	r.Features.Proxy.GrantMaxTTLSeconds = 1200
 	if accessKeyRetention(r) != time.Hour {
-		t.Fatalf("20m tokens keep the key an hour: %v", accessKeyRetention(r))
+		t.Fatalf("20m grants keep the key an hour: %v", accessKeyRetention(r))
 	}
 }
 

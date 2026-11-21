@@ -18,7 +18,7 @@ type recordingSessions struct{ sessions []labaccess.Session }
 
 func (r *recordingSessions) Issue(_ context.Context, s labaccess.Session, _ time.Time) (labaccess.Link, error) {
 	r.sessions = append(r.sessions, s)
-	return labaccess.Link{URL: s.AccessURL + "/_auth?t=jwt", Token: "jwt"}, nil
+	return labaccess.Link{URL: s.AccessURL + "/_auth", Grant: "jws"}, nil
 }
 
 func TestOpenOwnLabLink_IsUnavailableWithoutAnIssuer(t *testing.T) {

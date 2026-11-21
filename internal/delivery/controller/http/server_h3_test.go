@@ -40,7 +40,7 @@ func startH3(t *testing.T, enabled bool) (port string, pool *x509.CertPool) {
 	router.GET("/limited", func(c *gin.Context) { c.Status(http.StatusTooManyRequests) })
 	RegisterHealth(router)
 
-	srv := NewServer(&cfg, "127.0.0.1", router)
+	srv := NewServer(&cfg, "127.0.0.1", router, config.HostsConfig{})
 	srv.Start()
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)

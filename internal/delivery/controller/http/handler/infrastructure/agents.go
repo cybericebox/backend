@@ -110,12 +110,9 @@ type (
 		// LabsDomain is the base domain of the lab web endpoints; VPNEndpoint is host:port of WireGuard.
 		LabsDomain  string `json:"LabsDomain"`
 		VPNEndpoint string `json:"VPNEndpoint"`
-		// ProxyAccessTokenMaxTTLSeconds is the longest a web link can be opened; ProxySessionMaxTTLSeconds the
-		// longest a proxy session lives (a longer event window means a new link is opened).
-		ProxyAccessTokenMaxTTLSeconds int64 `json:"ProxyAccessTokenMaxTTLSeconds"`
-		ProxySessionMaxTTLSeconds     int64 `json:"ProxySessionMaxTTLSeconds"`
-		// ProxySessionIdleTTLSeconds is how long a proxy session lives without use (it slides while in use).
-		ProxySessionIdleTTLSeconds int64 `json:"ProxySessionIdleTTLSeconds"`
+		// ProxyGrantMaxTTLSeconds is the longest an access grant (web or console) lives: the proxy accepts no longer one,
+		// and a longer event window means the device is opened again for a new grant.
+		ProxyGrantMaxTTLSeconds int64 `json:"ProxyGrantMaxTTLSeconds"`
 		// DeviceMaxCPUMillicores and DeviceMaxMemoryBytes are the most one device may get; LabMaxDevices the
 		// container devices of one lab. 0 = no limit.
 		DeviceMaxCPUMillicores int64 `json:"DeviceMaxCPUMillicores"`
@@ -222,9 +219,8 @@ func toFeaturesResponse(f *infraModel.AgentFeatures) *agentFeaturesResponse {
 		PersistenceExcludedPaths: f.Persistence.ExcludedPaths, ImageCacheEnabled: f.ImageCache.Enabled,
 		ImageCacheRegistries: f.ImageCache.Registries, SchedulerEnabled: f.Scheduler.Enabled, SchedulerMaxPods: f.Scheduler.MaxPods,
 		LabsDomain: f.Endpoints.LabsDomain, VPNEndpoint: f.Endpoints.VPNEndpoint,
-		ProxyAccessTokenMaxTTLSeconds: f.Proxy.AccessTokenMaxTTLSeconds, ProxySessionMaxTTLSeconds: f.Proxy.SessionMaxTTLSeconds,
-		ProxySessionIdleTTLSeconds: f.Proxy.SessionIdleTTLSeconds,
-		DeviceMaxCPUMillicores:     f.Limits.DeviceMaxCPUMillicores, DeviceMaxMemoryBytes: f.Limits.DeviceMaxMemoryBytes,
+		ProxyGrantMaxTTLSeconds: f.Proxy.GrantMaxTTLSeconds,
+		DeviceMaxCPUMillicores:  f.Limits.DeviceMaxCPUMillicores, DeviceMaxMemoryBytes: f.Limits.DeviceMaxMemoryBytes,
 		LabMaxDevices: f.Limits.LabMaxDevices, VPN: toSizing(f.Limits.VPN), Gateway: toSizing(f.Limits.Gateway),
 		DeviceProfiles: append([]string{}, f.Limits.DeviceProfiles...),
 	}

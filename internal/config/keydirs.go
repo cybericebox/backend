@@ -45,6 +45,7 @@ func (c *Config) keyPurposes() []keyPurpose {
 		{"PLATFORM_SECRETS_KEY", secret.PurposePlatform, c.Platform.SecretsKeyDir, c.Platform.SecretsSeal, &c.Platform.SecretsKey},
 		{"VPN_SECRETS_KEY", secret.PurposeVPN, c.VPN.SecretsKeyDir, c.VPN.SecretsSeal, &c.VPN.SecretsKey},
 		{"EXERCISE_SECRETS_KEY", secret.PurposeExercise, c.Exercise.SecretsKeyDir, c.Exercise.SecretsSeal, &c.Exercise.SecretsKey},
+		{"FILES_SECRETS_KEY", secret.PurposeFiles, c.Files.SecretsKeyDir, c.Files.SecretsSeal, &c.Files.SecretsKey},
 	}
 }
 
@@ -74,7 +75,7 @@ func (c *Config) ResolveKeys() error {
 		master = spec
 	}
 	// Resolve every purpose before changing anything, so a failure leaves the configuration as it was.
-	resolved := make([]string, 0, 4)
+	resolved := make([]string, 0, 5)
 	purposes := c.keyPurposes()
 	for _, k := range purposes {
 		explicit := *k.key

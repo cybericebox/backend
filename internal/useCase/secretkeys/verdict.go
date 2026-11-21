@@ -16,7 +16,7 @@ var (
 )
 
 // Families lists the key families in the order a report names them.
-var Families = []Family{FamilyPlatform, FamilyVPN, FamilyExercise}
+var Families = []Family{FamilyPlatform, FamilyVPN, FamilyExercise, FamilyFiles}
 
 // Verdict answers one question about one loaded key: may it be removed from the servers.
 type Verdict struct {
