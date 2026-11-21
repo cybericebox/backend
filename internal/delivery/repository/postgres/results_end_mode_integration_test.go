@@ -41,7 +41,7 @@ func TestResultsFreezeEndModeConfigRoundTrip(t *testing.T) {
 	}
 	assertResultsEndMode(t, cfg.Results, "at_finish")
 	settings := cfg.Results
-	if err := json.Unmarshal([]byte(`{"FreezeEnabled":true,"FreezeEndMode":"manual","FreezeBannerText":"  Фінальні результати згодом.  ","FreezeBannerLevel":"critical"}`), &settings); err != nil {
+	if err := json.Unmarshal([]byte(`{"FreezeEnabled":true,"FreezeEndMode":"manual","FreezeBannerText":"  Final results soon.  ","FreezeBannerLevel":"critical"}`), &settings); err != nil {
 		t.Fatal(err)
 	}
 	if err := cfg.SetResultsSettings(eventConfigModel.VisibilityPublic, settings, ecNow.Add(time.Minute), actor); err != nil {
@@ -85,7 +85,7 @@ func assertStoredFreezeBanner(t *testing.T, settings eventConfigModel.ResultsSet
 	if err := json.Unmarshal(body, &fields); err != nil {
 		t.Fatal(err)
 	}
-	if string(fields["FreezeBannerText"]) != `"Фінальні результати згодом."` || string(fields["FreezeBannerLevel"]) != `"critical"` {
+	if string(fields["FreezeBannerText"]) != `"Final results soon."` || string(fields["FreezeBannerLevel"]) != `"critical"` {
 		t.Errorf("stored banner lost: %s", body)
 	}
 }

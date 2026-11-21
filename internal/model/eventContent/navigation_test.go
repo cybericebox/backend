@@ -25,7 +25,7 @@ func slugsOf(order NavigationOrder, pages ...Page) []string {
 }
 
 func TestPlaceInNavigationKeepsTheThreeRangesAroundFixedEntries(t *testing.T) {
-	// Navbar: intro | «Завдання» | rules | «Результати» | faq, news.
+	// Navbar: intro | Challenges | rules | Results | faq, news.
 	intro := navPage("intro", -1_000_000_000, PageNavigationNavbar)
 	rules := navPage("rules", -1, PageNavigationNavbar)
 	faq := navPage("faq", 0, PageNavigationNavbar)

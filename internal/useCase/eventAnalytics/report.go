@@ -12,7 +12,7 @@ import (
 	eventAnalyticsModel "github.com/cybericebox/daemon/internal/model/eventAnalytics"
 )
 
-// ReportStore is the statement port of «Звіт по заході».
+// ReportStore is the statement port of "Event report".
 type ReportStore interface {
 	ReportRanking(ctx context.Context, eventID uuid.UUID) ([]eventAnalyticsRepo.ReportTeam, error)
 	ReportTasks(ctx context.Context, eventID uuid.UUID) ([]eventAnalyticsRepo.ReportTask, error)

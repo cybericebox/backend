@@ -14,7 +14,7 @@ import (
 	"github.com/cybericebox/daemon/internal/testhelpers"
 )
 
-// «Стенди»: the status log is written by the stand trigger, the telemetry
+// "Stands": the status log is written by the stand trigger, the telemetry
 // sums per-device peaks, the VPN usage sums sessions; the moderators team is
 // never counted.
 func TestEventAnalytics_Stands(t *testing.T) {
@@ -81,7 +81,7 @@ VALUES ($1, $2, $3, $4, 'p-x', $5, $6, 100, 600, 0, 40)`, uuid.Must(uuid.NewV7()
 	require.EqualValues(t, 80, usage[0].TxBytes)
 }
 
-// «Доброчесність»: the facts of the per-solve signals. Hidden teams and the
+// "Integrity": the facts of the per-solve signals. Hidden teams and the
 // moderators team are out; each solve carries the access evidence of its team;
 // the flag kind is inferred from the teams' expected flags.
 func TestEventAnalytics_IntegrityFacts(t *testing.T) {
@@ -171,7 +171,7 @@ VALUES ($1, $2, $3, $4, 'p-x', $5, $6, 0, 10, 0, 10)`, uuid.Must(uuid.NewV7()), 
 	require.Empty(t, facts.Rejections)
 }
 
-// The organizer's «перевірено» note: only a team task of the event can be
+// The organizer's "reviewed" note: only a team task of the event can be
 // reviewed; the note is replaced on a second save and removed with the solve.
 func TestEventAnalytics_SolveReviews(t *testing.T) {
 	db := testhelpers.SetupTestDB(t)
@@ -341,7 +341,7 @@ JOIN event_exercises ee ON ee.id = c.event_exercise_id WHERE tc.id = $1`, f.team
 	require.False(t, deleted)
 }
 
-// «Звіт»: the ranking counts admitted, visible teams; the task table and the
+// "Report": the ranking counts admitted, visible teams; the task table and the
 // funnel tail count everything but the moderators team.
 func TestEventAnalytics_Report(t *testing.T) {
 	db := testhelpers.SetupTestDB(t)

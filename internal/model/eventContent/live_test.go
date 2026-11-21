@@ -76,7 +76,7 @@ func timerLayout(props map[string]json.RawMessage) LiveLayout {
 func TestLiveTimerSourceLabelAndSize(t *testing.T) {
 	valid := []map[string]json.RawMessage{
 		{"source": json.RawMessage(`"auto"`)},
-		{"source": json.RawMessage(`"freeze"`), "label": json.RawMessage(`"До заморожування"`), "labelSize": json.RawMessage(`"l"`)},
+		{"source": json.RawMessage(`"freeze"`), "label": json.RawMessage(`"Until freeze"`), "labelSize": json.RawMessage(`"l"`)},
 		{"source": json.RawMessage(`"custom"`), "target": json.RawMessage(`"2026-10-01T18:00:00Z"`)},
 		{"label": json.RawMessage(`""`), "labelSize": json.RawMessage(`"s"`)},
 		{"source": json.RawMessage(`"stage-end"`)},
@@ -129,8 +129,8 @@ func TestLiveLogoItemsAndColour(t *testing.T) {
 }
 
 func TestLiveQRValueAndCaption(t *testing.T) {
-	for _, value := range []string{`"https://ctf.example/register"`, `"/register"`, `"WIFI:S:ctf;T:WPA;P:secret;;"`, `"Будь-який текст"`} {
-		if err := widgetLayout("qr", map[string]json.RawMessage{"value": json.RawMessage(value), "caption": json.RawMessage(`"Реєстрація"`)}).Validate(); err != nil {
+	for _, value := range []string{`"https://ctf.example/register"`, `"/register"`, `"WIFI:S:ctf;T:WPA;P:secret;;"`, `"Any text"`} {
+		if err := widgetLayout("qr", map[string]json.RawMessage{"value": json.RawMessage(value), "caption": json.RawMessage(`"Registration"`)}).Validate(); err != nil {
 			t.Fatalf("qr value %s rejected: %v", value, err)
 		}
 	}
@@ -333,7 +333,7 @@ func TestLiveNewWidgetsAndMinimums(t *testing.T) {
 		{ID: "podium", Type: "podium", X: 1, Y: 1, W: 4, H: 2, Props: map[string]json.RawMessage{"showPoints": json.RawMessage(`false`)}},
 		{ID: "facts", Type: "facts", X: 5, Y: 1, W: 3, H: 1, Props: map[string]json.RawMessage{"items": json.RawMessage(`["teams","tasks","solves","solvedTasks","firstBlood","start"]`)}},
 		{ID: "stages", Type: "stages", X: 5, Y: 2, W: 3, H: 2, Props: map[string]json.RawMessage{"showDone": json.RawMessage(`false`)}},
-		{ID: "clock", Type: "clock", X: 8, Y: 1, W: 2, H: 1, Props: map[string]json.RawMessage{"showSeconds": json.RawMessage(`true`), "label": json.RawMessage(`"Київ"`), "align": json.RawMessage(`"center"`)}},
+		{ID: "clock", Type: "clock", X: 8, Y: 1, W: 2, H: 1, Props: map[string]json.RawMessage{"showSeconds": json.RawMessage(`true`), "label": json.RawMessage(`"Kyiv"`), "align": json.RawMessage(`"center"`)}},
 	}
 	layout := DefaultLiveLayout()
 	layout.Widgets = valid
@@ -367,7 +367,7 @@ func TestLiveNewWidgetsAndMinimums(t *testing.T) {
 
 func TestLiveCommonWidgetSettings(t *testing.T) {
 	for _, kind := range []string{"title", "timer", "chart", "table", "logos", "solves", "announcement", "qr", "podium", "facts", "stages", "clock"} {
-		props := map[string]json.RawMessage{"textSize": json.RawMessage(`"xl"`), "showCaption": json.RawMessage(`false`), "caption": json.RawMessage(`"Рейтинг"`)}
+		props := map[string]json.RawMessage{"textSize": json.RawMessage(`"xl"`), "showCaption": json.RawMessage(`false`), "caption": json.RawMessage(`"Ranking"`)}
 		layout := widgetLayout(kind, props)
 		layout.Widgets[0].H = 3
 		if err := layout.Validate(); err != nil {
@@ -392,7 +392,7 @@ func TestLiveBlockSettings(t *testing.T) {
 		props map[string]json.RawMessage
 	}
 	valid := []check{
-		{"timer", map[string]json.RawMessage{"digits": json.RawMessage(`"words"`), "atZero": json.RawMessage(`"text"`), "zeroText": json.RawMessage(`"Час вийшов"`), "lastMinutes": json.RawMessage(`5`), "align": json.RawMessage(`"left"`)}},
+		{"timer", map[string]json.RawMessage{"digits": json.RawMessage(`"words"`), "atZero": json.RawMessage(`"text"`), "zeroText": json.RawMessage(`"Time is up"`), "lastMinutes": json.RawMessage(`5`), "align": json.RawMessage(`"left"`)}},
 		{"timer", map[string]json.RawMessage{"digits": json.RawMessage(`"compact"`), "atZero": json.RawMessage(`"hide"`), "lastMinutes": json.RawMessage(`0`)}},
 		{"table", map[string]json.RawMessage{"columns": json.RawMessage(`2`), "limit": json.RawMessage(`8`), "offset": json.RawMessage(`3`)}},
 		{"table", map[string]json.RawMessage{"columns": json.RawMessage(`1`), "limit": json.RawMessage(`0`), "offset": json.RawMessage(`0`)}},

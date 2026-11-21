@@ -80,7 +80,7 @@ type ExerciseUseCase struct {
 	archiveSources IArchiveSources
 	importQueue    ImportJobQueue
 	importSealer   secret.Sealer
-	// The background export «з образами» (SetArchiveExport, SetImageExporter); nil: such exports are refused.
+	// The background export "with images" (SetArchiveExport, SetImageExporter); nil: such exports are refused.
 	imageExporter IImageExporter
 	exportFiles   IExportFiles
 	exportQueue   ExportJobQueue

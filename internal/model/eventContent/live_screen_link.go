@@ -21,7 +21,7 @@ type LiveScreenLink struct {
 	TokenHash []byte
 	CreatedAt time.Time
 	CreatedBy uuid.UUID
-	// ExpiresAt nil = «Без обмеження».
+	// ExpiresAt nil = "No limit".
 	ExpiresAt *time.Time
 	RevokedAt *time.Time
 }
@@ -114,7 +114,7 @@ func (l *LiveScreenLink) Active(now time.Time) bool {
 	return l.RevokedAt == nil && (l.ExpiresAt == nil || now.Before(*l.ExpiresAt))
 }
 
-// Revoke ends the link at once («Відкликати» or a regeneration).
+// Revoke ends the link at once ("Revoke" or a regeneration).
 func (l *LiveScreenLink) Revoke(now time.Time) {
 	if l.RevokedAt == nil {
 		at := now

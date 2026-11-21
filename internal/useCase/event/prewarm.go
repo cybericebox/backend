@@ -32,7 +32,7 @@ const (
 type PrewarmSummary struct {
 	Total, Done, Warming, Queued, Failed, Skipped int
 	// Unavailable counts the images that cannot be pulled at all: they are not sent to the agent and
-	// their labs are refused at deploy («Образ недоступний»).
+	// their labs are refused at deploy ("image unavailable").
 	Unavailable int
 	UpdatedAt   time.Time
 }
@@ -208,7 +208,7 @@ func (u *EventUseCase) prewarmOneEvent(ctx context.Context, prewarmer infraModel
 			}
 		}
 	}
-	// Images that cannot be pulled are not sent: their labs are refused at deploy («Образ недоступний»).
+	// Images that cannot be pulled are not sent: their labs are refused at deploy ("image unavailable").
 	for _, a := range plan.skipped {
 		summary.Total++
 		summary.Unavailable++

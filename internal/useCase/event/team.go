@@ -1030,8 +1030,8 @@ func (u *EventUseCase) GetTeamProfile(ctx context.Context, eventID, teamID uuid.
 	return profile, nil
 }
 
-// SetTeamAdmission records the moderator's manual admission («допущена
-// вручну»). It is valid at any time, including after the start.
+// SetTeamAdmission records the moderator's manual admission ("admitted
+// manually"). It is valid at any time, including after the start.
 func (u *EventUseCase) SetTeamAdmission(ctx context.Context, eventID, teamID uuid.UUID, admittedManually bool) (TeamView, error) {
 	if u.uow == nil {
 		return TeamView{}, model.ErrPlatform.WithMessage("Event transaction is not configured").Err()

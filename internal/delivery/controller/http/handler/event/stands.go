@@ -225,7 +225,7 @@ func toStandLabStatusResponse(v exerciseModel.LabDeployStatus) standLabStatusRes
 }
 
 // getStands godoc
-// @Summary List team stands (moderator «Стенди»)
+// @Summary List team stands (moderator Stands)
 // @Tags events
 // @Produce json
 // @Param id path string true "event ID"

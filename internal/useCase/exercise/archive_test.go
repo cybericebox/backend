@@ -158,11 +158,11 @@ func TestImportExerciseArchive_PublishedDocumentImportsAsDraft(t *testing.T) {
 	q := postgresMocks.NewMockQuerier(ctrl)
 	archive := mustExerciseArchive(
 		t,
-		`{"name":"Опублікована"}`,
+		`{"name":"Published"}`,
 		`[{"status":"published","variants":[{"tasks":[{
-		"name":"Тест","difficulty":"easy","check":{"answer":{"type":"flag","values":["ICE{x}"]}},
-		"description":{"root":{"type":"text","text":"Опис"}},
-		"hints":[{"text":"підказка"}]}]}]}]`)
+		"name":"Test","difficulty":"easy","check":{"answer":{"type":"flag","values":["ICE{x}"]}},
+		"description":{"root":{"type":"text","text":"Description"}},
+		"hints":[{"text":"hint"}]}]}]}]`)
 	q.EXPECT().CreateExercise(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(_ context.Context, arg postgres.CreateExerciseParams) (postgres.Exercise, error) {
 			return postgres.Exercise{ID: arg.ID, Name: arg.Name, CreatedAt: arg.CreatedAt, UpdatedAt: arg.UpdatedAt}, nil
@@ -207,9 +207,9 @@ func TestExportExerciseArchive_IsImportableSchema1(t *testing.T) {
 func TestImportExerciseArchive_V2AttachmentUploaded(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	q := postgresMocks.NewMockQuerier(ctrl)
-	doc := "schema: cib-exercise/1.0\nexercise:\n  name: З файлами\nversions:\n  - status: draft\n    variants:\n      - tasks:\n" +
-		"          - name: перше\n            attachments:\n              - {file: files/dump.bin, name: Дамп.pcap}\n" +
-		"          - name: друге\n            attachments:\n              - {file: shared/copy.bin}\n"
+	doc := "schema: cib-exercise/1.0\nexercise:\n  name: With files\nversions:\n  - status: draft\n    variants:\n      - tasks:\n" +
+		"          - name: first\n            attachments:\n              - {file: files/dump.bin, name: Dump.pcap}\n" +
+		"          - name: second\n            attachments:\n              - {file: shared/copy.bin}\n"
 	archive, err := exercise.BuildArchiveNoManifest(map[string][]byte{
 		"exercise.yaml":   []byte(doc),
 		"files/dump.bin":  []byte("packets"),
@@ -229,7 +229,7 @@ func TestImportExerciseArchive_V2AttachmentUploaded(t *testing.T) {
 			first, second := variants[0].Tasks[0].Attachments[0], variants[0].Tasks[1].Attachments[0]
 			require.Equal(t, media.uploads[0].ID, first.FileID)
 			require.Equal(t, first.FileID, second.FileID)
-			require.Equal(t, "Дамп.pcap", first.Name)
+			require.Equal(t, "Dump.pcap", first.Name)
 			require.Equal(t, "copy.bin", second.Name)
 			return postgres.ExerciseVersion{ID: arg.ID, ExerciseID: arg.ExerciseID, Status: arg.Status, Variants: arg.Variants, CreatedAt: arg.CreatedAt}, nil
 		})
@@ -239,6 +239,6 @@ func TestImportExerciseArchive_V2AttachmentUploaded(t *testing.T) {
 	_, err = uc.ImportExerciseArchive(context.Background(), exercise.ImportExerciseInput{Archive: archive})
 	require.NoError(t, err)
 	require.Len(t, media.uploads, 1)
-	require.Equal(t, "Дамп.pcap", media.uploads[0].Name)
+	require.Equal(t, "Dump.pcap", media.uploads[0].Name)
 	require.Equal(t, []byte("packets"), media.uploads[0].Body)
 }

@@ -18,7 +18,7 @@ import (
 // cover all of the sessions.
 const usageSessionsPerUser = 20
 
-// UsageStore is the statement port of «Використання».
+// UsageStore is the statement port of "Usage".
 type UsageStore interface {
 	UsageUsers(ctx context.Context, eventID uuid.UUID, teamID *uuid.UUID) ([]eventAnalyticsRepo.UsageUser, error)
 	UsageVPN(ctx context.Context, eventID uuid.UUID, period eventAnalyticsModel.Period) ([]eventAnalyticsRepo.UsageVPN, error)
@@ -28,7 +28,7 @@ type UsageStore interface {
 }
 
 type (
-	// UsageView is the «Використання» report: per participant, the VPN
+	// UsageView is the "Usage" report: per participant, the VPN
 	// connection state and the lab access over the VPN and the web proxy.
 	UsageView struct {
 		// Available is false for an event without infrastructure.
@@ -108,7 +108,7 @@ type (
 	}
 )
 
-// GetEventAnalyticsUsage is the «Використання» report. The period bounds the
+// GetEventAnalyticsUsage is the "Usage" report. The period bounds the
 // VPN sessions; the lab counters are cumulative and cover the whole event.
 // teamID narrows it to one team. It is not cached: «online now» is live.
 func (u *EventAnalyticsUseCase) GetEventAnalyticsUsage(ctx context.Context, eventID uuid.UUID, teamID *uuid.UUID, from, to *time.Time) (UsageView, error) {

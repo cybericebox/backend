@@ -19,7 +19,7 @@ type ExerciseView struct {
 
 	ArchivedAt *time.Time
 	// HasChanges: the working copy differs from the published version (or
-	// nothing is published yet). Drives the "Опубліковано · є зміни" badge.
+	// nothing is published yet). Drives the "published, with changes" badge.
 	HasChanges bool
 
 	ExerciseScopeView

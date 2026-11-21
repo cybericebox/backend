@@ -45,7 +45,7 @@ type GetEventParticipantFunnelRow struct {
 	Solved     int64 `json:"solved"`
 }
 
-// Event analytics, «Учасники» and «Комунікації» sections
+// Event analytics, "Participants" and "Communications" sections
 // (docs/EVENT-ANALYTICS.md §6.2, §6.7). The moderators team is never counted.
 // The participation funnel: invited → registered → approved → in a team →
 // first attempt → first solve. Registered excludes invitations not accepted

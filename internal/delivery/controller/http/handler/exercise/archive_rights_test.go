@@ -145,10 +145,10 @@ func TestExport_PerRole(t *testing.T) {
 // The author filter suggestions: search and limit reach the use case; names only.
 func TestListAuthors_Route(t *testing.T) {
 	author := uuid.Must(uuid.NewV7())
-	uc := &fakeUC{authors: []exerciseUseCase.ExerciseAuthorSuggestion{{ID: author, Name: "Ада Лавлейс", Count: 2}}}
+	uc := &fakeUC{authors: []exerciseUseCase.ExerciseAuthorSuggestion{{ID: author, Name: "Ada Lovelace", Count: 2}}}
 	w := httptest.NewRecorder()
-	engineAs(uc, rbac.RoleUser).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/exercises/authors?search=%D0%90%D0%B4%D0%B0&limit=20", nil))
-	if w.Code != http.StatusOK || uc.authorSearch != "Ада" || uc.authorLimit != 20 || !strings.Contains(w.Body.String(), `"Name":"Ада Лавлейс"`) {
+	engineAs(uc, rbac.RoleUser).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/exercises/authors?search=Ada&limit=20", nil))
+	if w.Code != http.StatusOK || uc.authorSearch != "Ada" || uc.authorLimit != 20 || !strings.Contains(w.Body.String(), `"Name":"Ada Lovelace"`) {
 		t.Fatalf("status %d search %q limit %d body %s", w.Code, uc.authorSearch, uc.authorLimit, w.Body.String())
 	}
 	named := httptest.NewRecorder()

@@ -24,7 +24,7 @@ type OverviewStore interface {
 	OverviewMailDays(ctx context.Context, from, to time.Time) ([]platformAnalyticsRepo.OverviewMailDay, error)
 }
 
-// GetOverview is the «Огляд» report: headline numbers for the period with the
+// GetOverview is the "Overview" report: headline numbers for the period with the
 // change against the previous period of the same length (none for all time),
 // and three daily series. Nil bounds: a missing `to` is now, a missing `from`
 // is all time.

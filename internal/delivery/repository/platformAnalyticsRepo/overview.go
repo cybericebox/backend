@@ -8,7 +8,7 @@ import (
 )
 
 // OverviewQueries are the sqlc statements of the overview section (the
-// active-account and new-account statements are shared with «Користувачі»).
+// active-account and new-account statements are shared with "Users").
 type OverviewQueries interface {
 	GetPlatformOverviewUsers(context.Context, postgres.GetPlatformOverviewUsersParams) (postgres.GetPlatformOverviewUsersRow, error)
 	GetPlatformActiveUsers(context.Context, postgres.GetPlatformActiveUsersParams) (postgres.GetPlatformActiveUsersRow, error)

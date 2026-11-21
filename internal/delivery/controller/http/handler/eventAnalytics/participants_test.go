@@ -18,7 +18,7 @@ import (
 	eventAnalyticsUseCase "github.com/cybericebox/daemon/internal/useCase/eventAnalytics"
 )
 
-// peopleUseCase serves the «Учасники» and «Комунікації» routes; any other
+// peopleUseCase serves the Participants and Communications routes; any other
 // use-case call panics on the nil embedded interface.
 type peopleUseCase struct {
 	IUseCase

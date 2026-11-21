@@ -109,7 +109,7 @@ func TestNormalizeFooterDoc(t *testing.T) {
 		"unknown node":     `{"root":{"type":"root","children":[{"type":"code","children":[]}]}}`,
 		"script link":      `{"root":{"type":"root","children":[{"type":"paragraph","children":[{"type":"link","url":"javascript:alert(1)","children":[]}]}]}}`,
 		"unknown token":    `{"root":{"type":"root","children":[{"type":"paragraph","children":[{"type":"link","url":"{{nope}}","children":[]}]}]}}`,
-		"too long":         `{"root":{"type":"root","children":[{"type":"paragraph","children":[{"type":"text","text":"` + strings.Repeat("я", MaxFooterBytes) + `"}]}]}}`,
+		"too long":         `{"root":{"type":"root","children":[{"type":"paragraph","children":[{"type":"text","text":"` + strings.Repeat("é", MaxFooterBytes) + `"}]}]}}`,
 	} {
 		_, err := NormalizeFooterDoc(json.RawMessage(raw))
 		require.ErrorIs(t, err, ErrFooterInvalid.Err(), name)

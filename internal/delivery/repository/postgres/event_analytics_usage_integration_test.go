@@ -14,7 +14,7 @@ import (
 	"github.com/cybericebox/daemon/internal/testhelpers"
 )
 
-// «Використання» reads: participants outside the moderators team, VPN sessions
+// "Usage" reads: participants outside the moderators team, VPN sessions
 // per participant, the live handshake from the monitoring state and the lab
 // counters with the task name.
 func TestEventAnalytics_UsageReads(t *testing.T) {

@@ -19,7 +19,7 @@ import (
 // all of them.
 const maxTeamFailures = 20
 
-// StandStore is the statement port of «Стенди».
+// StandStore is the statement port of "Stands".
 type StandStore interface {
 	StandTeams(ctx context.Context, eventID uuid.UUID) ([]eventAnalyticsRepo.StandTeam, error)
 	StandTransitions(ctx context.Context, eventID uuid.UUID) ([]eventAnalyticsModel.StandTransition, error)
@@ -28,7 +28,7 @@ type StandStore interface {
 }
 
 type (
-	// StandsView is the «Стенди» report (§6.5).
+	// StandsView is the "Stands" report (§6.5).
 	StandsView struct {
 		// Available is false for an event without infrastructure: the rest
 		// is empty and the section is hidden.
@@ -104,7 +104,7 @@ type (
 	}
 )
 
-// GetEventAnalyticsStands is the «Стенди» report. The period bounds the
+// GetEventAnalyticsStands is the "Stands" report. The period bounds the
 // telemetry and VPN figures; the deploy and failure history is the event's.
 func (u *EventAnalyticsUseCase) GetEventAnalyticsStands(ctx context.Context, eventID uuid.UUID, from, to *time.Time) (StandsView, error) {
 	e, err := u.event(ctx, eventID)

@@ -18,7 +18,7 @@ import (
 	eventAnalyticsUseCase "github.com/cybericebox/daemon/internal/useCase/eventAnalytics"
 )
 
-// taskUseCase serves the «Завдання» and «Прогрес» routes; any other use-case
+// taskUseCase serves the Tasks and Progress routes; any other use-case
 // call panics on the nil embedded interface.
 type taskUseCase struct {
 	IUseCase

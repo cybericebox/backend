@@ -21,7 +21,7 @@ func seedElevationRequest(t *testing.T, q *postgres.Queries, recipient, elevatio
 	t.Helper()
 	id := uuid.Must(uuid.NewV7())
 	require.NoError(t, q.CreateInApp(context.Background(), postgres.CreateInAppParams{
-		ID: id, UserID: recipient, Title: "Запит на більше ресурсів", Surface: "inbox", Actions: []byte(`[]`),
+		ID: id, UserID: recipient, Title: "Request for more resources", Surface: "inbox", Actions: []byte(`[]`),
 		NotificationType: inboxModel.TypeElevationRequested, Category: "requests", ActionRequired: true,
 		SubjectRef: pgtype.Text{String: inboxModel.ElevationRef(elevationID), Valid: true},
 	}))

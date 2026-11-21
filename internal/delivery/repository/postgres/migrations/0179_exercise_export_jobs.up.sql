@@ -1,4 +1,4 @@
--- Background exports of tasks «з образами» (the archive carries the platform images of their devices, up to 10 GiB):
+-- Background exports of tasks "with images" (the archive carries the platform images of their devices, up to 10 GiB):
 -- one row per export, read only by the user who started it. The export options (secrets, the sealed archive
 -- password) are not stored here: the River job carries them. file_id is the stored zip once the export is done; the
 -- media cleanup removes the file after its grace window, so there is no foreign key.

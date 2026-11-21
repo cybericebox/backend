@@ -134,10 +134,10 @@ func TestGetModeratorsTeamListsManagersByName(t *testing.T) {
 	q.EXPECT().GetEventByID(gomock.Any(), eventID).Return(postgres.Event{ID: eventID, CreatedAt: time.Now()}, nil)
 	q.EXPECT().GetModeratorsTeam(gomock.Any(), eventID).Return(postgres.EventTeam{ID: teamID, EventID: eventID, Moderators: true}, nil).Times(2)
 	q.EXPECT().ListEventManagers(gomock.Any(), eventID).Return([]postgres.EventManager{{EventID: eventID, UserID: owner, Role: 0}, {EventID: eventID, UserID: viewer, Role: 2}}, nil)
-	q.EXPECT().GetUserByID(gomock.Any(), owner).Return(postgres.User{ID: owner, FirstName: "Олена", LastName: "Коваль", Email: "o@example.com"}, nil)
+	q.EXPECT().GetUserByID(gomock.Any(), owner).Return(postgres.User{ID: owner, FirstName: "Olena", LastName: "Koval", Email: "o@example.com"}, nil)
 	q.EXPECT().GetUserByID(gomock.Any(), viewer).Return(postgres.User{ID: viewer, Email: "v@example.com"}, nil)
 	view, err := newUC(q).GetModeratorsTeam(context.Background(), eventID)
-	if err != nil || view.TeamID != teamID || len(view.Members) != 2 || view.Members[0].Name != "Олена Коваль" || view.Members[1].Name != "v@example.com" {
+	if err != nil || view.TeamID != teamID || len(view.Members) != 2 || view.Members[0].Name != "Olena Koval" || view.Members[1].Name != "v@example.com" {
 		t.Fatalf("view = %+v, %v", view, err)
 	}
 }

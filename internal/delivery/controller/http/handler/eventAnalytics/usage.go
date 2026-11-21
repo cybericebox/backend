@@ -14,12 +14,12 @@ import (
 	eventAnalyticsUseCase "github.com/cybericebox/daemon/internal/useCase/eventAnalytics"
 )
 
-// UsageUseCase is the «Використання» part of IUseCase.
+// UsageUseCase is the Usage part of IUseCase.
 type UsageUseCase interface {
 	GetEventAnalyticsUsage(ctx context.Context, eventID uuid.UUID, teamID *uuid.UUID, from, to *time.Time) (eventAnalyticsUseCase.UsageView, error)
 }
 
-// initUsage registers the «Використання» routes on the analytics group.
+// initUsage registers the Usage routes on the analytics group.
 func (h *Handler) initUsage(router *gin.RouterGroup) {
 	analytics := router.Group("events/:id/manage/analytics", h.prot.RequirePermission(rbac.PermSelf))
 	analytics.GET("usage", h.requireSections, h.usage)
@@ -118,7 +118,7 @@ type (
 
 // usage godoc
 // @Summary Per participant VPN connection state and lab access (VPN and web proxy)
-// @Description «Використання». Online is true when the last WireGuard handshake is at most 3 minutes old; it is never derived from traffic. VPN figures (sessions, online seconds, bytes) follow the period; the lab counters are cumulative over the whole event. Counts and times only, no addresses. Empty (Available=false) for an event without infrastructure. Not cached.
+// @Description Usage. Online is true when the last WireGuard handshake is at most 3 minutes old; it is never derived from traffic. VPN figures (sessions, online seconds, bytes) follow the period; the lab counters are cumulative over the whole event. Counts and times only, no addresses. Empty (Available=false) for an event without infrastructure. Not cached.
 // @Tags event-analytics
 // @Produce json
 // @Param id path string true "event ID"
@@ -144,7 +144,7 @@ func (h *Handler) usage(ctx *gin.Context) {
 	response.AbortWithData(ctx, out)
 }
 
-// seesPeople tells whether the caller may see the per-person rows of «Використання» (Access.People).
+// seesPeople tells whether the caller may see the per-person rows of Usage (Access.People).
 func (h *Handler) seesPeople(ctx *gin.Context) (bool, bool) {
 	eventID, ok := parseEventID(ctx)
 	if !ok {

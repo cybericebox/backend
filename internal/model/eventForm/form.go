@@ -329,7 +329,7 @@ func (f Form) validateAnswers(answers map[string]any, tolerate func(key string) 
 			}
 			values[block.Key] = value
 		} else if block.Input == "checkbox" {
-			// An untouched checkbox is «Ні» for the questions that depend on it.
+			// An untouched checkbox is "No" for the questions that depend on it.
 			values[block.Key] = false
 		}
 	}

@@ -10,7 +10,7 @@ import (
 	"github.com/cybericebox/daemon/pkg/ociregistry"
 )
 
-// Export of platform images into task archives («з образами»): a platform reference is read from the platform
+// Export of platform images into task archives ("with images"): a platform reference is read from the platform
 // repository with the pull credential (the push token when no pull token is set) and written as an image archive
 // (ociregistry.ImageLayout: OCI layout + docker load manifest.json), its blobs streamed from the registry.
 

@@ -11,7 +11,7 @@ import (
 	"github.com/gofrs/uuid"
 )
 
-// LiveDisplay is one live screen of an event («Екран 1», «Екран 2», …): its
+// LiveDisplay is one live screen of an event ("Screen 1", "Screen 2", …): its
 // own name, published layout, draft and screen link, so a hall screen and
 // side screens show different things. An event has 1..LiveDisplaysMax of
 // them in the editor order; the first is the screen of the single-screen
@@ -52,7 +52,7 @@ func NormalizeLiveDisplayName(name string) (string, error) {
 }
 
 // DefaultLiveDisplayName is the name of a screen created without one:
-// «Екран N» with the next number, skipping names already taken.
+// "Screen N" with the next number, skipping names already taken.
 func DefaultLiveDisplayName(existing []LiveDisplay) string {
 	taken := make(map[string]bool, len(existing))
 	for _, display := range existing {

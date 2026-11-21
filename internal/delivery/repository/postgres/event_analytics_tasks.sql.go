@@ -43,7 +43,7 @@ type ListEventAnalyticsChallengesRow struct {
 	GroupName   string    `json:"group_name"`
 }
 
-// Event analytics «Завдання» and «Прогрес» (docs/EVENT-ANALYTICS.md §6.3, §6.4).
+// Event analytics "Tasks" and "Progress" (docs/EVENT-ANALYTICS.md §6.3, §6.4).
 // The moderators team is never counted. Period bounds are [from_at, to_at).
 // The published challenges of the event in board order, with the declared
 // difficulty from the snapshot. A NULL challenge_id lists them all.

@@ -1,7 +1,7 @@
--- «Доброчесність»: the stored parts. The signals themselves are computed on
+-- Integrity: the stored parts. The signals themselves are computed on
 -- read; only an organizer's decisions are kept.
 
--- A «перевірено» note on one flagged team task (a solve, or a task flagged
+-- A "reviewed" note on one flagged team task (a solve, or a task flagged
 -- before any solve). It goes away with the task or the event.
 CREATE TABLE solve_integrity_reviews
 (
@@ -14,7 +14,7 @@ CREATE TABLE solve_integrity_reviews
 
 CREATE INDEX solve_integrity_reviews_event_idx ON solve_integrity_reviews (event_id, reviewed_at);
 
--- «Не підсвічувати такі випадки»: a signal kind on a catalog task, with the key
+-- "Do not flag such cases": a signal kind on a catalog task, with the key
 -- that makes the case (for shared_wrong the normalized wrong value, for the
 -- other kinds empty). scope 'event' reaches one event; scope 'exercise' every
 -- event that uses the catalog exercise. task_id is event_challenges.task_id,

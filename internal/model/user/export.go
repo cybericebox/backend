@@ -7,7 +7,7 @@ import (
 	"github.com/gofrs/uuid"
 )
 
-// DataExport is everything the platform keeps about one person, as the «Завантажити мої дані» file. It holds
+// DataExport is everything the platform keeps about one person, as the "Download my data" file. It holds
 // only the person's own data: no secrets (no password hash, key material or tokens), and other people appear
 // nowhere — a team is shown by its title alone.
 type DataExport struct {

@@ -37,7 +37,7 @@ func linkedTask(id uuid.UUID, name string, flag ...string) Task {
 
 func TestSyncLinkedVariants_CopiesInheritedParts(t *testing.T) {
 	baseTask := Task{
-		Name: "Пошук", Description: json.RawMessage(`{"root":{}}`), Difficulty: DifficultyHard,
+		Name: "Search", Description: json.RawMessage(`{"root":{}}`), Difficulty: DifficultyHard,
 		Placeholders: []Placeholder{{Key: "srv", Kind: PlaceholderIP}},
 		Hints:        []Hint{{ID: linkHintID, Text: "a", Level: HintLevelSteps}},
 		Check:        FlagCheck("ICE{a}"),
@@ -403,7 +403,7 @@ func TestValidateStructure_ImageOverrideReference(t *testing.T) {
 		version := &ExerciseVersion{Variants: []Variant{
 			{
 				ID:    linkBaseID,
-				Tasks: []Task{linkedTask(linkTaskA, "Перше", "ICE{a}")},
+				Tasks: []Task{linkedTask(linkTaskA, "First", "ICE{a}")},
 				Topology: Topology{
 					Devices: []Device{
 						{ID: webID, Name: "web", Type: DeviceTypeContainer, Image: "nginx:1"},

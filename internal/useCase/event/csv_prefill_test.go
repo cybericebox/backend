@@ -214,7 +214,7 @@ func TestInviteParticipantsPrefillCountsMissingRequiredFields(t *testing.T) {
 	uc.SetInvitationNotifier(&invitationNotifier{})
 	eventID, managerID, versionID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 	version := prefillFormVersion(eventID, versionID)
-	version.RequireExisting = true // «Вимагати від усіх»: the gaps are counted
+	version.RequireExisting = true // "Require from everyone": the gaps are counted
 	q.EXPECT().GetLatestEventFormVersion(gomock.Any(), eventID).Return(version, nil)
 	expectNoStoredAnswers(q)
 	q.EXPECT().GetEventByID(gomock.Any(), eventID).Return(postgres.Event{ID: eventID, Tag: "ctf", Name: "CTF", LifecycleConfigured: true}, nil).Times(2)

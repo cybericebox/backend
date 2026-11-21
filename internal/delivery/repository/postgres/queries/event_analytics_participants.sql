@@ -1,4 +1,4 @@
--- Event analytics, «Учасники» and «Комунікації» sections
+-- Event analytics, "Participants" and "Communications" sections
 -- (docs/EVENT-ANALYTICS.md §6.2, §6.7). The moderators team is never counted.
 
 -- name: GetEventParticipantFunnel :one

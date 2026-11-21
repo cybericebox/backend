@@ -22,7 +22,7 @@ func TestTemplateInputValidate(t *testing.T) {
 		{"in-app only", broadcastModel.TemplateInput{Name: "Reminder", Content: inApp}, true},
 		{"email only", broadcastModel.TemplateInput{Name: "Reminder", Content: email}, true},
 		{"name required", broadcastModel.TemplateInput{Name: "  ", Content: inApp}, false},
-		{"name too long", broadcastModel.TemplateInput{Name: strings.Repeat("я", broadcastModel.MaxTextLen+1), Content: inApp}, false},
+		{"name too long", broadcastModel.TemplateInput{Name: strings.Repeat("é", broadcastModel.MaxTextLen+1), Content: inApp}, false},
 		{"a channel is required", broadcastModel.TemplateInput{Name: "Reminder", Content: broadcastModel.Content{}}, false},
 		{"email needs a subject", broadcastModel.TemplateInput{Name: "Reminder", Content: broadcastModel.Content{Channels: email.Channels, EmailBody: email.EmailBody}}, false},
 		{"only broadcast variables", broadcastModel.TemplateInput{Name: "Reminder", Content: broadcastModel.Content{Channels: inApp.Channels, InAppTitle: "{{.team_name}}"}}, false},

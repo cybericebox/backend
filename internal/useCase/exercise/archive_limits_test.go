@@ -20,7 +20,7 @@ import (
 func exportUnder(t *testing.T, lim exerciseModel.ArchiveLimits) ([]byte, error) {
 	t.Helper()
 	q := postgresMocks.NewMockQuerier(gomock.NewController(t))
-	expectExport(t, q, exportExerciseID, "Експорт", exportFixtureVersions())
+	expectExport(t, q, exportExerciseID, "Export", exportFixtureVersions())
 	uc := exercise.NewExerciseUseCase(exercise.Dependencies{Repo: q, Media: exportFixtureMedia()})
 	return uc.ExportExerciseArchive(context.Background(), exportExerciseID, exercise.ExportOptions{}, lim)
 }
@@ -73,7 +73,7 @@ func TestExportThenImport_HighlyCompressibleFile(t *testing.T) {
 	require.NoError(t, err)
 	for _, opts := range []exercise.ExportOptions{{}, {IncludeSecrets: true, Password: "pw"}} {
 		q := postgresMocks.NewMockQuerier(gomock.NewController(t))
-		expectExport(t, q, exportExerciseID, "Експорт", exportFixtureVersions())
+		expectExport(t, q, exportExerciseID, "Export", exportFixtureVersions())
 		uc := exercise.NewExerciseUseCase(exercise.Dependencies{Repo: q, Media: media, Cipher: cipher})
 		data, err := uc.ExportExerciseArchive(context.Background(), exportExerciseID, opts, exercise.DefaultLimits())
 		require.NoError(t, err)

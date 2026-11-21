@@ -1,4 +1,4 @@
--- «Впирається в ліміт» is slang: the CPU throttling notice says what happened in plain words. Only the platform template
+-- The old Ukrainian title ("hits the limit") is slang: the CPU throttling notice says what happened in plain words. Only the platform template
 -- that still holds the shipped wording changes; a text an admin edited is left alone.
 UPDATE notification_in_app_templates
 SET title = 'Пристрою не вистачає процесора',

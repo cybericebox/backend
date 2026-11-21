@@ -1,6 +1,6 @@
 // Package platformAnalytics is the application layer of platform-level
 // analytics (docs/EVENT-ANALYTICS.md §8, docs/PLATFORM-ANALYTICS.md): one
-// read model per admin «Аналітика» section, aggregates only. Every report is
+// read model per admin "Analytics" section, aggregates only. Every report is
 // loaded through the shared cache (analyticsCache) under a key that holds the
 // section and every filter.
 package platformAnalytics

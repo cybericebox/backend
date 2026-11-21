@@ -32,7 +32,7 @@ func anSecondTeam(t *testing.T, db *testhelpers.TestDB, f anFixture) (team, user
 	return team, user, tc.ID
 }
 
-// The «Завдання» and «Прогрес» reads over one solved, one failed and one
+// The "Tasks" and "Progress" reads over one solved, one failed and one
 // moderator board: the moderators team is never counted.
 func TestEventAnalytics_TasksAndProgress(t *testing.T) {
 	db := testhelpers.SetupTestDB(t)

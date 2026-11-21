@@ -270,7 +270,7 @@ func (f *imageExportFixture) onlyZip(t *testing.T, view exercise.ExportJobView) 
 	return f.files.files[view.File.ID]
 }
 
-// An export «з образами»: the platform image of two devices is written once under images/, the document names the file
+// An export "with images": the platform image of two devices is written once under images/, the document names the file
 // for both, a public reference stays a reference, manifest.json covers every entry (the image included), and the
 // archive imports again with the same image content.
 func TestExportWithImagesRoundTrip(t *testing.T) {

@@ -68,7 +68,7 @@ func stubParticipationModelReads(q *postgresMocks.MockQuerier) {
 		return 1, nil
 	}).AnyTimes()
 	q.EXPECT().CountPendingTeamInvitations(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
-	q.EXPECT().GetEventParticipantProfile(gomock.Any(), gomock.Any()).Return(postgres.GetEventParticipantProfileRow{FirstName: "Олена", LastName: "Коваль", DisplayName: "Олена Коваль"}, nil).AnyTimes()
+	q.EXPECT().GetEventParticipantProfile(gomock.Any(), gomock.Any()).Return(postgres.GetEventParticipantProfileRow{FirstName: "Olena", LastName: "Koval", DisplayName: "Olena Koval"}, nil).AnyTimes()
 	q.EXPECT().ListEventTeamMembers(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 	q.EXPECT().ListPendingTeamInvitations(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 }

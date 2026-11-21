@@ -35,7 +35,7 @@ func TestEventLiveLayoutDraftPublishRoundTrip(t *testing.T) {
 	}
 	first, err := screens.FirstDisplay(ctx, event.ID)
 	if err != nil || first.Name != "Екран 1" || first.Position != 0 {
-		t.Fatalf("a new event has «Екран 1»: %+v, %v", first, err)
+		t.Fatalf("a new event has Screen 1: %+v, %v", first, err)
 	}
 
 	draft := eventContentModel.DefaultLiveLayout()
@@ -71,7 +71,7 @@ func TestEventLiveLayoutDraftPublishRoundTrip(t *testing.T) {
 	}
 
 	// Each screen keeps its own layout, draft and version.
-	second, err := screens.CreateDisplay(ctx, eventContentModel.LiveDisplay{ID: uuid.Must(uuid.NewV7()), EventID: event.ID, Name: "Фойє", Layout: eventContentModel.DefaultLiveLayout(), CreatedAt: now})
+	second, err := screens.CreateDisplay(ctx, eventContentModel.LiveDisplay{ID: uuid.Must(uuid.NewV7()), EventID: event.ID, Name: "Lobby", Layout: eventContentModel.DefaultLiveLayout(), CreatedAt: now})
 	if err != nil || second.Position != 1 || second.Layout.Version != 1 {
 		t.Fatalf("second screen = %+v, %v", second, err)
 	}
@@ -102,7 +102,7 @@ func runMigrationScript(t *testing.T, db *testhelpers.TestDB, name string) {
 }
 
 // The single layout, draft and link of an event become its screen
-// «Екран 1» unchanged; running the migration again changes nothing.
+// "Screen 1" unchanged; running the migration again changes nothing.
 func TestEventLiveScreensMigrationKeepsLayoutDraftAndLink(t *testing.T) {
 	db := testhelpers.SetupTestDB(t)
 	ctx := context.Background()
@@ -153,7 +153,7 @@ func TestEventLiveScreensMigrationKeepsLayoutDraftAndLink(t *testing.T) {
 		if first.Layout.Version != 7 || first.Layout.Scenes["finished"].Widgets[0].Type != "podium" || first.Draft.Aspect != "4:3" {
 			t.Fatalf("run %d: layout = %+v draft = %+v", run, first.Layout, first.Draft)
 		}
-		// Both links (working and revoked) belong to «Екран 1»; the working one still opens it.
+		// Both links (working and revoked) belong to "Screen 1"; the working one still opens it.
 		active, err := screens.Active(ctx, event.ID, first.ID, now)
 		if err != nil || active.ID != link.ID || active.ScreenID != first.ID || !bytes.Equal(active.TokenHash, link.TokenHash) {
 			t.Fatalf("run %d: active link = %+v, %v", run, active, err)
@@ -197,7 +197,7 @@ func TestEventLiveScreensMigrationDownKeepsTheFirstScreen(t *testing.T) {
 	if _, err = screens.SaveDisplayDraft(ctx, event.ID, first.ID, draft, now); err != nil {
 		t.Fatal(err)
 	}
-	second, err := screens.CreateDisplay(ctx, eventContentModel.LiveDisplay{ID: uuid.Must(uuid.NewV7()), EventID: event.ID, Name: "Фойє", Layout: eventContentModel.DefaultLiveLayout(), CreatedAt: now})
+	second, err := screens.CreateDisplay(ctx, eventContentModel.LiveDisplay{ID: uuid.Must(uuid.NewV7()), EventID: event.ID, Name: "Lobby", Layout: eventContentModel.DefaultLiveLayout(), CreatedAt: now})
 	if err != nil {
 		t.Fatal(err)
 	}

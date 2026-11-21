@@ -132,15 +132,15 @@ func secretOf(
 
 func TestSaveDraft_RewritesLinkedVariantFromBase(t *testing.T) {
 	s := newLinkedSave(t, nil)
-	base := saveVariant(saveBaseID, "Нове", `{"d":"D"}`, "ICE{a}", "")
+	base := saveVariant(saveBaseID, "New", `{"d":"D"}`, "ICE{a}", "")
 	base.Tasks[0].Hints = []exerciseModel.Hint{{Text: "h", Level: exerciseModel.HintLevelNudge}}
-	linked := linkTo(saveVariant(saveLinkedID, "Старе", `{"d":"інше"}`, "ICE{b}", ""), saveBaseID)
+	linked := linkTo(saveVariant(saveLinkedID, "Old", `{"d":"other"}`, "ICE{b}", ""), saveBaseID)
 
 	written := s.save(t, exercise.SaveDraftInput{Variants: []exerciseModel.Variant{base, linked}})
 
 	require.Len(t, written, 2)
 	got := written[1]
-	require.Equal(t, "Нове", got.Tasks[0].Name)
+	require.Equal(t, "New", got.Tasks[0].Name)
 	require.JSONEq(t, `{"d":"D"}`, string(got.Tasks[0].Description))
 	require.Len(t, got.Tasks[0].Hints, 1)
 	require.Equal(t, "h", got.Tasks[0].Hints[0].Text)
@@ -150,8 +150,8 @@ func TestSaveDraft_RewritesLinkedVariantFromBase(t *testing.T) {
 
 func TestSaveDraft_NewLinkedVariantInheritsNewBaseTask(t *testing.T) {
 	s := newLinkedSave(t, nil)
-	base := saveVariant(saveBaseID, "Нове", "", "", "")
-	base.Tasks = append(base.Tasks, exerciseModel.Task{Name: "Друге", Difficulty: exerciseModel.DifficultyEasy,
+	base := saveVariant(saveBaseID, "New", "", "", "")
+	base.Tasks = append(base.Tasks, exerciseModel.Task{Name: "Second", Difficulty: exerciseModel.DifficultyEasy,
 		Placeholders: []exerciseModel.Placeholder{{Kind: exerciseModel.PlaceholderGatewaySubnet, Gateway: "vpn"}}})
 	linked := linkTo(exerciseModel.Variant{ID: saveLinkedID}, saveBaseID)
 
@@ -167,9 +167,9 @@ func TestSaveDraft_NewLinkedVariantInheritsNewBaseTask(t *testing.T) {
 
 func TestSaveDraft_RejectsChainLink(t *testing.T) {
 	s := newLinkedSave(t, nil)
-	base := saveVariant(saveBaseID, "Нове", "", "", "")
-	linked := linkTo(saveVariant(saveLinkedID, "Нове", "", "", ""), saveBaseID)
-	chained := linkTo(saveVariant(saveThirdID, "Нове", "", "", ""), saveLinkedID)
+	base := saveVariant(saveBaseID, "New", "", "", "")
+	linked := linkTo(saveVariant(saveLinkedID, "New", "", "", ""), saveBaseID)
+	chained := linkTo(saveVariant(saveThirdID, "New", "", "", ""), saveLinkedID)
 
 	_, err := s.uc.SaveDraft(context.Background(), saveExerciseID, exercise.SaveDraftInput{
 		Variants: []exerciseModel.Variant{base, linked, chained},
@@ -181,25 +181,25 @@ func TestSaveDraft_RejectsChainLink(t *testing.T) {
 
 func TestSaveDraft_UnlinksDeletedBase(t *testing.T) {
 	stored := []exerciseModel.Variant{
-		saveVariant(saveBaseID, "Нове", "", "ICE{a}", ""),
-		linkTo(saveVariant(saveLinkedID, "Нове", "", "ICE{b}", ""), saveBaseID),
+		saveVariant(saveBaseID, "New", "", "ICE{a}", ""),
+		linkTo(saveVariant(saveLinkedID, "New", "", "ICE{b}", ""), saveBaseID),
 	}
 	s := newLinkedSave(t, stored)
-	sent := linkTo(saveVariant(saveLinkedID, "Своє", `{"d":"своє"}`, "ICE{b}", ""), saveBaseID)
+	sent := linkTo(saveVariant(saveLinkedID, "Own", `{"d":"own"}`, "ICE{b}", ""), saveBaseID)
 
 	written := s.save(t, exercise.SaveDraftInput{Variants: []exerciseModel.Variant{sent}})
 
 	require.Len(t, written, 1)
 	require.False(t, written[0].IsLinked())
-	require.Equal(t, "Своє", written[0].Tasks[0].Name)
-	require.JSONEq(t, `{"d":"своє"}`, string(written[0].Tasks[0].Description))
+	require.Equal(t, "Own", written[0].Tasks[0].Name)
+	require.JSONEq(t, `{"d":"own"}`, string(written[0].Tasks[0].Description))
 	require.Equal(t, []string{"ICE{b}"}, written[0].Tasks[0].Check.AnswerValues())
 }
 
 func TestSaveDraft_LinkedVariantGetsOwnSecretCiphertext(t *testing.T) {
 	baseSealed := seal(t, saveBaseID, "base-pass")
-	s := newLinkedSave(t, []exerciseModel.Variant{saveVariant(saveBaseID, "Нове", "", "", baseSealed)})
-	base := saveVariant(saveBaseID, "Нове", "", "", "")
+	s := newLinkedSave(t, []exerciseModel.Variant{saveVariant(saveBaseID, "New", "", "", baseSealed)})
+	base := saveVariant(saveBaseID, "New", "", "", "")
 	linked := linkTo(exerciseModel.Variant{}, saveBaseID)
 
 	written := s.save(t, exercise.SaveDraftInput{Variants: []exerciseModel.Variant{base, linked}})
@@ -213,12 +213,12 @@ func TestSaveDraft_LinkedVariantGetsOwnSecretCiphertext(t *testing.T) {
 
 func TestSaveDraft_BaseSecretChangeReachesLinked(t *testing.T) {
 	stored := []exerciseModel.Variant{
-		saveVariant(saveBaseID, "Нове", "", "", seal(t, saveBaseID, "old")),
-		linkTo(saveVariant(saveLinkedID, "Нове", "", "", seal(t, saveLinkedID, "old")), saveBaseID),
+		saveVariant(saveBaseID, "New", "", "", seal(t, saveBaseID, "old")),
+		linkTo(saveVariant(saveLinkedID, "New", "", "", seal(t, saveLinkedID, "old")), saveBaseID),
 	}
 	s := newLinkedSave(t, stored)
-	base := saveVariant(saveBaseID, "Нове", "", "", "new")
-	linked := linkTo(saveVariant(saveLinkedID, "Нове", "", "", ""), saveBaseID)
+	base := saveVariant(saveBaseID, "New", "", "", "new")
+	linked := linkTo(saveVariant(saveLinkedID, "New", "", "", ""), saveBaseID)
 
 	written := s.save(t, exercise.SaveDraftInput{Variants: []exerciseModel.Variant{base, linked}})
 
@@ -229,11 +229,11 @@ func TestSaveDraft_BaseSecretChangeReachesLinked(t *testing.T) {
 func TestSaveDraft_LinkedSecretStableAcrossSaves(t *testing.T) {
 	baseSealed, linkedSealed := seal(t, saveBaseID, "pass"), seal(t, saveLinkedID, "pass")
 	s := newLinkedSave(t, []exerciseModel.Variant{
-		saveVariant(saveBaseID, "Нове", "", "", baseSealed),
-		linkTo(saveVariant(saveLinkedID, "Нове", "", "", linkedSealed), saveBaseID),
+		saveVariant(saveBaseID, "New", "", "", baseSealed),
+		linkTo(saveVariant(saveLinkedID, "New", "", "", linkedSealed), saveBaseID),
 	})
-	base := saveVariant(saveBaseID, "Нове", "", "", "")
-	linked := linkTo(saveVariant(saveLinkedID, "Нове", "", "", ""), saveBaseID)
+	base := saveVariant(saveBaseID, "New", "", "", "")
+	linked := linkTo(saveVariant(saveLinkedID, "New", "", "", ""), saveBaseID)
 
 	written := s.save(t, exercise.SaveDraftInput{Variants: []exerciseModel.Variant{base, linked}})
 
@@ -246,11 +246,11 @@ func TestSaveDraft_LinkedSecretStableAcrossSaves(t *testing.T) {
 func TestSaveDraft_LinkedSecretFollowsKeptBase(t *testing.T) {
 	baseSealed := seal(t, saveBaseID, "base-pass")
 	s := newLinkedSave(t, []exerciseModel.Variant{
-		saveVariant(saveBaseID, "Нове", "", "", baseSealed),
-		saveVariant(saveLinkedID, "Нове", "", "", seal(t, saveLinkedID, "own-pass")),
+		saveVariant(saveBaseID, "New", "", "", baseSealed),
+		saveVariant(saveLinkedID, "New", "", "", seal(t, saveLinkedID, "own-pass")),
 	})
-	base := saveVariant(saveBaseID, "Нове", "", "", "")
-	linked := linkTo(saveVariant(saveLinkedID, "Нове", "", "", ""), saveBaseID)
+	base := saveVariant(saveBaseID, "New", "", "", "")
+	linked := linkTo(saveVariant(saveLinkedID, "New", "", "", ""), saveBaseID)
 
 	written := s.save(t, exercise.SaveDraftInput{Variants: []exerciseModel.Variant{base, linked}})
 
@@ -260,9 +260,9 @@ func TestSaveDraft_LinkedSecretFollowsKeptBase(t *testing.T) {
 
 func TestSaveDraft_CopyOfKeepsSecret(t *testing.T) {
 	baseSealed := seal(t, saveBaseID, "base-pass")
-	s := newLinkedSave(t, []exerciseModel.Variant{saveVariant(saveBaseID, "Нове", "", "", baseSealed)})
-	base := saveVariant(saveBaseID, "Нове", "", "", "")
-	copied := saveVariant(uuid.Nil, "Нове", "", "", "")
+	s := newLinkedSave(t, []exerciseModel.Variant{saveVariant(saveBaseID, "New", "", "", baseSealed)})
+	base := saveVariant(saveBaseID, "New", "", "", "")
+	copied := saveVariant(uuid.Nil, "New", "", "", "")
 
 	written := s.save(t, exercise.SaveDraftInput{
 		Variants: []exerciseModel.Variant{base, copied},
@@ -282,8 +282,8 @@ func TestImportExerciseArchive_LinkedVariantGetsOwnSecretCiphertext(t *testing.T
 	q := postgresMocks.NewMockQuerier(gomock.NewController(t))
 	cipher, err := secret.New(testKey)
 	require.NoError(t, err)
-	doc := `{"schema":"cib-exercise/1.0","exercise":{"name":"Пов'язані"},"versions":[{"status":"draft","variants":[
-		{"tasks":[{"name":"Тест","difficulty":"easy"}],
+	doc := `{"schema":"cib-exercise/1.0","exercise":{"name":"Linked"},"versions":[{"status":"draft","variants":[
+		{"tasks":[{"name":"Test","difficulty":"easy"}],
 		 "topology":{"devices":[{"name":"web","type":"container","image":"img",
 		   "bootstrap":{"env":[{"name":"PASS","value":"base-pass","secret":true}]}}]}},
 		{"linked_to":1,"tasks":[{}]}]}]}`
@@ -313,9 +313,9 @@ func TestImportExerciseArchive_LinkedVariantGetsOwnSecretCiphertext(t *testing.T
 // Sources resolve before they are used: C links to B, a new copy of A whose secret is blank.
 func TestSaveDraft_LinkedToNewCopyGetsSecret(t *testing.T) {
 	baseSealed := seal(t, saveBaseID, "base-pass")
-	s := newLinkedSave(t, []exerciseModel.Variant{saveVariant(saveBaseID, "Нове", "", "", baseSealed)})
-	a := saveVariant(saveBaseID, "Нове", "", "", "")
-	b := saveVariant(saveLinkedID, "Нове", "", "", "")
+	s := newLinkedSave(t, []exerciseModel.Variant{saveVariant(saveBaseID, "New", "", "", baseSealed)})
+	a := saveVariant(saveBaseID, "New", "", "", "")
+	b := saveVariant(saveLinkedID, "New", "", "", "")
 	c := linkTo(exerciseModel.Variant{ID: saveThirdID}, saveLinkedID)
 
 	written := s.save(t, exercise.SaveDraftInput{
@@ -330,10 +330,10 @@ func TestSaveDraft_LinkedToNewCopyGetsSecret(t *testing.T) {
 // A copy of a copy, listed before its source, still gets the secret.
 func TestSaveDraft_CopyOfCopyInReverseOrder(t *testing.T) {
 	baseSealed := seal(t, saveBaseID, "base-pass")
-	s := newLinkedSave(t, []exerciseModel.Variant{saveVariant(saveBaseID, "Нове", "", "", baseSealed)})
-	second := saveVariant(saveThirdID, "Нове", "", "", "")
-	first := saveVariant(saveLinkedID, "Нове", "", "", "")
-	base := saveVariant(saveBaseID, "Нове", "", "", "")
+	s := newLinkedSave(t, []exerciseModel.Variant{saveVariant(saveBaseID, "New", "", "", baseSealed)})
+	second := saveVariant(saveThirdID, "New", "", "", "")
+	first := saveVariant(saveLinkedID, "New", "", "", "")
+	base := saveVariant(saveBaseID, "New", "", "", "")
 
 	written := s.save(t, exercise.SaveDraftInput{
 		Variants: []exerciseModel.Variant{second, first, base},
@@ -348,11 +348,11 @@ func TestSaveDraft_CopyOfCopyInReverseOrder(t *testing.T) {
 func TestSaveDraft_CopyOfIgnoredForStoredVariant(t *testing.T) {
 	baseSealed := seal(t, saveBaseID, "base-pass")
 	s := newLinkedSave(t, []exerciseModel.Variant{
-		saveVariant(saveBaseID, "Нове", "", "", baseSealed),
-		saveVariant(saveLinkedID, "Нове", "", "", ""),
+		saveVariant(saveBaseID, "New", "", "", baseSealed),
+		saveVariant(saveLinkedID, "New", "", "", ""),
 	})
-	base := saveVariant(saveBaseID, "Нове", "", "", "")
-	existing := saveVariant(saveLinkedID, "Нове", "", "", "")
+	base := saveVariant(saveBaseID, "New", "", "", "")
+	existing := saveVariant(saveLinkedID, "New", "", "", "")
 
 	written := s.save(t, exercise.SaveDraftInput{
 		Variants: []exerciseModel.Variant{base, existing},
@@ -366,7 +366,7 @@ func TestSaveDraft_CopyOfIgnoredForStoredVariant(t *testing.T) {
 // the device, its secret included, is still the base's.
 func TestSaveDraft_LinkedVariantOwnDeviceImage(t *testing.T) {
 	s := newLinkedSave(t, nil)
-	base := saveVariant(saveBaseID, "Нове", "", "ICE{a}", "secret")
+	base := saveVariant(saveBaseID, "New", "", "ICE{a}", "secret")
 	linked := linkTo(saveVariant(saveLinkedID, "", "", "ICE{b}", ""), saveBaseID)
 	linked.ImageOverrides = []exerciseModel.ImageOverride{{DeviceID: saveDeviceID, Image: "img:own"}, {DeviceID: saveThirdID, Image: "gone:1"}}
 
@@ -385,9 +385,9 @@ func TestSaveDraft_LinkedVariantOwnDeviceImage(t *testing.T) {
 // draft author cannot test guesses against a stored secret. No secret value or value hash is in the view.
 func TestSaveDraft_SecretGroupsFollowOriginNotValue(t *testing.T) {
 	s := newLinkedSave(t, nil)
-	base := saveVariant(saveBaseID, "Нове", "", "ICE{a}", "ICE{short}")
+	base := saveVariant(saveBaseID, "New", "", "ICE{a}", "ICE{short}")
 	linked := linkTo(saveVariant(saveLinkedID, "", "", "ICE{b}", ""), saveBaseID)
-	guess := saveVariant(saveThirdID, "Нове", "", "ICE{c}", "ICE{short}") // the same value, typed
+	guess := saveVariant(saveThirdID, "New", "", "ICE{c}", "ICE{short}") // the same value, typed
 
 	view, err := s.uc.SaveDraft(context.Background(), saveExerciseID, exercise.SaveDraftInput{Variants: []exerciseModel.Variant{base, linked, guess}})
 	require.NoError(t, err)
@@ -411,8 +411,8 @@ func TestSaveDraft_SecretGroupsFollowOriginNotValue(t *testing.T) {
 		return v
 	}
 	again, err := stored.uc.SaveDraft(context.Background(), saveExerciseID, exercise.SaveDraftInput{Variants: []exerciseModel.Variant{
-		keep(saveVariant(saveBaseID, "Нове", "", "ICE{a}", "")), keep(linkTo(saveVariant(saveLinkedID, "", "", "ICE{b}", ""), saveBaseID)),
-		keep(saveVariant(saveThirdID, "Нове", "", "ICE{c}", "")),
+		keep(saveVariant(saveBaseID, "New", "", "ICE{a}", "")), keep(linkTo(saveVariant(saveLinkedID, "", "", "ICE{b}", ""), saveBaseID)),
+		keep(saveVariant(saveThirdID, "New", "", "ICE{c}", "")),
 	}})
 	require.NoError(t, err)
 	var rewritten []exerciseModel.Variant
@@ -433,7 +433,7 @@ func TestSaveDraft_SecretGroupsFollowOriginNotValue(t *testing.T) {
 func TestSecretValueGroups_LegacyByValueOnly(t *testing.T) {
 	s := newLinkedSave(t, nil)
 	legacy := func(id uuid.UUID, plain string) exerciseModel.Variant {
-		v := saveVariant(id, "Нове", "", "ICE{a}", "")
+		v := saveVariant(id, "New", "", "ICE{a}", "")
 		v.Topology.Devices[0].Bootstrap.Env[0].Value = seal(t, id, plain)
 		return v
 	}

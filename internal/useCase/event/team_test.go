@@ -653,7 +653,7 @@ func TestListTeams_ReturnsCursorPageWithoutJoinCodes(t *testing.T) {
 				t.Fatalf("unexpected list params: %+v", arg)
 			}
 			return []postgres.ListEventTeamsRow{
-				{EventTeam: postgres.EventTeam{ID: firstID, EventID: eventID, Name: "First", JoinCode: "private-code-1", CaptainID: uuid.Must(uuid.NewV7()), MemberCount: 2, CreatedAt: now, UpdatedAt: now, ExtraFields: []byte(`{"city":"Київ"}`)}, Admitted: true},
+				{EventTeam: postgres.EventTeam{ID: firstID, EventID: eventID, Name: "First", JoinCode: "private-code-1", CaptainID: uuid.Must(uuid.NewV7()), MemberCount: 2, CreatedAt: now, UpdatedAt: now, ExtraFields: []byte(`{"city":"Kyiv"}`)}, Admitted: true},
 				{EventTeam: postgres.EventTeam{ID: secondID, EventID: eventID, Name: "Second", JoinCode: "private-code-2", CaptainID: uuid.Must(uuid.NewV7()), MemberCount: 1, CreatedAt: now.Add(-time.Minute), UpdatedAt: now}},
 			}, nil
 		})
@@ -664,7 +664,7 @@ func TestListTeams_ReturnsCursorPageWithoutJoinCodes(t *testing.T) {
 		t.Fatalf("ListTeams: %v", err)
 	}
 	if !v.HasMore || v.NextCursor != firstID || len(v.Teams) != 1 || v.Teams[0].ID != firstID || v.Total != 2 ||
-		!v.Teams[0].Admitted || v.Teams[0].ExtraFields["city"] != "Київ" || v.Teams[0].Members == nil {
+		!v.Teams[0].Admitted || v.Teams[0].ExtraFields["city"] != "Kyiv" || v.Teams[0].Members == nil {
 		t.Fatalf("unexpected teams page: %+v", v)
 	}
 }

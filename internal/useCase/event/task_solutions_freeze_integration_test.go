@@ -82,7 +82,7 @@ func TestParticipantTaskSolutionsFreezeIncludesOwnTeam(t *testing.T) {
 
 	// Manual mode keeps every participant result surface frozen after finish.
 	settings := eventConfigModel.DefaultResultsSettings()
-	if err := json.Unmarshal([]byte(`{"FreezeEnabled":true,"FreezeMinutes":90,"FreezeEndMode":"manual","FreezeBannerText":"Фінальні результати згодом.","FreezeBannerLevel":"critical"}`), &settings); err != nil {
+	if err := json.Unmarshal([]byte(`{"FreezeEnabled":true,"FreezeMinutes":90,"FreezeEndMode":"manual","FreezeBannerText":"Final results later.","FreezeBannerLevel":"critical"}`), &settings); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := uc.UpdateResultsSettings(ctx, f.eventID, eventConfigModel.VisibilityPublic, settings, f.ownerID); err != nil {
@@ -113,7 +113,7 @@ func TestParticipantTaskSolutionsFreezeIncludesOwnTeam(t *testing.T) {
 	if err := json.Unmarshal(banner, &bannerFields); err != nil {
 		t.Fatal(err)
 	}
-	if string(bannerFields["BannerText"]) != `"Фінальні результати згодом."` || string(bannerFields["BannerLevel"]) != `"critical"` {
+	if string(bannerFields["BannerText"]) != `"Final results later."` || string(bannerFields["BannerLevel"]) != `"critical"` {
 		t.Errorf("participant freeze banner lost: %s", banner)
 	}
 	staffSnapshot, err := uc.GetResultsSnapshot(ctx, f.eventID, event.ResultsAccess{UserID: &f.ownerID}, false)

@@ -136,7 +136,7 @@ type (
 
 // overview godoc
 // @Summary Event analytics overview (counters and the 5-minute activity series)
-// @Description §6.1 «Огляд». Without from/to the period is the event's own window (start to finish, or to now while it runs). The series has a point per 5 minutes; values are cached for a few seconds.
+// @Description §6.1 Overview. Without from/to the period is the event's own window (start to finish, or to now while it runs). The series has a point per 5 minutes; values are cached for a few seconds.
 // @Tags event-analytics
 // @Produce json
 // @Param id path string true "event ID"

@@ -30,7 +30,7 @@ type UsersStore interface {
 	UsersPeople(ctx context.Context, limit int32) ([]platformAnalyticsRepo.UsersPerson, error)
 }
 
-// GetUsers is the «Користувачі» report: the aggregates of the admin user
+// GetUsers is the "Users" report: the aggregates of the admin user
 // stats (total, blocked, by role, new and active accounts, registrations per
 // day) bound to the chosen period, plus daily and weekly active accounts,
 // the sign-in method split and how many events accounts joined. Aggregates

@@ -19,23 +19,23 @@ func TestListParticipantFormAnswersExcludesOtherFormsAndKeepsQuestionVersion(t *
 	registrationVersionID := uuid.Must(uuid.NewV7())
 	registrationUser := uuid.Must(uuid.NewV7())
 	now := time.Now().UTC()
-	registrationDocument := []byte(`{"blocks":[{"id":"question","type":"field","key":"city","input":"text","label":"Місто"}]}`)
+	registrationDocument := []byte(`{"blocks":[{"id":"question","type":"field","key":"city","input":"text","label":"City"}]}`)
 	q.EXPECT().GetLatestEventFormVersion(gomock.Any(), eventID).Return(postgres.EventFormVersion{
 		ID: registrationVersionID, FormID: registrationID, EventID: eventID, Version: 2, Enabled: true,
 		Document: registrationDocument, CreatedAt: now,
 	}, nil)
 	q.EXPECT().ListEventFormAnswers(gomock.Any(), postgres.ListEventFormAnswersParams{EventID: eventID, FormID: registrationID}).Return([]postgres.ListEventFormAnswersRow{
-		{EventID: eventID, UserID: registrationUser, FormVersionID: registrationVersionID, FormID: registrationID, Version: 2, Document: registrationDocument, Name: "Учасник", Answers: []byte(`{"city":"Київ"}`), SubmittedAt: now},
+		{EventID: eventID, UserID: registrationUser, FormVersionID: registrationVersionID, FormID: registrationID, Version: 2, Document: registrationDocument, Name: "Participant", Answers: []byte(`{"city":"Kyiv"}`), SubmittedAt: now},
 	}, nil)
 
 	answers, err := uc.ListParticipantFormAnswers(context.Background(), eventID)
 	if err != nil {
 		t.Fatalf("list participant form answers: %v", err)
 	}
-	if len(answers) != 1 || answers[0].UserID != registrationUser || answers[0].FormVersion != 2 || answers[0].Name != "Учасник" {
+	if len(answers) != 1 || answers[0].UserID != registrationUser || answers[0].FormVersion != 2 || answers[0].Name != "Participant" {
 		t.Fatalf("registration answers = %+v", answers)
 	}
-	if len(answers[0].Document.Blocks) != 1 || answers[0].Document.Blocks[0].Label != "Місто" {
+	if len(answers[0].Document.Blocks) != 1 || answers[0].Document.Blocks[0].Label != "City" {
 		t.Fatalf("answer document must match submitted version: %+v", answers[0].Document)
 	}
 }

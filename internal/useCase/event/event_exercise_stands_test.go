@@ -147,7 +147,7 @@ func (f *standUpdateFixture) requireRecreated(t *testing.T) {
 	}
 }
 
-// khctf 2026-10-26: «Оновити» 18 minutes before the start recreated 94 labs without asking. Recreating labs that
+// khctf 2026-10-26: "Update" 18 minutes before the start recreated 94 labs without asking. Recreating labs that
 // exist needs the organizer's confirmation whenever it happens.
 func TestUpdateEventExercise_RecreatingStandsBeforeEventStartNeedsConfirmation(t *testing.T) {
 	f := newStandUpdateFixture(t, false, nil)

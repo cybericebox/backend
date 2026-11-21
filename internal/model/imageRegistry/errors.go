@@ -102,7 +102,7 @@ var (
 	// "reason" says which: gzip, not_tar, no_image, multi_image, no_amd64, too_large, digest_mismatch.
 	ErrImageArchiveUnreadable = err.ErrInvalidData.WithObjectCode(model.ImageRegistryObjectCode).
 					WithMessage("The image archive cannot be imported").WithDetailCode(29)
-	// ErrImageNotExportable: a platform image of a task cannot be written into an export «з образами»: the registry
+	// ErrImageNotExportable: a platform image of a task cannot be written into an export "with images": the registry
 	// is not configured, refused, failed, or does not have the image. The public context "reason" says which
 	// (not_configured, not_found, unauthorized, rate_limited, unreachable, invalid_reference, invalid_image); the
 	// export adds "device" and "file".
@@ -113,7 +113,7 @@ var (
 	ErrDeviceImageInvalid = err.ErrInvalidData.WithObjectCode(model.ImageRegistryObjectCode).
 				WithMessage("The device image is not a valid image reference").WithDetailCode(31)
 	// ErrRegistryAccessDenied: the registry answered, but refused the platform token (401/403 on the token or the
-	// repository). Not an outage: retrying cannot help until an admin fixes the token in «Панель платформи». The
+	// repository). Not an outage: retrying cannot help until an admin fixes the token in the platform panel. The
 	// public context "token" names which token was refused ("push" or "pull"), never its value; "reason" is
 	// "unauthorized" (the same Reason the availability checks use).
 	ErrRegistryAccessDenied = err.ErrConflict.WithObjectCode(model.ImageRegistryObjectCode).

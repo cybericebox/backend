@@ -11,7 +11,7 @@ import (
 	eventAnalyticsModel "github.com/cybericebox/daemon/internal/model/eventAnalytics"
 )
 
-// UsageQueries are the statements of «Використання»; Queries embeds it.
+// UsageQueries are the statements of "Usage"; Queries embeds it.
 type UsageQueries interface {
 	ListEventUsageUsers(context.Context, postgres.ListEventUsageUsersParams) ([]postgres.ListEventUsageUsersRow, error)
 	ListEventUsageVPN(context.Context, postgres.ListEventUsageVPNParams) ([]postgres.ListEventUsageVPNRow, error)

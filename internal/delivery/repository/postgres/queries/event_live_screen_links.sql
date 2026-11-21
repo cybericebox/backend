@@ -34,7 +34,7 @@ INSERT INTO event_live_screen_links (id, event_id, screen_id, token_hash, create
 VALUES (sqlc.arg(id), sqlc.arg(event_id), sqlc.arg(screen_id), sqlc.arg(token_hash), sqlc.arg(created_at), sqlc.arg(created_by), sqlc.narg(expires_at));
 
 -- name: RevokeEventLiveScreenLinks :execrows
--- «Вимкнути»: the screen has no working link afterwards.
+-- "Disable": the screen has no working link afterwards.
 UPDATE event_live_screen_links
 SET revoked_at = sqlc.arg(revoked_at)
 WHERE event_id = sqlc.arg(event_id)

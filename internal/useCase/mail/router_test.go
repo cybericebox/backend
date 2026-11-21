@@ -89,7 +89,7 @@ func expectPlatformIdentity(repo *postgresMocks.MockQuerier, row *postgres.MailI
 }
 
 func expectEvent(repo *postgresMocks.MockQuerier, eventID uuid.UUID, own postgres.MailIdentity, eventSMTP *postgres.MailSmtpConfig) {
-	repo.EXPECT().GetEventByID(gomock.Any(), eventID).Return(postgres.Event{ID: eventID, Tag: "olymp", Name: "Кібер Олімпіада"}, nil)
+	repo.EXPECT().GetEventByID(gomock.Any(), eventID).Return(postgres.Event{ID: eventID, Tag: "olymp", Name: "Cyber Olympiad"}, nil)
 	repo.EXPECT().GetEventMailIdentity(gomock.Any(), uuid.NullUUID{UUID: eventID, Valid: true}).Return(own, nil)
 	if eventSMTP == nil {
 		repo.EXPECT().GetEventSMTPConfig(gomock.Any(), uuid.NullUUID{UUID: eventID, Valid: true}).Return(postgres.MailSmtpConfig{}, pgx.ErrNoRows)
@@ -111,7 +111,7 @@ func TestDeliver_EventMailUsesEventSMTPAndSender(t *testing.T) {
 	require.Len(t, smtp.sends, 1)
 	sent := smtp.sends[0]
 	require.Equal(t, "email-smtp.eu-north-1.amazonaws.com", sent.conn.Host)
-	require.Equal(t, email.Address{Name: "Кібер Олімпіада", Email: "olymp@mail.cybericebox.com"}, sent.msg.From)
+	require.Equal(t, email.Address{Name: "Cyber Olympiad", Email: "olymp@mail.cybericebox.com"}, sent.msg.From)
 	require.Equal(t, "org@uni.edu", sent.msg.ReplyTo.Email)
 	require.Equal(t, dispatchModel.DeliveryNote{Transport: "event", Recipient: "p@example.org"}, *note)
 }
@@ -254,12 +254,12 @@ func TestDeliver_EventOwnSenderAndReplyToApplyWithNames(t *testing.T) {
 	repo.EXPECT().ListPlatformSMTPProviders(gomock.Any()).Return([]postgres.MailSmtpConfig{platformRow}, nil)
 	expectPlatformIdentity(repo, &platformIdentityRow)
 	expectEvent(repo, eventID, postgres.MailIdentity{
-		FromName: "Оргкомітет", FromAddress: "org@mail.cybericebox.com", ReplyToName: "Штаб", ReplyToAddress: "hq@uni.edu",
+		FromName: "Organizing Committee", FromAddress: "org@mail.cybericebox.com", ReplyToName: "HQ", ReplyToAddress: "hq@uni.edu",
 	}, nil)
 
 	require.NoError(t, uc.Deliver(context.Background(), &eventID, email.Message{To: "p@example.org"}))
-	require.Equal(t, email.Address{Name: "Оргкомітет", Email: "org@mail.cybericebox.com"}, smtp.sends[0].msg.From)
-	require.Equal(t, email.Address{Name: "Штаб", Email: "hq@uni.edu"}, smtp.sends[0].msg.ReplyTo)
+	require.Equal(t, email.Address{Name: "Organizing Committee", Email: "org@mail.cybericebox.com"}, smtp.sends[0].msg.From)
+	require.Equal(t, email.Address{Name: "HQ", Email: "hq@uni.edu"}, smtp.sends[0].msg.ReplyTo)
 }
 
 func TestDeliver_PlatformSenderOverridesEnvFieldByField(t *testing.T) {
@@ -311,7 +311,7 @@ func TestGetEventMailSettings_InheritedShowsPlatformDerivedValues(t *testing.T) 
 	require.NoError(t, err)
 	require.Equal(t, Party{Address: "org@uni.edu"}, view.Identity.ReplyTo)
 	require.Empty(t, view.Identity.Sender, "own sender stays empty so it inherits")
-	require.Equal(t, Party{Name: "Кібер Олімпіада", Address: "olymp@mail.cybericebox.com"}, view.Inherited.Sender)
+	require.Equal(t, Party{Name: "Cyber Olympiad", Address: "olymp@mail.cybericebox.com"}, view.Inherited.Sender)
 	require.Equal(t, Party{Address: "support@cybericebox.com"}, view.Inherited.ReplyTo)
 	require.True(t, view.PlatformConfigured)
 }
@@ -469,7 +469,7 @@ func TestGetEventMailSettings_DefaultsComeFromTheSendingDomainWithSources(t *tes
 
 	view, err := uc.GetEventMailSettings(context.Background(), eventID)
 	require.NoError(t, err)
-	require.Equal(t, Party{Name: "Кібер Олімпіада", Address: "olymp@mail.cybericebox.com"}, view.Inherited.Sender)
+	require.Equal(t, Party{Name: "Cyber Olympiad", Address: "olymp@mail.cybericebox.com"}, view.Inherited.Sender)
 	require.Equal(t, Party{Address: "help@cybericebox.com"}, view.Inherited.ReplyTo)
 	require.Equal(t, "mail.cybericebox.com", view.SendingDomain)
 	require.Equal(t, FieldSources{
@@ -487,7 +487,7 @@ func TestGetEventMailSettings_NoSendingDomainMeansNoDefaultSenderAddress(t *test
 
 	view, err := uc.GetEventMailSettings(context.Background(), eventID)
 	require.NoError(t, err)
-	require.Equal(t, Party{Name: "Кібер Олімпіада"}, view.Inherited.Sender, "never the platform address")
+	require.Equal(t, Party{Name: "Cyber Olympiad"}, view.Inherited.Sender, "never the platform address")
 	require.Equal(t, FieldNone, view.InheritedSources.SenderAddress)
 }
 
@@ -505,10 +505,10 @@ func TestDeliver_AnEventCannotSpoofThePlatformOrAnotherDomainThroughPlatformMail
 		eventID := uuid.Must(uuid.NewV7())
 		repo.EXPECT().ListPlatformSMTPProviders(gomock.Any()).Return([]postgres.MailSmtpConfig{platformRow}, nil)
 		expectPlatformIdentity(repo, &platformIdentityRow)
-		expectEvent(repo, eventID, postgres.MailIdentity{FromName: "Оргкомітет", FromAddress: from, ReplyToAddress: "hq@uni.edu"}, nil)
+		expectEvent(repo, eventID, postgres.MailIdentity{FromName: "Organizing Committee", FromAddress: from, ReplyToAddress: "hq@uni.edu"}, nil)
 
 		require.NoError(t, uc.Deliver(context.Background(), &eventID, email.Message{To: "p@example.org"}), name)
-		require.Equal(t, email.Address{Name: "Оргкомітет", Email: "olymp@mail.cybericebox.com"}, smtp.sends[0].msg.From, name)
+		require.Equal(t, email.Address{Name: "Organizing Committee", Email: "olymp@mail.cybericebox.com"}, smtp.sends[0].msg.From, name)
 		require.Equal(t, "hq@uni.edu", smtp.sends[0].msg.ReplyTo.Email, name+": the event keeps its Reply-To")
 	}
 }
@@ -519,7 +519,7 @@ func TestDeliver_AnEventKeepsItsOwnSenderThroughItsOwnSMTPButNotOnTheFallback(t 
 	smtp.fail["smtp.uni.example"] = errors.New("event smtp down")
 	repo.EXPECT().ListPlatformSMTPProviders(gomock.Any()).Return([]postgres.MailSmtpConfig{platformRow}, nil)
 	expectPlatformIdentity(repo, &platformIdentityRow)
-	expectEvent(repo, eventID, postgres.MailIdentity{FromName: "Оргкомітет", FromAddress: "ctf@uni.edu"},
+	expectEvent(repo, eventID, postgres.MailIdentity{FromName: "Organizing Committee", FromAddress: "ctf@uni.edu"},
 		&postgres.MailSmtpConfig{ID: uuid.Must(uuid.NewV7()), Host: "smtp.uni.example", Port: 587, TlsMode: "starttls"})
 
 	require.NoError(t, uc.Deliver(context.Background(), &eventID, email.Message{To: "p@example.org"}))

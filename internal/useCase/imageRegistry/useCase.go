@@ -1,5 +1,5 @@
 // Package imageRegistryUseCase owns the platform image registry settings
-// («Панель платформи»): the provider, account and repository, and the push and
+// (the platform panel): the provider, account and repository, and the push and
 // pull tokens, stored sealed with the platform cipher and never shown back. It
 // also hands the other use cases (image upload, deploy) a ready registry
 // client. The backend starts and works without the settings.

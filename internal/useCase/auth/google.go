@@ -45,7 +45,7 @@ func googleLoginHint(value string) string {
 	return email
 }
 
-// GetGoogleSetupURL starts the Google link of «продовження реєстрації»: the consent URL hints the address of
+// GetGoogleSetupURL starts the Google link of "continue registration": the consent URL hints the address of
 // the account behind setupToken, the only Google identity the link accepts. A dead link still starts Google
 // without a hint: the callback reports it.
 func (u *AuthUseCase) GetGoogleSetupURL(

@@ -228,7 +228,7 @@ func TestPublicInfo_OnlyExposesPublishedIdentityAndTheme(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	eventID := uuid.Must(uuid.NewV7())
 	view := eventUseCase.EventInfoView{
-		EventID: eventID, Name: "Подія", Status: eventModel.LifecyclePublished,
+		EventID: eventID, Name: "Event", Status: eventModel.LifecyclePublished,
 		Theme:                  eventConfigModel.DefaultTheme(),
 		Infrastructure:         eventUseCase.EventInfrastructurePlan{HasDynamicLabs: true, RequiresVPN: true},
 		ScoreboardVisibility:   eventConfigModel.VisibilityPrivate,

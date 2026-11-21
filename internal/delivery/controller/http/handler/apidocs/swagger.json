@@ -3436,7 +3436,7 @@
                 "tags": [
                     "events-self"
                 ],
-                "summary": "Upload a file for a «Файл» question of the participant form or team fields",
+                "summary": "Upload a file for a File question of the participant form or team fields",
                 "parameters": [
                     {
                         "type": "file",
@@ -4487,7 +4487,7 @@
         },
         "/events/{id}/manage/analytics/communications": {
             "get": {
-                "description": "§6.7 «Комунікації»: emails and in-app notifications sent per type, errors, the in-app read rate, and the completion of every event form. from/to limit the window (open bounds by default).",
+                "description": "§6.7 Communications: emails and in-app notifications sent per type, errors, the in-app read rate, and the completion of every event form. from/to limit the window (open bounds by default).",
                 "produces": [
                     "application/json"
                 ],
@@ -4588,7 +4588,7 @@
         },
         "/events/{id}/manage/analytics/integrity": {
             "get": {
-                "description": "§6.6 «Доброчесність». A solve (or a task, for cross_flag) is flagged by signals computed on read: cross_flag (the team submitted another team's flag), no_access (no open, download or hint unlock before the flag), no_lab (a lab task without any VPN session), too_fast (below the level floor), first_try_hard, shared_wrong, burst, brute_force, follows_solve. Most signals first. Hidden teams are excluded. Sensitive.",
+                "description": "§6.6 Integrity. A solve (or a task, for cross_flag) is flagged by signals computed on read: cross_flag (the team submitted another team's flag), no_access (no open, download or hint unlock before the flag), no_lab (a lab task without any VPN session), too_fast (below the level floor), first_try_hard, shared_wrong, burst, brute_force, follows_solve. Most signals first. Hidden teams are excluded. Sensitive.",
                 "produces": [
                     "application/json"
                 ],
@@ -4719,7 +4719,7 @@
         },
         "/events/{id}/manage/analytics/integrity/dismissals": {
             "get": {
-                "description": "The event's own «не підсвічувати такі випадки» and those of the catalog exercises it uses. Sensitive.",
+                "description": "The event's own do not highlight such cases and those of the catalog exercises it uses. Sensitive.",
                 "produces": [
                     "application/json"
                 ],
@@ -5129,7 +5129,7 @@
         },
         "/events/{id}/manage/analytics/overview": {
             "get": {
-                "description": "§6.1 «Огляд». Without from/to the period is the event's own window (start to finish, or to now while it runs). The series has a point per 5 minutes; values are cached for a few seconds.",
+                "description": "§6.1 Overview. Without from/to the period is the event's own window (start to finish, or to now while it runs). The series has a point per 5 minutes; values are cached for a few seconds.",
                 "produces": [
                     "application/json"
                 ],
@@ -5222,7 +5222,7 @@
         },
         "/events/{id}/manage/analytics/participants": {
             "get": {
-                "description": "§6.2 «Учасники й реєстрація»: the participation funnel, registrations per day and channel, team fill, registration form answer distributions and the drop-off list. from/to limit only the registrations per day (open bounds by default); the rest is the current state.",
+                "description": "§6.2 Participants and registration: the participation funnel, registrations per day and channel, team fill, registration form answer distributions and the drop-off list. from/to limit only the registrations per day (open bounds by default); the rest is the current state.",
                 "produces": [
                     "application/json"
                 ],
@@ -5510,7 +5510,7 @@
         },
         "/events/{id}/manage/analytics/progress/matrix/export.csv": {
             "get": {
-                "description": "One row per team, one column per task: the solve time (UTC), \"спроб: N\" for tried, empty for untouched.",
+                "description": "One row per team, one column per task: the solve time (UTC), an attempts count (\"attempts: N\" in Ukrainian) for tried, empty for untouched.",
                 "produces": [
                     "text/csv"
                 ],
@@ -5686,7 +5686,7 @@
         },
         "/events/{id}/manage/analytics/stands": {
             "get": {
-                "description": "§6.5 «Стенди». Empty (Available=false) for an event without infrastructure. The period bounds the telemetry and VPN figures; deploy and failure history is the event's.",
+                "description": "§6.5 Stands. Empty (Available=false) for an event without infrastructure. The period bounds the telemetry and VPN figures; deploy and failure history is the event's.",
                 "produces": [
                     "application/json"
                 ],
@@ -5849,7 +5849,7 @@
         },
         "/events/{id}/manage/analytics/tasks": {
             "get": {
-                "description": "§6.3 «Завдання». Attempts, solves, solve rate (solvers ÷ teams that tried), median time to solve from the start and from the first open, first blood, hints and points spent, over the period (default: the event's window).",
+                "description": "§6.3 Tasks. Attempts, solves, solve rate (solvers ÷ teams that tried), median time to solve from the start and from the first open, first blood, hints and points spent, over the period (default: the event's window).",
                 "produces": [
                     "application/json"
                 ],
@@ -6062,7 +6062,7 @@
         },
         "/events/{id}/manage/analytics/usage": {
             "get": {
-                "description": "«Використання». Online is true when the last WireGuard handshake is at most 3 minutes old; it is never derived from traffic. VPN figures (sessions, online seconds, bytes) follow the period; the lab counters are cumulative over the whole event. Counts and times only, no addresses. Empty (Available=false) for an event without infrastructure. Not cached.",
+                "description": "Usage. Online is true when the last WireGuard handshake is at most 3 minutes old; it is never derived from traffic. VPN figures (sessions, online seconds, bytes) follow the period; the lab counters are cumulative over the whole event. Counts and times only, no addresses. Empty (Available=false) for an event without infrastructure. Not cached.",
                 "produces": [
                     "application/json"
                 ],
@@ -6176,7 +6176,7 @@
                 "tags": [
                     "events"
                 ],
-                "summary": "Upload a file for a team «Файл» question on behalf of a team",
+                "summary": "Upload a file for a team File question on behalf of a team",
                 "parameters": [
                     {
                         "type": "string",
@@ -7422,7 +7422,7 @@
                 "tags": [
                     "events"
                 ],
-                "summary": "Turn the first screen's link off («Вимкнути»)",
+                "summary": "Turn the first screen's link off (Turn off)",
                 "parameters": [
                     {
                         "type": "string",
@@ -7961,7 +7961,7 @@
                 "tags": [
                     "events"
                 ],
-                "summary": "Turn a screen's link off («Вимкнути»)",
+                "summary": "Turn a screen's link off (Turn off)",
                 "parameters": [
                     {
                         "type": "string",
@@ -8942,7 +8942,7 @@
                 "tags": [
                     "events"
                 ],
-                "summary": "«Налаштувати під захід»: switch to the event's own copy of the catalog exercise",
+                "summary": "Customize for the event: switch to the event's own copy of the catalog exercise",
                 "parameters": [
                     {
                         "type": "string",
@@ -9060,7 +9060,7 @@
                 "tags": [
                     "events"
                 ],
-                "summary": "«Повернути оригінал»: switch a fork attachment back to its catalog source",
+                "summary": "Restore the original: switch a fork attachment back to its catalog source",
                 "parameters": [
                     {
                         "type": "string",
@@ -9275,7 +9275,7 @@
                 "tags": [
                     "events"
                 ],
-                "summary": "«Оновити»: switch the attachment in place to the latest (or given) published version, keeping event overrides",
+                "summary": "Update: switch the attachment in place to the latest (or given) published version, keeping event overrides",
                 "parameters": [
                     {
                         "type": "string",
@@ -9334,7 +9334,7 @@
                 "tags": [
                     "events"
                 ],
-                "summary": "Dry run of «Оновити до нової версії»: what the update would do, nothing is changed",
+                "summary": "Dry run of Update to a new version: what the update would do, nothing is changed",
                 "parameters": [
                     {
                         "type": "string",
@@ -9784,7 +9784,7 @@
                 "tags": [
                     "events"
                 ],
-                "summary": "List team stands (moderator «Стенди»)",
+                "summary": "List team stands (moderator Stands)",
                 "parameters": [
                     {
                         "type": "string",
@@ -14728,7 +14728,7 @@
                 "tags": [
                     "events"
                 ],
-                "summary": "Open the results («Відкрити підсумки») or restore the freeze",
+                "summary": "Open the results (Open results) or restore the freeze",
                 "parameters": [
                     {
                         "type": "string",
@@ -19198,7 +19198,7 @@
                 "tags": [
                     "exercises"
                 ],
-                "summary": "State of a background export «з образами»",
+                "summary": "State of a background export with images",
                 "parameters": [
                     {
                         "type": "string",
@@ -32149,7 +32149,7 @@
             "type": "object",
             "properties": {
                 "Name": {
-                    "description": "Name empty = «Екран N».",
+                    "description": "Name empty = Screen N.",
                     "type": "string"
                 }
             }
@@ -32495,7 +32495,7 @@
                     "type": "integer"
                 },
                 "Scope": {
-                    "description": "W4: «версія N» is the catalog version ordinal, not the event revision.",
+                    "description": "W4: version N is the catalog version ordinal, not the event revision.",
                     "type": "string"
                 },
                 "StageID": {
@@ -35484,7 +35484,7 @@
             "type": "object",
             "properties": {
                 "CloseNow": {
-                    "description": "CloseNow ends an open stage now («Закрити зараз»).",
+                    "description": "CloseNow ends an open stage now (Close now).",
                     "type": "boolean"
                 },
                 "ClosesAt": {
@@ -35642,7 +35642,7 @@
                     "type": "boolean"
                 },
                 "People": {
-                    "description": "People: per-person rows of «Використання» (names, visits, VPN sessions).",
+                    "description": "People: per-person rows of Usage (names, visits, VPN sessions).",
                     "type": "boolean"
                 },
                 "Sections": {
@@ -41614,7 +41614,7 @@
                     }
                 },
                 "IncludeImages": {
-                    "description": "IncludeImages writes the platform images of the devices into the archive («з образами», up to 10 GiB): the export\nthen runs in the background, 202 {JobID}.",
+                    "description": "IncludeImages writes the platform images of the devices into the archive (with images, up to 10 GiB): the export\nthen runs in the background, 202 {JobID}.",
                     "type": "boolean"
                 },
                 "IncludeSecrets": {
@@ -44068,7 +44068,7 @@
                     ]
                 },
                 "Resolvable": {
-                    "description": "Resolvable is true when the recipient may close this open request by hand (the resolve endpoint accepts it).\nClients show «Вирішено» from it instead of keeping their own list of types.",
+                    "description": "Resolvable is true when the recipient may close this open request by hand (the resolve endpoint accepts it).\nClients show Resolved from it instead of keeping their own list of types.",
                     "type": "boolean"
                 },
                 "ResolvedAt": {

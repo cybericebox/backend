@@ -172,9 +172,9 @@ func TestAttachExercise_RejectsArchivedExercise(t *testing.T) {
 	}
 }
 
-// W4 (E4): «Оновити» switches the same attachment in place: the board
+// W4 (E4): "Update" switches the same attachment in place: the board
 // challenge keeps its event overrides, its snapshot is refreshed and team
-// assignments whose visible content changed are marked «Оновлено».
+// assignments whose visible content changed are marked "Updated".
 func TestUpdateEventExercise_SwitchesInPlaceKeepingOverrides(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	q := newFormGateMock(ctrl)

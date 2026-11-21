@@ -106,12 +106,12 @@ func TestYAMLToJSON_ErrorHidesLibraryText(t *testing.T) {
 const minimalYAML = `# the minimal task
 schema: cib-exercise/1.0 # version
 exercise:
-  name: Тест-завдання # shown name
+  name: Test task # shown name
 versions:
   - status: draft
     variants:
       - tasks:
-          - name: Тест
+          - name: Test
             difficulty: easy
 `
 

@@ -49,7 +49,7 @@ func TestReorderGroupChallenges_RejectsIncompleteOrder(t *testing.T) {
 	eventID := uuid.Must(uuid.NewV7())
 	first := uuid.Must(uuid.NewV7())
 
-	// No group: the «Без групи» bucket.
+	// No group: the "No group" bucket.
 	q.EXPECT().ListEventGroupChallengeIDs(gomock.Any(), postgres.ListEventGroupChallengeIDsParams{EventID: eventID}).
 		Return([]uuid.UUID{first, uuid.Must(uuid.NewV7())}, nil)
 

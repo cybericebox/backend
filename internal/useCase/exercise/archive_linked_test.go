@@ -29,7 +29,7 @@ var (
 // linkedArchive wraps one version (status, variants JSON) and extra files into a zip.
 func linkedArchive(t *testing.T, status, variants string, files map[string]string) []byte {
 	t.Helper()
-	contents := map[string][]byte{"exercise.json": []byte(`{"schema":"cib-exercise/1.0","exercise":{"name":"Пов'язані"},` +
+	contents := map[string][]byte{"exercise.json": []byte(`{"schema":"cib-exercise/1.0","exercise":{"name":"Linked"},` +
 		`"versions":[{"status":"` + status + `","variants":` + variants + `}]}`)}
 	for name, body := range files {
 		contents[name] = []byte(body)
@@ -40,12 +40,12 @@ func linkedArchive(t *testing.T, status, variants string, files map[string]strin
 }
 
 // fullBase is a complete base variant with two tasks.
-const fullBase = `{"id":"0192f0a0-0000-7000-8000-00000000b001","note":"основний","tasks":[
-	{"id":"0192f0a0-0000-7000-8000-00000000b011","name":"Перше","difficulty":"easy","check":{"answer":{"type":"flag","values":["ICE{base-1}"]}},
-	 "description":"Знайди мережу {{net}}","placeholders":[{"key":"net","kind":"gateway.subnet","gateway":"vpn"}],
-	 "hints":[{"text":"підказка","level":"steps"}],
+const fullBase = `{"id":"0192f0a0-0000-7000-8000-00000000b001","note":"base","tasks":[
+	{"id":"0192f0a0-0000-7000-8000-00000000b011","name":"First","difficulty":"easy","check":{"answer":{"type":"flag","values":["ICE{base-1}"]}},
+	 "description":"Find the network {{net}}","placeholders":[{"key":"net","kind":"gateway.subnet","gateway":"vpn"}],
+	 "hints":[{"text":"hint","level":"steps"}],
 	 "attachments":[{"file":"files/base.txt"}]},
-	{"id":"0192f0a0-0000-7000-8000-00000000b012","name":"Друге","difficulty":"hard","check":{"answer":{"type":"flag","values":["ICE{base-2}"]}}}],
+	{"id":"0192f0a0-0000-7000-8000-00000000b012","name":"Second","difficulty":"hard","check":{"answer":{"type":"flag","values":["ICE{base-2}"]}}}],
 	"topology":{"devices":[{"name":"web","type":"container","image":"nginx:1.27"},{"name":"vpn","type":"vpn_gateway"}]}}`
 
 func errorContext(t *testing.T, err error) map[string]any {
@@ -57,8 +57,8 @@ func errorContext(t *testing.T, err error) map[string]any {
 
 func TestToParsed_LinkedVariantKeepsOnlyOwnParts(t *testing.T) {
 	archive := linkedArchive(t, "draft", `[`+fullBase+`,
-		{"linked_to":1,"id":"0192f0a0-0000-7000-8000-00000000b002","index":2,"note":"згенеровано",
-		 "tasks":[{"id":"0192f0a0-0000-7000-8000-00000000b011","check":{"answer":{"values":["ICE{own-1}"]}},"attachments":[{"file":"files/own.txt","name":"мій.txt"}]},
+		{"linked_to":1,"id":"0192f0a0-0000-7000-8000-00000000b002","index":2,"note":"generated",
+		 "tasks":[{"id":"0192f0a0-0000-7000-8000-00000000b011","check":{"answer":{"values":["ICE{own-1}"]}},"attachments":[{"file":"files/own.txt","name":"mine.txt"}]},
 		          {"check":{"answer":{"values":["ICE{own-2}"]}}}]},
 		{"linked_to":1}]`, map[string]string{"files/base.txt": "base", "files/own.txt": "own"})
 	parsed, err := exercise.ParseExerciseArchive(archive, "", exercise.DefaultLimits())
@@ -69,7 +69,7 @@ func TestToParsed_LinkedVariantKeepsOnlyOwnParts(t *testing.T) {
 	linked := variants[1]
 	require.Equal(t, linkedOwnID, linked.ID)
 	require.Equal(t, int32(2), linked.Index)
-	require.Equal(t, "згенеровано", linked.Note)
+	require.Equal(t, "generated", linked.Note)
 	require.Equal(t, uuid.NullUUID{UUID: linkedBaseID, Valid: true}, linked.LinkedTo)
 	require.Equal(t, exerciseModel.Topology{}, linked.Topology)
 	require.Len(t, linked.Tasks, 2)
@@ -77,7 +77,7 @@ func TestToParsed_LinkedVariantKeepsOnlyOwnParts(t *testing.T) {
 	require.Equal(t, linkedTaskOne, first.ID)
 	require.Equal(t, []string{"ICE{own-1}"}, first.Check.AnswerValues())
 	require.Len(t, first.Attachments, 1)
-	require.Equal(t, "мій.txt", first.Attachments[0].Name)
+	require.Equal(t, "mine.txt", first.Attachments[0].Name)
 	require.Equal(t, "files/own.txt", parsed.FilePaths[first.Attachments[0].FileID])
 	first.Check, first.Attachments, first.ID = exerciseModel.Check{}, nil, uuid.Nil
 	require.Equal(t, exerciseModel.Task{}, first, "only the own parts are mapped")
@@ -219,7 +219,7 @@ func TestImportExerciseArchive_LinkedVariantInheritsBase(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	q := postgresMocks.NewMockQuerier(ctrl)
 	archive := linkedArchive(t, "draft", `[`+fullBase+`,
-		{"linked_to":1,"note":"згенеровано","tasks":[{"check":{"answer":{"values":["ICE{own}"]}},"attachments":[{"file":"files/own.txt"}]},{}]}]`,
+		{"linked_to":1,"note":"generated","tasks":[{"check":{"answer":{"values":["ICE{own}"]}},"attachments":[{"file":"files/own.txt"}]},{}]}]`,
 		map[string]string{"files/base.txt": "base", "files/own.txt": "own"})
 	media := newFakeMedia()
 	var written []exerciseModel.Variant
@@ -232,7 +232,7 @@ func TestImportExerciseArchive_LinkedVariantInheritsBase(t *testing.T) {
 	require.Len(t, written, 2)
 	base, linked := written[0], written[1]
 	require.Equal(t, uuid.NullUUID{UUID: base.ID, Valid: true}, linked.LinkedTo)
-	require.Equal(t, "згенеровано", linked.Note)
+	require.Equal(t, "generated", linked.Note)
 	require.JSONEq(t, mustJSON(t, base.Topology), mustJSON(t, linked.Topology))
 	require.Len(t, linked.Tasks, 2)
 	for i := range base.Tasks {
@@ -263,8 +263,8 @@ func TestImportExerciseArchive_LinkedVariantInheritsBase(t *testing.T) {
 }
 
 func TestImportExerciseArchive_LinkedSameFlagIsAPublishRule(t *testing.T) {
-	variants := `[{"tasks":[{"name":"Тест","difficulty":"easy","check":{"answer":{"type":"flag","values":["ICE{same}"]}},
-		"description":{"root":{"type":"text","text":"Опис"}}}]},
+	variants := `[{"tasks":[{"name":"Test","difficulty":"easy","check":{"answer":{"type":"flag","values":["ICE{same}"]}},
+		"description":{"root":{"type":"text","text":"Description"}}}]},
 		{"linked_to":1,"tasks":[{"check":{"answer":{"values":["ICE{same}"]}}}]}]`
 	// The distinct-flags rule is a publish rule: an archive marked published imports as a draft and passes.
 	t.Run("published", func(t *testing.T) {
@@ -292,7 +292,7 @@ func TestImportExerciseArchive_LinkedSameFlagIsAPublishRule(t *testing.T) {
 func linkedExportVersions() []exerciseModel.ExerciseVersion {
 	versions := exportFixtureVersions()
 	versions[0].Variants[1].LinkedTo = uuid.NullUUID{UUID: versions[0].Variants[0].ID, Valid: true}
-	versions[0].Variants[1].Note = "згенеровано"
+	versions[0].Variants[1].Note = "generated"
 	versions[1].Variants[0].LinkedTo = uuid.NullUUID{UUID: versions[0].Variants[0].ID, Valid: true}
 	return versions
 }
@@ -300,7 +300,7 @@ func linkedExportVersions() []exerciseModel.ExerciseVersion {
 func exportLinked(t *testing.T) []byte {
 	t.Helper()
 	q := postgresMocks.NewMockQuerier(gomock.NewController(t))
-	expectExport(t, q, exportExerciseID, "Експорт", linkedExportVersions())
+	expectExport(t, q, exportExerciseID, "Export", linkedExportVersions())
 	uc := newTestExerciseUseCase(exercise.Dependencies{Repo: q, Media: exportFixtureMedia()})
 	data, err := uc.ExportExerciseArchive(context.Background(), exportExerciseID, exercise.ExportOptions{}, exercise.DefaultLimits())
 	require.NoError(t, err)
@@ -316,7 +316,7 @@ func TestExportExerciseArchive_LinkedVariantCompact(t *testing.T) {
 	require.NoError(t, json.Unmarshal(exportedDocument(t, exportLinked(t)), &doc))
 	linked := doc.Versions[0].Variants[1]
 	require.Equal(t, []string{"id", "index", "note", "linked_to", "tasks"}, objectKeys(t, linked))
-	require.JSONEq(t, fmt.Sprintf(`{"id":%q,"index":2,"note":"згенеровано","linked_to":1,"tasks":[
+	require.JSONEq(t, fmt.Sprintf(`{"id":%q,"index":2,"note":"generated","linked_to":1,"tasks":[
 		{"id":%q,"check":{"answer":{"values":["ICE{one}"]}},"attachments":[{"file":"files/v1/shared/common.bin"},{"file":"files/v1/variant-2/shared/copy1.txt"}]},
 		{"id":%q,"check":{"answer":{"values":["ICE{two}"]}},"attachments":[{"file":"files/v1/variant-2/shared/copy1.txt","name":"copy2.txt"}]}]}`,
 		exportID(2), exportID(10), exportID(11)), string(linked))
@@ -367,8 +367,8 @@ func TestToParsed_LinkedTaskIDAgainstInvalidBaseID(t *testing.T) {
 func TestImportExerciseArchive_LinkedGetsBaseGeneratedIDs(t *testing.T) {
 	q := postgresMocks.NewMockQuerier(gomock.NewController(t))
 	variants := `[{"linked_to":2,"tasks":[{"check":{"answer":{"values":["ICE{own}"]}}}]},
-		{"tasks":[{"name":"Тест","difficulty":"easy","check":{"answer":{"type":"flag","values":["ICE{base}"]}},"placeholders":[{"kind":"vpn.subnet"}],
-		  "hints":[{"text":"підказка"}]}]}]`
+		{"tasks":[{"name":"Test","difficulty":"easy","check":{"answer":{"type":"flag","values":["ICE{base}"]}},"placeholders":[{"kind":"vpn.subnet"}],
+		  "hints":[{"text":"hint"}]}]}]`
 	var written []exerciseModel.Variant
 	expectImport(q, func(variants []exerciseModel.Variant) { written = variants })
 	uc := newTestExerciseUseCase(exercise.Dependencies{Repo: q, Media: newFakeMedia()})
@@ -390,7 +390,7 @@ func TestExportThenImport_VariantWeights(t *testing.T) {
 	versions[0].Variants[0].Weight = 3
 	versions[0].Variants[1].Weight = 2
 	q := postgresMocks.NewMockQuerier(gomock.NewController(t))
-	expectExport(t, q, exportExerciseID, "Експорт", versions)
+	expectExport(t, q, exportExerciseID, "Export", versions)
 	uc := newTestExerciseUseCase(exercise.Dependencies{Repo: q, Media: exportFixtureMedia()})
 	data, err := uc.ExportExerciseArchive(context.Background(), exportExerciseID, exercise.ExportOptions{}, exercise.DefaultLimits())
 	require.NoError(t, err)
@@ -481,7 +481,7 @@ func TestExportThenImport_LinkedDeviceImages(t *testing.T) {
 	versions[0].Variants[1].ImageOverrides = []exerciseModel.ImageOverride{{DeviceID: device.ID, Image: "own/image:2"}}
 	require.NoError(t, versions[0].SyncLinkedVariants())
 	q := postgresMocks.NewMockQuerier(gomock.NewController(t))
-	expectExport(t, q, exportExerciseID, "Експорт", versions)
+	expectExport(t, q, exportExerciseID, "Export", versions)
 	uc := newTestExerciseUseCase(exercise.Dependencies{Repo: q, Media: exportFixtureMedia()})
 	data, err := uc.ExportExerciseArchive(context.Background(), exportExerciseID, exercise.ExportOptions{}, exercise.DefaultLimits())
 	require.NoError(t, err)
@@ -517,7 +517,7 @@ func TestExportExerciseArchive_LinkedDeviceImageOfAmbiguousNameWrittenWhole(t *t
 	versions[0].Variants[1].ImageOverrides = []exerciseModel.ImageOverride{{DeviceID: devices[0].ID, Image: "own/image:2"}}
 	require.NoError(t, versions[0].SyncLinkedVariants())
 	q := postgresMocks.NewMockQuerier(gomock.NewController(t))
-	expectExport(t, q, exportExerciseID, "Експорт", versions)
+	expectExport(t, q, exportExerciseID, "Export", versions)
 	uc := newTestExerciseUseCase(exercise.Dependencies{Repo: q, Media: exportFixtureMedia()})
 	data, err := uc.ExportExerciseArchive(context.Background(), exportExerciseID, exercise.ExportOptions{}, exercise.DefaultLimits())
 	require.NoError(t, err)

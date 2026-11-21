@@ -22,7 +22,7 @@ type fakeQueries struct {
 
 func (q *fakeQueries) ListEventTeamsTable(_ context.Context, arg postgres.ListEventTeamsTableParams) ([]postgres.ListEventTeamsTableRow, error) {
 	q.table = arg
-	return []postgres.ListEventTeamsTableRow{{EventTeam: postgres.EventTeam{ID: arg.EventID, EventID: arg.EventID, Name: "Blue", ExtraFields: []byte(`{"city":"Київ"}`)}, Admitted: true}}, nil
+	return []postgres.ListEventTeamsTableRow{{EventTeam: postgres.EventTeam{ID: arg.EventID, EventID: arg.EventID, Name: "Blue", ExtraFields: []byte(`{"city":"Kyiv"}`)}, Admitted: true}}, nil
 }
 func (q *fakeQueries) CountEventTeamsTable(context.Context, postgres.CountEventTeamsTableParams) (int64, error) {
 	return 1, nil
@@ -151,7 +151,7 @@ func TestListTableMapsSortAndOffset(t *testing.T) {
 	if !reflect.DeepEqual(fake.table, want) {
 		t.Fatalf("params = %+v, want %+v", fake.table, want)
 	}
-	if len(rows) != 1 || rows[0].Team.Name != "Blue" || rows[0].ExtraFields["city"] != "Київ" || !rows[0].Admitted {
+	if len(rows) != 1 || rows[0].Team.Name != "Blue" || rows[0].ExtraFields["city"] != "Kyiv" || !rows[0].Admitted {
 		t.Fatalf("rows = %+v", rows)
 	}
 }

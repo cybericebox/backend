@@ -434,7 +434,7 @@ func (r *Repository) Copies(ctx context.Context, eventExerciseID uuid.UUID) ([]C
 }
 
 // UpdateContent writes a refreshed assignment; changed stamps
-// content_updated_at (the board's «Оновлено»).
+// content_updated_at (the board's "Updated").
 func (r *Repository) UpdateContent(ctx context.Context, row RefreshRow, changed bool, now time.Time) (int64, error) {
 	hints, err := MarshalHints(row.Hints)
 	if err != nil {

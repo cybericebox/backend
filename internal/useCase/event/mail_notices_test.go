@@ -30,7 +30,7 @@ func TestRunEventMailNotices_PublishesOnceAndRecordsState(t *testing.T) {
 	teamInvitee := uuid.Must(uuid.NewV7())
 
 	q.EXPECT().ListEventsDueStartReminder(gomock.Any(), gomock.Any()).Return([]postgres.ListEventsDueStartReminderRow{
-		{ID: reminderEvent, Tag: "olymp", Name: "Олімпіада", StartAt: startAt, DaysBeforeStart: 7},
+		{ID: reminderEvent, Tag: "olymp", Name: "Olympiad", StartAt: startAt, DaysBeforeStart: 7},
 	}, nil)
 	q.EXPECT().MarkEventStartReminderSent(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, p postgres.MarkEventStartReminderSentParams) error {
 		require.Equal(t, reminderEvent, p.EventID)

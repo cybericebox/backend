@@ -9,7 +9,7 @@ import (
 	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
 )
 
-// ReportQueries are the statements of «Звіт по заходу» (§6.8); Queries
+// ReportQueries are the statements of "Event report" (§6.8); Queries
 // embeds it.
 type ReportQueries interface {
 	ListEventReportRanking(context.Context, uuid.UUID) ([]postgres.ListEventReportRankingRow, error)

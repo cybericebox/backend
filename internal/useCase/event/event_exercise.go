@@ -334,7 +334,7 @@ func (u *EventUseCase) ReplaceEventExercise(ctx context.Context, eventID, eventE
 	return u.UpdateEventExercise(ctx, eventID, eventExerciseID, &versionID, by, in.RecreateStands)
 }
 
-// UpdateEventExercise («Оновити») switches the attachment in place to the
+// UpdateEventExercise (the "Update" action) switches the attachment in place to the
 // exercise's latest published version (or the given one of the same
 // exercise), keeping every event override (E4).
 //
@@ -373,7 +373,7 @@ func (u *EventUseCase) UpdateEventExercise(ctx context.Context, eventID, eventEx
 	return u.switchInTransaction(ctx, link, entry, version, nil, standPolicy{by: by, confirmed: recreateStands})
 }
 
-// ForkEventExercise («Налаштувати під захід») switches the attachment to the
+// ForkEventExercise (the "Customize for event" action) switches the attachment to the
 // event's own copy of its catalog exercise: an existing fork is reused, else
 // one is created with the pinned content as its first published version.
 func (u *EventUseCase) ForkEventExercise(ctx context.Context, eventID, eventExerciseID, by uuid.UUID, recreateStands bool) (EventExerciseView, error) {
@@ -466,7 +466,7 @@ func forkName(name string) string {
 	return strings.TrimSpace(string(runes)) + suffix
 }
 
-// RevertEventExercise («Повернути оригінал») switches a fork attachment back
+// RevertEventExercise (the "Restore original" action) switches a fork attachment back
 // to the catalog version it was forked from (the fork itself stays).
 func (u *EventUseCase) RevertEventExercise(ctx context.Context, eventID, eventExerciseID, by uuid.UUID, recreateStands bool) (EventExerciseView, error) {
 	link, err := u.activeAttachment(ctx, eventID, eventExerciseID)
@@ -571,7 +571,7 @@ func (u *EventUseCase) switchInTransaction(ctx context.Context, link eventExerci
 // challenges are matched by task ID so every event override stays; new tasks
 // get unpublished challenges; removed tasks are deleted unless attempted
 // (then the switch is refused). Team assignments are refreshed for their
-// pinned variant and marked «Оновлено» when their visible content changed.
+// pinned variant and marked "Updated" when their visible content changed.
 func (u *EventUseCase) switchSource(ctx context.Context, repo IRepository, eventID, eventExerciseID uuid.UUID, version exerciseModel.ExerciseVersion, terminalLabs map[uuid.UUID]bool, now time.Time) (eventExerciseModel.EventExercise, error) {
 	attachments := eventExerciseRepo.New(repo)
 	link, err := attachments.GetByID(ctx, eventID, eventExerciseID)

@@ -64,7 +64,7 @@ func TestListParticipantsTable_AnswerKeysLoadAnswersAndTeamSortsByName(t *testin
 
 	_, err := uc.ListParticipantsTable(context.Background(), event.ParticipantsTableQuery{
 		EventID: uuid.Must(uuid.NewV7()), Kind: participantRepo.KindAll, Sort: event.TableSort{Key: "@team"},
-		Filters: []event.AnswerFilter{{Key: "city", Op: event.AnswerFilterContains, Value: "Київ"}},
+		Filters: []event.AnswerFilter{{Key: "city", Op: event.AnswerFilterContains, Value: "Kyiv"}},
 	})
 	if err != nil {
 		t.Fatalf("ListParticipantsTable: %v", err)

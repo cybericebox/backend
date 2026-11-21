@@ -33,7 +33,7 @@ type archiveManifest struct {
 type ExportOptions struct {
 	IncludeSecrets bool
 	Password       string
-	// IncludeImages writes the platform images of the devices into the archive («з образами»). Up to 10 GiB, so only
+	// IncludeImages writes the platform images of the devices into the archive ("with images"). Up to 10 GiB, so only
 	// the background export (StartArchiveExport) takes it; ExportExerciseArchive refuses it.
 	IncludeImages bool
 }

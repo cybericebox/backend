@@ -9,7 +9,7 @@ import (
 	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
 )
 
-// SupportedProfiles are the node profiles the platform supports (the setting «Профілі вузлів»); the container only
+// SupportedProfiles are the node profiles the platform supports (the setting "Node profiles"); the container only
 // while none is saved or when the setting cannot be read.
 func (u *ExerciseUseCase) SupportedProfiles(ctx context.Context) exerciseModel.SupportedProfiles {
 	if u.settings == nil {

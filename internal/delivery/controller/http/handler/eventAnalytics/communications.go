@@ -51,7 +51,7 @@ type (
 
 // communications godoc
 // @Summary Communications analytics
-// @Description §6.7 «Комунікації»: emails and in-app notifications sent per type, errors, the in-app read rate, and the completion of every event form. from/to limit the window (open bounds by default).
+// @Description §6.7 Communications: emails and in-app notifications sent per type, errors, the in-app read rate, and the completion of every event form. from/to limit the window (open bounds by default).
 // @Tags event-analytics
 // @Produce json
 // @Param id path string true "event ID"

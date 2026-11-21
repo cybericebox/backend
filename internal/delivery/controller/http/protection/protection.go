@@ -337,7 +337,7 @@ func (p *Protection) clearSessionCookie(ctx *gin.Context) {
 }
 
 // SignedInHintCookie tells the landing page (a static site that cannot read the session) that a session exists, so
-// it can show «Мій профіль» instead of «Увійти». It carries no personal data and grants nothing: the value is
+// it can show "My profile" instead of "Sign in". It carries no personal data and grants nothing: the value is
 // always "1", it lives on the platform's parent domain like the theme and consent cookies, is readable by
 // scripts (not HttpOnly), and lasts as long as the session cookie. The backend sets it with every sign-in and
 // removes it with the session cookie.

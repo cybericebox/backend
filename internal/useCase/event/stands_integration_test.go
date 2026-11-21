@@ -487,7 +487,7 @@ func TestStandEngine_StaticOnlyEventNeedsNoLaboratory(t *testing.T) {
 	if err != nil || len(solvers.Items) != 1 || !solvers.Items[0].Own || solvers.Items[0].FirstBlood {
 		t.Fatalf("moderators solvers = %+v, %v", solvers, err)
 	}
-	// «Моя участь» of the organizers' preview reads the real recorded activity.
+	// "My participation" of the organizers' preview reads the real recorded activity.
 	stats, err := uc.GetModeratorsParticipationStats(ctx, f.eventID, f.ownerID)
 	if err != nil || stats.Team.TeamID != moderators.ID || stats.Team.TeamName != "" || stats.Rank != 0 || len(stats.Team.Solves) != 1 || stats.Solved != 1 ||
 		stats.Team.Attempts != 2 || stats.Team.CorrectAttempts != 1 || stats.Me.UserID != f.ownerID || stats.Me.Attempts != 2 || stats.Me.Solves != 1 || stats.Me.Points != 100 || len(stats.Team.Members) == 0 {

@@ -8,7 +8,7 @@ const (
 	TypeParticipantEventStartReminder Type = "participant.event.start_reminder"
 	TypeParticipantEventFinished      Type = "participant.event.finished"
 	// TypeParticipantEventResultsPublished: a moderator opened the results
-	// («Відкрити підсумки»).
+	// (the "Open results" action).
 	TypeParticipantEventResultsPublished Type = "participant.event.results_published"
 )
 

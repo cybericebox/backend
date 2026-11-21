@@ -26,7 +26,7 @@ import (
 	calendarUseCase "github.com/cybericebox/daemon/internal/useCase/resourceCalendar"
 )
 
-// StandsView is the moderator «Стенди» read model.
+// StandsView is the moderator "Stands" read model.
 type StandsView struct {
 	ModeratorVPNReady     bool
 	InfrastructureAllowed bool

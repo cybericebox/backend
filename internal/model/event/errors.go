@@ -76,7 +76,7 @@ var (
 	ErrEventInfrastructureInUse = err.ErrConflict.WithObjectCode(model.EventObjectCode).
 					WithMessage("Detach the exercises that need infrastructure before turning it off").WithDetailCode(41)
 
-	// Files attached to «Файл» questions of participant and team answers.
+	// Files attached to "File" questions of participant and team answers.
 	ErrAnswerFileFieldInvalid = err.ErrInvalidData.WithObjectCode(model.EventObjectCode).
 					WithMessage("The question does not take a file").WithDetailCode(28)
 	ErrAnswerFileTypeInvalid = err.ErrInvalidData.WithObjectCode(model.EventObjectCode).

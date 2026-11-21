@@ -292,7 +292,7 @@ func TestListAuthors_ViewerSeesOnlyReadable(t *testing.T) {
 	}
 }
 
-// TestCatalogSubtaskNames: both the catalog table and the event's «Додати з каталогу» list carry the subtask names of
+// TestCatalogSubtaskNames: both the catalog table and the event's "Add from catalog" list carry the subtask names of
 // the first variant in order. The event list reads the PUBLISHED version only: a newer working copy never shows.
 func TestCatalogSubtaskNames(t *testing.T) {
 	db := testhelpers.SetupTestDB(t)

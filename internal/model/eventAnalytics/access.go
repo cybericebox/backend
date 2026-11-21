@@ -21,7 +21,7 @@ type Access struct {
 	// moderator (observer) and an admin viewer read it on the screen.
 	Export bool
 	// People: per-person rows (names, last visits, VPN sessions) of
-	// «Використання». A read-only moderator gets the aggregates only.
+	// "Usage". A read-only moderator gets the aggregates only.
 	People bool
 }
 

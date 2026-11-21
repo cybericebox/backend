@@ -94,9 +94,9 @@ func TestResultsFreezeBannerValidationAndNormalization(t *testing.T) {
 		name, text, level string
 		valid             bool
 	}{
-		{"default", "", "", true}, {"info", "  Підсумки згодом.  ", "info", true},
-		{"warning", strings.Repeat("я", 280), "warning", true}, {"critical", "Зачекайте на підсумки.", "critical", true},
-		{"too long", strings.Repeat("я", 281), "warning", false}, {"unknown level", "Підсумки", "danger", false},
+		{"default", "", "", true}, {"info", "  Results soon.  ", "info", true},
+		{"warning", strings.Repeat("я", 280), "warning", true}, {"critical", "Wait for the results.", "critical", true},
+		{"too long", strings.Repeat("я", 281), "warning", false}, {"unknown level", "Results", "danger", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := eventConfigModel.NewEventConfig(uuid.Must(uuid.NewV7()), cfgNow)

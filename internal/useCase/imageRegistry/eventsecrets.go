@@ -17,7 +17,7 @@ import (
 func EventSecretContext(id uuid.UUID) string { return string(secretctx.EventRegistry(id)) }
 
 type (
-	// EventSecretView is an organizer registry secret as «Панель заходу» sees
+	// EventSecretView is an organizer registry secret as the event panel sees
 	// it. It never carries a token.
 	EventSecretView struct {
 		ID               string

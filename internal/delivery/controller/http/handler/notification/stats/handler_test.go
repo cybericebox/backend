@@ -128,7 +128,7 @@ func TestDetailResponseFillsInAppRecipientAndClassifiesErrors(t *testing.T) {
 		Targets: []dispatchModel.DispatchTarget{
 			{Channel: "in_app", Status: "done"},
 			{Channel: "email", Status: "error", Recipient: "ANN@example.org", Error: "535 5.7.8 bad credentials", FallbackError: "dial tcp 1.2.3.4:587: i/o timeout"},
-			{Channel: "email", Status: "error", Recipient: "other@example.org", Error: "Відкладено: вичерпано добовий ліміт"},
+			{Channel: "email", Status: "error", Recipient: "other@example.org", Error: "Deferred: daily limit exhausted"},
 		},
 	}
 	out := toDetailResponse(d)

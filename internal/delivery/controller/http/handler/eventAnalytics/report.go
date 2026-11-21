@@ -19,7 +19,7 @@ import (
 	eventAnalyticsUseCase "github.com/cybericebox/daemon/internal/useCase/eventAnalytics"
 )
 
-// ReportUseCase is the «Звіт по заході» part of IUseCase.
+// ReportUseCase is the Event report part of IUseCase.
 type ReportUseCase interface {
 	GetEventAnalyticsReport(ctx context.Context, eventID uuid.UUID) (eventAnalyticsUseCase.ReportView, error)
 }

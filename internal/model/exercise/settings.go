@@ -157,7 +157,7 @@ func (l TestRunLeases) WithValues(v platformSettingsModel.Values) (TestRunLeases
 	return l, nil
 }
 
-// SupportedProfiles are the node profiles the platform promises (the setting «Профілі вузлів»). The catalog accepts
+// SupportedProfiles are the node profiles the platform promises (the "Node profiles" setting). The catalog accepts
 // a node only with a ticked profile; whether an agent can run one right now is a separate, live question.
 type SupportedProfiles struct {
 	Container bool

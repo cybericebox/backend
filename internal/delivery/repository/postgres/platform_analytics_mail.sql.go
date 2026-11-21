@@ -203,7 +203,7 @@ type ListPlatformMailSummaryRow struct {
 	Fallbacks int64     `json:"fallbacks"`
 }
 
-// Platform analytics, «Сповіщення» (docs/EVENT-ANALYTICS.md §8): delivery health
+// Platform analytics, "Notifications" (docs/EVENT-ANALYTICS.md §8): delivery health
 // of the notification channels. One row of notification_dispatch_targets is one
 // delivery: status 'done' is sent, 'error' is failed, 'deferred' is held back by
 // the SMTP send limit. The channel filter (” = all, 'email', 'in_app') narrows

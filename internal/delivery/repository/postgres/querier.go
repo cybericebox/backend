@@ -614,7 +614,7 @@ type Querier interface {
 	// team is a member like any other here.
 	GetEventParticipantDetail(ctx context.Context, arg GetEventParticipantDetailParams) (GetEventParticipantDetailRow, error)
 	GetEventParticipantFieldsMissing(ctx context.Context, arg GetEventParticipantFieldsMissingParams) (int32, error)
-	// Event analytics, «Учасники» and «Комунікації» sections
+	// Event analytics, "Participants" and "Communications" sections
 	// (docs/EVENT-ANALYTICS.md §6.2, §6.7). The moderators team is never counted.
 	// The participation funnel: invited → registered → approved → in a team →
 	// first attempt → first solve. Registered excludes invitations not accepted
@@ -787,7 +787,7 @@ type Querier interface {
 	// Team stands right now (ready / creating / failed) and the failures logged
 	// in each window (source stand, to_status failed = 3).
 	GetPlatformOverviewStands(ctx context.Context, arg GetPlatformOverviewStandsParams) (GetPlatformOverviewStandsRow, error)
-	// Platform analytics, «Огляд» (docs/EVENT-ANALYTICS.md §8). Aggregates across
+	// Platform analytics, "Overview" (docs/EVENT-ANALYTICS.md §8). Aggregates across
 	// the whole platform. Every window is a half-open [from, to) of UTC days; the
 	// previous window is passed as prev_from/prev_to (an empty window for "all
 	// time"). The moderators team is never counted.
@@ -990,7 +990,7 @@ type Querier interface {
 	ListErrorTelegramChats(ctx context.Context) ([]ErrorJournalTelegramChat, error)
 	// The event-wide 5-minute series in [from_at, to_at).
 	ListEventActivitySeries(ctx context.Context, arg ListEventActivitySeriesParams) ([]ListEventActivitySeriesRow, error)
-	// Event analytics «Завдання» and «Прогрес» (docs/EVENT-ANALYTICS.md §6.3, §6.4).
+	// Event analytics "Tasks" and "Progress" (docs/EVENT-ANALYTICS.md §6.3, §6.4).
 	// The moderators team is never counted. Period bounds are [from_at, to_at).
 	// The published challenges of the event in board order, with the declared
 	// difficulty from the snapshot. A NULL challenge_id lists them all.
@@ -1107,7 +1107,7 @@ type Querier interface {
 	ListEventIDsByTag(ctx context.Context, tag string) ([]uuid.UUID, error)
 	// In-app notifications of the event per type: how many, how many read.
 	ListEventInAppStats(ctx context.Context, arg ListEventInAppStatsParams) ([]ListEventInAppStatsRow, error)
-	// Event analytics, «Доброчесність» (docs/EVENT-ANALYTICS.md §6.6, docs/ANTI-CHEAT.md).
+	// Event analytics, "Integrity" (docs/EVENT-ANALYTICS.md §6.6, docs/ANTI-CHEAT.md).
 	// The raw facts the per-solve signals in eventAnalyticsModel read. No IP or
 	// user agent is kept anywhere (§9.3). Hidden teams and the moderators team are
 	// never counted (event_team_visible). Answers are cut to 200 characters.
@@ -1162,7 +1162,7 @@ type Querier interface {
 	// ones the archive does not hold yet, or all while they are kept), up to
 	// limit_rows, as JSON lines in the archive format.
 	ListEventLabObservationsAfter(ctx context.Context, arg ListEventLabObservationsAfterParams) ([]ListEventLabObservationsAfterRow, error)
-	// The event's screens in the editor order; the first one is «Екран 1» of the
+	// The event's screens in the editor order; the first one is "Screen 1" of the
 	// old single-screen routes.
 	ListEventLiveScreens(ctx context.Context, eventID uuid.UUID) ([]EventLiveScreen, error)
 	// Every management membership of the Event (owner, moderator, viewer).
@@ -1208,7 +1208,7 @@ type Querier interface {
 	ListEventRegistrySecrets(ctx context.Context, eventID uuid.UUID) ([]EventRegistrySecret, error)
 	// The secrets the periodic check covers: those of events that are not finished and not archived.
 	ListEventRegistrySecretsToCheck(ctx context.Context, now time.Time) ([]ListEventRegistrySecretsToCheckRow, error)
-	// Event analytics, «Звіт по заходу» (docs/EVENT-ANALYTICS.md §6.8): the
+	// Event analytics, "Event report" (docs/EVENT-ANALYTICS.md §6.8): the
 	// ranking, the per-task table and the funnel tail. The key numbers and the
 	// activity series come from the overview statements.
 	// The final table of the ranked teams (admitted, not hidden), live scores.
@@ -1239,7 +1239,7 @@ type Querier interface {
 	// per device. Devices without a usage reading count only toward devices and
 	// restarts.
 	ListEventStandResources(ctx context.Context, arg ListEventStandResourcesParams) ([]ListEventStandResourcesRow, error)
-	// Event analytics, «Стенди» (docs/EVENT-ANALYTICS.md §6.5). The moderators
+	// Event analytics, "Stands" (docs/EVENT-ANALYTICS.md §6.5). The moderators
 	// team is never counted.
 	// Every team of the event with the current status of its stand (0: no stand
 	// yet).
@@ -1288,7 +1288,7 @@ type Querier interface {
 	// collector's cumulative counters. They carry no time series, so they cover
 	// the whole event, not the period.
 	ListEventUsageTouches(ctx context.Context, eventID uuid.UUID) ([]ListEventUsageTouchesRow, error)
-	// Event analytics, «Використання»: per participant VPN connection state and
+	// Event analytics, "Usage": per participant VPN connection state and
 	// lab access over the VPN and the web proxy. Counts and times only, never an
 	// address. The moderators team is never counted.
 	// Every participant of a team (outside the moderators team) with the name an
@@ -1503,7 +1503,7 @@ type Querier interface {
 	// Active platform administrators (super admins and admins; read-only admin
 	// viewers cannot act on requests).
 	ListPlatformAdminUserIDs(ctx context.Context) ([]uuid.UUID, error)
-	// Platform analytics «Заходи» (docs/EVENT-ANALYTICS.md §8). Aggregates only,
+	// Platform analytics "Events" (docs/EVENT-ANALYTICS.md §8). Aggregates only,
 	// across events; the moderators team is never counted. Period bounds are
 	// [from_at, to_at), aligned to UTC days. Lifecycle status codes match
 	// eventModel.LifecycleStatus: 0 not published, 1 published, 2 started,
@@ -1530,7 +1530,7 @@ type Querier interface {
 	// effective finish is the earlier of the scheduled and the manual finish
 	// (the epoch when there is none).
 	ListPlatformAnalyticsEventsPage(ctx context.Context, arg ListPlatformAnalyticsEventsPageParams) ([]ListPlatformAnalyticsEventsPageRow, error)
-	// Platform analytics «Каталог завдань» (docs/EVENT-ANALYTICS.md §8). Usage and
+	// Platform analytics "Task catalog" (docs/EVENT-ANALYTICS.md §8). Usage and
 	// calibration of catalog tasks across the events that start in the period
 	// [from_at, to_at). The catalog is the exercises table (scope 0); a task is
 	// one (exercise, task) pair, an event challenge is its use in one event. The
@@ -1569,7 +1569,7 @@ type Querier interface {
 	// status transitions to failed (source 'lab'), stands counts stand transitions
 	// to failed (source 'stand').
 	ListPlatformInfraFailures(ctx context.Context, arg ListPlatformInfraFailuresParams) ([]ListPlatformInfraFailuresRow, error)
-	// Platform analytics, «Інфраструктура»: the active time split by lab kind. The
+	// Platform analytics, "Infrastructure": the active time split by lab kind. The
 	// kinds are the event teams' stands, the moderators team stand and the catalog
 	// test labs (exercise test deploys). A test lab is active from the creation of
 	// its deploy to its removal (exercise_test_deploy_runs, written by triggers);
@@ -1589,7 +1589,7 @@ type Querier interface {
 	// ListPlatformInfraPeaks, over the chosen kinds: with_stands = team stands
 	// (event and moderators), with_tests = catalog test labs. Both = every lab.
 	ListPlatformInfraPeaksByKind(ctx context.Context, arg ListPlatformInfraPeaksByKindParams) ([]ListPlatformInfraPeaksByKindRow, error)
-	// Platform analytics, «Інфраструктура» (docs/EVENT-ANALYTICS.md §8). Aggregates
+	// Platform analytics, "Infrastructure" (docs/EVENT-ANALYTICS.md §8). Aggregates
 	// only: no IP addresses, no VPN client addresses, no lab payloads.
 	//
 	// A stand is ACTIVE while its status is creating (1) or ready (2), the same
@@ -1621,7 +1621,7 @@ type Querier interface {
 	// every type seen in the period on the chosen channel (test sends only with
 	// include_tests), whatever the transport and type filters are.
 	ListPlatformMailOptions(ctx context.Context, arg ListPlatformMailOptionsParams) ([]ListPlatformMailOptionsRow, error)
-	// Platform analytics, «Сповіщення» (docs/EVENT-ANALYTICS.md §8): delivery health
+	// Platform analytics, "Notifications" (docs/EVENT-ANALYTICS.md §8): delivery health
 	// of the notification channels. One row of notification_dispatch_targets is one
 	// delivery: status 'done' is sent, 'error' is failed, 'deferred' is held back by
 	// the SMTP send limit. The channel filter ('' = all, 'email', 'in_app') narrows
@@ -1657,7 +1657,7 @@ type Querier interface {
 	// when the lab is stopped or its expired lease is cleaned up.
 	// A static test (no group, no lab name, no event) is not a laboratory and never appears here.
 	ListPlatformTestLabs(ctx context.Context, arg ListPlatformTestLabsParams) ([]ListPlatformTestLabsRow, error)
-	// Platform analytics, «Користувачі» (docs/EVENT-ANALYTICS.md §8). Extends
+	// Platform analytics, "Users" (docs/EVENT-ANALYTICS.md §8). Extends
 	// the admin user stats (CountUsersByRoleAll, CountUsersByStatus, the new /
 	// active counts of platform_analytics_overview.sql) with period-bound
 	// aggregates. Windows are half-open [from, to) of UTC days. Only
@@ -1944,7 +1944,7 @@ type Querier interface {
 	// this removes everything else that belongs to the person and anonymizes
 	// their public alias. The tombstone row stays: challenge attempts, teams and
 	// scoreboards keep referencing it, and it is presented as the generic
-	// "Учасник" (event_participant_public_name) once the pseudonym is gone.
+	// the default public participant name (event_participant_public_name) once the pseudonym is gone.
 	PurgeDeletedAccountsPersonalData(ctx context.Context, arg PurgeDeletedAccountsPersonalDataParams) (int64, error)
 	PurgeErrorGroups(ctx context.Context, lastSeenAt time.Time) (int64, error)
 	PurgeErrorNotFound(ctx context.Context, before pgtype.Date) (int64, error)
@@ -2128,7 +2128,7 @@ type Querier interface {
 	RetryFailedLabBinding(ctx context.Context, arg RetryFailedLabBindingParams) (int64, error)
 	RetrySignalHookExecution(ctx context.Context, arg RetrySignalHookExecutionParams) (int64, error)
 	RetrySignalOutbox(ctx context.Context, arg RetrySignalOutboxParams) (int64, error)
-	// «Вимкнути»: the screen has no working link afterwards.
+	// "Disable": the screen has no working link afterwards.
 	RevokeEventLiveScreenLinks(ctx context.Context, arg RevokeEventLiveScreenLinksParams) (int64, error)
 	// Ending a session deletes its row and writes the revocation row in ONE statement (a session never ends
 	// without its revocation). expires_at is when the cookie would die by itself: the smaller of sign-in + absolute TTL
@@ -2381,7 +2381,7 @@ type Querier interface {
 	UpdateResourceAlarm(ctx context.Context, arg UpdateResourceAlarmParams) (int64, error)
 	UpdateResourceReservation(ctx context.Context, arg UpdateResourceReservationParams) (int64, error)
 	UpdateSiteBanner(ctx context.Context, arg UpdateSiteBannerParams) (SiteBanner, error)
-	// content_changed marks a participant-visible change («Оновлено»).
+	// content_changed marks a participant-visible change ("Updated").
 	UpdateTeamChallengeContent(ctx context.Context, arg UpdateTeamChallengeContentParams) (int64, error)
 	UpdateTeamChallengeReadiness(ctx context.Context, arg UpdateTeamChallengeReadinessParams) (int64, error)
 	// Whole-aggregate write for the User entity: the repository maps the full

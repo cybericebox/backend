@@ -227,7 +227,7 @@ WHERE r.ref_type = 'event_answer_file'
 -- this removes everything else that belongs to the person and anonymizes
 -- their public alias. The tombstone row stays: challenge attempts, teams and
 -- scoreboards keep referencing it, and it is presented as the generic
--- "Учасник" (event_participant_public_name) once the pseudonym is gone.
+-- the default public participant name (event_participant_public_name) once the pseudonym is gone.
 WITH batch AS (
     SELECT u.id
     FROM users u

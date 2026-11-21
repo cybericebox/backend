@@ -1044,7 +1044,7 @@ func buildV2Document(e exerciseModel.Exercise, versions []exerciseModel.Exercise
 	return buildV2DocumentWithImages(e, versions, paths, nil)
 }
 
-// buildV2DocumentWithImages is buildV2Document for an export «з образами»: a device whose platform image has a path in
+// buildV2DocumentWithImages is buildV2Document for an export "with images": a device whose platform image has a path in
 // imagePaths (by the image's digest) names that file, `image: {file: …}`.
 func buildV2DocumentWithImages(e exerciseModel.Exercise, versions []exerciseModel.ExerciseVersion, paths map[uuid.UUID]string, imagePaths map[string]string) ([]byte, error) {
 	doc := archiveDocV2{Schema: archiveSchema, Exercise: archiveExerciseV2{ID: e.ID.String(), Name: e.Name, Description: e.Description, Tags: e.Tags}}

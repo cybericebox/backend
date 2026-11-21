@@ -156,7 +156,7 @@ func jsonFieldEqual(a, b json.RawMessage) bool {
 }
 
 // SyncTeamCopies brings the team copies of the set that differ from the task up to date: text, attachments and
-// hints are refreshed from the pinned version and the board shows «Оновлено». The variant and the flag of a copy
+// hints are refreshed from the pinned version and the board shows "Updated". The variant and the flag of a copy
 // stay, and a solved copy keeps its pinned content. It returns what was updated.
 func (u *EventUseCase) SyncTeamCopies(
 	ctx context.Context,

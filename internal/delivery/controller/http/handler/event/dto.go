@@ -607,7 +607,7 @@ type eventExerciseResponse struct {
 	CreatedAt         time.Time  `json:"CreatedAt"`
 	// StageID is the stage the set belongs to; null lives for the whole event.
 	StageID *uuid.UUID `json:"StageID"`
-	// W4: «версія N» is the catalog version ordinal, not the event revision.
+	// W4: version N is the catalog version ordinal, not the event revision.
 	Scope               string                     `json:"Scope"`
 	VersionNumber       int32                      `json:"VersionNumber"`
 	LatestVersionID     *uuid.UUID                 `json:"LatestVersionID"`

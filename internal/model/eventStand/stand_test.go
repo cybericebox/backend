@@ -83,7 +83,7 @@ func TestReasonIsTrimmedAndBounded(t *testing.T) {
 	if got := Reason("  a \n b  "); got != "a b" {
 		t.Fatalf("Reason = %q", got)
 	}
-	if got := []rune(Reason(strings.Repeat("я", 400))); len(got) != reasonMaxLen {
+	if got := []rune(Reason(strings.Repeat("é", 400))); len(got) != reasonMaxLen {
 		t.Fatalf("Reason length = %d", len(got))
 	}
 }

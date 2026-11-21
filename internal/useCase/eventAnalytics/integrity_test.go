@@ -210,7 +210,7 @@ func TestDismissIntegrityPattern(t *testing.T) {
 	th := eventAnalyticsModel.DefaultIntegrityThresholds()
 	by := uuid.UUID{15: 77}
 
-	// «Не підсвічувати такі випадки» for too_fast on the task: that solve is gone.
+	// "Stop highlighting such cases" for too_fast on the task: that solve is gone.
 	require.NoError(t, f.uc.DismissIntegrityPattern(ctx, f.eventID, f.tooFast, by, eventAnalyticsModel.DismissEvent, eventAnalyticsModel.IntegrityTooFast, "ignored", " fine "))
 	v, err := f.uc.GetEventAnalyticsIntegrity(ctx, f.eventID, nil, nil, th, eventAnalytics.IntegrityFilter{})
 	require.NoError(t, err)

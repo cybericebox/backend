@@ -15,7 +15,7 @@ type (
 		To   time.Time
 	}
 
-	// OverviewView is the «Огляд» dashboard (§6.1).
+	// OverviewView is the "Overview" dashboard (§6.1).
 	OverviewView struct {
 		Participants ParticipantCountsView
 		Teams        TeamCountsView

@@ -146,7 +146,7 @@ WHERE event_id = $1
 ORDER BY position, id
 `
 
-// The event's screens in the editor order; the first one is «Екран 1» of the
+// The event's screens in the editor order; the first one is "Screen 1" of the
 // old single-screen routes.
 func (q *Queries) ListEventLiveScreens(ctx context.Context, eventID uuid.UUID) ([]EventLiveScreen, error) {
 	rows, err := q.db.Query(ctx, listEventLiveScreens, eventID)

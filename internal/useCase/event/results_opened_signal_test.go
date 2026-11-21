@@ -86,7 +86,7 @@ func TestSetResultsOpened_AnnouncesOnlyTheFirstOpening(t *testing.T) {
 }
 
 // TestGetManageResults_ParticipantsSee: the moderators' table says whether the
-// participants read the board now, so «Панель заходу» shows the participants'
+// participants read the board now, so the event panel shows the participants'
 // view banner only then.
 func TestGetManageResults_ParticipantsSee(t *testing.T) {
 	now := time.Now().UTC()

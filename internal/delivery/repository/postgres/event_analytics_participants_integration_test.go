@@ -16,7 +16,7 @@ func apExec(t *testing.T, db *testhelpers.TestDB, sql string, args ...any) {
 	rtExec(t, db, sql, args...)
 }
 
-// «Учасники»: the funnel, registration channels, team fill, the registration
+// "Participants": the funnel, registration channels, team fill, the registration
 // answers and the drop-off list, all without the moderators team.
 func TestEventAnalytics_Participants(t *testing.T) {
 	db := testhelpers.SetupTestDB(t)
@@ -111,7 +111,7 @@ VALUES ($1, $3, 1, true, false, '{"blocks":[{"id":"c","type":"field","key":"city
 	}
 }
 
-// «Комунікації»: dispatch targets and in-app notifications of the event only,
+// "Communications": dispatch targets and in-app notifications of the event only,
 // and the delivery figures of every form.
 func TestEventAnalytics_Communications(t *testing.T) {
 	db := testhelpers.SetupTestDB(t)

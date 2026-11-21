@@ -279,7 +279,7 @@ func (h *Handler) updateResultsSettings(ctx *gin.Context) {
 }
 
 // setResultsOpened godoc
-// @Summary Open the results («Відкрити підсумки») or restore the freeze
+// @Summary Open the results (Open results) or restore the freeze
 // @Tags events
 // @Accept json
 // @Produce json
@@ -444,7 +444,7 @@ func (h *Handler) liveSolutionAttempts(ctx *gin.Context) {
 	}
 	sse.WriteHeaders(ctx)
 	// attempts-changed covers attempts and decisions; hints-changed covers
-	// opened hints (the «Відкриті підказки» view).
+	// opened hints (the Opened hints view).
 	write := func(value eventUseCase.SolutionAttemptsStampView) {
 		payload, _ := json.Marshal(struct{ Attempts, Decisions int64 }{value.Attempts, value.Decisions})
 		_, _ = fmt.Fprintf(ctx.Writer, "event: attempts-changed\ndata: %s\n\n", payload)

@@ -1,4 +1,4 @@
--- Files attached to participant or team answers («Файл» questions). A row is
+-- Files attached to participant or team answers ("file" questions). A row is
 -- created on upload and holds the file for its uploader until an answer is
 -- saved; then it belongs to the participant or the team (owner_id). The blob
 -- itself is a media file kept alive by a file_references row

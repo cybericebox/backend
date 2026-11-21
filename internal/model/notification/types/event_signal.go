@@ -44,7 +44,7 @@ type eventManagerSignalPayload struct {
 }
 
 // eventLabFailedSignalPayload is the variable contract of the moderator-facing
-// laboratory failure signal «Лабораторія впала» (platform templates only).
+// laboratory failure signal "Laboratory failed" (platform templates only).
 type eventLabFailedSignalPayload struct {
 	ScopeEventID  string `var:"scope_event_id" desc:"Event identifier" default:"01900000-0000-7000-8000-000000000000"`
 	SubjectUserID string `var:"subject_user_id" desc:"Notified event manager" default:"01900000-0000-7000-8000-000000000002"`

@@ -19,7 +19,7 @@ type EventExerciseUpdateTeam struct {
 	Name string
 }
 
-// EventExerciseUpdatePreview is the dry run of «Оновити до нової версії»: what the update would do, with nothing
+// EventExerciseUpdatePreview is the dry run of "Update to the new version": what the update would do, with nothing
 // changed. The organizer confirms (RecreateStands) only when RequiresConfirmation is set.
 type EventExerciseUpdatePreview struct {
 	TargetVersionID uuid.UUID

@@ -27,9 +27,9 @@ func TestRenderHTML_EscapesValues(t *testing.T) {
 }
 
 func TestRenderHTML_PreservesInAppFormattingAroundVariable(t *testing.T) {
-	out, err := RenderHTML(`<strong>Привіт, {{.Name}}</strong>`, map[string]any{"Name": "Олена & команда"})
+	out, err := RenderHTML(`<strong>Hello, {{.Name}}</strong>`, map[string]any{"Name": "Alice & team"})
 	require.NoError(t, err)
-	assert.Equal(t, `<strong>Привіт, Олена &amp; команда</strong>`, out)
+	assert.Equal(t, `<strong>Hello, Alice &amp; team</strong>`, out)
 }
 
 // The reported PoC: a loop that multiplies into gigabytes. A template is variable substitution only.

@@ -14,7 +14,7 @@ import (
 	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
 )
 
-// Live screens of an event («Екран 1», «Екран 2», …, at most 10): each has
+// Live screens of an event (Screen 1, Screen 2, …, at most 10): each has
 // its own name, layout with draft, and screen link.
 
 type liveScreenSummaryResponse struct {
@@ -58,7 +58,7 @@ type liveScreenEditorSwaggerResponse struct {
 	Draft     any                     `json:"Draft"`
 }
 
-// createLiveScreenRequest: Name empty = «Екран N». CopyFrom (a screen ID)
+// createLiveScreenRequest: Name empty = Screen N. CopyFrom (a screen ID)
 // copies that screen's published layout and draft; Layout (a template from
 // the editor) becomes the published layout. At most one of the two.
 type createLiveScreenRequest struct {
@@ -78,7 +78,7 @@ type renameLiveScreenRequest struct {
 }
 
 type duplicateLiveScreenRequest struct {
-	// Name empty = «Екран N».
+	// Name empty = Screen N.
 	Name string `json:"Name"`
 }
 

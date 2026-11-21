@@ -170,7 +170,7 @@ type ListEventIntegrityAttemptsRow struct {
 	ReceivedAt      time.Time `json:"received_at"`
 }
 
-// Event analytics, «Доброчесність» (docs/EVENT-ANALYTICS.md §6.6, docs/ANTI-CHEAT.md).
+// Event analytics, "Integrity" (docs/EVENT-ANALYTICS.md §6.6, docs/ANTI-CHEAT.md).
 // The raw facts the per-solve signals in eventAnalyticsModel read. No IP or
 // user agent is kept anywhere (§9.3). Hidden teams and the moderators team are
 // never counted (event_team_visible). Answers are cut to 200 characters.

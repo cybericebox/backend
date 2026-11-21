@@ -1,4 +1,4 @@
--- Platform analytics «Заходи» (docs/EVENT-ANALYTICS.md §8). Aggregates only,
+-- Platform analytics "Events" (docs/EVENT-ANALYTICS.md §8). Aggregates only,
 -- across events; the moderators team is never counted. Period bounds are
 -- [from_at, to_at), aligned to UTC days. Lifecycle status codes match
 -- eventModel.LifecycleStatus: 0 not published, 1 published, 2 started,

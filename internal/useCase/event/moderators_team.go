@@ -26,7 +26,7 @@ type ModeratorsTeamView struct {
 }
 
 // GetModeratorsTeam shows the hidden moderators team for the organizers'
-// «Моя команда» preview: the team exists on every event, its members are the
+// "My team" preview: the team exists on every event, its members are the
 // event managers. It records nothing and never appears in results.
 func (u *EventUseCase) GetModeratorsTeam(ctx context.Context, eventID uuid.UUID) (ModeratorsTeamView, error) {
 	e, err := u.events.GetByID(ctx, eventID)

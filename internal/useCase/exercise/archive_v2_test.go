@@ -194,8 +194,8 @@ func TestArchiveImageV2_MarshalWritesString(t *testing.T) {
 
 const minimalDoc = `{
   "schema": "cib-exercise/1.0",
-  "exercise": {"name": "Тест-завдання"},
-  "versions": [{"status": "draft", "variants": [{"tasks": [{"name": "Тест", "difficulty": "easy"}]}]}]
+  "exercise": {"name": "Test task"},
+  "versions": [{"status": "draft", "variants": [{"tasks": [{"name": "Test", "difficulty": "easy"}]}]}]
 }`
 
 func schemaArchive(t *testing.T, files map[string]string) []byte {
@@ -216,17 +216,17 @@ func TestParseExerciseArchive_Schema1JSON(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
-	if parsed.Exercise.Name != "Тест-завдання" || parsed.Versions[0].Status != exerciseModel.VersionStatusDraft {
+	if parsed.Exercise.Name != "Test task" || parsed.Versions[0].Status != exerciseModel.VersionStatusDraft {
 		t.Fatalf("parsed = %+v", parsed)
 	}
-	if got := parsed.Versions[0].Variants[0].Tasks[0].Name; got != "Тест" {
+	if got := parsed.Versions[0].Variants[0].Tasks[0].Name; got != "Test" {
 		t.Fatalf("task = %q", got)
 	}
 }
 
 func TestParseExerciseArchive_Schema1JSONWithComments(t *testing.T) {
-	commented := "// header\n{\n  \"schema\": \"cib-exercise/1.0\", /* brand/version */\n  \"exercise\": {\"name\": \"Тест-завдання\"}, // name\n" +
-		"  \"versions\": [{\"status\": \"draft\", \"variants\": [{\"tasks\": [{\"name\": \"Тест\", \"difficulty\": \"easy\"}]}]}]\n}"
+	commented := "// header\n{\n  \"schema\": \"cib-exercise/1.0\", /* brand/version */\n  \"exercise\": {\"name\": \"Test task\"}, // name\n" +
+		"  \"versions\": [{\"status\": \"draft\", \"variants\": [{\"tasks\": [{\"name\": \"Test\", \"difficulty\": \"easy\"}]}]}]\n}"
 	plain, err := ParseExerciseArchive(schemaArchive(t, map[string]string{"exercise.json": minimalDoc}), "", DefaultLimits())
 	if err != nil {
 		t.Fatalf("plain: %v", err)
