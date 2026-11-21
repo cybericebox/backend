@@ -22,7 +22,7 @@ const (
 	PurposeJWTSetup Purpose = "jwt-setup"
 	// PurposeOAuthState signs the state of a Google sign-in.
 	PurposeOAuthState Purpose = "oauth-state"
-	PurposeFiles    Purpose = "files"    // the per-file keys of the objects in the files bucket (wrapped, never the files themselves)
+	PurposeFiles      Purpose = "files" // the per-file keys of the objects in the files bucket (wrapped, never the files themselves)
 )
 
 // AllPurposes lists every purpose a key is derived for. It is the list `keys check` walks to say, for each purpose, whether
