@@ -7,7 +7,7 @@ import (
 )
 
 // Error-code convention: see internal/model/auth/errors.go. Enforced by
-// `make lint-errors`. Vars without a call site yet are used by the later
+// `mise run lint:errors`. Vars without a call site yet are used by the later
 // image-registry layers (settings, upload, availability use cases).
 //
 // ImageRegistryObjectCode — next free detail code: 33

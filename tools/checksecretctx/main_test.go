@@ -70,7 +70,7 @@ var bad = "vpn-config:" + id`)
 	}
 }
 
-// The repository itself obeys the rule (make vet runs the same check, this keeps it in go test too).
+// The repository itself obeys the rule (mise run lint runs the same check, this keeps it in go test too).
 func TestTheRepositoryIsClean(t *testing.T) {
 	var found []string
 	for _, root := range []string{"../../internal", "../../pkg", "../../cmd"} {

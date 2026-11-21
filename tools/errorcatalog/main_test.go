@@ -8,7 +8,7 @@ import (
 )
 
 // TestCatalogUpToDate fails when error-catalog/errors.en.json differs from a fresh
-// generation; fix it with `make error-catalog`.
+// generation; fix it with `mise run error-catalog`.
 func TestCatalogUpToDate(t *testing.T) {
 	got, err := generate("../../internal/model")
 	if err != nil {
@@ -19,7 +19,7 @@ func TestCatalogUpToDate(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got != string(want) {
-		t.Fatal("error-catalog/errors.en.json is stale: run `make error-catalog` and commit the result")
+		t.Fatal("error-catalog/errors.en.json is stale: run `mise run error-catalog` and commit the result")
 	}
 }
 

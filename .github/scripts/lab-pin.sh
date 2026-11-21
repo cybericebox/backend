@@ -37,7 +37,7 @@ case "${1:-}" in
     ;;
   require-release)
     if [[ ! "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ || "$version" == v0.0.0 ]]; then
-      echo "::error::go.mod pins laboratory $version, which is not a release; pin a release first (make dev-push LAB=vX.Y.Z)"
+      echo "::error::go.mod pins laboratory $version, which is not a release; pin a release first (LAB=vX.Y.Z mise run dev-push)"
       exit 1
     fi
     git ls-remote --exit-code --tags "https://github.com/$mod" "refs/tags/$version" >/dev/null ||

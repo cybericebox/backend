@@ -1,5 +1,5 @@
 // Command seed fills a development database with test data for live end-to-end checks, or
-// removes it again (--delete). It reads the same environment as the daemon (`make seed` loads
+// removes it again (--delete). It reads the same environment as the daemon (`mise run seed` loads
 // .env) and refuses to run in production. See the README, section «Test data».
 package main
 

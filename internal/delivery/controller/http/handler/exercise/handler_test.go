@@ -1417,7 +1417,7 @@ func TestFileMetaAndChunk_Reader(t *testing.T) {
 // Init() is reachable only through the protection gate — the fakeProt above
 // is a pass-through, so this really just documents which routes exist and
 // that none panics when wired; the actual "every route gated" invariant is
-// enforced statically by tools/checkroutes (make vet).
+// enforced statically by tools/checkroutes (mise run lint).
 func TestEveryRouteRequiresPermission(t *testing.T) {
 	uid := uuid.Must(uuid.NewV7())
 	exID := uuid.Must(uuid.NewV7())

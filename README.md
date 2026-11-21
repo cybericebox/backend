@@ -51,7 +51,7 @@ River jobs on the same PostgreSQL database (`internal/jobs`).
   in `internal/delivery/repository/postgres/migrations`, applied on start. Files and images go to an S3-compatible
   object store.
 - **Frontends.** One REST API under `/api`, an OpenAPI spec generated from handler annotations, and server-sent
-  events for live pages. Every route sits behind a permission check (`make vet` fails on a route without one). Errors
+  events for live pages. Every route sits behind a permission check (`mise run lint` fails on a route without one). Errors
   carry numeric codes; the English and Ukrainian texts are in `error-catalog`.
 - **Laboratory.** Laboratory agents are enrolled and then called over gRPC with mutual TLS. The agent contract comes
   from the laboratory Go module pinned in `go.mod`.
@@ -60,10 +60,10 @@ River jobs on the same PostgreSQL database (`internal/jobs`).
 
 ## Requirements
 
-- Go 1.27 (see `go.mod`).
 - PostgreSQL.
 - An S3-compatible object store and an SMTP server, if you need uploads and mail.
-- Docker, for `make sqlcGenerate` and for the integration tests (they skip themselves when Docker is missing).
+- [mise](https://mise.jdx.dev): `mise install` puts the pinned tools (Go, sqlc, gh) in place; `mise tasks` lists the commands.
+- Docker, for the integration tests (they skip themselves when Docker is missing).
 
 ## Run locally
 
@@ -72,15 +72,15 @@ River jobs on the same PostgreSQL database (`internal/jobs`).
 3. Start the daemon:
 
 ```bash
-make run-local   # loads ./.env, then runs go run ./cmd/daemon
+mise run run-local   # loads ./.env, then runs go run ./cmd/daemon
 ```
 
-The daemon reads settings from the process environment only, which is why `make run-local` loads the file first.
+The daemon reads settings from the process environment only, which is why `mise run run-local` loads the file first.
 Set `ENV=development` for a local run; the default is `production`. The service answers on `api.<DOMAIN>`, so route
 that host to the process or send the `Host` header. `GET /api/health` is a public liveness probe. Outside
 `production` the Swagger UI is served at `/docs`.
 
-`make seed` fills a development database with a test event, teams and tasks (`make seed ARGS="--delete"` removes
+`mise run seed` fills a development database with a test event, teams and tasks (`mise run seed -- --delete` removes
 them). It refuses to run with `ENV=production`.
 
 ## Configuration
@@ -133,23 +133,24 @@ Preconditions and limits:
 
 | Command | What it does |
 |---|---|
-| `make build` | Compiles all packages |
-| `make test` | Runs all tests |
-| `make vet` | `go vet` plus the project lints (error codes, layer imports, route gates, secret contexts) |
-| `make sqlcGenerate` | Regenerates the Go code for SQL queries (sqlc, in Docker) |
+| `mise run build` | Compiles all packages |
+| `mise run test` | Runs all tests |
+| `mise run lint` | `go vet` plus the project lints (error codes, layer imports, route gates, secret contexts) |
+| `mise run sqlc` | Regenerates the Go code for SQL queries |
+| `mise run check` | Build, lint and tests: what the CI check runs |
 | `go generate ./internal/delivery/repository/postgres/` | Regenerates the repository mocks |
-| `make swagger` | Regenerates the OpenAPI spec |
-| `make error-catalog` | Regenerates `error-catalog/errors.en.json` after an error was added or renamed |
-| `make error-catalog-check` | Fails when the error catalog drifts from the code |
-| `make tidy` | `go mod tidy` |
+| `mise run swagger` | Regenerates the OpenAPI spec |
+| `mise run error-catalog` | Regenerates `error-catalog/errors.en.json` after an error was added or renamed |
+| `mise run error-catalog-check` | Fails when the error catalog drifts from the code |
+| `mise run tidy` | `go mod tidy` |
 
 Rules to keep in mind:
 
 - Edit the SQL in `internal/delivery/repository/postgres/queries`, then regenerate. Never edit generated files.
 - Add a Ukrainian text to `error-catalog/errors.uk.json` for every new error.
-- The laboratory module version is pinned in `go.mod`. To build against a local `../laboratory`, run `make work`.
+- The laboratory module version is pinned in `go.mod`. To build against a local `../laboratory`, run `mise run work`.
 
-The branch cycle (`make dev-start`, `make dev-push`, `make dev-done`) is described in [CONTRIBUTING.md](CONTRIBUTING.md).
+The branch cycle (`mise run dev-start`, `mise run dev-push`, `mise run dev-done`) is described in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Releases
 
