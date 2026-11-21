@@ -1,11 +1,17 @@
 name: Check
 
-# A PR into develop or main: tests plus the image build. Nothing is published and nothing is written to a registry: a check runs
-# the code of the pull request, so it holds no Docker Hub credential (a token in the runner could be read by that code). It reads the
-# layer cache that only the release builds write (<image>:buildcache-release, public).
+# A PR into develop or into a release line (release/X.Y): tests plus the image build. Nothing is published and nothing is written to a
+# registry: a check runs the code of the pull request, so it holds no Docker Hub credential at all (those are secrets of the environments
+# "candidate", "release" and "build") and pulls public images anonymously. It reads the layer cache that the candidate builds write
+# (cybericebox/daemon:buildcache-release, public).
+# Into a line, go.mod must pin a laboratory release (job "Laboratory pin"): the line becomes a candidate, and a candidate needs one.
+# main takes only the pull requests of Promote, which have their own gate (main-gate.yml, "Main gate"). The required check here is "Check passed".
+# It must come from a pull_request run: a check of a workflow_dispatch run is not evaluated for a pull request, so there is no dispatch trigger.
 on:
   pull_request:
-    branches: [ develop, main ]
+    # edited: a pull request that is moved from develop to a line (a new base) has to be checked again against the line
+    types: [ opened, synchronize, reopened, edited ]
+    branches: [ develop, 'release/*' ]
 
 concurrency:
   group: check-${{ github.event.pull_request.number }}
@@ -25,17 +31,17 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      # A PR with only docs (*.md, docs/**, .gitignore, LICENSE) builds nothing. A release PR into main always runs everything.
+          persist-credentials: false
+      # A PR with only docs (*.md, docs/**, .gitignore, LICENSE) builds nothing.
       # This is a job, not a paths-ignore on the workflow: the required check "Check passed" must always report.
       - name: Is there more than docs
         id: c
         env:
-          BASE_REF: ${{ github.base_ref }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           code=false
-          if [[ "$BASE_REF" == main ]] || ! files=$(git diff --name-only "$BASE_SHA...$HEAD_SHA"); then
+          if ! files=$(git diff --name-only "$BASE_SHA...$HEAD_SHA"); then
             code=true
           else
             while IFS= read -r f; do
@@ -52,17 +58,18 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     uses: ./.github/workflows/test.yml
-    secrets: inherit
 
   lab-pin:
     name: Laboratory pin
     needs: changes
-    if: needs.changes.outputs.code == 'true' && github.base_ref == 'main'
+    if: needs.changes.outputs.code == 'true' && startsWith(github.base_ref, 'release/')
     runs-on: ubuntu-latest
     steps:
       - name: Check repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      # A PR into main (a release) needs a laboratory release in go.mod, not a commit or a branch.
+        with:
+          persist-credentials: false
+      # A pull request into a release line (it becomes a candidate) needs a laboratory release in go.mod, not a commit or a branch.
       - name: Laboratory is pinned to a release
         run: .github/scripts/lab-pin.sh require-release
 
@@ -80,6 +87,8 @@ jobs:
     steps:
       - name: Check repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Laboratory pin
         id: lab
         run: |

@@ -6,7 +6,8 @@
 [tools]
 gitleaks = "8.30.1"   # lint:leaks: the secret scan of the whole history (.gitleaks.toml)
 actionlint = "1.7.12"   # lint:leaks: the GitHub workflows
-shellcheck = "0.11.0"   # actionlint checks the run: scripts with it
+shellcheck = "0.11.0"   # actionlint checks the run: scripts with it; lint:ci checks the release helpers and dev.sh
+python = "3.14.10"   # the release helpers of .github/scripts (standard library only; mise run test-scripts)
 go = "1.27.4"      # the same as the toolchain line of go.mod and the builder image of the Dockerfile
 sqlc = "1.31.1"
 gh = "2.104.0"     # dev-push
@@ -22,13 +23,17 @@ description = "Compile all packages"
 depends = ["cache-guard"]
 run = "heavy -- go build ./..."
 
+[tasks."lint:ci"]
+description = "shellcheck: the release helpers (.github/scripts), dev.sh and its test, the file tasks (actionlint runs in lint:leaks)"
+run = "shellcheck -x -P SCRIPTDIR .github/scripts/*.sh scripts/dev.sh scripts/dev.test.sh scripts/dev-pre-push.sh mise-tasks/test-scripts"
+
 [tasks."lint:leaks"]
 description = "gitleaks over the whole history (.gitleaks.toml) and actionlint over the workflows"
 run = ["gitleaks git --redact --no-banner --log-level warn", "actionlint"]
 
 [tasks.lint]
 description = "go vet plus the project lints (error codes, layer imports, route gates, secret contexts, Cyrillic outside the text modules)"
-depends = ["lint:leaks", "cache-guard"]
+depends = ["lint:leaks", "lint:ci", "cache-guard"]
 run = [
   "heavy -- go vet ./...",
   "go run ./tools/checkerrorcodes internal pkg",
@@ -64,8 +69,8 @@ depends = ["cache-guard"]
 run = "heavy -- go test ./..."
 
 [tasks.check]
-description = "Everything the CI check runs: build, lint, test"
-run = [{ task = "build" }, { task = "lint" }, { task = "test" }]
+description = "Everything the CI check runs: build, lint, test, test-scripts"
+run = [{ task = "build" }, { task = "lint" }, { task = "test" }, { task = "test-scripts" }]
 
 [tasks.tidy]
 description = "go mod tidy"
@@ -108,11 +113,11 @@ run = "GOWORK=off go test ./tools/errorcatalog"
 
 # Branch cycle (scripts/dev.sh, the same in every repository), see CONTRIBUTING.md.
 [tasks.dev-start]
-description = "feature/<name> from the fresh develop. Usage: mise run dev-start <name>"
+description = "feature/<name> from the fresh develop; with --line X.Y, fix/X.Y/<name> from release/X.Y. Usage: mise run dev-start <name> [--line X.Y]"
 run = "scripts/dev.sh start"
 
 [tasks.dev-push]
-description = "Push, open or update the PR into develop, auto-merge when green. MINOR=1 labels it minor; LAB= pins the commit ../../laboratory is on, LAB=<commit|branch|vX.Y.Z> pins that, LAB absent keeps go.mod"
+description = "Push, open or update the PR into its base: develop (auto-merge when green) or release/X.Y for a fix branch (merged by hand, no auto-merge). LAB= pins the commit ../../laboratory is on, LAB=<commit|branch|vX.Y.Z> pins that, LAB absent keeps go.mod"
 run = 'LAB_SET="${LAB+1}" scripts/dev.sh push'
 
 [tasks.dev-done]
