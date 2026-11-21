@@ -20,11 +20,9 @@ jobs:
         run: mise run build
       - name: Lint
         run: mise run lint
-      - name: Login to Docker Hub for container tests
-        if: github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]')
-        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      # No Docker Hub login: the test image comes from mirror.gcr.io, and Ryuk (the testcontainers reaper, a Docker Hub image) is
+      # not needed on a runner that is thrown away after the job.
       - name: Test
+        env:
+          TESTCONTAINERS_RYUK_DISABLED: "true"
         run: mise run test
