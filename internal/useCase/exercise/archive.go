@@ -958,7 +958,7 @@ func ReadProtectedArchiveV1(data []byte, password string, lim exerciseModel.Arch
 }
 
 func archiveFilesWithManifest(files map[string][]byte) map[string][]byte {
-	withManifest := make(map[string][]byte, len(files)+1)
+	withManifest := make(map[string][]byte, len(files))
 	checksums := make(map[string]string, len(files))
 	for name, body := range files {
 		withManifest[name] = body
