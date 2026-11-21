@@ -42,7 +42,7 @@ SELECT tc.id, tc.event_id, tc.event_team_id, tc.event_challenge_id, tc.variant_i
              THEN e.static_points ELSE ec.points END)::integer AS points,
        ec.order_index, ec.group_id, ec.hints_enabled, ec.published,
        ec.hints AS board_hints, ec.hint_costs,
-       COALESCE(ecg.name, 'Інші')::text AS group_name,
+       COALESCE(ecg.name, sqlc.arg(other_group_name)::text)::text AS group_name,
        COALESCE(ecg.order_index, 2147483647)::integer AS group_order,
        (row_number() OVER (PARTITION BY ec.group_id
                            ORDER BY ec.board_order ASC NULLS LAST, ee.created_at ASC, ec.order_index ASC, tc.id ASC) - 1)::integer AS board_position,

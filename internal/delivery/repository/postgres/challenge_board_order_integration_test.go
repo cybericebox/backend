@@ -15,6 +15,7 @@ import (
 	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
 	eventTeamModel "github.com/cybericebox/daemon/internal/model/eventTeam"
 	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	"github.com/cybericebox/daemon/internal/model/usertext"
 	"github.com/cybericebox/daemon/internal/testhelpers"
 )
 
@@ -51,7 +52,7 @@ func boardChallenge(t *testing.T, q *postgres.Queries, link postgres.EventExerci
 
 func boardNames(t *testing.T, q *postgres.Queries, teamID uuid.UUID) ([]string, []int32, []int32) {
 	t.Helper()
-	rows, err := q.ListTeamBoardChallenges(context.Background(), postgres.ListTeamBoardChallengesParams{EventTeamID: teamID, PublishedOnly: true, At: time.Now()})
+	rows, err := q.ListTeamBoardChallenges(context.Background(), postgres.ListTeamBoardChallengesParams{EventTeamID: teamID, PublishedOnly: true, At: time.Now(), OtherGroupName: usertext.UngroupedChallenges})
 	if err != nil {
 		t.Fatalf("list board: %v", err)
 	}
