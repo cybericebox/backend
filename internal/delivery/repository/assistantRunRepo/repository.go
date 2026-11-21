@@ -5,6 +5,7 @@ package assistantRunRepo
 import (
 	"context"
 	"errors"
+	"github.com/cybericebox/daemon/pkg/safeconv"
 	"time"
 
 	"github.com/gofrs/uuid"
@@ -81,7 +82,7 @@ func toRuns(rows []postgres.AssistantRun) []assistantModel.Run {
 func (r *Repository) Create(ctx context.Context, run assistantModel.Run, now time.Time) error {
 	err := r.q.CreateAssistantRun(ctx, postgres.CreateAssistantRunParams{
 		ID: run.ID, ExerciseID: run.ExerciseID, VersionID: run.VersionID, VariantID: run.VariantID, DeployID: run.DeployID,
-		ActorID: run.Actor, Role: run.Role, Opponent: int32(run.Opponent), RequestID: run.RequestID, Now: now, ExpiresAt: run.ExpiresAt,
+		ActorID: run.Actor, Role: run.Role, Opponent: safeconv.Int32(run.Opponent), RequestID: run.RequestID, Now: now, ExpiresAt: run.ExpiresAt,
 	})
 	if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == pgerrcode.UniqueViolation {
 		return ErrActive

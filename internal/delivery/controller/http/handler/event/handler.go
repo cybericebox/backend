@@ -1992,13 +1992,12 @@ func (h *Handler) listParticipants(ctx *gin.Context) {
 	}
 	var status *participantModel.Status
 	if raw := ctx.Query("status"); raw != "" {
-		s, sErr := strconv.Atoi(raw)
+		st, sErr := parseStatusParam(raw)
 		if sErr != nil {
 			response.AbortWithBadRequest(ctx, sErr)
 			return
 		}
-		st := participantModel.Status(s)
-		status = &st
+		status = st
 	}
 	kind := participantRepo.Kind(ctx.Query("kind"))
 	search, err := listSearch(ctx)

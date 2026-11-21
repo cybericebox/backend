@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/cybericebox/daemon/pkg/safeconv"
 	"github.com/cybericebox/daemon/pkg/worker"
 	"strings"
 	"time"
@@ -198,7 +199,7 @@ func (r *Repository) ListGroups(ctx context.Context, f errorJournalUseCase.Group
 	from, to, newSince := tsPtr(f.From), tsPtr(f.To), tsPtr(f.NewSince)
 	rows, err := r.q.ListErrorGroups(ctx, postgres.ListErrorGroupsParams{
 		Kinds: kinds, Status: string(f.Status), FromAt: from, ToAt: to, NewSince: newSince, Query: query, Request: f.Request,
-		LimitVal: int32(f.Limit), OffsetVal: int32(f.Offset),
+		LimitVal: safeconv.Int32(f.Limit), OffsetVal: safeconv.Int32(f.Offset),
 	})
 	if err != nil {
 		return nil, 0, err

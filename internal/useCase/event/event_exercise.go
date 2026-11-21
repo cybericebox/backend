@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/cybericebox/daemon/pkg/safeconv"
 	"slices"
 	"strings"
 	"time"
@@ -317,7 +318,7 @@ func (u *EventUseCase) ListEventCatalogTags(ctx context.Context, eventID uuid.UU
 		limit = defaultCatalogTagLimit
 	}
 	limit = min(limit, maxCatalogTagLimit)
-	rows, err := u.eventExercises.CatalogTags(ctx, eventID, strings.ToLower(strings.TrimSpace(prefix)), int32(limit))
+	rows, err := u.eventExercises.CatalogTags(ctx, eventID, strings.ToLower(strings.TrimSpace(prefix)), safeconv.Int32(limit))
 	if err != nil {
 		return nil, model.ErrPlatform.WithError(err).WithMessage("Failed to list event catalog tags").Err()
 	}

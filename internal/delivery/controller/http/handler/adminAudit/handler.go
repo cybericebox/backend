@@ -283,7 +283,7 @@ func parseFilterFields(c *gin.Context) (adminAuditUseCase.Filter, error) {
 	if raw := strings.ToLower(c.Query("status")); raw != "" {
 		switch {
 		case statusExact.MatchString(raw):
-			n, _ := strconv.Atoi(raw)
+			n, _ := strconv.ParseInt(raw, 10, 32) // three digits, checked by statusExact
 			f.StatusMin, f.StatusMax = int32(n), int32(n)
 		case statusClass.MatchString(raw):
 			n := int32(raw[0]-'0') * 100
