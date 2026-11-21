@@ -12,6 +12,7 @@ import (
 	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
 	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
 	"github.com/cybericebox/daemon/internal/model/rbac"
+	"github.com/cybericebox/daemon/internal/model/usertext"
 	eventAnalyticsUseCase "github.com/cybericebox/daemon/internal/useCase/eventAnalytics"
 )
 
@@ -275,29 +276,29 @@ func (h *Handler) exportParticipants(ctx *gin.Context) {
 	n := func(x int64) string { return strconv.FormatInt(x, 10) }
 	switch table {
 	case "funnel":
-		_ = w.Write([]string{"Етап", "Учасників"})
+		_ = w.Write([]string{usertext.ColStage, usertext.ColParticipants})
 		for _, s := range v.Funnel {
 			_ = w.Write([]string{funnelStageLabels[s.Stage], n(s.Count)})
 		}
 	case "registrations":
-		_ = w.Write([]string{"День (UTC)", "Відкрита реєстрація", "Схвалення", "Запрошення"})
+		_ = w.Write([]string{usertext.ColDayUTC, usertext.ColOpenRegistration, usertext.ColApproval, usertext.ColInvitations})
 		for _, d := range v.Registrations.Days {
 			_ = w.Write([]string{d.Day.UTC().Format("2006-01-02"), n(d.Open), n(d.Approval), n(d.Invitation)})
 		}
 	case "teams":
-		_ = w.Write([]string{"Команда", "Учасників", "Очікують приєднання"})
+		_ = w.Write([]string{usertext.ColTeam, usertext.ColParticipants, usertext.ColAwaitingJoin})
 		for _, t := range v.Teams.Incomplete {
 			_ = w.Write([]string{csvCellText(t.Name), strconv.Itoa(int(t.Members)), n(t.PendingInvitees)})
 		}
 	case "answers":
-		_ = w.Write([]string{"Питання", "Значення", "Відповідей"})
+		_ = w.Write([]string{usertext.ColQuestion, usertext.ColValue, usertext.ColAnswers})
 		for _, q := range v.Answers.Questions {
 			for _, b := range q.Buckets {
 				_ = w.Write([]string{csvCellText(q.Label), csvCellText(b.Label), n(b.Count)})
 			}
 		}
 	case "dropoff":
-		_ = w.Write([]string{"Учасник", "Пошта", "Команда", "Зареєстрований (UTC)", "Схвалений (UTC)", "Відкрито завдань"})
+		_ = w.Write([]string{usertext.ColParticipant, usertext.ColEmail, usertext.ColTeam, usertext.ColRegisteredUTC, usertext.ColApprovedUTC, usertext.ColTasksOpened})
 		for _, r := range v.DropOff.Rows {
 			registered := r.RegisteredAt
 			_ = w.Write([]string{csvCellText(r.Name), csvCellText(r.Email), csvCellText(r.TeamName), csvTimePtr(&registered), csvTimePtr(r.ApprovedAt), n(r.OpenedTasks)})
@@ -307,10 +308,10 @@ func (h *Handler) exportParticipants(ctx *gin.Context) {
 }
 
 var funnelStageLabels = map[string]string{
-	eventAnalyticsUseCase.StageInvited:    "Запрошено",
-	eventAnalyticsUseCase.StageRegistered: "Зареєстровано",
-	eventAnalyticsUseCase.StageApproved:   "Схвалено",
-	eventAnalyticsUseCase.StageInTeam:     "У команді",
-	eventAnalyticsUseCase.StageAttempted:  "Перша спроба",
-	eventAnalyticsUseCase.StageSolved:     "Перше розвʼязання",
+	eventAnalyticsUseCase.StageInvited:    usertext.StageInvited,
+	eventAnalyticsUseCase.StageRegistered: usertext.StageRegistered,
+	eventAnalyticsUseCase.StageApproved:   usertext.StageApproved,
+	eventAnalyticsUseCase.StageInTeam:     usertext.StageInTeam,
+	eventAnalyticsUseCase.StageAttempted:  usertext.StageFirstAttempt,
+	eventAnalyticsUseCase.StageSolved:     usertext.StageFirstSolve,
 }

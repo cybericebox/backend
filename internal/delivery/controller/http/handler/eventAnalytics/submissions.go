@@ -9,6 +9,7 @@ import (
 
 	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
 	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
+	"github.com/cybericebox/daemon/internal/model/usertext"
 	eventAnalyticsUseCase "github.com/cybericebox/daemon/internal/useCase/eventAnalytics"
 )
 
@@ -80,7 +81,7 @@ func hidePeople(v eventAnalyticsUseCase.SubmissionsView) eventAnalyticsUseCase.S
 }
 
 // submissionsNoteText is the caveat written into the export, in the language of its headers.
-const submissionsNoteText = "Примітка: рахуються здачі прапора (хто відправив правильну відповідь), а не розвʼязання: у команді прапор може знайти і не той, хто його вводить."
+const submissionsNoteText = usertext.SubmissionsNote
 
 // submissions godoc
 // @Summary Who submitted the flag of each solved task
@@ -163,14 +164,14 @@ func (h *Handler) exportSubmissions(ctx *gin.Context) {
 
 // CSV column titles of the submissions export.
 const (
-	columnParticipant = "Учасник"
-	columnTeam        = "Команда"
-	columnTask        = "Завдання"
+	columnParticipant = usertext.ColParticipant
+	columnTeam        = usertext.ColTeam
+	columnTask        = usertext.ColTask
 )
 
 func submissionsCSVHeader() []string {
 	return []string{
-		columnParticipant, "Пошта", columnTeam, columnTask, "Здано (UTC)", "Хвилин від старту",
-		"Хвилин від відкриття завдання", "Хибних спроб учасника", "Хибних спроб команди",
+		columnParticipant, usertext.ColEmail, columnTeam, columnTask, usertext.ColSubmittedUTC, usertext.ColMinutesFromStart,
+		usertext.ColMinutesFromTaskOpen, usertext.ColParticipantWrongAttempts, usertext.ColTeamWrongAttempts,
 	}
 }

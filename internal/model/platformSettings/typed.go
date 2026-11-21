@@ -3,6 +3,8 @@ package platformSettingsModel
 import (
 	"maps"
 	"slices"
+
+	"github.com/cybericebox/daemon/internal/model/usertext"
 )
 
 // Typed settings: a stored row whose value is a fixed set of integer fields, each with bounds, edited on its own
@@ -100,22 +102,22 @@ func DescribeKey(key string) (Description, bool) {
 	switch key {
 	case RetentionKey:
 		return Description{
-			Uk: "Терміни зберігання даних: сеанси, телеметрія лабораторій і учасників, журнали та інше.",
+			Uk: usertext.SettingRetention,
 			En: "Data retention periods: sessions, lab and participant telemetry, logs and more.",
 		}, true
 	case ArchiveLimitsKey:
 		return Description{
-			Uk: "Обмеження на розмір і вміст архівів завдань, що імпортуються.",
+			Uk: usertext.SettingArchiveLimits,
 			En: "Size and content limits for imported task archives.",
 		}, true
 	case TestRunsKey:
 		return Description{
-			Uk: "Обмеження тестових запусків завдань: тривалість, кількість і ресурси.",
+			Uk: usertext.SettingTestRuns,
 			En: "Limits for task test runs: duration, count and resources.",
 		}, true
 	case NodeProfilesKey:
 		return Description{
-			Uk: "Профілі вузлів кластера для стендів: ресурси та місткість.",
+			Uk: usertext.SettingNodeProfiles,
 			En: "Cluster node profiles for stands: resources and capacity.",
 		}, true
 	}

@@ -2,13 +2,14 @@ package eventContentModel
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 	"unicode"
 	"unicode/utf8"
 
 	"github.com/gofrs/uuid"
+
+	"github.com/cybericebox/daemon/internal/model/usertext"
 )
 
 // LiveDisplay is one live screen of an event ("Screen 1", "Screen 2", …): its
@@ -59,7 +60,7 @@ func DefaultLiveDisplayName(existing []LiveDisplay) string {
 		taken[display.Name] = true
 	}
 	for n := len(existing) + 1; ; n++ {
-		if name := fmt.Sprintf("Екран %d", n); !taken[name] {
+		if name := usertext.LiveDisplayName(n); !taken[name] {
 			return name
 		}
 	}

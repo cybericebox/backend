@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"golang.org/x/net/html"
 	"io"
+	"slices"
 	"strings"
 
 	mailModel "github.com/cybericebox/daemon/internal/model/mail"
+	"github.com/cybericebox/daemon/internal/model/usertext"
 	"github.com/cybericebox/daemon/internal/useCase/notification/channels/render"
 )
 
@@ -72,13 +74,9 @@ func RenderPlatformFooter(supportEmail, site, privacy string) mailModel.Footer {
 // Keep familiar short footer labels together without preventing long custom
 // links or paragraphs from wrapping. Touch text tokens only, never URLs.
 func keepFooterLinkWords(markup string) string {
-	words := strings.NewReplacer(
-		"Звʼязатися з нами", "Звʼязатися&nbsp;з&nbsp;нами",
-		"Зв\u2019язатися з нами", "Зв\u2019язатися&nbsp;з&nbsp;нами",
-		"Зв&#39;язатися з нами", "Зв&#39;язатися&nbsp;з&nbsp;нами",
-		"Політика конфіденційності", "Політика&nbsp;конфіденційності",
+	words := strings.NewReplacer(append(slices.Clone(usertext.FooterLinkReplacements),
 		"Contact us", "Contact&nbsp;us", "Privacy Policy", "Privacy&nbsp;Policy",
-	)
+	)...)
 	tokenizer := html.NewTokenizer(strings.NewReader(markup))
 	var out strings.Builder
 	for {

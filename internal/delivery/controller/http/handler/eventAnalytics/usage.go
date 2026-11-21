@@ -11,6 +11,7 @@ import (
 	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
 	eventAnalyticsModel "github.com/cybericebox/daemon/internal/model/eventAnalytics"
 	"github.com/cybericebox/daemon/internal/model/rbac"
+	"github.com/cybericebox/daemon/internal/model/usertext"
 	eventAnalyticsUseCase "github.com/cybericebox/daemon/internal/useCase/eventAnalytics"
 )
 
@@ -263,8 +264,8 @@ func (h *Handler) exportUsage(ctx *gin.Context) {
 	w.Flush()
 }
 
-var usageCSVHeader = []string{"Учасник", "Команда", "VPN онлайн зараз", "Останнє VPN-підключення (UTC)", "Перше VPN-підключення (UTC)", "VPN сесій", "VPN час онлайн (с)",
-	"VPN отримано (байт)", "VPN надіслано (байт)", "Запитів через проксі", "Проксі отримано (байт)", "Проксі надіслано (байт)", "Перший запит через проксі (UTC)", "Останній запит через проксі (UTC)"}
+var usageCSVHeader = []string{usertext.ColParticipant, usertext.ColTeam, usertext.ColVPNOnlineNow, usertext.ColLastVPNConnectUTC, usertext.ColFirstVPNConnectUTC, usertext.ColVPNSessions, usertext.ColVPNOnlineSeconds,
+	usertext.ColVPNReceivedBytes, usertext.ColVPNSentBytes, usertext.ColProxyRequests, usertext.ColProxyReceivedBytes, usertext.ColProxySentBytes, usertext.ColFirstProxyRequestUTC, usertext.ColLastProxyRequestUTC}
 
 func usageCSVRow(u eventAnalyticsUseCase.UsageUserView) []string {
 	n := func(v int64) string { return strconv.FormatInt(v, 10) }

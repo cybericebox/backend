@@ -39,6 +39,7 @@ import (
 	labBindingModel "github.com/cybericebox/daemon/internal/model/labBinding"
 	signalModel "github.com/cybericebox/daemon/internal/model/signal"
 	teamChallengeModel "github.com/cybericebox/daemon/internal/model/teamChallenge"
+	"github.com/cybericebox/daemon/internal/model/usertext"
 )
 
 // DefaultStandDeployBudget bounds agent deploy calls per event and pass (a pass
@@ -1320,7 +1321,7 @@ func (u *EventUseCase) publishStandFailure(ctx context.Context, repo IRepository
 	}
 	teamName := team.PublicName
 	if team.Moderators {
-		teamName = "Команда модераторів"
+		teamName = usertext.ModeratorsTeamName
 	}
 	for _, recipient := range recipients {
 		if err = publisher.Publish(ctx, signalModel.TypeEventLabFailed, &signalModel.EventLabFailedPayload{

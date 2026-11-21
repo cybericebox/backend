@@ -16,6 +16,7 @@ import (
 	mailModel "github.com/cybericebox/daemon/internal/model/mail"
 	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
 	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
+	"github.com/cybericebox/daemon/internal/model/usertext"
 	"github.com/cybericebox/daemon/pkg/email"
 	liberr "github.com/cybericebox/daemon/pkg/err"
 	"github.com/cybericebox/daemon/pkg/tools"
@@ -519,7 +520,7 @@ func (u *MailUseCase) testPlatformProvider(ctx context.Context, id *uuid.UUID, i
 		}
 		t = route.transports[0]
 	}
-	return u.testSend(ctx, t, t.identity, recipient, "платформи"), nil
+	return u.testSend(ctx, t, t.identity, recipient, usertext.TestMailLabelPlatform), nil
 }
 
 // --- Event ---
@@ -675,7 +676,7 @@ func (u *MailUseCase) testEventSMTP(ctx context.Context, eventID uuid.UUID, in *
 		return TestResult{Recipient: recipient, Error: "Event SMTP is not configured"}, nil
 	}
 	t.source = dispatchModel.TransportEvent
-	return u.testSend(ctx, t, identity, recipient, "заходу"), nil
+	return u.testSend(ctx, t, identity, recipient, usertext.TestMailLabelEvent), nil
 }
 
 // ListEventMailJournal is the delivery journal restricted to one Event.
@@ -857,9 +858,9 @@ func (u *MailUseCase) testSend(ctx context.Context, t transport, identity mailMo
 		SMTPConnectionKey: t.smtpConnectionKey, SMTPProviderID: t.providerID}
 	msg := withIdentity(email.Message{
 		To:      recipient,
-		Subject: "Перевірка пошти Cyber ICE Box",
-		HTML:    "<p>Це тестовий лист: налаштування SMTP " + label + " працюють.</p>",
-		Text:    "Це тестовий лист: налаштування SMTP " + label + " працюють.",
+		Subject: usertext.TestMailSubject,
+		HTML:    usertext.TestMailHTML(label),
+		Text:    usertext.TestMailText(label),
 	}, identity)
 	if err := u.send(ctx, t, msg); err != nil {
 		result.Error = err.Error()

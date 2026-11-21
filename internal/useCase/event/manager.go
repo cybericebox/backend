@@ -16,6 +16,7 @@ import (
 	participantModel "github.com/cybericebox/daemon/internal/model/participant"
 	"github.com/cybericebox/daemon/internal/model/rbac"
 	signalModel "github.com/cybericebox/daemon/internal/model/signal"
+	"github.com/cybericebox/daemon/internal/model/usertext"
 )
 
 // ListEventManagers lists every event-local management membership. The event
@@ -108,9 +109,9 @@ func (u *EventUseCase) SetEventManager(ctx context.Context, eventID uuid.UUID, i
 		}
 		return EventManagerView{}, model.ErrPlatform.WithError(err).WithMessage("Failed to set event manager").Err()
 	}
-	roleCode, roleName := "moderator", "модератором"
+	roleCode, roleName := "moderator", usertext.RoleModerator
 	if role == eventManagerModel.RoleViewer {
-		roleCode, roleName = "observer", "спостерігачем"
+		roleCode, roleName = "observer", usertext.RoleObserver
 	}
 	publisher := u.signalPublishers(txRepo)
 	if publisher == nil {

@@ -30,6 +30,7 @@ import (
 	participantModel "github.com/cybericebox/daemon/internal/model/participant"
 	signalModel "github.com/cybericebox/daemon/internal/model/signal"
 	userModel "github.com/cybericebox/daemon/internal/model/user"
+	"github.com/cybericebox/daemon/internal/model/usertext"
 )
 
 type ParticipantInvitationInput struct {
@@ -117,7 +118,7 @@ func (u *EventUseCase) inviteParticipants(ctx context.Context, eventID uuid.UUID
 		result := ParticipantInvitationResult{Email: email}
 		var err error
 		if !validatePrefill(form, entry.Fields) {
-			result.Error, result.Code = "Некоректні значення полів анкети", InvitationCodeFieldsInvalid
+			result.Error, result.Code = usertext.InvitationFieldsInvalid, InvitationCodeFieldsInvalid
 			results = append(results, result)
 			continue
 		}
@@ -125,16 +126,16 @@ func (u *EventUseCase) inviteParticipants(ctx context.Context, eventID uuid.UUID
 		if err != nil {
 			switch {
 			case errors.Is(err, participantModel.ErrInvitationEmailInvalid.Err()):
-				result.Error, result.Code = "Некоректна адреса електронної пошти", InvitationCodeEmailInvalid
+				result.Error, result.Code = usertext.InvitationEmailInvalid, InvitationCodeEmailInvalid
 			case errors.Is(err, participantModel.ErrAlreadyParticipant.Err()):
-				result.Error, result.Code = "Уже бере участь або подав заявку", InvitationCodeAlreadyParticipant
+				result.Error, result.Code = usertext.InvitationAlreadyParticipant, InvitationCodeAlreadyParticipant
 			case errors.Is(err, participantModel.ErrStaffCannotParticipate.Err()):
-				result.Error, result.Code = "Власники й модератори заходу не беруть участі як учасники", InvitationCodeStaff
+				result.Error, result.Code = usertext.InvitationStaff, InvitationCodeStaff
 			default:
 				// An account that cannot be invited (blocked, deleted) is answered
 				// like any other failure: the organizer must not learn the state
 				// of somebody else's account from an invitation.
-				result.Error, result.Code = "Не вдалося надіслати запрошення", InvitationCodeFailed
+				result.Error, result.Code = usertext.InvitationFailed, InvitationCodeFailed
 			}
 		}
 		results = append(results, result)

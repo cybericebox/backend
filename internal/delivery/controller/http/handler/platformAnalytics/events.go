@@ -10,6 +10,7 @@ import (
 	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
 	platformAnalyticsModel "github.com/cybericebox/daemon/internal/model/platformAnalytics"
 	"github.com/cybericebox/daemon/internal/model/rbac"
+	"github.com/cybericebox/daemon/internal/model/usertext"
 	platformAnalyticsUseCase "github.com/cybericebox/daemon/internal/useCase/platformAnalytics"
 )
 
@@ -201,17 +202,17 @@ func (h *Handler) exportEvents(ctx *gin.Context) {
 	w := startCSV(ctx, "events-"+table)
 	switch table {
 	case "series":
-		_ = w.Write([]string{"День (UTC)", "Створено заходів", "Стартувало заходів", "Реєстрацій"})
+		_ = w.Write([]string{usertext.ColDayUTC, usertext.ColEventsCreated, usertext.ColEventsStarted, usertext.ColRegistrations})
 		for _, d := range v.Series {
 			_ = w.Write([]string{csvDay(d.Day), csvInt(d.EventsCreated), csvInt(d.EventsStarted), csvInt(d.Registrations)})
 		}
 	case "upcoming":
-		_ = w.Write([]string{"Захід", "Тег", "Старт (UTC)", "Опубліковано", "Реєстрацій"})
+		_ = w.Write([]string{usertext.ColEvent, usertext.ColTag, usertext.ColStartShortUTC, usertext.ColPublished, usertext.ColRegistrations})
 		for _, n := range v.Upcoming {
 			_ = w.Write([]string{csvText(n.Name), csvText(n.Tag), csvTime(n.StartAt), csvBool(n.Published), csvInt(n.Registrations)})
 		}
 	default:
-		_ = w.Write([]string{"Захід", "Тег", "Статус", "Старт (UTC)", "Фініш (UTC)", "Учасників", "Команд", "Розвʼязань", "Команд із розвʼязанням", "Частка команд із розвʼязанням", "Тривалість (с)"})
+		_ = w.Write([]string{usertext.ColEvent, usertext.ColTag, usertext.ColStatus, usertext.ColStartShortUTC, usertext.ColFinishShortUTC, usertext.ColParticipants, usertext.ColTeams, usertext.ColSolveCount, usertext.ColTeamsWithSolve, usertext.ColTeamsWithSolveShare, usertext.ColDurationSeconds})
 		for _, e := range v.Events {
 			start := ""
 			if !e.StartAt.IsZero() {
