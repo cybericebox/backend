@@ -71,7 +71,7 @@ func TestEventLiveScreenLinkIsOnePerScreen(t *testing.T) {
 		t.Fatal("turning off twice must touch nothing")
 	}
 	if _, err = repo.Active(ctx, event.ID, screenID, now.Add(50*time.Hour)); !repositoryTools.IsObjectNotFoundError(err) {
-		t.Fatalf("no link after «Вимкнути»: %v", err)
+		t.Fatalf("no link after disabling: %v", err)
 	}
 	// The database refuses a second unrevoked link outright.
 	a, _, _ := eventContentModel.NewLiveScreenLink(event.ID, screenID, actorID, now, eventContentModel.LiveScreenExpiryNone, nil)
@@ -82,7 +82,7 @@ func TestEventLiveScreenLinkIsOnePerScreen(t *testing.T) {
 	}
 
 	// Another screen of the event has a link of its own beside the first one's.
-	other, err := repo.CreateDisplay(ctx, eventContentModel.LiveDisplay{ID: uuid.Must(uuid.NewV7()), EventID: event.ID, Name: "Фойє", Layout: eventContentModel.DefaultLiveLayout(), CreatedAt: now})
+	other, err := repo.CreateDisplay(ctx, eventContentModel.LiveDisplay{ID: uuid.Must(uuid.NewV7()), EventID: event.ID, Name: "Lobby", Layout: eventContentModel.DefaultLiveLayout(), CreatedAt: now})
 	if err != nil || other.Position != 1 {
 		t.Fatalf("second screen = %+v, %v", other, err)
 	}

@@ -109,7 +109,7 @@ type ListEventStandTeamsRow struct {
 	StatusChangedAt pgtype.Timestamptz `json:"status_changed_at"`
 }
 
-// Event analytics, «Стенди» (docs/EVENT-ANALYTICS.md §6.5). The moderators
+// Event analytics, "Stands" (docs/EVENT-ANALYTICS.md §6.5). The moderators
 // team is never counted.
 // Every team of the event with the current status of its stand (0: no stand
 // yet).

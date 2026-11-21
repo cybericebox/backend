@@ -1673,7 +1673,7 @@ definitions:
   event.duplicateLiveScreenRequest:
     properties:
       Name:
-        description: Name empty = «Екран N».
+        description: Name empty = Screen N.
         type: string
     type: object
   event.eventCatalogTagResponse:
@@ -1915,7 +1915,7 @@ definitions:
       Revision:
         type: integer
       Scope:
-        description: 'W4: «версія N» is the catalog version ordinal, not the event
+        description: 'W4: version N is the catalog version ordinal, not the event
           revision.'
         type: string
       StageID:
@@ -3976,7 +3976,7 @@ definitions:
   event.updateEventStageRequest:
     properties:
       CloseNow:
-        description: CloseNow ends an open stage now («Закрити зараз»).
+        description: CloseNow ends an open stage now (Close now).
         type: boolean
       ClosesAt:
         type: string
@@ -4083,8 +4083,7 @@ definitions:
         description: 'Export: the CSV exports and the report download.'
         type: boolean
       People:
-        description: 'People: per-person rows of «Використання» (names, visits, VPN
-          sessions).'
+        description: 'People: per-person rows of Usage (names, visits, VPN sessions).'
         type: boolean
       Sections:
         description: 'Sections: every analytics section and the event report.'
@@ -8224,7 +8223,7 @@ definitions:
         type: array
       IncludeImages:
         description: |-
-          IncludeImages writes the platform images of the devices into the archive («з образами», up to 10 GiB): the export
+          IncludeImages writes the platform images of the devices into the archive (with images, up to 10 GiB): the export
           then runs in the background, 202 {JobID}.
         type: boolean
       IncludeSecrets:
@@ -9997,7 +9996,7 @@ definitions:
       Resolvable:
         description: |-
           Resolvable is true when the recipient may close this open request by hand (the resolve endpoint accepts it).
-          Clients show «Вирішено» from it instead of keeping their own list of types.
+          Clients show Resolved from it instead of keeping their own list of types.
         type: boolean
       ResolvedAt:
         description: ResolvedAt and Resolution are set once a request was decided
@@ -16755,9 +16754,9 @@ paths:
       - event-analytics
   /events/{id}/manage/analytics/communications:
     get:
-      description: '§6.7 «Комунікації»: emails and in-app notifications sent per type,
-        errors, the in-app read rate, and the completion of every event form. from/to
-        limit the window (open bounds by default).'
+      description: '§6.7 Communications: emails and in-app notifications sent per
+        type, errors, the in-app read rate, and the completion of every event form.
+        from/to limit the window (open bounds by default).'
       parameters:
       - description: event ID
         in: path
@@ -16822,7 +16821,7 @@ paths:
       - event-analytics
   /events/{id}/manage/analytics/integrity:
     get:
-      description: '§6.6 «Доброчесність». A solve (or a task, for cross_flag) is flagged
+      description: '§6.6 Integrity. A solve (or a task, for cross_flag) is flagged
         by signals computed on read: cross_flag (the team submitted another team''s
         flag), no_access (no open, download or hint unlock before the flag), no_lab
         (a lab task without any VPN session), too_fast (below the level floor), first_try_hard,
@@ -16912,8 +16911,8 @@ paths:
       - event-analytics
   /events/{id}/manage/analytics/integrity/dismissals:
     get:
-      description: The event's own «не підсвічувати такі випадки» and those of the
-        catalog exercises it uses. Sensitive.
+      description: The event's own do not highlight such cases and those of the catalog
+        exercises it uses. Sensitive.
       parameters:
       - description: event ID
         in: path
@@ -17187,7 +17186,7 @@ paths:
       - event-analytics
   /events/{id}/manage/analytics/overview:
     get:
-      description: §6.1 «Огляд». Without from/to the period is the event's own window
+      description: §6.1 Overview. Without from/to the period is the event's own window
         (start to finish, or to now while it runs). The series has a point per 5 minutes;
         values are cached for a few seconds.
       parameters:
@@ -17247,10 +17246,10 @@ paths:
       - event-analytics
   /events/{id}/manage/analytics/participants:
     get:
-      description: '§6.2 «Учасники й реєстрація»: the participation funnel, registrations
-        per day and channel, team fill, registration form answer distributions and
-        the drop-off list. from/to limit only the registrations per day (open bounds
-        by default); the rest is the current state.'
+      description: '§6.2 Participants and registration: the participation funnel,
+        registrations per day and channel, team fill, registration form answer distributions
+        and the drop-off list. from/to limit only the registrations per day (open
+        bounds by default); the rest is the current state.'
       parameters:
       - description: event ID
         in: path
@@ -17433,8 +17432,8 @@ paths:
       - event-analytics
   /events/{id}/manage/analytics/progress/matrix/export.csv:
     get:
-      description: 'One row per team, one column per task: the solve time (UTC), "спроб:
-        N" for tried, empty for untouched.'
+      description: 'One row per team, one column per task: the solve time (UTC), an
+        attempts count ("attempts: N" in Ukrainian) for tried, empty for untouched.'
       parameters:
       - description: event ID
         in: path
@@ -17549,7 +17548,7 @@ paths:
       - event-analytics
   /events/{id}/manage/analytics/stands:
     get:
-      description: §6.5 «Стенди». Empty (Available=false) for an event without infrastructure.
+      description: §6.5 Stands. Empty (Available=false) for an event without infrastructure.
         The period bounds the telemetry and VPN figures; deploy and failure history
         is the event's.
       parameters:
@@ -17656,10 +17655,9 @@ paths:
       - event-analytics
   /events/{id}/manage/analytics/tasks:
     get:
-      description: '§6.3 «Завдання». Attempts, solves, solve rate (solvers ÷ teams
-        that tried), median time to solve from the start and from the first open,
-        first blood, hints and points spent, over the period (default: the event''s
-        window).'
+      description: '§6.3 Tasks. Attempts, solves, solve rate (solvers ÷ teams that
+        tried), median time to solve from the start and from the first open, first
+        blood, hints and points spent, over the period (default: the event''s window).'
       parameters:
       - description: event ID
         in: path
@@ -17794,10 +17792,10 @@ paths:
       - event-analytics
   /events/{id}/manage/analytics/usage:
     get:
-      description: «Використання». Online is true when the last WireGuard handshake
-        is at most 3 minutes old; it is never derived from traffic. VPN figures (sessions,
-        online seconds, bytes) follow the period; the lab counters are cumulative
-        over the whole event. Counts and times only, no addresses. Empty (Available=false)
+      description: Usage. Online is true when the last WireGuard handshake is at most
+        3 minutes old; it is never derived from traffic. VPN figures (sessions, online
+        seconds, bytes) follow the period; the lab counters are cumulative over the
+        whole event. Counts and times only, no addresses. Empty (Available=false)
         for an event without infrastructure. Not cached.
       parameters:
       - description: event ID
@@ -17900,7 +17898,7 @@ paths:
                 data:
                   $ref: '#/definitions/event.answerFileResponse'
               type: object
-      summary: Upload a file for a team «Файл» question on behalf of a team
+      summary: Upload a file for a team File question on behalf of a team
       tags:
       - events
   /events/{id}/manage/answer-files/{fileID}:
@@ -18593,7 +18591,7 @@ paths:
       responses:
         "204":
           description: No Content
-      summary: Turn the first screen's link off («Вимкнути»)
+      summary: Turn the first screen's link off (Turn off)
       tags:
       - events
     get:
@@ -18919,7 +18917,7 @@ paths:
       responses:
         "204":
           description: No Content
-      summary: Turn a screen's link off («Вимкнути»)
+      summary: Turn a screen's link off (Turn off)
       tags:
       - events
     get:
@@ -19518,7 +19516,7 @@ paths:
                 data:
                   $ref: '#/definitions/event.eventExerciseResponse'
               type: object
-      summary: '«Налаштувати під захід»: switch to the event''s own copy of the catalog
+      summary: 'Customize for the event: switch to the event''s own copy of the catalog
         exercise'
       tags:
       - events
@@ -19594,7 +19592,7 @@ paths:
                 data:
                   $ref: '#/definitions/event.eventExerciseResponse'
               type: object
-      summary: '«Повернути оригінал»: switch a fork attachment back to its catalog
+      summary: 'Restore the original: switch a fork attachment back to its catalog
         source'
       tags:
       - events
@@ -19734,8 +19732,8 @@ paths:
                 data:
                   $ref: '#/definitions/event.eventExerciseResponse'
               type: object
-      summary: '«Оновити»: switch the attachment in place to the latest (or given)
-        published version, keeping event overrides'
+      summary: 'Update: switch the attachment in place to the latest (or given) published
+        version, keeping event overrides'
       tags:
       - events
   /events/{id}/manage/exercises/{exerciseID}/update/preview:
@@ -19777,7 +19775,7 @@ paths:
                 data:
                   $ref: '#/definitions/event.eventExerciseUpdatePreviewResponse'
               type: object
-      summary: 'Dry run of «Оновити до нової версії»: what the update would do, nothing
+      summary: 'Dry run of Update to a new version: what the update would do, nothing
         is changed'
       tags:
       - events
@@ -20155,7 +20153,7 @@ paths:
                 data:
                   $ref: '#/definitions/event.standsResponse'
               type: object
-      summary: List team stands (moderator «Стенди»)
+      summary: List team stands (moderator Stands)
       tags:
       - events
   /events/{id}/manage/labs/{teamID}/challenges/{challengeID}/devices/{device}/rescue:
@@ -23252,7 +23250,7 @@ paths:
                 data:
                   $ref: '#/definitions/event.resultsSettingsResponse'
               type: object
-      summary: Open the results («Відкрити підсумки») or restore the freeze
+      summary: Open the results (Open results) or restore the freeze
       tags:
       - events
   /events/{id}/manage/scoring:
@@ -25437,8 +25435,7 @@ paths:
                 data:
                   $ref: '#/definitions/eventself.answerFileResponse'
               type: object
-      summary: Upload a file for a «Файл» question of the participant form or team
-        fields
+      summary: Upload a file for a File question of the participant form or team fields
       tags:
       - events-self
   /events/self/answer-files/{fileID}:
@@ -27667,7 +27664,7 @@ paths:
           description: Not Found
           schema:
             $ref: '#/definitions/response.Response'
-      summary: State of a background export «з образами»
+      summary: State of a background export with images
       tags:
       - exercises
   /exercises/files:

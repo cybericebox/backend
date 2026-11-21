@@ -1,4 +1,4 @@
--- Platform analytics, «Користувачі» (docs/EVENT-ANALYTICS.md §8). Extends
+-- Platform analytics, "Users" (docs/EVENT-ANALYTICS.md §8). Extends
 -- the admin user stats (CountUsersByRoleAll, CountUsersByStatus, the new /
 -- active counts of platform_analytics_overview.sql) with period-bound
 -- aggregates. Windows are half-open [from, to) of UTC days. Only

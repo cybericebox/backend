@@ -110,7 +110,7 @@ func TestTeamsTableFiltersAndSortsColumns(t *testing.T) {
 	}{
 		{"Alpha", "Zoya", 3, "Одеса", "2026-01-10", "09:15"},
 		{"Beta", "Andrii", 1, "Київ", "2026-03-05T10:00:00.000Z", "18:40"},
-		{"Gamma", "Mariia", 2, "Львів", "не дата", ""},
+		{"Gamma", "Mariia", 2, "Львів", "not a date", ""},
 	} {
 		captain, cErr := users.Create(ctx, userModel.NewIncompleteUser(uuid.Must(uuid.NewV7()), fmt.Sprintf("ttable-%d@example.test", i), now))
 		if cErr != nil {

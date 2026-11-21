@@ -1137,7 +1137,7 @@ type UpdateTeamChallengeContentParams struct {
 	ID             uuid.UUID `json:"id"`
 }
 
-// content_changed marks a participant-visible change («Оновлено»).
+// content_changed marks a participant-visible change ("Updated").
 func (q *Queries) UpdateTeamChallengeContent(ctx context.Context, arg UpdateTeamChallengeContentParams) (int64, error) {
 	result, err := q.db.Exec(ctx, updateTeamChallengeContent,
 		arg.VariantIndex,

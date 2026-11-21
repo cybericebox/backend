@@ -195,7 +195,7 @@ type RevokeEventLiveScreenLinksParams struct {
 	ScreenID  uuid.UUID          `json:"screen_id"`
 }
 
-// «Вимкнути»: the screen has no working link afterwards.
+// "Disable": the screen has no working link afterwards.
 func (q *Queries) RevokeEventLiveScreenLinks(ctx context.Context, arg RevokeEventLiveScreenLinksParams) (int64, error) {
 	result, err := q.db.Exec(ctx, revokeEventLiveScreenLinks, arg.RevokedAt, arg.EventID, arg.ScreenID)
 	if err != nil {

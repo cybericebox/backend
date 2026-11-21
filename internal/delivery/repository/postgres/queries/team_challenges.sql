@@ -217,7 +217,7 @@ ORDER BY tc.id
 FOR UPDATE OF tc;
 
 -- name: UpdateTeamChallengeContent :execrows
--- content_changed marks a participant-visible change («Оновлено»).
+-- content_changed marks a participant-visible change ("Updated").
 UPDATE team_challenges
 SET variant_index      = sqlc.arg(variant_index),
     snapshot           = sqlc.arg(snapshot),

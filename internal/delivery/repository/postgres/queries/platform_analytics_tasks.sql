@@ -1,4 +1,4 @@
--- Platform analytics «Каталог завдань» (docs/EVENT-ANALYTICS.md §8). Usage and
+-- Platform analytics "Task catalog" (docs/EVENT-ANALYTICS.md §8). Usage and
 -- calibration of catalog tasks across the events that start in the period
 -- [from_at, to_at). The catalog is the exercises table (scope 0); a task is
 -- one (exercise, task) pair, an event challenge is its use in one event. The

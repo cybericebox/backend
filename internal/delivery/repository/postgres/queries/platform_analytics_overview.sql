@@ -1,4 +1,4 @@
--- Platform analytics, «Огляд» (docs/EVENT-ANALYTICS.md §8). Aggregates across
+-- Platform analytics, "Overview" (docs/EVENT-ANALYTICS.md §8). Aggregates across
 -- the whole platform. Every window is a half-open [from, to) of UTC days; the
 -- previous window is passed as prev_from/prev_to (an empty window for "all
 -- time"). The moderators team is never counted.
