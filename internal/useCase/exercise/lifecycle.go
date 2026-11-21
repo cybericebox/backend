@@ -75,6 +75,15 @@ func (u *ExerciseUseCase) SaveDraft(ctx context.Context, exerciseID uuid.UUID, i
 	if err != nil {
 		return VersionView{}, err
 	}
+	// Registry references are fixed by digest here, outside the transaction (the lookups are network calls); a reference
+	// the stored working copy already fixed under the same name and tag keeps its digest.
+	var storedVariants []exerciseModel.Variant
+	if mergeSource != nil {
+		storedVariants = mergeSource.Variants
+	}
+	if err = u.pinDraftImages(ctx, exerciseID, version.Variants, storedVariants); err != nil {
+		return VersionView{}, err
+	}
 	copyOf := in.CopyOf
 	if mergeSource != nil {
 		mergeKeptSecrets(version.Variants, mergeSource.Variants)

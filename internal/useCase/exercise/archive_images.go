@@ -409,6 +409,18 @@ var _ imagePinner = (*imageRegistryUseCase.ImageRegistryUseCase)(nil)
 // importPinBudget is the time all the registry lookups of one import may take together.
 const importPinBudget = 3 * time.Minute
 
+// imagePinner is the image registry that fixes references by digest: the one wired for archive imports, else the one
+// the editor uses; nil when none can (narrow constructions), and references are then stored as written.
+func (u *ExerciseUseCase) imagePinner() imagePinner {
+	if pinner, ok := u.archiveImages.(imagePinner); ok {
+		return pinner
+	}
+	if pinner, ok := u.images.(imagePinner); ok {
+		return pinner
+	}
+	return nil
+}
+
 // importImageScope is the credential scope an import reads registries in: the event it goes into, else, for an update,
 // the owner of the exercise it updates (the editor's rule), else the public one of the catalog.
 func (u *ExerciseUseCase) importImageScope(ctx context.Context, ownerEventID *uuid.UUID, target ImportTarget) (imageRegistryUseCase.Scope, error) {
@@ -427,8 +439,8 @@ func (u *ExerciseUseCase) importImageScope(ctx context.Context, ownerEventID *uu
 // references (pushed archive images, pinned by construction) and references that name a digest are left alone. An image the
 // registry cannot resolve fails the import (ErrImagePinFailed naming it), before anything is created.
 func (u *ExerciseUseCase) pinImportImages(ctx context.Context, deadline time.Time, scope imageRegistryUseCase.Scope, versions []exerciseModel.ExerciseVersion) error {
-	pinner, ok := u.archiveImages.(imagePinner)
-	if !ok {
+	pinner := u.imagePinner()
+	if pinner == nil {
 		return nil
 	}
 	var images []string
@@ -466,14 +478,19 @@ func isExternalImage(image string) bool {
 // eachImage calls fn with every device image and every own image of a linked variant of the versions.
 func eachImage(versions []exerciseModel.ExerciseVersion, fn func(image *string)) {
 	for vi := range versions {
-		for xi := range versions[vi].Variants {
-			variant := &versions[vi].Variants[xi]
-			for di := range variant.Topology.Devices {
-				fn(&variant.Topology.Devices[di].Image)
-			}
-			for oi := range variant.ImageOverrides {
-				fn(&variant.ImageOverrides[oi].Image)
-			}
+		eachVariantImage(versions[vi].Variants, fn)
+	}
+}
+
+// eachVariantImage calls fn with every device image and every own image of the variants.
+func eachVariantImage(variants []exerciseModel.Variant, fn func(image *string)) {
+	for xi := range variants {
+		variant := &variants[xi]
+		for di := range variant.Topology.Devices {
+			fn(&variant.Topology.Devices[di].Image)
+		}
+		for oi := range variant.ImageOverrides {
+			fn(&variant.ImageOverrides[oi].Image)
 		}
 	}
 }
