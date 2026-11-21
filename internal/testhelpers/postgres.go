@@ -137,6 +137,11 @@ func dsnForDatabase(dsn, name string) string {
 // without it.
 func SetupTestDB(t *testing.T) *TestDB {
 	t.Helper()
+	// CIB_TEST_NO_DB skips every database test at once, without a look at the container runtime: for a run on a machine
+	// where Docker is known to be down or must not be used. The skip is explicit, so a count of skips shows what did not run.
+	if os.Getenv("CIB_TEST_NO_DB") != "" {
+		t.Skip("database tests are switched off by CIB_TEST_NO_DB")
+	}
 	ctx := context.Background()
 
 	sharedServer.once.Do(startSharedServerOrGiveUp)
