@@ -14,6 +14,10 @@ updates:
       time: "07:00"
       timezone: Europe/Kyiv
     open-pull-requests-limit: 5
+    # The laboratory module moves with the lab contract (a pseudo-version from laboratory develop), not with its
+    # releases: a tagged release can be older than the pin. It is bumped by hand together with the contract.
+    ignore:
+      - dependency-name: github.com/cybericebox/laboratory
     groups:
       gomod-patch:
         applies-to: version-updates
