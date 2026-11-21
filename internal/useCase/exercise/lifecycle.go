@@ -81,9 +81,8 @@ func (u *ExerciseUseCase) SaveDraft(ctx context.Context, exerciseID uuid.UUID, i
 	if mergeSource != nil {
 		storedVariants = mergeSource.Variants
 	}
-	if err = u.pinDraftImages(ctx, exerciseID, version.Variants, storedVariants); err != nil {
-		return VersionView{}, err
-	}
+	// A draft save never fails because of a registry: what cannot be resolved stays as typed, and publishing refuses it.
+	u.pinDraftImages(ctx, exerciseID, version.Variants, storedVariants)
 	copyOf := in.CopyOf
 	if mergeSource != nil {
 		mergeKeptSecrets(version.Variants, mergeSource.Variants)
@@ -212,6 +211,11 @@ func (u *ExerciseUseCase) PublishDraft(ctx context.Context, exerciseID uuid.UUID
 			return VersionView{}, exerciseModel.ErrNoDraft.Err()
 		}
 		return VersionView{}, model.ErrPlatform.WithError(err).WithMessage("Failed to get draft").Err()
+	}
+	// The publish gate for images: a published version never holds a bare tag. Pinned first, so the checks below and the
+	// stored start configurations see the references the version will hold.
+	if draft, err = u.pinDraftForPublish(ctx, exerciseID, draft); err != nil {
+		return VersionView{}, err
 	}
 	if err = u.requirePublishable(ctx, e, &draft); err != nil {
 		return VersionView{}, err
