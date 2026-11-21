@@ -1,4 +1,4 @@
--- «Дата / час» questions answered with a time of day ("HH:MM", no zone):
+-- "date / time" questions answered with a time of day ("HH:MM", no zone):
 -- the "time" range type compares it as text, which orders two-digit times.
 -- Date bounds may now also be dates ("YYYY-MM-DD") for date-only questions.
 CREATE OR REPLACE FUNCTION event_answer_matches(p_answers jsonb, p_filter jsonb)

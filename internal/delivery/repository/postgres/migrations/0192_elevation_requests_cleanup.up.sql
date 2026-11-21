@@ -1,6 +1,6 @@
 -- Elevation requests (exercise.elevation.requested) that nothing could close: the task was deleted (its
 -- elevation rows cascade) or the request was decided while an inbox copy stayed open. They are not manually
--- resolvable, so they hung in «Запити» forever. Each open copy is closed for every recipient, exactly as the
+-- resolvable, so they hung in the Requests list forever. Each open copy is closed for every recipient, exactly as the
 -- domain resolution would (in_app_notifications + the remembered decision in inbox_subject_resolutions):
 --   * the elevation row is gone                  -> 'withdrawn', by nobody;
 --   * the elevation was approved (1) / rejected (2) -> 'approved' / 'rejected', by the admin who decided.
