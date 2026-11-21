@@ -129,7 +129,7 @@ func startTLS(t *testing.T, clientAuth string) *tlsStand {
 	router.GET("/secret", func(c *gin.Context) { c.String(http.StatusOK, "secret "+c.Request.Proto) })
 	RegisterHealth(router)
 
-	srv := NewServer(&st.cfg, "127.0.0.1", router)
+	srv := NewServer(&st.cfg, "127.0.0.1", router, config.HostsConfig{})
 	srv.Start()
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -259,7 +259,7 @@ func TestTLSAndPlainListenersCanRunTogether(t *testing.T) {
 	}
 	router := gin.New()
 	router.GET("/secret", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
-	srv := NewServer(&cfg, "127.0.0.1", router)
+	srv := NewServer(&cfg, "127.0.0.1", router, config.HostsConfig{})
 	srv.Start()
 	t.Cleanup(func() { srv.Stop(context.Background()) })
 	st.tlsAddr = "127.0.0.1:" + secure
@@ -275,7 +275,7 @@ func TestTLSAndPlainListenersCanRunTogether(t *testing.T) {
 
 func TestTLSOnlyHasNoPlainListener(t *testing.T) {
 	st := startTLS(t, "off") // Port is empty
-	if len(NewServer(&st.cfg, "127.0.0.1", gin.New()).listeners) != 2 {
+	if len(NewServer(&st.cfg, "127.0.0.1", gin.New(), config.HostsConfig{}).listeners) != 2 {
 		t.Fatal("TLS only with a health port: HTTPS + health, no plain API listener")
 	}
 }
@@ -313,7 +313,7 @@ func TestPlainOnlyIsTheDefault(t *testing.T) {
 	if cfg.TLSEnabled() {
 		t.Fatal("TLS is off without cert and key")
 	}
-	ls := NewServer(&cfg, "127.0.0.1", gin.New()).listeners
+	ls := NewServer(&cfg, "127.0.0.1", gin.New(), config.HostsConfig{}).listeners
 	if len(ls) != 1 || ls[0].tls || ls[0].name != "HTTP" {
 		t.Fatalf("plain only: %+v", ls)
 	}
@@ -325,7 +325,7 @@ func TestPlainModeServesOnePortAndNoHealthListener(t *testing.T) {
 	cfg := config.HTTPServerConfig{Host: "127.0.0.1", Port: port, ReadTimeout: time.Second, WriteTimeout: time.Second, MaxHeaderMegabytes: 1}
 	router := gin.New()
 	router.GET("/secret", func(c *gin.Context) { c.String(http.StatusOK, "plain") })
-	srv := NewServer(&cfg, "127.0.0.1", router)
+	srv := NewServer(&cfg, "127.0.0.1", router, config.HostsConfig{})
 	srv.Start()
 	t.Cleanup(func() { srv.Stop(context.Background()) })
 	waitListening(t, "127.0.0.1:"+port)
@@ -343,7 +343,7 @@ func TestInternalListenerServesTheSameHandlerInPlainHTTP(t *testing.T) {
 	cfg := config.HTTPServerConfig{Host: "127.0.0.1", Port: freePort(t), InternalPort: port, ReadTimeout: time.Second, WriteTimeout: time.Second, MaxHeaderMegabytes: 1}
 	router := gin.New()
 	router.GET("/secret", func(c *gin.Context) { c.String(http.StatusOK, "api") })
-	srv := NewServer(&cfg, "127.0.0.1", router)
+	srv := NewServer(&cfg, "127.0.0.1", router, config.HostsConfig{})
 	srv.Start()
 	t.Cleanup(func() { srv.Stop(context.Background()) })
 	waitListening(t, "127.0.0.1:"+port)

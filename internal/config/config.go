@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -415,6 +416,22 @@ type (
 		InternalPort string `env:"INTERNAL_PORT"`
 		// HTTP3 is the optional HTTP/3 (QUIC, UDP) listener next to the HTTPS one (HTTP_SERVER_HTTP3_*).
 		HTTP3 HTTP3Config `envPrefix:"HTTP3_"`
+		// Entry is the optional transparent proxy by server name (HTTP_SERVER_ENTRY_*); off by default.
+		Entry EntryConfig `envPrefix:"ENTRY_"`
+	}
+
+	// EntryConfig is the optional transparent proxy by TLS server name (HTTP_SERVER_ENTRY_*) for the platform's own
+	// frontends: the backend owns the public HTTPS port, terminates TLS for its own API host and passes the TLS
+	// stream of a frontend host, untouched, to the address set here for that host's class. Each value is host:port
+	// of the frontend service. A class left empty is not served: its host gets a TLS alert. All empty (the
+	// default) is off and the backend is the only thing on the port. The host names are never set here: they derive
+	// from DOMAIN (main = DOMAIN, id, admin, exercises, and one label under DOMAIN for an event site).
+	EntryConfig struct {
+		Main      string `env:"MAIN"`
+		ID        string `env:"ID"`
+		Admin     string `env:"ADMIN"`
+		Exercises string `env:"EXERCISES"`
+		Event     string `env:"EVENT"`
 	}
 
 	// HTTP3Config is the HTTP/3 listener: it serves the same handler with the same certificate as the HTTPS
@@ -778,12 +795,43 @@ func (c HTTPControllerConfig) Validate() error {
 // TLSEnabled reports whether the TLS listener runs: the certificate and the key are both set.
 func (c HTTPServerConfig) TLSEnabled() bool { return c.TLS.CertFile != "" && c.TLS.KeyFile != "" }
 
+// Enabled reports whether the proxy mode is on: at least one upstream is set.
+func (e EntryConfig) Enabled() bool {
+	return e.Main != "" || e.ID != "" || e.Admin != "" || e.Exercises != "" || e.Event != ""
+}
+
+// validate checks every set upstream is host:port with a numeric port.
+func (e EntryConfig) validate() error {
+	for name, value := range map[string]string{
+		"HTTP_SERVER_ENTRY_MAIN": e.Main, "HTTP_SERVER_ENTRY_ID": e.ID, "HTTP_SERVER_ENTRY_ADMIN": e.Admin,
+		"HTTP_SERVER_ENTRY_EXERCISES": e.Exercises, "HTTP_SERVER_ENTRY_EVENT": e.Event,
+	} {
+		if value == "" {
+			continue
+		}
+		host, port, err := net.SplitHostPort(value)
+		if err != nil || host == "" {
+			return fmt.Errorf("%s must be host:port, got %q", name, value)
+		}
+		if n, convErr := strconv.Atoi(port); convErr != nil || n < 1 || n > 65535 {
+			return fmt.Errorf("%s: %q is not a port", name, port)
+		}
+	}
+	return nil
+}
+
 // ClientAuthOn reports whether client certificates are asked for (optional or require).
 func (c HTTPServerConfig) ClientAuthOn() bool {
 	return c.TLSEnabled() && (c.TLS.ClientAuth == "optional" || c.TLS.ClientAuth == "require")
 }
 
 func (c HTTPServerConfig) validate() error {
+	if err := c.Entry.validate(); err != nil {
+		return err
+	}
+	if c.Entry.Enabled() && !c.TLSEnabled() {
+		return errors.New("HTTP_SERVER_ENTRY_* needs HTTP_SERVER_TLS_CERT_FILE and HTTP_SERVER_TLS_KEY_FILE")
+	}
 	if (c.TLS.CertFile == "") != (c.TLS.KeyFile == "") {
 		return errors.New("HTTP_SERVER_TLS_CERT_FILE and HTTP_SERVER_TLS_KEY_FILE must be set together")
 	}

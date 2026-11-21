@@ -95,6 +95,8 @@ required value.
 | `DOMAIN` | The one base domain; every other host is derived from it |
 | `SUPPORT_EMAIL` | Default Reply-To and contact in the mail footer |
 | `POSTGRES_PASSWORD` | Database password (host, port, user and database have defaults) |
+| `HTTP_SERVER_ENTRY_MAIN`, `_ID`, `_ADMIN`, `_EXERCISES`, `_EVENT` | Optional transparent proxy by TLS server name (default off: all five empty). Each is `host:port` of a frontend service; the backend owns the HTTPS port, serves its own API host and passes the TLS stream of the matching host (main = `DOMAIN`, `id`, `admin`, `exercises`, one label under `DOMAIN` for event sites) untouched to that address. A host whose class is empty, any other name, and `labs`, `vpn`, `ctl` are refused. Needs TLS; TCP only (no HTTP/3 for forwarded hosts) |
+| `HTTP_SERVER_HTTP3_ENABLED`, `_PORT`, `_ADVERTISED_PORT` | HTTP/3 (QUIC) served by the backend itself on UDP, same certificate and handler as HTTPS; default off, UDP port = HTTPS port, advertised `443` |
 | `CAPTCHA_PROVIDER` | `turnstile`, `recaptcha` (default) or `none`; `none` is refused in production |
 
 Everything else is optional with a default: HTTP and TLS listeners, SMTP, object storage, Google sign-in, laboratory

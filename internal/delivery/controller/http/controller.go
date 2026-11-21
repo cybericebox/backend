@@ -127,7 +127,7 @@ func NewController(deps Dependencies) *Controller {
 	handler.NewAPIHandler(deps.UseCase, prot, deps.AuthConfig).Init(router)
 
 	return &Controller{
-		server:  NewServer(&deps.Config.Server, deps.Config.HealthBind, router),
+		server:  NewServer(&deps.Config.Server, deps.Config.HealthBind, router, deps.AuthConfig.Hosts),
 		limiter: limiter,
 	}
 }
