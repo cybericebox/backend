@@ -151,21 +151,19 @@ func (p *Proxy) Serve(ln net.Listener) error {
 			if p.ctx.Err() != nil || errors.Is(err, net.ErrClosed) {
 				return net.ErrClosed
 			}
-			var ne net.Error
-			if errors.As(err, &ne) && ne.Timeout() {
-				if delay == 0 {
-					delay = 5 * time.Millisecond
-				} else if delay *= 2; delay > time.Second {
-					delay = time.Second
-				}
-				select {
-				case <-time.After(delay):
-					continue
-				case <-p.ctx.Done():
-					return net.ErrClosed
-				}
+			// Any other accept error (file descriptors exhausted, a reset before accept) is retried with a
+			// back-off: giving up would leave the public port open but dead.
+			if delay == 0 {
+				delay = 5 * time.Millisecond
+			} else if delay *= 2; delay > time.Second {
+				delay = time.Second
 			}
-			return err
+			select {
+			case <-time.After(delay):
+				continue
+			case <-p.ctx.Done():
+				return net.ErrClosed
+			}
 		}
 		delay = 0
 		p.Stats.Accepted.Add(1)
@@ -307,9 +305,12 @@ func (p *Proxy) forward(client net.Conn, raw []byte, upstream string) {
 	}
 	p.Stats.Forwarded.Add(1)
 
+	// One activity clock for both directions: the connection is idle only when neither side moved a byte.
+	var last atomic.Int64
+	last.Store(time.Now().UnixNano())
 	done := make(chan struct{}, 2)
-	go func() { pipe(up, client, p.cfg.IdleTimeout); done <- struct{}{} }()
-	go func() { pipe(client, up, p.cfg.IdleTimeout); done <- struct{}{} }()
+	go func() { pipe(up, client, p.cfg.IdleTimeout, &last); done <- struct{}{} }()
+	go func() { pipe(client, up, p.cfg.IdleTimeout, &last); done <- struct{}{} }()
 	<-done
 	<-done
 }
@@ -319,7 +320,7 @@ var bufPool = sync.Pool{New: func() any { b := make([]byte, copyBufferSize); ret
 // pipe copies src to dst; every read and write has its own idle deadline. When src ends, dst gets a half close so
 // the other direction can finish; on an error both sides are closed by the caller after the second pipe ends, and
 // the deadline guarantees it does.
-func pipe(dst, src net.Conn, idle time.Duration) {
+func pipe(dst, src net.Conn, idle time.Duration, last *atomic.Int64) {
 	bp := bufPool.Get().(*[]byte)
 	defer bufPool.Put(bp)
 	buf := *bp
@@ -327,6 +328,7 @@ func pipe(dst, src net.Conn, idle time.Duration) {
 		_ = src.SetReadDeadline(time.Now().Add(idle))
 		n, err := src.Read(buf)
 		if n > 0 {
+			last.Store(time.Now().UnixNano())
 			_ = dst.SetWriteDeadline(time.Now().Add(idle))
 			if _, werr := dst.Write(buf[:n]); werr != nil {
 				_ = src.Close()
@@ -335,6 +337,10 @@ func pipe(dst, src net.Conn, idle time.Duration) {
 			}
 		}
 		if err != nil {
+			var ne net.Error
+			if errors.As(err, &ne) && ne.Timeout() && time.Since(time.Unix(0, last.Load())) < idle {
+				continue // the other direction is moving: the connection is not idle
+			}
 			if errors.Is(err, io.EOF) {
 				if cw, ok := dst.(interface{ CloseWrite() error }); ok {
 					_ = cw.CloseWrite()
