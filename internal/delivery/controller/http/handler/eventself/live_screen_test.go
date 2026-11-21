@@ -50,8 +50,8 @@ func (f fakeUseCase) GetLiveScreen(ctx context.Context, eventID uuid.UUID, token
 		return eventUseCase.LiveScreenView{}, err
 	}
 	opens := time.Date(2026, 10, 19, 10, 0, 0, 0, time.UTC)
-	return eventUseCase.LiveScreenView{Event: eventUseCase.EventInfoView{EventID: eventID, Name: "Screen"}, ScreenID: fakeScreenID, ScreenName: "Фойє", Layout: eventContentModel.DefaultLiveLayout(),
-		Stages: []eventUseCase.LiveScreenStageView{{Name: "Етап 1", OpensAt: opens, ClosesAt: opens.Add(2 * time.Hour)}}}, nil
+	return eventUseCase.LiveScreenView{Event: eventUseCase.EventInfoView{EventID: eventID, Name: "Screen"}, ScreenID: fakeScreenID, ScreenName: "Foyer", Layout: eventContentModel.DefaultLiveLayout(),
+		Stages: []eventUseCase.LiveScreenStageView{{Name: "Stage 1", OpensAt: opens, ClosesAt: opens.Add(2 * time.Hour)}}}, nil
 }
 
 func (f fakeUseCase) GetLiveScreenVersion(ctx context.Context, eventID uuid.UUID, token string) (eventUseCase.LiveScreenVersionView, error) {
@@ -174,8 +174,8 @@ func TestLiveScreenReturnsTheEventLayoutAndStages(t *testing.T) {
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/live-screen?token="+fakeScreenToken, nil))
 	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"Name":"Screen"`) || !strings.Contains(w.Body.String(), `"widgets"`) ||
-		!strings.Contains(w.Body.String(), `"Stages":[{"Name":"Етап 1","OpensAt":"2026-10-19T10:00:00Z","ClosesAt":"2026-10-19T12:00:00Z"}]`) ||
-		!strings.Contains(w.Body.String(), `"Screen":{"ID":"`+fakeScreenID.String()+`","Name":"Фойє"}`) {
+		!strings.Contains(w.Body.String(), `"Stages":[{"Name":"Stage 1","OpensAt":"2026-10-19T10:00:00Z","ClosesAt":"2026-10-19T12:00:00Z"}]`) ||
+		!strings.Contains(w.Body.String(), `"Screen":{"ID":"`+fakeScreenID.String()+`","Name":"Foyer"}`) {
 		t.Fatalf("live screen = %d %s", w.Code, w.Body.String())
 	}
 	w = httptest.NewRecorder()

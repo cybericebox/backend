@@ -493,7 +493,7 @@ func TestGetGoogleLoginURL_PassesOnlyAnAddressAsLoginHint(t *testing.T) {
 	}
 }
 
-// «Продовження реєстрації»: the Google start for a setup link hints the account's own address.
+// "Continue registration": the Google start for a setup link hints the account's own address.
 func TestGetGoogleSetupURL_HintsTheAccountEmail(t *testing.T) {
 	uc, repo, fo := newPrefillUC(t, nil)
 	uid := uuid.Must(uuid.NewV7())
@@ -551,8 +551,8 @@ func TestLinkGoogleToSetupFromOAuth_AdoptsGoogleNamesWhenEmpty(t *testing.T) {
 		&oauth.GoogleUser{
 			GoogleID:   "g-1",
 			Email:      "a@b.test",
-			GivenName:  "Олена",
-			FamilyName: "Коваль",
+			GivenName:  "Olena",
+			FamilyName: "Koval",
 		},
 	)
 	uid := uuid.Must(uuid.NewV7())
@@ -585,7 +585,7 @@ func TestLinkGoogleToSetupFromOAuth_AdoptsGoogleNamesWhenEmpty(t *testing.T) {
 	); err != nil {
 		t.Fatalf("LinkGoogleToSetupFromOAuth: %v", err)
 	}
-	if written.FirstName != "Олена" || written.LastName != "Коваль" ||
+	if written.FirstName != "Olena" || written.LastName != "Koval" ||
 		written.Status != "incomplete" {
 		t.Fatalf("names not adopted, or the account left setup: %+v", written)
 	}

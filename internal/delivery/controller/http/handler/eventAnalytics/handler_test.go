@@ -205,12 +205,12 @@ func TestOverviewMailCountersNeedTheSensitiveAccess(t *testing.T) {
 	}
 }
 
-// «Використання» for a viewer without the people access (a read-only moderator): the aggregates only, no
+// Usage for a viewer without the people access (a read-only moderator): the aggregates only, no
 // per-person rows, names or times, and no per-person CSV. The roles behind People are in TestResolveAccess.
 func TestUsagePeopleOnlyWithThePeopleAccess(t *testing.T) {
 	seen := time.Date(2026, 10, 19, 10, 0, 0, 0, time.UTC)
 	usage := eventAnalyticsUseCase.UsageView{Available: true, Summary: eventAnalyticsUseCase.UsageSummaryView{Users: 12, OnlineNow: 4},
-		Users: []eventAnalyticsUseCase.UsageUserView{{UserID: uuid.Must(uuid.NewV7()), UserName: "Олена Коваленко", LastSeenAt: &seen}}}
+		Users: []eventAnalyticsUseCase.UsageUserView{{UserID: uuid.Must(uuid.NewV7()), UserName: "Olena Kovalenko", LastSeenAt: &seen}}}
 	for _, people := range []bool{false, true} {
 		uc := &fakeUseCase{people: people, usage: usage}
 		base := "/api/events/" + uuid.Must(uuid.NewV7()).String() + "/manage/analytics/usage"
@@ -224,7 +224,7 @@ func TestUsagePeopleOnlyWithThePeopleAccess(t *testing.T) {
 		if body.Data.Summary.Users != 12 || body.Data.Summary.OnlineNow != 4 {
 			t.Fatalf("people=%v: summary %+v", people, body.Data.Summary)
 		}
-		if people != (len(body.Data.Users) == 1) || body.Data.PeopleHidden == people || bytes.Contains(w.Body.Bytes(), []byte("Олена")) != people {
+		if people != (len(body.Data.Users) == 1) || body.Data.PeopleHidden == people || bytes.Contains(w.Body.Bytes(), []byte("Olena")) != people {
 			t.Fatalf("people=%v: body %s", people, w.Body.String())
 		}
 		w = serve(t, uc, base+"/export.csv")
@@ -263,11 +263,11 @@ func TestUsageTotalsIgnoreTheFiltersWithoutThePeopleAccess(t *testing.T) {
 	}
 }
 
-// «Затверджені без жодної спроби» for a viewer without the people access: the addresses are masked in the report
+// Approved without any attempt for a viewer without the people access: the addresses are masked in the report
 // and in its CSV, the names stay. The roles behind People are in TestResolveAccess.
 func TestDropOffAddressesMaskedWithoutThePeopleAccess(t *testing.T) {
 	members := eventAnalyticsUseCase.ParticipantsView{DropOff: eventAnalyticsUseCase.DropOffView{Total: 1,
-		Rows: []eventAnalyticsUseCase.DropOffRowView{{UserID: uuid.Must(uuid.NewV7()), Name: "Олена", Email: "olena@example.com"}}}}
+		Rows: []eventAnalyticsUseCase.DropOffRowView{{UserID: uuid.Must(uuid.NewV7()), Name: "Olena", Email: "olena@example.com"}}}}
 	for _, people := range []bool{false, true} {
 		uc := &fakeUseCase{people: people, members: members}
 		base := "/api/events/" + uuid.Must(uuid.NewV7()).String() + "/manage/analytics/participants"
@@ -277,7 +277,7 @@ func TestDropOffAddressesMaskedWithoutThePeopleAccess(t *testing.T) {
 				t.Fatalf("people=%v %s: status = %d body = %s", people, target, w.Code, w.Body.String())
 			}
 			body := w.Body.String()
-			if bytes.Contains(w.Body.Bytes(), []byte("olena@example.com")) != people || (!people && !bytes.Contains(w.Body.Bytes(), []byte("o***@example.com"))) || !bytes.Contains(w.Body.Bytes(), []byte("Олена")) {
+			if bytes.Contains(w.Body.Bytes(), []byte("olena@example.com")) != people || (!people && !bytes.Contains(w.Body.Bytes(), []byte("o***@example.com"))) || !bytes.Contains(w.Body.Bytes(), []byte("Olena")) {
 				t.Fatalf("people=%v %s: body %s", people, target, body)
 			}
 		}
@@ -295,7 +295,7 @@ func TestSubmissionsHidePeopleWithoutThePeopleAccess(t *testing.T) {
 		Items: []eventAnalyticsUseCase.SubmissionView{
 			{
 				UserID:           user,
-				ParticipantName:  "Олена Коваленко",
+				ParticipantName:  "Olena Kovalenko",
 				Email:            "olena@example.com",
 				TeamName:         "Red",
 				ChallengeName:    "Web",
@@ -320,7 +320,7 @@ func TestSubmissionsHidePeopleWithoutThePeopleAccess(t *testing.T) {
 			}
 			out := w.Body.Bytes()
 			sees := bytes.Contains(out, []byte("olena@example.com")) ||
-				bytes.Contains(out, []byte("Олена")) ||
+				bytes.Contains(out, []byte("Olena")) ||
 				bytes.Contains(out, []byte(user.String()))
 			if sees != people || !bytes.Contains(out, []byte("Red")) ||
 				!bytes.Contains(out, []byte("Web")) {

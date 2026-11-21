@@ -66,7 +66,7 @@ func answerTask(answer exerciseModel.AnswerCheck) exerciseModel.Task {
 
 func TestValidateDocument_Answer(t *testing.T) {
 	yes, no := true, false
-	longText := strings.Repeat("я", exerciseModel.MaxTextAnswerRunes+1)
+	longText := strings.Repeat("é", exerciseModel.MaxTextAnswerRunes+1)
 	many := make([]string, exerciseModel.MaxAnswerValues+1)
 	for i := range many {
 		many[i] = strings.Repeat("v", i+1)

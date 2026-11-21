@@ -34,11 +34,11 @@ func TestDeliver_PlatformMailEndsWithFooter(t *testing.T) {
 	repo.EXPECT().ListPlatformSMTPProviders(gomock.Any()).Return([]postgres.MailSmtpConfig{platformRow}, nil)
 	expectPlatformIdentity(repo, &platformIdentityRow)
 
-	require.NoError(t, uc.Deliver(context.Background(), nil, email.Message{To: "u@example.org", HTML: "<p>Привіт</p>", Text: "Привіт"}))
+	require.NoError(t, uc.Deliver(context.Background(), nil, email.Message{To: "u@example.org", HTML: "<p>Hello</p>", Text: "Hello"}))
 	require.Len(t, smtp.sends, 1)
 	sent := smtp.sends[0].msg
-	require.True(t, strings.HasPrefix(sent.HTML, "<p>Привіт</p>"))
-	require.True(t, strings.HasPrefix(sent.Text, "Привіт\n\nЦей лист надіслано автоматично."))
+	require.True(t, strings.HasPrefix(sent.HTML, "<p>Hello</p>"))
+	require.True(t, strings.HasPrefix(sent.Text, "Hello\n\nЦей лист надіслано автоматично."))
 	requireFooter(t, sent, "support@cybericebox.com")
 }
 
@@ -51,14 +51,14 @@ func TestDeliver_BrandNameNeverBreaksInSentParts(t *testing.T) {
 	expectPlatformIdentity(repo, &platformIdentityRow)
 
 	require.NoError(t, uc.Deliver(context.Background(), nil, email.Message{
-		To: "u@example.org", HTML: "<p>Ласкаво просимо до Cyber ICE Box</p>", Text: "Ласкаво просимо до Cyber ICE Box",
+		To: "u@example.org", HTML: "<p>Welcome to Cyber ICE Box</p>", Text: "Welcome to Cyber ICE Box",
 	}))
 	sent := smtp.sends[0].msg
 	breakable := regexp.MustCompile(`Cyber\s+(ICE|Ice)\s+Box`)
 	require.False(t, breakable.MatchString(sent.HTML), sent.HTML)
 	require.False(t, breakable.MatchString(sent.Text), sent.Text)
-	require.Contains(t, sent.HTML, "до Cyber&nbsp;ICE&nbsp;Box</p>")
-	require.Contains(t, sent.Text, "до Cyber\u00a0ICE\u00a0Box")
+	require.Contains(t, sent.HTML, "to Cyber&nbsp;ICE&nbsp;Box</p>")
+	require.Contains(t, sent.Text, "to Cyber\u00a0ICE\u00a0Box")
 }
 
 func TestDeliver_EventMailFooterUsesEventReplyTo(t *testing.T) {
@@ -71,7 +71,7 @@ func TestDeliver_EventMailFooterUsesEventReplyTo(t *testing.T) {
 	require.NoError(t, uc.Deliver(context.Background(), &eventID, email.Message{To: "p@example.org", HTML: "<p>x</p>", Text: "x"}))
 	require.Len(t, smtp.sends, 1)
 	sent := smtp.sends[0].msg
-	require.Equal(t, email.Address{Name: "Кібер Олімпіада", Email: "olymp@mail.cybericebox.com"}, sent.From)
+	require.Equal(t, email.Address{Name: "Cyber Olympiad", Email: "olymp@mail.cybericebox.com"}, sent.From)
 	require.Equal(t, "org@uni.edu", sent.ReplyTo.Email)
 	requireFooter(t, sent, "org@uni.edu")
 }
@@ -167,7 +167,7 @@ func TestFooter_WithoutPlatformTransportStillUsesSupport(t *testing.T) {
 }
 
 const savedFooterDoc = `{"root":{"type":"root","children":[{"type":"paragraph","children":[` +
-	`{"type":"text","text":"Дякуємо! ","format":1},{"type":"variable","varName":"reply_to"},` +
+	`{"type":"text","text":"Thanks! ","format":1},{"type":"variable","varName":"reply_to"},` +
 	`{"type":"text","text":" · "},{"type":"variable","varName":"site_url"}]}]}}`
 
 func TestDeliver_SavedFooterReplacesTheDefault(t *testing.T) {
@@ -179,8 +179,8 @@ func TestDeliver_SavedFooterReplacesTheDefault(t *testing.T) {
 
 	require.NoError(t, uc.Deliver(context.Background(), nil, email.Message{To: "u@example.org", HTML: "<p>x</p>", Text: "x"}))
 	sent := smtp.sends[0].msg
-	require.True(t, strings.HasSuffix(sent.Text, "Дякуємо! support@cybericebox.com · cybericebox.com"), sent.Text)
-	require.Contains(t, sent.HTML, "<strong>Дякуємо! </strong>", "formatting comes through the body renderer")
+	require.True(t, strings.HasSuffix(sent.Text, "Thanks! support@cybericebox.com · cybericebox.com"), sent.Text)
+	require.Contains(t, sent.HTML, "<strong>Thanks! </strong>", "formatting comes through the body renderer")
 	require.Contains(t, sent.HTML, `href="mailto:support@cybericebox.com"`)
 	require.NotContains(t, sent.HTML, "Політика")
 }
@@ -189,13 +189,13 @@ func TestDeliver_FooterSavedAsTextIsStillRendered(t *testing.T) {
 	uc, repo, smtp := newTestUseCase(t, config.SMTPConfig{}, nil)
 	repo.EXPECT().ListPlatformSMTPProviders(gomock.Any()).Return([]postgres.MailSmtpConfig{platformRow}, nil)
 	row := platformIdentityRow
-	row.FooterText = "Дякуємо! {reply_to} · [Політика]({privacy_url})"
+	row.FooterText = "Thanks! {reply_to} · [Policy]({privacy_url})"
 	uc.privacyURL = "https://cybericebox.com/privacy"
 	expectPlatformIdentity(repo, &row)
 
 	require.NoError(t, uc.Deliver(context.Background(), nil, email.Message{To: "u@example.org", HTML: "<p>x</p>", Text: "x"}))
 	sent := smtp.sends[0].msg
-	require.True(t, strings.HasSuffix(sent.Text, "Дякуємо! support@cybericebox.com · Політика (https://cybericebox.com/privacy)"), sent.Text)
+	require.True(t, strings.HasSuffix(sent.Text, "Thanks! support@cybericebox.com · Policy (https://cybericebox.com/privacy)"), sent.Text)
 	require.Contains(t, sent.HTML, `href="https://cybericebox.com/privacy"`)
 }
 
@@ -266,12 +266,12 @@ func TestUpdatePlatformFooter_DefaultContentIsStoredAsNull(t *testing.T) {
 func TestGetPlatformMailSettings_LegacyTextFooterIsConverted(t *testing.T) {
 	uc, repo, _ := newTestUseCase(t, config.SMTPConfig{}, nil)
 	repo.EXPECT().ListPlatformSMTPProviders(gomock.Any()).Return([]postgres.MailSmtpConfig{}, nil).AnyTimes()
-	expectPlatformIdentity(repo, &postgres.MailIdentity{FooterText: "Дякуємо! {site_url}"})
+	expectPlatformIdentity(repo, &postgres.MailIdentity{FooterText: "Thanks! {site_url}"})
 
 	view, err := uc.GetPlatformMailSettings(context.Background())
 	require.NoError(t, err)
 	require.Contains(t, string(view.Footer.Content), `"varName":"site_url"`)
-	require.Contains(t, string(view.Footer.Content), "Дякуємо! ")
+	require.Contains(t, string(view.Footer.Content), "Thanks! ")
 }
 
 func TestPreviewPlatformFooter_RendersUnsavedDocWithPlatformValues(t *testing.T) {
@@ -280,7 +280,7 @@ func TestPreviewPlatformFooter_RendersUnsavedDocWithPlatformValues(t *testing.T)
 
 	preview, err := uc.PreviewPlatformFooter(context.Background(), []byte(savedFooterDoc))
 	require.NoError(t, err)
-	require.Equal(t, "Дякуємо! support@cybericebox.com · cybericebox.com", preview.Text)
+	require.Equal(t, "Thanks! support@cybericebox.com · cybericebox.com", preview.Text)
 	require.Contains(t, preview.HTML, `href="mailto:support@cybericebox.com"`)
 
 	_, err = uc.PreviewPlatformFooter(context.Background(), []byte(`{"root":{"type":"root","children":[{"type":"paragraph","children":[{"type":"variable","varName":"nope"}]}]}}`))
@@ -295,8 +295,8 @@ func TestPreviewPlatformFooter_RendersUnsavedDocWithPlatformValues(t *testing.T)
 // {site_url} is the address the use case was given (MAIN_SITE_URL, or the ID site when it is not set), shown without the scheme.
 func TestPreviewPlatformFooter_UsesTheGivenSiteURL(t *testing.T) {
 	for siteURL, want := range map[string]string{
-		"https://example.org":     "Дякуємо! support@cybericebox.com · example.org",
-		"https://id.example.test": "Дякуємо! support@cybericebox.com · id.example.test",
+		"https://example.org":     "Thanks! support@cybericebox.com · example.org",
+		"https://id.example.test": "Thanks! support@cybericebox.com · id.example.test",
 	} {
 		uc, repo, _ := newTestUseCase(t, config.SMTPConfig{}, nil)
 		uc.siteURL = siteURL

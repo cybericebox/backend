@@ -29,7 +29,7 @@ func (u *moderatorsBoardUC) ListModeratorsBoard(context.Context, uuid.UUID) ([]e
 }
 
 func (u *moderatorsBoardUC) GetModeratorsTeam(context.Context, uuid.UUID) (eventUseCase.ModeratorsTeamView, error) {
-	return eventUseCase.ModeratorsTeamView{Members: []eventUseCase.ModeratorsTeamMemberView{{Name: "Олена Коваль", Role: 1}}}, nil
+	return eventUseCase.ModeratorsTeamView{Members: []eventUseCase.ModeratorsTeamMemberView{{Name: "Olena Koval", Role: 1}}}, nil
 }
 
 func (u *moderatorsBoardUC) SubmitModeratorsChallenge(_ context.Context, _, userID, _ uuid.UUID, in eventUseCase.SubmitChallengeInput) (eventUseCase.SubmitChallengeResult, error) {
@@ -58,7 +58,7 @@ func TestModeratorsBoardRoutes(t *testing.T) {
 	}
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, base+"team", nil))
-	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"Name":"Олена Коваль"`) {
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"Name":"Olena Koval"`) {
 		t.Fatalf("team: %d %s", w.Code, w.Body.String())
 	}
 	w = httptest.NewRecorder()

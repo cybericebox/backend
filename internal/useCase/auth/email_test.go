@@ -194,7 +194,7 @@ func TestConfirmEmailChange_NoticeAndSessionRevocationCommitTogether(t *testing.
 	}
 }
 
-// «Не підтверджено»: the same address again is a resend of the confirmation of the account's own address.
+// "Not confirmed": the same address again is a resend of the confirmation of the account's own address.
 func TestRequestEmailChange_OwnAddressResendsTheConfirmation(t *testing.T) {
 	uc, repo, notifier := newEmailUC(t)
 	uid := uuid.Must(uuid.NewV7())

@@ -28,7 +28,7 @@ func (u *resultsEndModeUseCase) GetResultsSettings(context.Context, uuid.UUID) (
 func (u *resultsEndModeUseCase) UpdateResultsSettings(_ context.Context, _ uuid.UUID, _ eventConfigModel.Visibility, settings eventConfigModel.ResultsSettings, _ uuid.UUID) (eventUseCase.ResultsSettingsView, error) {
 	u.settings = settings
 	var view eventUseCase.ResultsSettingsView
-	err := json.Unmarshal([]byte(`{"FreezeEndMode":"manual","FreezeBannerText":"Підсумки згодом.","FreezeBannerLevel":"critical"}`), &view)
+	err := json.Unmarshal([]byte(`{"FreezeEndMode":"manual","FreezeBannerText":"Results later.","FreezeBannerLevel":"critical"}`), &view)
 	return view, err
 }
 
@@ -39,7 +39,7 @@ func TestResultsSettingsHandlerAcceptsManualFreezeEndMode(t *testing.T) {
 	w := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(w)
 	ctx.Params = gin.Params{{Key: "id", Value: uuid.Must(uuid.NewV7()).String()}}
-	req := httptest.NewRequest(http.MethodPut, "/", strings.NewReader(`{"ScoreboardVisibility":2,"FreezeEnabled":true,"FreezeMinutes":30,"FreezeEndMode":"manual","FreezeBannerText":"Підсумки згодом.","FreezeBannerLevel":"critical","LiveFreeze":true,"ChartEnabled":true,"ChartTeams":5}`))
+	req := httptest.NewRequest(http.MethodPut, "/", strings.NewReader(`{"ScoreboardVisibility":2,"FreezeEnabled":true,"FreezeMinutes":30,"FreezeEndMode":"manual","FreezeBannerText":"Results later.","FreezeBannerLevel":"critical","LiveFreeze":true,"ChartEnabled":true,"ChartTeams":5}`))
 	req.Header.Set("Content-Type", "application/json")
 	ctx.Request = req.WithContext(rbac.ContextWithCurrentUserSession(req.Context(), rbac.Claims{UserID: uuid.Must(uuid.NewV7())}))
 	h.updateResultsSettings(ctx)
@@ -53,7 +53,7 @@ func TestResultsSettingsHandlerAcceptsManualFreezeEndMode(t *testing.T) {
 	if !strings.Contains(string(body), `"FreezeEndMode":"manual"`) || !strings.Contains(w.Body.String(), `"FreezeEndMode":"manual"`) {
 		t.Fatalf("mode lost at settings boundary: input=%s output=%s", body, w.Body.String())
 	}
-	for _, field := range []string{`"FreezeBannerText":"Підсумки згодом."`, `"FreezeBannerLevel":"critical"`} {
+	for _, field := range []string{`"FreezeBannerText":"Results later."`, `"FreezeBannerLevel":"critical"`} {
 		if !strings.Contains(string(body), field) || !strings.Contains(w.Body.String(), field) {
 			t.Errorf("banner lost at settings boundary: input=%s output=%s", body, w.Body.String())
 		}
@@ -94,7 +94,7 @@ func TestLegacyResultsSettingsPutPreservesConfiguredFreezeFields(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	for _, textField := range []string{"", `,"FreezeBannerText":""`} {
 		u := &resultsEndModeUseCase{current: eventUseCase.ResultsSettingsView{
-			FreezeEndMode: eventConfigModel.FreezeEndManual, FreezeBannerText: "Підсумки згодом.", FreezeBannerLevel: "critical", LiveFreeze: false,
+			FreezeEndMode: eventConfigModel.FreezeEndManual, FreezeBannerText: "Results later.", FreezeBannerLevel: "critical", LiveFreeze: false,
 		}}
 		h := NewEventAPIHandler(u, nil)
 		w := httptest.NewRecorder()
@@ -107,7 +107,7 @@ func TestLegacyResultsSettingsPutPreservesConfiguredFreezeFields(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Fatalf("legacy update=%d %s", w.Code, w.Body.String())
 		}
-		wantText := "Підсумки згодом."
+		wantText := "Results later."
 		if textField != "" {
 			wantText = ""
 		}

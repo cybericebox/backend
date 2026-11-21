@@ -257,7 +257,7 @@ func TestListInbox_SerializesResolution(t *testing.T) {
 	resolved := time.Date(2026, 9, 29, 12, 4, 0, 0, time.UTC)
 	uc := &fakeUseCase{list: []inboxModel.InAppNotification{
 		{ID: uuid.Must(uuid.NewV7()), Type: "event.lab.failed", Category: inboxModel.CategoryRequests, ActionRequired: true,
-			ResolvedAt: &resolved, Resolution: "fixed", ResolvedBy: &resolver, ResolvedByName: "Іван П."},
+			ResolvedAt: &resolved, Resolution: "fixed", ResolvedBy: &resolver, ResolvedByName: "Ivan P."},
 		{ID: uuid.Must(uuid.NewV7()), Type: "participant.event.finished", Category: inboxModel.CategoryActivity},
 	}}
 	engine := newEngine(uc, &uid)
@@ -265,7 +265,7 @@ func TestListInbox_SerializesResolution(t *testing.T) {
 	engine.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/notifications/inbox?site=main", nil))
 	assert.Equal(t, http.StatusOK, w.Code)
 	body := w.Body.String()
-	assert.Contains(t, body, `"Category":"requests","ActionRequired":true,"ResolvedAt":"2026-09-29T12:04:00Z","Resolution":"fixed","ResolvedBy":{"ID":"`+resolver.String()+`","Name":"Іван П."},"Resolvable":false`)
+	assert.Contains(t, body, `"Category":"requests","ActionRequired":true,"ResolvedAt":"2026-09-29T12:04:00Z","Resolution":"fixed","ResolvedBy":{"ID":"`+resolver.String()+`","Name":"Ivan P."},"Resolvable":false`)
 	assert.Contains(t, body, `"Category":"activity","ActionRequired":false,"ResolvedAt":null,"Resolution":null,"ResolvedBy":null,"Resolvable":false`)
 }
 

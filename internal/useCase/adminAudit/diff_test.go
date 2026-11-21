@@ -113,7 +113,7 @@ func TestSanitizeStripsSecretsFromHandBuiltChanges(t *testing.T) {
 		{Field: "Password", Before: "a", After: "b"},
 		{Field: "Settings.recoveryCode", After: "123456"},
 		{Field: "Role", Before: "user", After: "admin"},
-		{Field: "Bio", After: strings.Repeat("я", 500)},
+		{Field: "Bio", After: strings.Repeat("é", 500)},
 		{
 			Field: "Form",
 			After: map[string]any{

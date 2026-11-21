@@ -164,7 +164,7 @@ func TestATeamNameWithBidiOrInvisibleCharactersIsRefused(t *testing.T) {
 			t.Errorf("%s: %v", name, err)
 		}
 	}
-	if _, err := New(uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), "Команда Альфа", "secure-join-code", time.Now()); err != nil {
+	if _, err := New(uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), "Team Alpha", "secure-join-code", time.Now()); err != nil {
 		t.Fatal(err)
 	}
 }

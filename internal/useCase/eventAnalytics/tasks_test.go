@@ -14,7 +14,7 @@ import (
 	"github.com/cybericebox/daemon/internal/useCase/eventAnalytics"
 )
 
-// taskStore serves the «Завдання» and «Прогрес» reads; the rest of Store is
+// taskStore serves the "Tasks" and "Progress" reads; the rest of Store is
 // nil and panics if a report touches it.
 type taskStore struct {
 	eventAnalytics.Store

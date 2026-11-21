@@ -47,7 +47,7 @@ func TestResultsFreezeReadUsesCommonGatesWithoutScoreQueries(t *testing.T) {
 			cfg := frozenConfig(eventID, now, 10)
 			cfg.ScoreboardVisibility = int16(tc.visibility)
 			cfg.ResultsFreezeEndMode = tc.endMode
-			cfg.ResultsFreezeBannerText, cfg.ResultsFreezeBannerLevel = "Організатор відкриє підсумки.", "critical"
+			cfg.ResultsFreezeBannerText, cfg.ResultsFreezeBannerLevel = "The organizer will open the results.", "critical"
 			row := startedEvent(eventID, now)
 			switch tc.phase {
 			case "future":

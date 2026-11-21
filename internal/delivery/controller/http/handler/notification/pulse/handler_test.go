@@ -38,7 +38,7 @@ func (f *fakeUseCase) Pulse(_ context.Context, site siteModel.Site, v pulseUseCa
 
 func (f *fakeUseCase) Banners(_ context.Context, site siteModel.Site, v pulseUseCase.Viewer) (pulseUseCase.BannerList, error) {
 	f.sites, f.viewers = append(f.sites, site), append(f.viewers, v)
-	return pulseUseCase.BannerList{Version: f.banners, Items: []pulseUseCase.Banner{{ID: "system-results-freeze:x", Kind: "system", Text: "Заморожено", Level: "critical"}}}, nil
+	return pulseUseCase.BannerList{Version: f.banners, Items: []pulseUseCase.Banner{{ID: "system-results-freeze:x", Kind: "system", Text: "Frozen", Level: "critical"}}}, nil
 }
 
 func (f *fakeUseCase) DismissBanner(_ context.Context, userID, id uuid.UUID) error {
@@ -137,7 +137,7 @@ func TestBannersCarryTheVersionAsETag(t *testing.T) {
 	if cc := w.Header().Get("Cache-Control"); cc != "public, no-cache" {
 		t.Fatalf("guest Cache-Control = %q", cc)
 	}
-	if !strings.Contains(w.Body.String(), `"ID":"system-results-freeze:x","Kind":"system","Title":"","Text":"Заморожено"`) {
+	if !strings.Contains(w.Body.String(), `"ID":"system-results-freeze:x","Kind":"system","Title":"","Text":"Frozen"`) {
 		t.Fatalf("body = %s", w.Body.String())
 	}
 	if again := get(router, "/api/notifications/banners?site=main", false, map[string]string{"If-None-Match": `"v42"`}); again.Code != http.StatusNotModified {

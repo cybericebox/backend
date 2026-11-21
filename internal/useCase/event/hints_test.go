@@ -81,7 +81,7 @@ func TestUnlockHint_RefusesDisabledHints(t *testing.T) {
 }
 
 // The event can only hide hints: a task that enables them stays closed while
-// «Вимкнути підказки для всіх завдань» is on.
+// "Disable hints for all tasks" is on.
 func TestUnlockHint_RefusesWhenEventDisablesHints(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	q := newFormGateMock(ctrl)

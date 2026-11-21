@@ -16,7 +16,7 @@ import (
 	"github.com/cybericebox/daemon/internal/useCase/eventAnalytics"
 )
 
-// participantFake is the «Учасники» and «Комунікації» half of fakeStore.
+// participantFake is the "Participants" and "Communications" half of fakeStore.
 type participantFake struct {
 	funnel      eventAnalyticsRepo.ParticipantFunnel
 	days        []eventAnalyticsRepo.RegistrationDay

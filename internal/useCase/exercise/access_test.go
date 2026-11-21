@@ -80,7 +80,7 @@ func TestAuthorizeExercise(t *testing.T) {
 
 func ptr[T any](v T) *T { return &v }
 
-// TestSetExerciseAccess_NoneClearsSelection: «недоступно нікому» writes
+// TestSetExerciseAccess_NoneClearsSelection: "unavailable to anyone" writes
 // access level 3 and drops any selected events (no insert).
 func TestSetExerciseAccess_NoneClearsSelection(t *testing.T) {
 	ctrl := gomock.NewController(t)

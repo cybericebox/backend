@@ -279,7 +279,7 @@ func TestPlatformFooter_SaveAndPreviewPassTheDocument(t *testing.T) {
 // passes) and platform staff, admin_viewer included; a read-only moderator gets them masked or hidden.
 func TestEventMail_PrivateDataPerRole(t *testing.T) {
 	journal := []dispatchModel.DispatchDetail{{
-		DispatchInfo: dispatchModel.DispatchInfo{RecipientEmail: "olena@example.com", RecipientName: "Олена"},
+		DispatchInfo: dispatchModel.DispatchInfo{RecipientEmail: "olena@example.com", RecipientName: "Olena"},
 		Targets:      []dispatchModel.DispatchTarget{{Channel: "email", Status: "error", Recipient: "olena@example.com", Error: "550 <olena@example.com> unknown"}},
 	}}
 	settings := mailUseCase.EventSettingsView{SMTP: &mailUseCase.SMTPView{Host: "smtp.uni.edu", Username: "mailer@uni.edu"}}
@@ -303,7 +303,7 @@ func TestEventMail_PrivateDataPerRole(t *testing.T) {
 			require.Equal(t, c.private, strings.Contains(w.Body.String(), "olena@example.com"), w.Body.String())
 			if !c.private {
 				require.Contains(t, w.Body.String(), "o***@example.com")
-				require.Contains(t, w.Body.String(), "Олена")
+				require.Contains(t, w.Body.String(), "Olena")
 			}
 			w = serveAs(uc, c.role, http.MethodGet, "/api/events/"+eventID.String()+"/manage/mail", "")
 			require.Equal(t, http.StatusOK, w.Code, w.Body.String())

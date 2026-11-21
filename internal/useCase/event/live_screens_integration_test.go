@@ -52,7 +52,7 @@ func TestLiveScreensLifecycle(t *testing.T) {
 
 	screens, err := uc.ListLiveScreens(ctx, eventID, true)
 	if err != nil || len(screens) != 1 || screens[0].Name != "Екран 1" || screens[0].Version != 1 || screens[0].HasDraft || screens[0].Link != nil {
-		t.Fatalf("a new event has «Екран 1»: %+v, %v", screens, err)
+		t.Fatalf("a new event has the default first screen: %+v, %v", screens, err)
 	}
 	first := screens[0].ID
 
@@ -66,13 +66,13 @@ func TestLiveScreensLifecycle(t *testing.T) {
 		t.Fatalf("the single-screen draft went elsewhere: %+v, %v", editor, err)
 	}
 
-	// A second screen without a name is «Екран 2»; a copy carries layout and draft.
+	// A second screen without a name gets the default second name; a copy carries layout and draft.
 	second, err := uc.CreateLiveScreen(ctx, eventID, event.CreateLiveScreenInput{})
 	if err != nil || second.Name != "Екран 2" || second.Position != 1 {
 		t.Fatalf("second = %+v, %v", second, err)
 	}
-	copied, err := uc.CreateLiveScreen(ctx, eventID, event.CreateLiveScreenInput{Name: "  Фойє ", CopyFrom: &first})
-	if err != nil || copied.Name != "Фойє" || !copied.HasDraft {
+	copied, err := uc.CreateLiveScreen(ctx, eventID, event.CreateLiveScreenInput{Name: "  Lobby ", CopyFrom: &first})
+	if err != nil || copied.Name != "Lobby" || !copied.HasDraft {
 		t.Fatalf("copy = %+v, %v", copied, err)
 	}
 	template := eventContentModel.DefaultLiveLayout()
@@ -106,7 +106,7 @@ func TestLiveScreensLifecycle(t *testing.T) {
 	}
 
 	// Rename and reorder.
-	if renamed, err := uc.RenameLiveScreen(ctx, eventID, second.ID, " Головний зал "); err != nil || renamed.Name != "Головний зал" {
+	if renamed, err := uc.RenameLiveScreen(ctx, eventID, second.ID, " Main hall "); err != nil || renamed.Name != "Main hall" {
 		t.Fatalf("rename = %+v, %v", renamed, err)
 	}
 	if _, err = uc.RenameLiveScreen(ctx, eventID, second.ID, "  "); !errors.Is(err, eventContentModel.ErrLiveScreenNameInvalid.Err()) {
@@ -122,7 +122,7 @@ func TestLiveScreensLifecycle(t *testing.T) {
 			t.Fatalf("reorder %v = %v", wrong, err)
 		}
 	}
-	// The single-screen routes follow the order: now «Головний зал».
+	// The single-screen routes follow the order: now the renamed screen.
 	if editor, _ := uc.GetLiveScreenEditor(ctx, eventID, uuid.Nil); editor.ID != second.ID {
 		t.Fatalf("the first screen after reordering = %+v", editor)
 	}

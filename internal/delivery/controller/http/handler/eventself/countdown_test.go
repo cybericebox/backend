@@ -20,7 +20,7 @@ func TestPublicInfoExposesCountdownPolicy(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	eventID := uuid.Must(uuid.NewV7())
 	view := eventUseCase.EventInfoView{
-		EventID: eventID, Name: "Подія", Status: eventModel.LifecyclePublished,
+		EventID: eventID, Name: "Event", Status: eventModel.LifecyclePublished,
 		Theme:     eventConfigModel.DefaultTheme(),
 		Countdown: eventConfigModel.CountdownSettings{ShowStart: false, ShowFinish: true, FinishMinutes: 15},
 	}

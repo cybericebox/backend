@@ -202,7 +202,7 @@ func TestImportExerciseArchive_UploadsEachContentOnce(t *testing.T) {
 		return arg.FileID, nil
 	})
 	media := newFakeMedia()
-	archive := linkedArchive(t, "draft", `[{"tasks":[{"name":"Перше","attachments":[{"file":"files/a.txt"},{"file":"other/b.txt"}]}]}]`,
+	archive := linkedArchive(t, "draft", `[{"tasks":[{"name":"First","attachments":[{"file":"files/a.txt"},{"file":"other/b.txt"}]}]}]`,
 		map[string]string{"files/a.txt": "same bytes", "other/b.txt": "same bytes"})
 
 	created, err := newTestExerciseUseCase(exercise.Dependencies{Repo: q, Media: media}).
