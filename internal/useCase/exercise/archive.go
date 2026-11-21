@@ -11,6 +11,7 @@ import (
 	"fmt"
 	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
 	mediaModel "github.com/cybericebox/daemon/internal/model/media"
+	"github.com/cybericebox/daemon/internal/model/usertext"
 	"github.com/gofrs/uuid"
 	"io"
 	"path"
@@ -444,7 +445,7 @@ func importedName(base string, attempt int) string {
 		return base
 	}
 	// Counted in characters, like the name limit: cutting bytes split a Cyrillic letter and Postgres refused the name.
-	suffix := fmt.Sprintf(" (імпорт %d)", attempt)
+	suffix := usertext.ImportedNameSuffix(attempt)
 	base = strings.TrimSpace(truncateRunes(base, 50-utf8.RuneCountInString(suffix)))
 	return base + suffix
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
 	eventAnalyticsModel "github.com/cybericebox/daemon/internal/model/eventAnalytics"
 	"github.com/cybericebox/daemon/internal/model/rbac"
+	"github.com/cybericebox/daemon/internal/model/usertext"
 	eventAnalyticsUseCase "github.com/cybericebox/daemon/internal/useCase/eventAnalytics"
 )
 
@@ -224,28 +225,28 @@ func writeReportTables(zw *zip.Writer, v eventAnalyticsUseCase.ReportView) error
 	}
 
 	summary := [][]string{
-		{"Захід", csvCellText(v.EventName)},
-		{"Початок (UTC)", csvTimePtr(&v.StartAt)},
-		{"Завершення (UTC)", csvTimePtr(v.FinishAt)},
-		{"Зареєстровано учасників", n(v.Participants.Registered)},
-		{"Схвалено учасників", n(v.Participants.Approved)},
-		{"Команд", n(v.Teams.Total)},
-		{"Допущено команд", n(v.Teams.Admitted)},
-		{"Завдань", n(v.Tasks)},
-		{"Спроб", n(v.Attempts)},
-		{"Правильних спроб", n(v.Correct)},
-		{"Розвʼязань", n(v.Solves)},
-		{"Відкрито підказок", n(v.HintsOpened)},
-		{"Витрачено балів на підказки", n(v.HintPoints)},
+		{usertext.ColEvent, csvCellText(v.EventName)},
+		{usertext.ColStartUTC, csvTimePtr(&v.StartAt)},
+		{usertext.ColFinishUTC, csvTimePtr(v.FinishAt)},
+		{usertext.ColParticipantsRegistered, n(v.Participants.Registered)},
+		{usertext.ColParticipantsApproved, n(v.Participants.Approved)},
+		{usertext.ColTeams, n(v.Teams.Total)},
+		{usertext.ColTeamsAdmitted, n(v.Teams.Admitted)},
+		{usertext.ColTasks, n(v.Tasks)},
+		{usertext.ColAttemptCount, n(v.Attempts)},
+		{usertext.ColCorrectAttemptCount, n(v.Correct)},
+		{usertext.ColSolveCount, n(v.Solves)},
+		{usertext.ColHintsOpened, n(v.HintsOpened)},
+		{usertext.ColHintPointsSpent, n(v.HintPoints)},
 	}
 	if v.Stands != nil {
 		summary = append(summary,
-			[]string{"Стендів готово", n(v.Stands.Ready)},
-			[]string{"Стендів зі збоєм", n(v.Stands.Failed)},
-			[]string{"Збоїв стендів і лабораторій", n(v.Stands.Failures)},
-			[]string{"Середнє розгортання стенда (с)", csvSeconds(v.Stands.DeployAvg)})
+			[]string{usertext.ColStandsReady, n(v.Stands.Ready)},
+			[]string{usertext.ColStandsFailed, n(v.Stands.Failed)},
+			[]string{usertext.ColStandAndLabFailures, n(v.Stands.Failures)},
+			[]string{usertext.ColStandDeployAvgSeconds, csvSeconds(v.Stands.DeployAvg)})
 	}
-	if err := table("summary.csv", []string{"Показник", "Значення"}, summary); err != nil {
+	if err := table("summary.csv", []string{usertext.ColIndicator, usertext.ColValue}, summary); err != nil {
 		return err
 	}
 
@@ -253,7 +254,7 @@ func writeReportTables(zw *zip.Writer, v eventAnalyticsUseCase.ReportView) error
 	for _, r := range v.Ranking {
 		ranking = append(ranking, []string{strconv.Itoa(r.Rank), csvCellText(r.Name), n(r.Members), n(r.Points), n(r.Solved), n(r.Attempts), csvTimePtr(r.LastSolveAt)})
 	}
-	if err := table("ranking.csv", []string{"Місце", "Команда", "Учасників", "Бали", "Розвʼязано", "Спроб", "Останнє розвʼязання (UTC)"}, ranking); err != nil {
+	if err := table("ranking.csv", []string{usertext.ColPlace, usertext.ColTeam, usertext.ColParticipants, usertext.ColPoints, usertext.ColSolved, usertext.ColAttemptCount, usertext.ColLastSolveUTC}, ranking); err != nil {
 		return err
 	}
 
@@ -262,8 +263,8 @@ func writeReportTables(zw *zip.Writer, v eventAnalyticsUseCase.ReportView) error
 		tasks = append(tasks, []string{csvCellText(t.Name), n(t.Points), n(t.TeamsOpened), n(t.TeamsAttempted), n(t.Attempts), n(t.CorrectAttempts),
 			n(t.Solves), csvRate(t.SolveRate), n(t.HintsUnlocked), csvCellText(t.FirstSolveTeam), csvTimePtr(t.FirstSolveAt)})
 	}
-	if err := table("tasks.csv", []string{"Завдання", "Бали", "Команд відкривало", "Команд пробувало", "Спроб", "Правильних спроб", "Розвʼязань",
-		"Частка розвʼязань", "Підказок", "Перша кров", "Час першої крові (UTC)"}, tasks); err != nil {
+	if err := table("tasks.csv", []string{usertext.ColTask, usertext.ColPoints, usertext.ColTeamsOpened, usertext.ColTeamsTried, usertext.ColAttemptCount, usertext.ColCorrectAttemptCount, usertext.ColSolveCount,
+		usertext.ColSolveShare, usertext.ColHints, usertext.ColFirstBlood, usertext.ColFirstBloodTimeUTC}, tasks); err != nil {
 		return err
 	}
 
@@ -274,7 +275,7 @@ func writeReportTables(zw *zip.Writer, v eventAnalyticsUseCase.ReportView) error
 	for _, s := range v.TeamFunnel {
 		funnel = append(funnel, []string{"teams", s.Key, n(s.Count)})
 	}
-	if err := table("funnel.csv", []string{"Група", "Крок", "Кількість"}, funnel); err != nil {
+	if err := table("funnel.csv", []string{usertext.ColGroup, usertext.ColStep, usertext.ColCount}, funnel); err != nil {
 		return err
 	}
 
@@ -286,5 +287,5 @@ func writeReportTables(zw *zip.Writer, v eventAnalyticsUseCase.ReportView) error
 		at := p.At
 		activity = append(activity, []string{csvTimePtr(&at), n(p.Attempts), n(p.Correct), n(p.Solves), n(p.Opens)})
 	}
-	return table("activity.csv", []string{"Інтервал 5 хв (UTC)", "Спроб", "Правильних спроб", "Розвʼязань", "Відкриттів завдань"}, activity)
+	return table("activity.csv", []string{usertext.ColInterval5MinUTC, usertext.ColAttemptCount, usertext.ColCorrectAttemptCount, usertext.ColSolveCount, usertext.ColTaskOpenings}, activity)
 }

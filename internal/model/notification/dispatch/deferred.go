@@ -3,12 +3,14 @@ package dispatchModel
 import (
 	"errors"
 	"time"
+
+	"github.com/cybericebox/daemon/internal/model/usertext"
 )
 
 // Journal texts of a deferred delivery.
 const (
-	DeferredQuotaMessage = "Відкладено: вичерпано добовий ліміт"
-	DeferredRateMessage  = "Відкладено: перевищено швидкість відправки"
+	DeferredQuotaMessage = usertext.DeferredQuota
+	DeferredRateMessage  = usertext.DeferredRate
 )
 
 // DeferredError means the message was not sent because a send limit of the SMTP

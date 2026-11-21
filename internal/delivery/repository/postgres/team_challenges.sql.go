@@ -596,7 +596,7 @@ SELECT tc.id, tc.event_id, tc.event_team_id, tc.event_challenge_id, tc.variant_i
              THEN e.static_points ELSE ec.points END)::integer AS points,
        ec.order_index, ec.group_id, ec.hints_enabled, ec.published,
        ec.hints AS board_hints, ec.hint_costs,
-       COALESCE(ecg.name, 'Інші')::text AS group_name,
+       COALESCE(ecg.name, $2::text)::text AS group_name,
        COALESCE(ecg.order_index, 2147483647)::integer AS group_order,
        (row_number() OVER (PARTITION BY ec.group_id
                            ORDER BY ec.board_order ASC NULLS LAST, ee.created_at ASC, ec.order_index ASC, tc.id ASC) - 1)::integer AS board_position,
@@ -613,18 +613,19 @@ LEFT JOIN team_challenge_solves solved ON solved.team_challenge_id = tc.id
 LEFT JOIN team_challenge_practice_solves practice ON practice.team_challenge_id = tc.id
 LEFT JOIN event_stages stage ON stage.id = ee.stage_id
 LEFT JOIN lab_bindings board_binding ON board_binding.event_team_id=tc.event_team_id AND board_binding.event_challenge_id=tc.event_challenge_id
-WHERE tc.event_team_id = $2
-  AND (ec.published OR NOT $3::boolean)
+WHERE tc.event_team_id = $3
+  AND (ec.published OR NOT $4::boolean)
   -- A task of an upcoming stage is hidden from participants entirely; the moderators board keeps everything.
-  AND (NOT $3::boolean
+  AND (NOT $4::boolean
     OR event_stage_phase(stage.opens_at, stage.closes_at, stage.returnable, $1::timestamptz) <> 0)
 ORDER BY group_order ASC, board_position ASC
 `
 
 type ListTeamBoardChallengesParams struct {
-	At            time.Time `json:"at"`
-	EventTeamID   uuid.UUID `json:"event_team_id"`
-	PublishedOnly bool      `json:"published_only"`
+	At             time.Time `json:"at"`
+	OtherGroupName string    `json:"other_group_name"`
+	EventTeamID    uuid.UUID `json:"event_team_id"`
+	PublishedOnly  bool      `json:"published_only"`
 }
 
 type ListTeamBoardChallengesRow struct {
@@ -666,7 +667,12 @@ type ListTeamBoardChallengesRow struct {
 // static event); board_position: the place inside the group, the order the
 // manage page sets (board_order), then by set attach time and set order.
 func (q *Queries) ListTeamBoardChallenges(ctx context.Context, arg ListTeamBoardChallengesParams) ([]ListTeamBoardChallengesRow, error) {
-	rows, err := q.db.Query(ctx, listTeamBoardChallenges, arg.At, arg.EventTeamID, arg.PublishedOnly)
+	rows, err := q.db.Query(ctx, listTeamBoardChallenges,
+		arg.At,
+		arg.OtherGroupName,
+		arg.EventTeamID,
+		arg.PublishedOnly,
+	)
 	if err != nil {
 		return nil, err
 	}

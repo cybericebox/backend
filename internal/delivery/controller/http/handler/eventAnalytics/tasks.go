@@ -14,6 +14,7 @@ import (
 	"github.com/cybericebox/daemon/internal/delivery/controller/http/download"
 	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
 	"github.com/cybericebox/daemon/internal/model/rbac"
+	"github.com/cybericebox/daemon/internal/model/usertext"
 	eventAnalyticsUseCase "github.com/cybericebox/daemon/internal/useCase/eventAnalytics"
 	"github.com/cybericebox/daemon/pkg/tools"
 )
@@ -181,8 +182,8 @@ func (h *Handler) exportTasks(ctx *gin.Context) {
 		return
 	}
 	w := startAnalyticsCSV(ctx, "tasks")
-	_ = w.Write([]string{"Завдання", "Група", "Складність", "Бали", "Спроби", "Правильні спроби", "Команд пробувало", "Команд відкривало", "Розвʼязань",
-		"Частка розвʼязань", "Медіана від старту (с)", "Медіана від відкриття (с)", "Перша кров", "Час першої крові (UTC)", "Підказок", "Витрачено балів", "Калібрування"})
+	_ = w.Write([]string{usertext.ColTask, usertext.ColGroup, usertext.ColDifficulty, usertext.ColPoints, usertext.ColAttempts, usertext.ColCorrectAttempts, usertext.ColTeamsTried, usertext.ColTeamsOpened, usertext.ColSolveCount,
+		usertext.ColSolveShare, usertext.ColMedianFromStartSeconds, usertext.ColMedianFromOpenSeconds, usertext.ColFirstBlood, usertext.ColFirstBloodTimeUTC, usertext.ColHints, usertext.ColPointsSpent, usertext.ColCalibration})
 	for _, t := range v.Tasks {
 		_ = w.Write([]string{csvCellText(t.Name), csvCellText(t.GroupName), t.Difficulty, strconv.Itoa(int(t.Points)),
 			strconv.FormatInt(t.Attempts, 10), strconv.FormatInt(t.Correct, 10), strconv.FormatInt(t.TeamsTried, 10), strconv.FormatInt(t.TeamsOpened, 10),

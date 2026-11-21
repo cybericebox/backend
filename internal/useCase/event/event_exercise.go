@@ -27,6 +27,7 @@ import (
 	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
 	mediaModel "github.com/cybericebox/daemon/internal/model/media"
 	teamChallengeModel "github.com/cybericebox/daemon/internal/model/teamChallenge"
+	"github.com/cybericebox/daemon/internal/model/usertext"
 )
 
 // AttachExercise pins a published version of an exercise available to the
@@ -458,7 +459,7 @@ func (u *EventUseCase) ForkEventExercise(ctx context.Context, eventID, eventExer
 // forkName names an event copy apart from an existing event exercise,
 // within the 50-character name limit.
 func forkName(name string) string {
-	const suffix = " (копія)"
+	const suffix = usertext.ForkNameSuffix
 	runes := []rune(name)
 	if limit := 50 - len([]rune(suffix)); len(runes) > limit {
 		runes = runes[:limit]

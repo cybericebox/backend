@@ -5,6 +5,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/cybericebox/daemon/internal/model/usertext"
 	platformAnalyticsUseCase "github.com/cybericebox/daemon/internal/useCase/platformAnalytics"
 )
 
@@ -17,34 +18,34 @@ func csvPrevious(m platformAnalyticsUseCase.OverviewMetricView) string {
 }
 
 func writeOverviewSummary(w *csv.Writer, v platformAnalyticsUseCase.OverviewView) {
-	_ = w.Write([]string{"Показник", "Значення", "Попередній період"})
+	_ = w.Write([]string{usertext.ColIndicator, usertext.ColValue, usertext.ColPreviousPeriod})
 	metric := func(name string, m platformAnalyticsUseCase.OverviewMetricView) {
 		_ = w.Write([]string{name, csvInt(m.Value), csvPrevious(m)})
 	}
 	current := func(name string, value int64) { _ = w.Write([]string{name, csvInt(value), ""}) }
-	current("Акаунтів усього", v.Users.Total)
-	metric("Нових акаунтів", v.Users.New)
-	metric("Активних акаунтів", v.Users.Active)
-	current("Заходів: чернетка", v.Events.Draft)
-	current("Заходів: опубліковано", v.Events.Published)
-	current("Заходів: триває", v.Events.Running)
-	current("Заходів: завершено", v.Events.Finished)
-	current("Заходів: архів", v.Events.Archived)
-	metric("Нових заходів", v.Events.New)
-	metric("Реєстрацій учасників", v.Participants.Registered)
-	metric("Схвалених учасників", v.Participants.Approved)
-	metric("Спроб", v.Activity.Attempts)
-	metric("Розвʼязань", v.Activity.Solves)
-	metric("Листів надіслано", v.Mail.Sent)
-	metric("Листів з помилкою", v.Mail.Failed)
-	current("Стендів працює", v.Stands.Ready)
-	current("Стендів розгортається", v.Stands.Creating)
-	current("Стендів з помилкою зараз", v.Stands.Failed)
-	metric("Збоїв стендів", v.Stands.Failures)
+	current(usertext.MetricAccountsTotal, v.Users.Total)
+	metric(usertext.MetricNewAccounts, v.Users.New)
+	metric(usertext.MetricActiveAccounts, v.Users.Active)
+	current(usertext.MetricEventsDraft, v.Events.Draft)
+	current(usertext.MetricEventsPublished, v.Events.Published)
+	current(usertext.MetricEventsRunning, v.Events.Running)
+	current(usertext.MetricEventsFinished, v.Events.Finished)
+	current(usertext.MetricEventsArchived, v.Events.Archived)
+	metric(usertext.MetricNewEvents, v.Events.New)
+	metric(usertext.MetricParticipantRegistrations, v.Participants.Registered)
+	metric(usertext.MetricApprovedParticipants, v.Participants.Approved)
+	metric(usertext.ColAttemptCount, v.Activity.Attempts)
+	metric(usertext.ColSolveCount, v.Activity.Solves)
+	metric(usertext.ColEmailsSent, v.Mail.Sent)
+	metric(usertext.ColEmailsFailed, v.Mail.Failed)
+	current(usertext.MetricStandsRunning, v.Stands.Ready)
+	current(usertext.MetricStandsDeploying, v.Stands.Creating)
+	current(usertext.MetricStandsFailedNow, v.Stands.Failed)
+	metric(usertext.MetricStandFailures, v.Stands.Failures)
 }
 
 func writeOverviewSeries(w *csv.Writer, v platformAnalyticsUseCase.OverviewView) {
-	_ = w.Write([]string{"Дата", "Нових акаунтів", "Спроб", "Розвʼязань", "Листів надіслано", "Листів з помилкою"})
+	_ = w.Write([]string{usertext.ColDate, usertext.MetricNewAccounts, usertext.ColAttemptCount, usertext.ColSolveCount, usertext.ColEmailsSent, usertext.ColEmailsFailed})
 	type row struct{ newUsers, attempts, solves, sent, failed int64 }
 	days := map[time.Time]*row{}
 	at := func(day time.Time) *row {

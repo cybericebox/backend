@@ -10,6 +10,7 @@ import (
 
 	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
 	"github.com/cybericebox/daemon/internal/model/rbac"
+	"github.com/cybericebox/daemon/internal/model/usertext"
 	eventAnalyticsUseCase "github.com/cybericebox/daemon/internal/useCase/eventAnalytics"
 )
 
@@ -200,8 +201,8 @@ func (h *Handler) exportStands(ctx *gin.Context) {
 	w.Flush()
 }
 
-var standsCSVHeader = []string{"Команда", "Статус", "Причина", "Розгортання (с)", "Розгортань", "Збоїв", "Не усунено", "Середнє відновлення (с)", "Найдовше відновлення (с)",
-	"Пристроїв", "Пік CPU (міліядер)", "Пік памʼяті (байт)", "Перезапусків", "VPN сесій", "VPN учасників", "Учасників у команді", "VPN секунд", "VPN отримано (байт)", "VPN надіслано (байт)", "Остання VPN активність (UTC)"}
+var standsCSVHeader = []string{usertext.ColTeam, usertext.ColStatus, usertext.ColReason, usertext.ColDeploySeconds, usertext.ColDeploys, usertext.ColFailures, usertext.ColUnresolved, usertext.ColRecoveryAvgSeconds, usertext.ColRecoveryMaxSeconds,
+	usertext.ColDevices, usertext.ColCPUPeakMillicores, usertext.ColMemoryPeakBytes, usertext.ColRestarts, usertext.ColVPNSessions, usertext.ColVPNParticipants, usertext.ColTeamParticipants, usertext.ColVPNSeconds, usertext.ColVPNReceivedBytes, usertext.ColVPNSentBytes, usertext.ColLastVPNActivityUTC}
 
 func standsCSVRow(t eventAnalyticsUseCase.StandTeamView) []string {
 	n := func(v int64) string { return strconv.FormatInt(v, 10) }

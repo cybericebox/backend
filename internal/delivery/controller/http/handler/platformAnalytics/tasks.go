@@ -11,6 +11,7 @@ import (
 	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
 	platformAnalyticsModel "github.com/cybericebox/daemon/internal/model/platformAnalytics"
 	"github.com/cybericebox/daemon/internal/model/rbac"
+	"github.com/cybericebox/daemon/internal/model/usertext"
 	platformAnalyticsUseCase "github.com/cybericebox/daemon/internal/useCase/platformAnalytics"
 )
 
@@ -201,8 +202,8 @@ func (h *Handler) exportTasks(ctx *gin.Context) {
 		rows = all.Rows
 	}
 	w := startCSV(ctx, "tasks-"+table)
-	_ = w.Write([]string{"Завдання", "Підзавдання", "Рівень", "Категорії", "Заходів", "Спроби", "Команд пробувало", "Команд відкривало або пробувало", "Розвʼязань",
-		"Частка розвʼязань", "Медіана розвʼязання (с)", "Команд із підказкою", "Частка підказок", "Калібрування"})
+	_ = w.Write([]string{usertext.ColTask, usertext.ColSubtask, usertext.ColLevel, usertext.ColCategories, usertext.ColEvents, usertext.ColAttempts, usertext.ColTeamsTried, usertext.ColTeamsOpenedOrTried, usertext.ColSolveCount,
+		usertext.ColSolveShare, usertext.ColMedianSolveSeconds, usertext.ColTeamsWithHint, usertext.ColHintShare, usertext.ColCalibration})
 	for _, t := range rows {
 		median := ""
 		if t.MedianSolveSeconds != nil {

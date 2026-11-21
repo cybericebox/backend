@@ -12,6 +12,7 @@ import (
 
 	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
 	"github.com/cybericebox/daemon/internal/model/rbac"
+	"github.com/cybericebox/daemon/internal/model/usertext"
 	eventAnalyticsUseCase "github.com/cybericebox/daemon/internal/useCase/eventAnalytics"
 )
 
@@ -286,7 +287,7 @@ func (h *Handler) exportProgressMatrix(ctx *gin.Context) {
 		cells[key{c.TeamID, c.ChallengeID}] = c
 	}
 	w := startAnalyticsCSV(ctx, "matrix")
-	header := []string{"Команда", "Бали", "Розвʼязано"}
+	header := []string{usertext.ColTeam, usertext.ColPoints, usertext.ColSolved}
 	for _, t := range v.Tasks {
 		header = append(header, csvCellText(t.Name))
 	}
@@ -301,7 +302,7 @@ func (h *Handler) exportProgressMatrix(ctx *gin.Context) {
 			case c.SolvedAt != nil:
 				row = append(row, c.SolvedAt.UTC().Format(time.RFC3339))
 			default:
-				row = append(row, "спроб: "+strconv.FormatInt(c.Attempts, 10))
+				row = append(row, usertext.AttemptsCell(c.Attempts))
 			}
 		}
 		_ = w.Write(row)
@@ -382,7 +383,7 @@ func (h *Handler) exportProgressInactive(ctx *gin.Context) {
 		return
 	}
 	w := startAnalyticsCSV(ctx, "inactive")
-	_ = w.Write([]string{"Команда", "Бали", "Остання активність (UTC)", "Простій (хв)"})
+	_ = w.Write([]string{usertext.ColTeam, usertext.ColPoints, usertext.ColLastActivityUTC, usertext.ColIdleMinutes})
 	for _, t := range v.Teams {
 		_ = w.Write([]string{csvCellText(t.Name), strconv.FormatInt(t.Points, 10), csvTimePtr(t.LastActivityAt), strconv.FormatInt(t.IdleMinutes, 10)})
 	}

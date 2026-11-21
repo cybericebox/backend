@@ -20,7 +20,7 @@ depends = ["cache-guard"]
 run = "heavy -- go build ./..."
 
 [tasks.lint]
-description = "go vet plus the project lints (error codes, layer imports, route gates, secret contexts)"
+description = "go vet plus the project lints (error codes, layer imports, route gates, secret contexts, Cyrillic outside the text modules)"
 depends = ["cache-guard"]
 run = [
   "heavy -- go vet ./...",
@@ -28,6 +28,7 @@ run = [
   "go run ./tools/checklayers internal/model",
   "go run ./tools/checkroutes",
   "go run ./tools/checksecretctx",
+  "go run ./tools/checkcyrillic",
 ]
 
 [tasks."lint:errors"]
@@ -45,6 +46,10 @@ run = "go run ./tools/checkroutes"
 [tasks."lint:secretctx"]
 description = "Fail when a secret context is built outside internal/secretctx or a seal has none"
 run = "go run ./tools/checksecretctx"
+
+[tasks."lint:cyrillic"]
+description = "Fail on Cyrillic text in non-test Go and SQL code outside the text modules (internal/model/usertext and the notification defaults)"
+run = "go run ./tools/checkcyrillic"
 
 [tasks.test]
 description = "Run the full test suite (the database tests need Docker and skip themselves without it). Usage: mise run test [-- <go test args>]"

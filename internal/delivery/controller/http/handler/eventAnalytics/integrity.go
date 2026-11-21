@@ -13,6 +13,7 @@ import (
 	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
 	eventAnalyticsModel "github.com/cybericebox/daemon/internal/model/eventAnalytics"
 	"github.com/cybericebox/daemon/internal/model/rbac"
+	"github.com/cybericebox/daemon/internal/model/usertext"
 	eventAnalyticsUseCase "github.com/cybericebox/daemon/internal/useCase/eventAnalytics"
 )
 
@@ -470,15 +471,15 @@ func (h *Handler) exportIntegrity(ctx *gin.Context) {
 		return
 	}
 	w := startAnalyticsCSV(ctx, "integrity")
-	_ = w.Write([]string{"Команда", "Завдання", "Рівень", "Здано або підозра (UTC)", "Сигнали", "Перевірено", "Нотатка"})
+	_ = w.Write([]string{usertext.ColTeam, usertext.ColTask, usertext.ColLevel, usertext.ColSubmittedOrSuspectedUTC, usertext.ColSignals, usertext.ColReviewed, usertext.ColNote})
 	for _, item := range v.Items {
 		kinds := make([]string, 0, len(item.Signals))
 		for _, s := range item.Signals {
 			kinds = append(kinds, string(s.Kind))
 		}
-		reviewed, note := "ні", ""
+		reviewed, note := usertext.No, ""
 		if item.Review != nil {
-			reviewed, note = "так", item.Review.Note
+			reviewed, note = usertext.Yes, item.Review.Note
 		}
 		at := item.At
 		_ = w.Write([]string{csvCellText(item.Team.Name), csvCellText(item.ChallengeName), item.Level, csvTimePtr(&at),

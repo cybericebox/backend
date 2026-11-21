@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
+
+	"github.com/cybericebox/daemon/internal/model/usertext"
 )
 
 // PlatformName is the product name in the platform sender and the footer.
@@ -94,7 +96,7 @@ const (
 // defaultFooterTexts are the built-in footers in the legacy text form; the
 // document is derived from them.
 var defaultFooterTexts = map[Language]string{
-	LanguageUK: "Цей лист надіслано автоматично. [Звʼязатися з нами]({reply_to})\n{platform_name}",
+	LanguageUK: usertext.DefaultFooterText,
 	LanguageEN: "This email was sent automatically. [Contact us]({reply_to})\n{platform_name}",
 }
 

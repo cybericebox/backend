@@ -5,7 +5,7 @@
 -- Answers are never read here.
 SELECT ranked.event_challenge_id::uuid AS event_challenge_id,
        COALESCE(challenge.snapshot->>'name', '')::text AS challenge_name,
-       COALESCE(grp.name, 'Інші')::text AS category,
+       COALESCE(grp.name, sqlc.arg(other_category)::text)::text AS category,
        ranked.points::integer AS points,
        ranked.solved_at::timestamptz AS solved_at,
        COALESCE(solver.user_id, '00000000-0000-0000-0000-000000000000'::uuid)::uuid AS solved_by,

@@ -18,6 +18,7 @@ import (
 	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
 	"github.com/cybericebox/daemon/internal/model/rbac"
 	siteBannerModel "github.com/cybericebox/daemon/internal/model/siteBanner"
+	"github.com/cybericebox/daemon/internal/model/usertext"
 	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
 	"github.com/cybericebox/daemon/pkg/pagination"
 	"github.com/cybericebox/daemon/pkg/tools"
@@ -183,7 +184,7 @@ func (h *Handler) exportManageResults(ctx *gin.Context) {
 		return
 	}
 	w := startCSV(ctx, "results")
-	_ = w.Write([]string{"Місце", "Назва", "Справжнє імʼя", "Псевдонім", "Бали", "Розвʼязано", "Останнє розвʼязання (UTC)", "Прихована", "Допущена"})
+	_ = w.Write([]string{usertext.ColPlace, usertext.ColName, usertext.ColRealName, usertext.ColAlias, usertext.ColPoints, usertext.ColSolved, usertext.ColLastSolveUTC, usertext.ColHidden, usertext.ColAdmitted})
 	for _, team := range v.Teams {
 		if team.Moderators {
 			continue
@@ -373,7 +374,7 @@ func (h *Handler) exportSolutionAttempts(ctx *gin.Context) {
 		return
 	}
 	w := startCSV(ctx, "attempts")
-	_ = w.Write([]string{"Час (UTC)", "Завдання", "Команда", "Учасник", "Відповідь", "Автоперевірка", "Рішення", "Зараховано", "Причина рішення"})
+	_ = w.Write([]string{usertext.ColTimeUTC, usertext.ColTask, usertext.ColTeam, usertext.ColParticipant, usertext.ColAnswer, usertext.ColAutoCheck, usertext.ColDecision, usertext.ColCredited, usertext.ColDecisionReason})
 	for {
 		for _, item := range page.Items {
 			reason := ""
@@ -513,7 +514,7 @@ func csvTime(value *time.Time) string {
 
 func yesNo(value bool) string {
 	if value {
-		return "так"
+		return usertext.Yes
 	}
-	return "ні"
+	return usertext.No
 }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
 	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
+	"github.com/cybericebox/daemon/internal/model/usertext"
 	eventAnalyticsUseCase "github.com/cybericebox/daemon/internal/useCase/eventAnalytics"
 )
 
@@ -142,12 +143,12 @@ func (h *Handler) exportCommunications(ctx *gin.Context) {
 		return strconv.FormatFloat(*r, 'f', 3, 64)
 	}
 	if table == "types" {
-		_ = w.Write([]string{"Тип", "Листів надіслано", "Листів з помилкою", "Сповіщень надіслано", "Сповіщень з помилкою", "Сповіщень створено", "Прочитано", "Частка прочитаних"})
+		_ = w.Write([]string{usertext.ColType, usertext.ColEmailsSent, usertext.ColEmailsFailed, usertext.ColNotificationsSent, usertext.ColNotificationsFailed, usertext.ColNotificationsCreated, usertext.ColRead, usertext.ColReadShare})
 		for _, t := range v.Types {
 			_ = w.Write([]string{csvCellText(t.Type), n(t.EmailSent), n(t.EmailErrors), n(t.InAppSent), n(t.InAppErrors), n(t.InAppCreated), n(t.InAppRead), rate(t.ReadRate)})
 		}
 	} else {
-		_ = w.Write([]string{"Форма", "Призначено", "Заповнено", "Відповідей", "Частка заповнених"})
+		_ = w.Write([]string{usertext.ColForm, usertext.ColAssigned, usertext.ColFilled, usertext.ColAnswers, usertext.ColFilledShare})
 		for _, f := range v.Forms {
 			_ = w.Write([]string{csvCellText(f.Title), n(f.Assigned), n(f.Completed), n(f.Answers), rate(f.CompletionRate)})
 		}

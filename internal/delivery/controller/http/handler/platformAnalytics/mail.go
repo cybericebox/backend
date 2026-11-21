@@ -12,6 +12,7 @@ import (
 	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
 	platformAnalyticsModel "github.com/cybericebox/daemon/internal/model/platformAnalytics"
 	"github.com/cybericebox/daemon/internal/model/rbac"
+	"github.com/cybericebox/daemon/internal/model/usertext"
 	platformAnalyticsUseCase "github.com/cybericebox/daemon/internal/useCase/platformAnalytics"
 )
 
@@ -213,28 +214,28 @@ func (h *Handler) exportMail(ctx *gin.Context) {
 // writeMailCSV writes the header and rows of one table.
 func writeMailCSV(write func([]string) error, table string, v platformAnalyticsUseCase.MailView) {
 	keyRows := func(header string, rows []platformAnalyticsUseCase.MailKeyView) {
-		_ = write([]string{header, "Надіслано", "З помилкою", "Усього", "Частка помилок", "Через резервний транспорт"})
+		_ = write([]string{header, usertext.ColSent, usertext.ColWithError, usertext.ColTotal, usertext.ColErrorShare, usertext.ColViaFallbackTransport})
 		for _, r := range rows {
 			_ = write([]string{csvText(r.Key), csvInt(r.Sent), csvInt(r.Failed), csvInt(r.Total), csvFloat(r.FailureRate * 100), csvInt(r.Fallbacks)})
 		}
 	}
 	switch table {
 	case "daily":
-		_ = write([]string{"День", "Надіслано", "З помилкою", "Через резервний транспорт"})
+		_ = write([]string{usertext.ColDay, usertext.ColSent, usertext.ColWithError, usertext.ColViaFallbackTransport})
 		for _, d := range v.Daily {
 			_ = write([]string{csvDay(d.Day), csvInt(d.Sent), csvInt(d.Failed), csvInt(d.Fallbacks)})
 		}
 	case "by_channel":
-		_ = write([]string{"Канал", "Надіслано", "З помилкою", "Відкладено", "Усього", "Частка помилок"})
+		_ = write([]string{usertext.ColChannel, usertext.ColSent, usertext.ColWithError, usertext.ColDeferred, usertext.ColTotal, usertext.ColErrorShare})
 		for _, r := range v.ByChannel {
 			_ = write([]string{csvText(r.Key), csvInt(r.Sent), csvInt(r.Failed), csvInt(r.Deferred), csvInt(r.Total), csvFloat(r.FailureRate * 100)})
 		}
 	case "by_transport":
-		keyRows("Транспорт", v.ByTransport)
+		keyRows(usertext.ColTransport, v.ByTransport)
 	case "by_type":
-		keyRows("Тип сповіщення", v.ByType)
+		keyRows(usertext.ColNotificationType, v.ByType)
 	case "errors":
-		_ = write([]string{"Код SMTP", "Помилка", "Кількість", "Востаннє"})
+		_ = write([]string{usertext.ColSMTPCode, usertext.ColError, usertext.ColCount, usertext.ColLastSeen})
 		for _, e := range v.Errors {
 			_ = write([]string{csvText(e.Code), csvText(e.Message), csvInt(e.Total), csvTime(e.LastAt)})
 		}

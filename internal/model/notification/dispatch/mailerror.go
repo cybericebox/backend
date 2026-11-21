@@ -3,6 +3,8 @@ package dispatchModel
 import (
 	"regexp"
 	"strings"
+
+	"github.com/cybericebox/daemon/internal/model/usertext"
 )
 
 // Kinds of a failed email target, so the journal can show a human line. The
@@ -26,7 +28,7 @@ var (
 // those are shown as they are.
 func ClassifyMailError(raw string) (kind, code string) {
 	raw = strings.TrimSpace(raw)
-	if raw == "" || strings.HasPrefix(raw, "Відкладено") {
+	if raw == "" || strings.HasPrefix(raw, usertext.DeferredPrefix) {
 		return "", ""
 	}
 	if m := smtpReplyCode.FindStringSubmatch(raw); m != nil {

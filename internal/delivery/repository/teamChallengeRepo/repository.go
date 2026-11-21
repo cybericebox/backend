@@ -15,6 +15,7 @@ import (
 	eventModel "github.com/cybericebox/daemon/internal/model/event"
 	eventChallengeModel "github.com/cybericebox/daemon/internal/model/eventChallenge"
 	teamChallengeModel "github.com/cybericebox/daemon/internal/model/teamChallenge"
+	"github.com/cybericebox/daemon/internal/model/usertext"
 )
 
 type Queries interface {
@@ -146,7 +147,7 @@ func (r *Repository) ListBoard(ctx context.Context, teamID uuid.UUID, at time.Ti
 }
 
 func (r *Repository) listBoard(ctx context.Context, teamID uuid.UUID, publishedOnly bool, at time.Time) ([]PublishedChallenge, error) {
-	rows, err := r.q.ListTeamBoardChallenges(ctx, postgres.ListTeamBoardChallengesParams{EventTeamID: teamID, PublishedOnly: publishedOnly, At: at})
+	rows, err := r.q.ListTeamBoardChallenges(ctx, postgres.ListTeamBoardChallengesParams{EventTeamID: teamID, PublishedOnly: publishedOnly, At: at, OtherGroupName: usertext.UngroupedChallenges})
 	if err != nil {
 		return nil, err
 	}
