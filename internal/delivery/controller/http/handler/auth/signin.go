@@ -144,7 +144,7 @@ func (h *Handler) revokeOtherSessions(ctx *gin.Context) {
 }
 
 // sessionMetadata is what a new session records about the request. The address is the peer of the connection
-// (clientaddr.FromRequest): no forwarding header is read. A non-public result (a pod, a NAT) is the
+// (clientaddr.FromRequest): the peer, or CF-Connecting-IP on a verified-certificate connection; no other header is read. A non-public result (a pod, a NAT) is the
 // infrastructure, not the client: it is not stored (authModel.SessionIP).
 func sessionMetadata(ctx *gin.Context) authModel.SessionMetadata {
 	return authModel.SessionMetadata{

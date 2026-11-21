@@ -13,7 +13,6 @@ import (
 	"math/big"
 	"net"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -22,7 +21,6 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/clientaddr"
 )
 
 type testCA struct {
@@ -402,29 +400,5 @@ func TestRenewalKeepsServingTheOldCertificateWhenTheNewFilesAreBroken(t *testing
 	_ = os.Chtimes(certFile, later, later)
 	if c, err := r.GetCertificate(nil); err != nil || c == nil {
 		t.Fatalf("the old certificate stays: %v", err)
-	}
-}
-
-// Client address selection: the Cloudflare header is not read any more, verified client certificate or not.
-
-func TestCloudflareHeaderIsNeverTrusted(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	r := gin.New()
-	cfg := config.HTTPControllerConfig{MaxBodyBytes: 1 << 20}
-	cfg.Server.TLS = config.HTTPServerTLSConfig{CertFile: "c", KeyFile: "k", ClientCAFile: "ca", ClientAuth: "require"}
-	if err := hardenRouter(r, &cfg); err != nil {
-		t.Fatal(err)
-	}
-	r.GET("/ip", func(c *gin.Context) { c.String(http.StatusOK, clientaddr.FromRequest(c.Request)+"|"+c.ClientIP()) })
-	for _, state := range []*tls.ConnectionState{nil, {}, {VerifiedChains: [][]*x509.Certificate{{{}}}}} {
-		req := httptest.NewRequest(http.MethodGet, "/ip", nil)
-		req.RemoteAddr = "10.0.0.5:4000"
-		req.Header.Set("CF-Connecting-IP", "198.51.100.7")
-		req.TLS = state
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-		if got := w.Body.String(); got != "10.0.0.5|10.0.0.5" {
-			t.Fatalf("got %s", got)
-		}
 	}
 }

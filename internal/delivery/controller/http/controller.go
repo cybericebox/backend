@@ -44,9 +44,10 @@ type (
 )
 
 // hardenRouter sets how the client address is found and what every request and response is held to. No
-// forwarding header is trusted (gin gets no trusted proxy, so ClientIP is the connection's own address, the same
-// one clientaddr.FromRequest returns): the backend is the public entry and a client must not choose its address
-// to dodge the per-address limits. Every body is capped.
+// forwarding header is trusted (gin gets no trusted proxy, so ClientIP is the connection's own address). The
+// client address the handlers record is clientaddr.FromRequest: the same peer, except CF-Connecting-IP on a
+// connection with a verified client certificate. A client must not choose its address to dodge the per-address
+// limits. Every body is capped.
 func hardenRouter(router *gin.Engine, cfg *config.HTTPControllerConfig) error {
 	if err := router.SetTrustedProxies(nil); err != nil {
 		return err
