@@ -6,7 +6,7 @@ toolchain go1.27.4
 
 require (
 	cloud.google.com/go/recaptchaenterprise/v2 v2.28.0
-	github.com/caarlos0/env/v11 v11.4.1
+	github.com/caarlos0/env/v11 v11.4.2
 	github.com/cybericebox/laboratory v1.2.1-0.20261121140227-3a8d6157c21c
 	github.com/gin-gonic/gin v1.12.0
 	github.com/go-webauthn/webauthn v0.18.2
@@ -16,7 +16,7 @@ require (
 	github.com/google/go-containerregistry v0.22.1
 	github.com/jackc/pgerrcode v0.0.0-20250907135507-afb5586c32a6
 	github.com/jackc/pgx/v5 v5.11.0
-	github.com/klauspost/compress v1.20.1
+	github.com/klauspost/compress v1.20.4
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/minio/minio-go/v7 v7.3.0
 	github.com/quic-go/quic-go v0.63.0
@@ -32,7 +32,7 @@ require (
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.44.0
 	github.com/yeka/zip v0.0.0-20231116150916-03d6312748a9
 	go.uber.org/mock v0.6.0
-	go.yaml.in/yaml/v3 v3.0.5
+	go.yaml.in/yaml/v3 v3.0.6
 	golang.org/x/crypto v0.59.0
 	golang.org/x/image v0.48.0
 	golang.org/x/net v0.63.0
@@ -45,7 +45,7 @@ require (
 	google.golang.org/grpc v1.84.0
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
-	k8s.io/apimachinery v0.37.1
+	k8s.io/apimachinery v0.37.2
 )
 
 require (
