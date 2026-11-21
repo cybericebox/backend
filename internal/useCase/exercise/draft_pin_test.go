@@ -5,8 +5,11 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gofrs/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/require"
 
 	"go.uber.org/mock/gomock"
@@ -114,8 +117,18 @@ type publishFixture struct {
 	uc        *exercise.ExerciseUseCase
 	images    *draftImages
 	upserted  [][]byte
+	expected  []pgtype.Timestamptz
+	savedBy   []uuid.NullUUID
 	published []byte
+	// conflict makes the pinned write find the working copy at another revision (zero rows).
+	conflict bool
 }
+
+// publishDraftRevision and publishDraftSaver are the revision of the stored working copy and who saved it last.
+var (
+	publishDraftRevision = time.Date(2026, 11, 21, 10, 0, 0, 123456000, time.UTC)
+	publishDraftSaver    = uuid.NullUUID{UUID: uuid.Must(uuid.NewV7()), Valid: true}
+)
 
 func newPublishFixture(t *testing.T, image string) *publishFixture {
 	t.Helper()
@@ -131,10 +144,15 @@ func newPublishFixture(t *testing.T, image string) *publishFixture {
 	stored := mustMarshal(t, variants)
 	q.EXPECT().GetExerciseByID(gomock.Any(), exID).Return(postgres.Exercise{ID: exID, Name: "Published name"}, nil).AnyTimes()
 	q.EXPECT().GetDraftVersion(gomock.Any(), exID).DoAndReturn(func(context.Context, uuid.UUID) (postgres.ExerciseVersion, error) {
-		return postgres.ExerciseVersion{ID: draftID, ExerciseID: exID, Status: "draft", Name: "Published name", Variants: stored}, nil
+		return postgres.ExerciseVersion{ID: draftID, ExerciseID: exID, Status: "draft", Name: "Published name", Variants: stored,
+			CreatedBy: uuid.NullUUID{UUID: uuid.Must(uuid.NewV7()), Valid: true}, UpdatedAt: publishDraftRevision, UpdatedBy: publishDraftSaver}, nil
 	}).AnyTimes()
 	q.EXPECT().UpsertExerciseDraft(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(_ context.Context, arg postgres.UpsertExerciseDraftParams) (postgres.UpsertExerciseDraftRow, error) {
+			f.expected, f.savedBy = append(f.expected, arg.ExpectedUpdatedAt), append(f.savedBy, arg.CreatedBy)
+			if f.conflict {
+				return postgres.UpsertExerciseDraftRow{}, pgx.ErrNoRows
+			}
 			f.upserted = append(f.upserted, arg.Variants)
 			stored = arg.Variants
 			return postgres.UpsertExerciseDraftRow{ID: draftID, ExerciseID: exID, Status: "draft", Name: "Published name", Variants: arg.Variants}, nil
@@ -172,6 +190,21 @@ func TestPublishStoresThePinnedImage(t *testing.T) {
 	require.Equal(t, "nginx:1.27@"+fakeDigest("nginx:1.27"), published[0].Topology.Devices[0].Image)
 	require.JSONEq(t, string(f.upserted[0]), string(f.published))
 	requireNoBareTags(t, f.published)
+	require.Equal(t, []pgtype.Timestamptz{{Time: publishDraftRevision, Valid: true}}, f.expected,
+		"the pinned write goes through the revision check, at the revision that was read")
+	require.Equal(t, []uuid.NullUUID{publishDraftSaver}, f.savedBy, "pinning keeps the last saver")
+}
+
+// A save that lands between the read of the draft and the pinned write (the working copy is at another revision) makes
+// the publish fail with ErrExerciseModified: nothing is overwritten and nothing is published.
+func TestPublishPinRefusesAWorkingCopySavedMeanwhile(t *testing.T) {
+	f := newPublishFixture(t, "nginx:1.27")
+	f.conflict = true
+	_, err := f.uc.PublishDraft(context.Background(), saveExerciseID)
+	require.ErrorIs(t, err, exerciseModel.ErrExerciseModified.Err())
+	require.Len(t, f.expected, 1)
+	require.Empty(t, f.upserted)
+	require.Nil(t, f.published, "nothing is published")
 }
 
 // A draft already holding pinned and platform images is published as it is: nothing is looked up or rewritten.

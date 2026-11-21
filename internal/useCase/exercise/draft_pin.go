@@ -103,8 +103,9 @@ func (u *ExerciseUseCase) pinDraftImages(ctx context.Context, exerciseID uuid.UU
 // pinDraftForPublish fixes every still-unpinned registry reference of the draft about to be published, so a published
 // version never holds a bare tag. The lookups come first, outside any transaction and all-or-nothing (one that cannot be
 // resolved refuses the publish with the field error). When something changed, the pinned draft is stored under the
-// catalog lock, only if the draft is still exactly what was read (else ErrExerciseModified), and the stored row is what
-// is published.
+// catalog lock, only if the draft is still exactly what was read, at the same revision (else ErrExerciseModified), and
+// the stored row is what is published. The write goes through the revision check like every writer of the working copy;
+// it keeps the last saver (pinning is not an edit of its own).
 func (u *ExerciseUseCase) pinDraftForPublish(ctx context.Context, exerciseID uuid.UUID, draft exerciseModel.ExerciseVersion) (exerciseModel.ExerciseVersion, error) {
 	if u.imagePinner() == nil {
 		return draft, nil
@@ -135,11 +136,15 @@ func (u *ExerciseUseCase) pinDraftForPublish(ctx context.Context, exerciseID uui
 		}
 		return draft, model.ErrPlatform.WithError(err).WithMessage("Failed to get draft").Err()
 	}
-	if latest.ID != draft.ID || !reflect.DeepEqual(latest.Variants, draft.Variants) {
+	if latest.ID != draft.ID || !latest.UpdatedAt.Equal(draft.UpdatedAt) || !reflect.DeepEqual(latest.Variants, draft.Variants) {
 		return draft, exerciseModel.ErrExerciseModified.Err()
 	}
-	saved, err := session.exercises.UpsertDraft(ctx, exerciseID, uuid.Must(uuid.NewV7()), pinned, time.Now(), draft.CreatedBy)
+	saved, err := session.exercises.UpsertDraft(ctx, exerciseID, uuid.Must(uuid.NewV7()), pinned, time.Now(), draft.UpdatedBy, draft.UpdatedAt)
 	if err != nil {
+		if repositoryTools.IsObjectNotFoundError(err) {
+			// Zero rows is the revision check: the working copy was saved, discarded or published meanwhile.
+			return draft, exerciseModel.ErrExerciseModified.Err()
+		}
 		return draft, model.ErrPlatform.WithError(err).WithMessage("Failed to save the pinned draft").Err()
 	}
 	if err = unit.Save(); err != nil {
