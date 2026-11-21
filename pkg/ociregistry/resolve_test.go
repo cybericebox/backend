@@ -99,3 +99,28 @@ func TestResolveDigestFailures(t *testing.T) {
 	_, err = newClient(denied.Server, "", "").ResolveDigest(context.Background(), "1.2")
 	require.ErrorIs(t, err, ErrUnauthorized)
 }
+
+// A registry that sends no usable digest and answers the GET with something that is not a manifest (an HTML page of a proxy, a
+// login wall) is not pinned: the hash of such a body would fix the image to a digest no registry serves.
+func TestResolveDigestRefusesABodyThatIsNotAManifest(t *testing.T) {
+	for name, body := range map[string]string{
+		"html":          "<html>sign in</html>",
+		"json no type":  `{"schemaVersion":2}`,
+		"empty":         "",
+		"unknown media": `{"mediaType":"text/plain"}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/v2/" {
+					return
+				}
+				if r.Method == http.MethodGet {
+					_, _ = w.Write([]byte(body))
+				}
+			}))
+			t.Cleanup(srv.Close)
+			got, err := newClient(srv, "", "").ResolveDigest(context.Background(), "1.2")
+			require.ErrorIs(t, err, ErrUnsupportedManifest, "got %q", got)
+		})
+	}
+}

@@ -206,8 +206,9 @@ func (u *ExerciseUseCase) importArchiveBundle(ctx context.Context, contents []by
 	if err != nil {
 		return nil, err
 	}
+	pinDeadline := time.Now().Add(importPinBudget)
 	for i := range tasks {
-		if err = u.pinImportImages(ctx, scope, tasks[i].Versions); err != nil {
+		if err = u.pinImportImages(ctx, pinDeadline, scope, tasks[i].Versions); err != nil {
 			return nil, err
 		}
 	}

@@ -2,7 +2,10 @@ package imageRegistryUseCase
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -94,4 +97,63 @@ func TestPinImagesDoesNotDialInternalAddresses(t *testing.T) {
 	_, err := f.uc.PinImages(context.Background(), Scope{}, []string{loopback.host() + "/acme/app:1"})
 	require.ErrorIs(t, err, imageRegistryModel.ErrImagePinFailed.Err())
 	require.Zero(t, loopback.headCount())
+}
+
+// The registry secret of an event goes only to the registry host (and repository prefix) it was stored for: an archive naming
+// another host, or another repository of the same host, is looked up anonymously and its server never sees a credential.
+func TestPinImagesSendsTheEventSecretOnlyWhereItWasStored(t *testing.T) {
+	ctx := context.Background()
+	f := newExternalFixture(t, "bob")
+	var mu sync.Mutex
+	var seen []string
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		seen = append(seen, r.Header.Get("Authorization"))
+		mu.Unlock()
+		w.Header().Set("WWW-Authenticate", `Basic realm="other"`)
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	t.Cleanup(other.Close)
+	f.hosts["other.example"] = strings.TrimPrefix(other.URL, "http://")
+	pushConfigImage(t, publicClient(f.hub.host(), "acme/app", "bob", secretToken), configJSON("linux", "amd64", "x"), "1")
+	pushConfigImage(t, publicClient(f.hub.host(), "elsewhere/app", "bob", secretToken), configJSON("linux", "amd64", "x"), "1")
+	f.q.EXPECT().ListEventRegistrySecrets(gomock.Any(), eventA).Return([]postgres.EventRegistrySecret{
+		f.row(t, secID, "registry.example", "acme", secretToken),
+	}, nil).AnyTimes()
+
+	for _, image := range []string{
+		"other.example/acme/app:1",         // another host with the same repository path
+		"registry.example/elsewhere/app:1", // the secret's host, outside its repository prefix
+		"registry.example:443/acme/app:1",  // the same name with a port is another registry
+		"other.example/registry.example/acme/app:1",
+	} {
+		_, err := f.uc.PinImages(ctx, eventScope(eventA), []string{image})
+		require.ErrorIs(t, err, imageRegistryModel.ErrImagePinFailed.Err(), image)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	for _, auth := range seen {
+		require.Empty(t, auth, "no credential reaches a host the secret was not stored for")
+	}
+}
+
+// A reference whose repository has upper case letters is no reference a registry or a runtime takes: it is refused, not looked up
+// under its lower-case name and stored as written. A very long reference is named in the error cut short.
+func TestPinImagesRefusesUpperCaseRepositoriesAndCutsLongNames(t *testing.T) {
+	ctx := context.Background()
+	f := newExternalFixture(t, "")
+	pushConfigImage(t, publicClient(f.hub.host(), "acme/app", "", ""), configJSON("linux", "amd64", "x"), "1")
+
+	_, err := f.uc.PinImages(ctx, Scope{}, []string{"registry.example/Acme/App:1"})
+	require.ErrorIs(t, err, imageRegistryModel.ErrImagePinFailed.Err())
+	require.Equal(t, ServiceUnsupported, pinContext(t, err)["reason"])
+	require.Zero(t, f.hub.headCount())
+
+	long := "registry.example/acme/" + strings.Repeat("x", 5000) + ":1"
+	_, err = f.uc.PinImages(ctx, Scope{}, []string{long})
+	require.ErrorIs(t, err, imageRegistryModel.ErrImagePinFailed.Err())
+	shown, _ := pinContext(t, err)["image"].(string)
+	require.NotEmpty(t, shown)
+	require.LessOrEqual(t, len(shown), 300)
+	require.True(t, strings.HasPrefix(long, strings.TrimSuffix(shown, "…")))
 }

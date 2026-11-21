@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/gofrs/uuid"
 
@@ -405,6 +406,9 @@ type imagePinner interface {
 
 var _ imagePinner = (*imageRegistryUseCase.ImageRegistryUseCase)(nil)
 
+// importPinBudget is the time all the registry lookups of one import may take together.
+const importPinBudget = 3 * time.Minute
+
 // importImageScope is the credential scope an import reads registries in: the event it goes into, else, for an update,
 // the owner of the exercise it updates (the editor's rule), else the public one of the catalog.
 func (u *ExerciseUseCase) importImageScope(ctx context.Context, ownerEventID *uuid.UUID, target ImportTarget) (imageRegistryUseCase.Scope, error) {
@@ -422,7 +426,7 @@ func (u *ExerciseUseCase) importImageScope(ctx context.Context, ownerEventID *uu
 // variant that is a registry reference without a digest becomes name:tag@sha256:hex, looked up once at this moment. Platform
 // references (pushed archive images, pinned by construction) and references that name a digest are left alone. An image the
 // registry cannot resolve fails the import (ErrImagePinFailed naming it), before anything is created.
-func (u *ExerciseUseCase) pinImportImages(ctx context.Context, scope imageRegistryUseCase.Scope, versions []exerciseModel.ExerciseVersion) error {
+func (u *ExerciseUseCase) pinImportImages(ctx context.Context, deadline time.Time, scope imageRegistryUseCase.Scope, versions []exerciseModel.ExerciseVersion) error {
 	pinner, ok := u.archiveImages.(imagePinner)
 	if !ok {
 		return nil
@@ -436,6 +440,9 @@ func (u *ExerciseUseCase) pinImportImages(ctx context.Context, scope imageRegist
 	if len(images) == 0 {
 		return nil
 	}
+	// One deadline for the whole import: an archive of many images on a slow registry cannot hold the import for minutes.
+	ctx, cancel := context.WithDeadline(ctx, deadline)
+	defer cancel()
 	pins, err := pinner.PinImages(ctx, scope, images)
 	if err != nil {
 		return err

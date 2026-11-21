@@ -446,7 +446,8 @@ func (c *Client) ManifestDigest(ctx context.Context, tag string) (digest string,
 // ResolveDigest is the sha256 digest of the manifest (or index) a tag points at now, for pinning an image by digest.
 // It asks with a HEAD (pull scope, every manifest type accepted) and takes Docker-Content-Digest when that has the
 // shape sha256:<64 lower-case hex>; a registry that sends none, or a malformed one, is asked with a GET and the
-// digest is the sha256 of the bytes (read within MaxManifestBytes). A missing tag is ErrNotFound.
+// digest is the sha256 of the bytes (read within MaxManifestBytes) when they are a manifest or an index
+// (ErrUnsupportedManifest otherwise). A missing tag is ErrNotFound.
 func (c *Client) ResolveDigest(ctx context.Context, tag string) (string, error) {
 	if !tagPattern.MatchString(tag) {
 		return "", fmt.Errorf("resolve digest: %w: malformed tag", ErrInvalidReference)
@@ -475,8 +476,16 @@ func (c *Client) ResolveDigest(ctx context.Context, tag string) (string, error) 
 	if digest := resp.Header.Get("Docker-Content-Digest"); digestPattern.MatchString(digest) {
 		return digest, nil
 	}
-	_, _, digest, err := c.getManifest(ctx, tag, "")
-	return digest, err
+	body, mediaType, digest, err := c.getManifest(ctx, tag, "")
+	if err != nil {
+		return "", err
+	}
+	// The hash of a body that is not a manifest (a proxy's page, a login wall) would fix the image to a digest no
+	// registry serves.
+	if _, _, err = parseManifest(body, mediaType); err != nil {
+		return "", err
+	}
+	return digest, nil
 }
 
 // PushBlob uploads a blob of the given size with one streamed PUT after opening an upload session.

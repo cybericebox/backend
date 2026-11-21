@@ -210,6 +210,7 @@ type importFixture struct {
 	uc      *exercise.ExerciseUseCase
 	q       *postgresMocks.MockQuerier
 	images  *fakeImages
+	media   *fakeMedia
 	sources *fakeSources
 	queued  []jobsModel.ExerciseImportArgs
 	jobs    map[uuid.UUID]postgres.ExerciseImportJob
@@ -234,7 +235,8 @@ func newImportFixture(t *testing.T) *importFixture {
 	cipher, err := secret.NewFromBytes([]byte("0123456789abcdef0123456789abcdef"))
 	require.NoError(t, err)
 	f := &importFixture{q: q, images: &fakeImages{}, sources: newFakeSources(), jobs: map[uuid.UUID]postgres.ExerciseImportJob{}, cipher: cipher, now: importJobT0}
-	f.uc = newTestExerciseUseCase(exercise.Dependencies{Repo: q, Media: newFakeMedia()})
+	f.media = newFakeMedia()
+	f.uc = newTestExerciseUseCase(exercise.Dependencies{Repo: q, Media: f.media})
 	f.uc.SetClock(func() time.Time { return f.now })
 	f.inbox = &fakeImportInbox{}
 	f.uc.SetImportInbox(f.inbox)
