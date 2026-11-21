@@ -202,6 +202,15 @@ func (u *ExerciseUseCase) importArchiveBundle(ctx context.Context, contents []by
 			return nil, err
 		}
 	}
+	scope, err := u.importImageScope(ctx, ownerEventID, ImportTarget{Mode: "new"})
+	if err != nil {
+		return nil, err
+	}
+	for i := range tasks {
+		if err = u.pinImportImages(ctx, scope, tasks[i].Versions); err != nil {
+			return nil, err
+		}
+	}
 	for i := range tasks {
 		if err = u.copyImportedAttachments(ctx, &tasks[i], createdBy); err != nil {
 			return nil, err

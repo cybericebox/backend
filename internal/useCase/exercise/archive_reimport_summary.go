@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/cybericebox/daemon/internal/model"
 	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
@@ -50,6 +51,7 @@ func (u *ExerciseUseCase) importSummary(ctx context.Context, parsed ParsedExerci
 	if err = targetCopy.SyncLinkedVariants(); err != nil {
 		return summary, err
 	}
+	alignUnpinnedImages(sourceCopy.Variants, targetCopy.Variants)
 	sourceHashes := map[uuid.UUID]string{}
 	for id, path := range parsed.FilePaths {
 		sum := sha256.Sum256(parsed.Files[path])
@@ -107,6 +109,30 @@ func (u *ExerciseUseCase) importSummary(ctx context.Context, parsed ParsedExerci
 		}
 	}
 	return summary, nil
+}
+
+// alignUnpinnedImages makes a stored image that was fixed by digest at import (name:tag@sha256) equal to the archive's
+// reference of the same name and tag when the archive names no digest, so the same archive imported again is unchanged:
+// the tag the archive names is the author's wording, the digest is what the platform fixed it to. Devices and own images
+// are paired by position, as the comparison does. A different tag, or a digest the archive names itself, is a difference.
+func alignUnpinnedImages(source, target []exerciseModel.Variant) {
+	align := func(from string, to *string) {
+		if !isExternalImage(from) || imageRegistryModel.HasDigest(from) || !imageRegistryModel.HasDigest(*to) {
+			return
+		}
+		unpinned, _, _ := strings.Cut(*to, "@")
+		if imageRegistryModel.PinnedReference(from, "") == unpinned+"@" {
+			*to = from
+		}
+	}
+	for vi := 0; vi < min(len(source), len(target)); vi++ {
+		for di := 0; di < min(len(source[vi].Topology.Devices), len(target[vi].Topology.Devices)); di++ {
+			align(source[vi].Topology.Devices[di].Image, &target[vi].Topology.Devices[di].Image)
+		}
+		for oi := 0; oi < min(len(source[vi].ImageOverrides), len(target[vi].ImageOverrides)); oi++ {
+			align(source[vi].ImageOverrides[oi].Image, &target[vi].ImageOverrides[oi].Image)
+		}
+	}
 }
 
 func copyImportVersion(version exerciseModel.ExerciseVersion) (exerciseModel.ExerciseVersion, error) {

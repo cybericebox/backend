@@ -102,6 +102,34 @@ func reasonOfRegistryError(err error) string {
 	return ServiceUnreachable
 }
 
+// readExternal runs one read of an external image's registry: anonymously first, and when that fails and the scope is an
+// event with a registry secret matching the image, with that secret. Each request is bounded by the head timeout. It returns
+// what the read gave and the credential scope it was read in ("" public, else the event); a failed secret read leaves the
+// anonymous error.
+func readExternal[T any](u *ImageRegistryUseCase, ctx context.Context, scope Scope, image string, ref imageRegistryModel.ImageRef, read func(context.Context, *ociregistry.Client) (T, error)) (T, string, error) {
+	call := func(client *ociregistry.Client) (T, error) {
+		hctx, stop := context.WithTimeout(ctx, u.headTimeout)
+		defer stop()
+		return read(hctx, client)
+	}
+	out, err := call(u.external(ref.Host, ref.Repository, "", ""))
+	if err == nil || scope.EventID == nil {
+		return out, "", err
+	}
+	secrets, tokens, secretsErr := u.EventRegistrySecretsForDeploy(ctx, *scope.EventID)
+	if secretsErr != nil {
+		return out, "", err
+	}
+	kind, secret := imageRegistryModel.Classify(image, secrets)
+	if kind != imageRegistryModel.KindOrganizer || secret == nil || agentRefuses(secret.Username, tokens[secret.ID]) {
+		return out, "", err
+	}
+	if withSecret, secretErr := call(u.external(ref.Host, ref.Repository, secret.Username, tokens[secret.ID])); secretErr == nil {
+		return withSecret, scope.EventID.String(), nil
+	}
+	return out, "", err
+}
+
 // readExternalService reads the start configuration of an external image from its registry: anonymously first (Docker Hub,
 // GHCR, Quay: the token challenge is followed without a credential), and when that is refused and the scope is an event with
 // a registry secret matching the image, with that secret, the way the availability check does. Nothing is stored here. It
@@ -118,24 +146,9 @@ func (u *ImageRegistryUseCase) readExternalService(ctx context.Context, scope Sc
 	}
 	ctx, cancel := context.WithTimeout(ctx, u.callTimeout)
 	defer cancel()
-	read := func(client *ociregistry.Client) (ociregistry.ImageConfigs, error) {
-		hctx, stop := context.WithTimeout(ctx, u.headTimeout)
-		defer stop()
+	configs, scopeUsed, err := readExternal(u, ctx, scope, image, ref, func(hctx context.Context, client *ociregistry.Client) (ociregistry.ImageConfigs, error) {
 		return client.ImageConfigs(hctx, reference)
-	}
-	scopeUsed := ""
-	configs, err := read(u.external(ref.Host, ref.Repository, "", ""))
-	if err != nil && scope.EventID != nil {
-		secrets, tokens, secretsErr := u.EventRegistrySecretsForDeploy(ctx, *scope.EventID)
-		if secretsErr == nil {
-			if kind, secret := imageRegistryModel.Classify(image, secrets); kind == imageRegistryModel.KindOrganizer && secret != nil &&
-				!agentRefuses(secret.Username, tokens[secret.ID]) {
-				if withSecret, secretErr := read(u.external(ref.Host, ref.Repository, secret.Username, tokens[secret.ID])); secretErr == nil {
-					configs, err, scopeUsed = withSecret, nil, scope.EventID.String()
-				}
-			}
-		}
-	}
+	})
 	if err != nil {
 		return exerciseModel.ImageService{}, "", "", reasonOfRegistryError(err)
 	}

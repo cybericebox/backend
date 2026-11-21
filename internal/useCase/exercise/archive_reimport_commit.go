@@ -246,6 +246,14 @@ func (u *ExerciseUseCase) commitArchiveRead(ctx context.Context, actor Actor, in
 		if err = replaceImageMarkers(staged[i].Versions, refs); err != nil {
 			return ArchiveImportStart{}, err
 		}
+		// Registry references are fixed by digest now, before anything is created: the import is all or nothing.
+		scope, scopeErr := u.importImageScope(ctx, in.OwnerEventID, choice)
+		if scopeErr != nil {
+			return ArchiveImportStart{}, importItemError(scopeErr, staged[i].ItemKey, "target")
+		}
+		if err = u.pinImportImages(ctx, scope, staged[i].Versions); err != nil {
+			return ArchiveImportStart{}, importItemError(err, staged[i].ItemKey, "")
+		}
 		if err = u.copyImportedAttachments(ctx, &staged[i], actor.UserID); err != nil {
 			return ArchiveImportStart{}, err
 		}
