@@ -4,6 +4,9 @@
 #   mise run <task> ...     run one; extra arguments go to the command
 
 [tools]
+gitleaks = "8.30.1"   # lint:leaks: the secret scan of the whole history (.gitleaks.toml)
+actionlint = "1.7.12"   # lint:leaks: the GitHub workflows
+shellcheck = "0.11.0"   # actionlint checks the run: scripts with it
 go = "1.27.4"      # the same as the toolchain line of go.mod and the builder image of the Dockerfile
 sqlc = "1.31.1"
 gh = "2.104.0"     # dev-push
@@ -19,9 +22,13 @@ description = "Compile all packages"
 depends = ["cache-guard"]
 run = "heavy -- go build ./..."
 
+[tasks."lint:leaks"]
+description = "gitleaks over the whole history (.gitleaks.toml) and actionlint over the workflows"
+run = ["gitleaks git --redact --no-banner --log-level warn", "actionlint"]
+
 [tasks.lint]
 description = "go vet plus the project lints (error codes, layer imports, route gates, secret contexts, Cyrillic outside the text modules)"
-depends = ["cache-guard"]
+depends = ["lint:leaks", "cache-guard"]
 run = [
   "heavy -- go vet ./...",
   "go run ./tools/checkerrorcodes internal pkg",
