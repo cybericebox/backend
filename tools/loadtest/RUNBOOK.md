@@ -63,7 +63,7 @@
 - [ ] Лаборатория v1.4.0, Cluster Autoscaler установлен и проверен на дымовом прогоне, оператор Фазы 3 (бюджет мощности) выпущен.
 - [ ] CA на максимум 10 узлов: `LAB_WORKER_MAX=10` (группа `<кластер>-lab-worker-*`), бюджет `LAB_BUDGET_CPU` и `LAB_BUDGET_MEMORY` заданы (и совпадают с `capacity.budget` чарта). Тип узла `m7i.xlarge` (`LAB_WORKER_INSTANCE_TYPE`). Проверка: `make aws asg ARGS=status`.
 - [ ] Образы прогреты (`PrewarmImages`) для 6 динамических завдань, метки узлов `cybericebox.io/lab=true`, `laboratory.cybericebox.com/node-agent-ready=true` (раздел 7 sizing).
-- [ ] Реплики: для 210 сессий и 15 x 15 браузерных потоков стоит включить `BACKEND_REPLICAS=2` и `EVENT_FRONTEND_REPLICAS=2` или HPA (`PLATFORM_HPA=true`), заранее (см. [infrastructure/docs/event-scaling.md](../../../infrastructure/docs/event-scaling.md)). Проверка бюджета соединений с БД по формуле из того же документа.
+- [ ] Реплики: для 210 сессий и 15 x 15 браузерных потоков стоит включить `BACKEND_REPLICAS=2` и `EVENT_FRONTEND_REPLICAS=2` или HPA (`PLATFORM_HPA=true`), заранее (см. [infrastructure/docs/event-scaling.md](../../../../infrastructure/docs/event-scaling.md)). Проверка бюджета соединений с БД по формуле из того же документа.
 - [ ] Cloudflare: сейчас прокси выключен по умолчанию. Если включён, весь тест идёт с одного адреса, и режим атаки/правила могут его срезать; решите заранее. Все лимиты бэкенда считаются на аккаунт, а не на адрес (пользователь 1200 в минуту, всплеск 600; отправка флагов 5 за 30 с на завдання и 20 в минуту на команду; одновременно 8 запросов на сессию).
 - [ ] Метрики: `metrics-server` отвечает (`make aws kube ARGS='top pods -n <NS>'`).
 
@@ -173,9 +173,9 @@ python3 -c "import json,sys; d=json.load(open('$OUT/$RUN.json')); print(len(d['a
 | Журнал ошибок | «Панель платформи», журнал ошибок (API `admin/errors`) | не растут новые группы |
 | Задержки API | таблица скрипта, минутный p95; `make aws kube ARGS='top pods -n <NS>'` | `challenges/mine`, `submit`, `results` p95 в пределах 1 с |
 | Бэкенд и HPA | `make aws kube ARGS='get hpa,deploy -n <NS>'`, перезапуски: `get pods -n <NS>` | нет рестартов, нет OOM |
-| Соединения БД | запрос из [event-scaling.md](../../../infrastructure/docs/event-scaling.md) (раздел про бюджет соединений) | меньше `max_connections` с запасом |
+| Соединения БД | запрос из [event-scaling.md](../../../../infrastructure/docs/event-scaling.md) (раздел про бюджет соединений) | меньше `max_connections` с запасом |
 
-Наблюдайте также за VPN в трёх режимах demux: этот шаг владелец делает сам, с runbook переключения режимов от infra ([infrastructure/docs/vpn-demux-modes.md](../../../infrastructure/docs/vpn-demux-modes.md)); скрипт VPN-туннель не поднимает, только проверяет выдачу конфига.
+Наблюдайте также за VPN в трёх режимах demux: этот шаг владелец делает сам, с runbook переключения режимов от infra ([infrastructure/docs/vpn-demux-modes.md](../../../../infrastructure/docs/vpn-demux-modes.md)); скрипт VPN-туннель не поднимает, только проверяет выдачу конфига.
 
 ## Критерии остановки
 

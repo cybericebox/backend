@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # Runs before `mise run dev-push`: the laboratory pin of go.mod.
 #   LAB absent  go.mod is left as it is
-#   LAB=        pin the commit ../laboratory is on
+#   LAB=        pin the commit ../../laboratory is on
 #   LAB=<x>     pin <x> (a commit, a branch or vX.Y.Z)
-# The pin must be on GitHub (laboratory develop, or a release tag); ../laboratory must have no uncommitted changes.
+# The pin must be on GitHub (laboratory develop, or a release tag); ../../laboratory must have no uncommitted changes.
 # LAB_SET=1 tells that LAB was given (the dev-push task sets it).
 set -euo pipefail
 
 die() { echo "error: $*" >&2; exit 1; }
 repo=cybericebox/laboratory
-local_lab=../laboratory
+local_lab=../../laboratory
 
 pinned() { awk -v m="github.com/$repo" '$1 == m { print $2; exit } $1 == "require" && $2 == m { print $3; exit }' go.mod; }
 

@@ -13,15 +13,15 @@ The tasks use `scripts/dev.sh` and need the `gh` CLI, logged in.
 
 ## The laboratory dependency
 
-`go.mod` is the only source of the laboratory version in every build; there is no `replace`. For local work against `../laboratory` run `mise run work` (it writes `../go.work`, which is gitignored; CI never uses it).
+`go.mod` is the only source of the laboratory version in every build; there is no `replace`. For local work against `../../laboratory` run `mise run work` (it writes `../../go.work`, which is gitignored; CI never uses it).
 
 `mise run dev-push` handles the pin:
 
 - without `LAB`, `go.mod` is left as it is;
-- `LAB=` (empty) pins the commit `../laboratory` is on;
+- `LAB=` (empty) pins the commit `../../laboratory` is on;
 - `LAB=<commit|branch|vX.Y.Z>` pins that.
 
-Before pinning it checks that `../laboratory` has no uncommitted changes and that the commit is already in laboratory `develop` on GitHub; otherwise it stops and suggests `mise run dev-push` in laboratory first. It warns when the pinned commit differs from the local `../laboratory`. A PR into `main` and a release are refused while `go.mod` pins a commit or a branch instead of a laboratory release; pick one up with `LAB=vX.Y.Z mise run dev-push`.
+Before pinning it checks that `../../laboratory` has no uncommitted changes and that the commit is already in laboratory `develop` on GitHub; otherwise it stops and suggests `mise run dev-push` in laboratory first. It warns when the pinned commit differs from the local `../../laboratory`. A PR into `main` and a release are refused while `go.mod` pins a commit or a branch instead of a laboratory release; pick one up with `LAB=vX.Y.Z mise run dev-push`.
 
 ## Checks and images
 

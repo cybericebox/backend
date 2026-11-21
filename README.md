@@ -151,7 +151,7 @@ Rules to keep in mind:
 
 - Edit the SQL in `internal/delivery/repository/postgres/queries`, then regenerate. Never edit generated files.
 - Add a Ukrainian text to `error-catalog/errors.uk.json` for every new error.
-- The laboratory module version is pinned in `go.mod`. To build against a local `../laboratory`, run `mise run work`.
+- The laboratory module version is pinned in `go.mod`. To build against a local `../../laboratory`, run `mise run work`.
 
 The branch cycle (`mise run dev-start`, `mise run dev-push`, `mise run dev-done`) is described in [CONTRIBUTING.md](CONTRIBUTING.md).
 
