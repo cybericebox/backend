@@ -443,6 +443,51 @@ func (c *Client) ManifestDigest(ctx context.Context, tag string) (digest string,
 	return "", false, statusFailure("manifest digest", resp)
 }
 
+// ResolveDigest is the sha256 digest of the manifest (or index) a tag points at now, for pinning an image by digest.
+// It asks with a HEAD (pull scope, every manifest type accepted) and takes Docker-Content-Digest when that has the
+// shape sha256:<64 lower-case hex>; a registry that sends none, or a malformed one, is asked with a GET and the
+// digest is the sha256 of the bytes (read within MaxManifestBytes) when they are a manifest or an index
+// (ErrUnsupportedManifest otherwise). A missing tag is ErrNotFound.
+func (c *Client) ResolveDigest(ctx context.Context, tag string) (string, error) {
+	if !tagPattern.MatchString(tag) {
+		return "", fmt.Errorf("resolve digest: %w: malformed tag", ErrInvalidReference)
+	}
+	repo, err := c.repo()
+	if err != nil {
+		return "", err
+	}
+	hc, err := c.http(ctx, repo, transport.PullScope)
+	if err != nil {
+		return "", c.wrap("resolve digest", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, c.base(repo)+"/manifests/"+tag, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Accept", manifestAccept)
+	resp, err := c.do(hc, req, "resolve digest")
+	if err != nil {
+		return "", err
+	}
+	defer drain(resp)
+	if resp.StatusCode != http.StatusOK {
+		return "", statusFailure("resolve digest", resp)
+	}
+	if digest := resp.Header.Get("Docker-Content-Digest"); digestPattern.MatchString(digest) {
+		return digest, nil
+	}
+	body, mediaType, digest, err := c.getManifest(ctx, tag, "")
+	if err != nil {
+		return "", err
+	}
+	// The hash of a body that is not a manifest (a proxy's page, a login wall) would fix the image to a digest no
+	// registry serves.
+	if _, _, err = parseManifest(body, mediaType); err != nil {
+		return "", err
+	}
+	return digest, nil
+}
+
 // PushBlob uploads a blob of the given size with one streamed PUT after opening an upload session.
 func (c *Client) PushBlob(ctx context.Context, digest string, size int64, r io.Reader) error {
 	repo, err := c.repo()

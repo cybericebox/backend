@@ -10,7 +10,7 @@ import (
 // `mise run lint:errors`. Vars without a call site yet are used by the later
 // image-registry layers (settings, upload, availability use cases).
 //
-// ImageRegistryObjectCode — next free detail code: 33
+// ImageRegistryObjectCode — next free detail code: 34
 var (
 	ErrRegistryNotConfigured = err.ErrConflict.WithObjectCode(model.ImageRegistryObjectCode).
 					WithMessage("The image registry is not configured").WithDetailCode(1)
@@ -118,6 +118,11 @@ var (
 	// "unauthorized" (the same Reason the availability checks use).
 	ErrRegistryAccessDenied = err.ErrConflict.WithObjectCode(model.ImageRegistryObjectCode).
 				WithMessage("The image registry refused the platform token: check the registry token in the platform panel").WithDetailCode(32)
+	// ErrImagePinFailed: an import could not fix an image reference by digest, because its registry did not give the
+	// digest of the manifest. Public context "image" (the reference as written) and "reason" (not_found,
+	// unauthorized, unreachable, unsupported: the Service* reasons of the image checks).
+	ErrImagePinFailed = err.ErrConflict.WithObjectCode(model.ImageRegistryObjectCode).
+				WithMessage("The image cannot be fixed by its digest: the registry did not return it").WithDetailCode(33)
 )
 
 // ContextReason is the public error context of ErrRegistryUnavailable naming

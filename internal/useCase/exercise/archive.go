@@ -204,6 +204,14 @@ func (u *ExerciseUseCase) ImportExerciseArchive(ctx context.Context, in ImportEx
 	if err = u.prepareImport(ctx, &parsed, protected); err != nil {
 		return ExerciseView{}, err
 	}
+	// Registry references are fixed by digest before any attachment is uploaded: an unresolvable image creates nothing.
+	scope, err := u.importImageScope(ctx, in.OwnerEventID, ImportTarget{Mode: "new"})
+	if err != nil {
+		return ExerciseView{}, err
+	}
+	if err = u.pinImportImages(ctx, time.Now().Add(importPinBudget), scope, parsed.Versions); err != nil {
+		return ExerciseView{}, err
+	}
 	return u.storeImport(ctx, &parsed, in.CreatedBy, in.OwnerEventID)
 }
 

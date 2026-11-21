@@ -204,10 +204,6 @@ func (u *ExerciseUseCase) commitArchiveRead(ctx context.Context, actor Actor, in
 	progress.tasksTotal(ctx, len(tasks))
 	// All archive/policy/confirmation checks precede external staging. The final
 	// check below uses these original snapshots before generated IDs are stored.
-	refs, err := u.pushArchiveImages(ctx, tasks, actor.UserID, progress)
-	if err != nil {
-		return ArchiveImportStart{}, err
-	}
 	// Keep the unmodified prepared source for exact revision recomputation; the
 	// stage copies are parsed independently to avoid aliasing IDs/ciphertext.
 	staged, err := parseArchiveRead(read)
@@ -243,9 +239,29 @@ func (u *ExerciseUseCase) commitArchiveRead(ctx context.Context, actor Actor, in
 		if err = u.encryptImportedSecrets(staged[i].Versions); err != nil {
 			return ArchiveImportStart{}, err
 		}
+	}
+	// Registry references are fixed by digest before anything is pushed or uploaded: an image that cannot be resolved
+	// fails the import with nothing left behind (the pending archive images are not references and are not looked up).
+	pinDeadline := time.Now().Add(importPinBudget)
+	for i := range staged {
+		scope, scopeErr := u.importImageScope(ctx, in.OwnerEventID, choices[staged[i].ItemKey])
+		if scopeErr != nil {
+			return ArchiveImportStart{}, importItemError(scopeErr, staged[i].ItemKey, "target")
+		}
+		if err = u.pinImportImages(ctx, pinDeadline, scope, staged[i].Versions); err != nil {
+			return ArchiveImportStart{}, importItemError(err, staged[i].ItemKey, "")
+		}
+	}
+	refs, err := u.pushArchiveImages(ctx, tasks, actor.UserID, progress)
+	if err != nil {
+		return ArchiveImportStart{}, err
+	}
+	for i := range staged {
 		if err = replaceImageMarkers(staged[i].Versions, refs); err != nil {
 			return ArchiveImportStart{}, err
 		}
+	}
+	for i := range staged {
 		if err = u.copyImportedAttachments(ctx, &staged[i], actor.UserID); err != nil {
 			return ArchiveImportStart{}, err
 		}

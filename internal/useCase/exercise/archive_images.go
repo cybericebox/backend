@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/gofrs/uuid"
 
@@ -395,6 +396,103 @@ func (u *ExerciseUseCase) pushArchiveImages(ctx context.Context, tasks []ParsedE
 		progress.imagePushed(ctx, image.file.Size)
 	}
 	return refs, nil
+}
+
+// imagePinner is the optional part of the image registry that fixes external image references by digest at import
+// (imageRegistryUseCase.ImageRegistryUseCase.PinImages). Without it an import stores references as written.
+type imagePinner interface {
+	PinImages(ctx context.Context, scope imageRegistryUseCase.Scope, images []string) (map[string]string, error)
+}
+
+var _ imagePinner = (*imageRegistryUseCase.ImageRegistryUseCase)(nil)
+
+// importPinBudget is the time all the registry lookups of one import may take together.
+const importPinBudget = 3 * time.Minute
+
+// imagePinner is the image registry that fixes references by digest: the one wired for archive imports, else the one
+// the editor uses; nil when none can (narrow constructions), and references are then stored as written.
+func (u *ExerciseUseCase) imagePinner() imagePinner {
+	if pinner, ok := u.archiveImages.(imagePinner); ok {
+		return pinner
+	}
+	if pinner, ok := u.images.(imagePinner); ok {
+		return pinner
+	}
+	return nil
+}
+
+// importImageScope is the credential scope an import reads registries in: the event it goes into, else, for an update,
+// the owner of the exercise it updates (the editor's rule), else the public one of the catalog.
+func (u *ExerciseUseCase) importImageScope(ctx context.Context, ownerEventID *uuid.UUID, target ImportTarget) (imageRegistryUseCase.Scope, error) {
+	if target.Mode == "update" && target.ExerciseID != uuid.Nil && u.images != nil {
+		return u.images.ExerciseImageScope(ctx, target.ExerciseID)
+	}
+	if ownerEventID != nil {
+		id := *ownerEventID
+		return imageRegistryUseCase.Scope{EventID: &id}, nil
+	}
+	return imageRegistryUseCase.Scope{}, nil
+}
+
+// pinImportImages fixes the external images of the versions by digest: every device image and own image of a linked
+// variant that is a registry reference without a digest becomes name:tag@sha256:hex, looked up once at this moment. Platform
+// references (pushed archive images, pinned by construction) and references that name a digest are left alone. An image the
+// registry cannot resolve fails the import (ErrImagePinFailed naming it), before anything is created.
+func (u *ExerciseUseCase) pinImportImages(ctx context.Context, deadline time.Time, scope imageRegistryUseCase.Scope, versions []exerciseModel.ExerciseVersion) error {
+	pinner := u.imagePinner()
+	if pinner == nil {
+		return nil
+	}
+	var images []string
+	eachImage(versions, func(image *string) {
+		if isExternalImage(*image) && !imageRegistryModel.HasDigest(*image) {
+			images = append(images, *image)
+		}
+	})
+	if len(images) == 0 {
+		return nil
+	}
+	// One deadline for the whole import: an archive of many images on a slow registry cannot hold the import for minutes.
+	ctx, cancel := context.WithDeadline(ctx, deadline)
+	defer cancel()
+	pins, err := pinner.PinImages(ctx, scope, images)
+	if err != nil {
+		return err
+	}
+	eachImage(versions, func(image *string) {
+		if pinned, found := pins[*image]; found {
+			*image = pinned
+		}
+	})
+	return nil
+}
+
+// isExternalImage tells a registry reference from an empty image, a platform reference and a pending archive image.
+func isExternalImage(image string) bool {
+	if image == "" || strings.HasPrefix(image, imageFileMarker) || strings.HasPrefix(image, "platform:") {
+		return false
+	}
+	return true
+}
+
+// eachImage calls fn with every device image and every own image of a linked variant of the versions.
+func eachImage(versions []exerciseModel.ExerciseVersion, fn func(image *string)) {
+	for vi := range versions {
+		eachVariantImage(versions[vi].Variants, fn)
+	}
+}
+
+// eachVariantImage calls fn with every device image and every own image of the variants.
+func eachVariantImage(variants []exerciseModel.Variant, fn func(image *string)) {
+	for xi := range variants {
+		variant := &variants[xi]
+		for di := range variant.Topology.Devices {
+			fn(&variant.Topology.Devices[di].Image)
+		}
+		for oi := range variant.ImageOverrides {
+			fn(&variant.ImageOverrides[oi].Image)
+		}
+	}
 }
 
 // withImageFile adds the archive path of the image file an error is about (public context "file").
