@@ -19,7 +19,6 @@ require (
 	github.com/klauspost/compress v1.20.1
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/minio/minio-go/v7 v7.3.0
-	github.com/pires/go-proxyproto v0.16.0
 	github.com/quic-go/quic-go v0.63.0
 	github.com/riverqueue/river v0.48.0
 	github.com/riverqueue/river/riverdriver/riverpgxv5 v0.48.0

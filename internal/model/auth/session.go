@@ -27,8 +27,7 @@ type SessionMetadata struct {
 // SessionIP is the address a session may keep and show: the client address in canonical form when it is a
 // public unicast address, else "". A private (10/8, 172.16/12, 192.168/16, fc00::/7), CGNAT (100.64/10),
 // loopback, link-local, unspecified or multicast address is the ingress, a pod or a NAT, not the client; it is
-// never stored nor sent. The caller passes an address it trusts (gin's ClientIP reads X-Forwarded-For only from
-// TRUSTED_PROXIES); anything that does not parse as a bare address is dropped too.
+// never stored nor sent. The caller passes the connection's own peer address (never a forwarded header); anything that does not parse as a bare address is dropped too.
 func SessionIP(addr string) string {
 	ip, err := netip.ParseAddr(strings.TrimSpace(addr))
 	if err != nil || ip.Zone() != "" {

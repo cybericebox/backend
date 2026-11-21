@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"net/mail"
-	"net/netip"
 	"net/url"
 	"os"
 	"regexp"
@@ -385,11 +384,6 @@ type (
 	HTTPControllerConfig struct {
 		Server            HTTPServerConfig `envPrefix:"HTTP_SERVER_"`
 		EnableSwaggerDocs bool
-		// TrustedProxies are the networks (CIDRs or addresses) of the proxies in front of the daemon (the
-		// ingress, the CDN). The client address is taken from X-Forwarded-For only for a request that comes
-		// from one of them; with none listed (the default) it is the connection's own address and the header
-		// is ignored, so a client cannot choose its address.
-		TrustedProxies []string `env:"TRUSTED_PROXIES"`
 		// HealthBind is the address the optional health listener and the optional internal listener bind to
 		// (HEALTH_BIND); the deploy sets it to the pod IP.
 		HealthBind string `env:"HEALTH_BIND" envDefault:"0.0.0.0"`
@@ -421,20 +415,6 @@ type (
 		InternalPort string `env:"INTERNAL_PORT"`
 		// HTTP3 is the optional HTTP/3 (QUIC, UDP) listener next to the HTTPS one (HTTP_SERVER_HTTP3_*).
 		HTTP3 HTTP3Config `envPrefix:"HTTP3_"`
-		// ProxyProtocolFrom are the networks (CIDRs or addresses) whose connections to the HTTPS listener may carry a
-		// PROXY protocol v2 header with the real client address (HTTP_SERVER_PROXY_PROTOCOL_FROM): the edge
-		// Envoy in front of the daemon. The header is optional for them; any other peer's header is read and
-		// discarded. Empty (default) is off: the listener is not wrapped and the connection address is used.
-		ProxyProtocolFrom []string `env:"PROXY_PROTOCOL_FROM"`
-		// ProxyProtocolSecret (HTTP_SERVER_PROXY_PROTOCOL_SECRET) is the shared secret the edge puts in the custom
-		// TLV 0xE0 of the PROXY header; the daemon takes the header's address only from a trusted peer whose TLV equals
-		// this or ProxyProtocolSecretNext (rotation: the edge switches to the new value, then the old one is
-		// dropped). Empty: the TLV is not required (the list alone decides) and a warning is logged at start.
-		ProxyProtocolSecret     string `env:"PROXY_PROTOCOL_SECRET"`
-		ProxyProtocolSecretNext string `env:"PROXY_PROTOCOL_SECRET_NEXT"`
-		// ProxyProtocolSecretTLV is the PROXY v2 TLV type that carries the secret (HTTP_SERVER_PROXY_PROTOCOL_SECRET_TLV):
-		// 224 (0xE0), within the custom range 224-239.
-		ProxyProtocolSecretTLV int `env:"PROXY_PROTOCOL_SECRET_TLV" envDefault:"224"`
 	}
 
 	// HTTP3Config is the HTTP/3 listener: it serves the same handler with the same certificate as the HTTPS
@@ -789,13 +769,6 @@ func (c AgentConfig) Validate() error {
 
 // Validate checks the proxy list and the body cap.
 func (c HTTPControllerConfig) Validate() error {
-	for _, entry := range c.TrustedProxies {
-		if _, err := netip.ParsePrefix(entry); err != nil {
-			if _, addrErr := netip.ParseAddr(entry); addrErr != nil {
-				return fmt.Errorf("TRUSTED_PROXIES: %q is not an address or a CIDR", entry)
-			}
-		}
-	}
 	if c.MaxBodyBytes < 1 {
 		return errors.New("MAX_REQUEST_BODY_BYTES must be at least 1")
 	}
@@ -805,59 +778,12 @@ func (c HTTPControllerConfig) Validate() error {
 // TLSEnabled reports whether the TLS listener runs: the certificate and the key are both set.
 func (c HTTPServerConfig) TLSEnabled() bool { return c.TLS.CertFile != "" && c.TLS.KeyFile != "" }
 
-// MinProxyProtocolSecretLen is the shortest PROXY protocol secret accepted.
-const MinProxyProtocolSecretLen = 16
-
-// ParseProxyProtocolFrom reads HTTP_SERVER_PROXY_PROTOCOL_FROM: each entry is a CIDR or a bare address (a /32 or
-// /128). Addresses are unmapped, so an IPv4-mapped IPv6 entry means the IPv4 one.
-func ParseProxyProtocolFrom(entries []string) ([]netip.Prefix, error) {
-	out := make([]netip.Prefix, 0, len(entries))
-	for _, entry := range entries {
-		entry = strings.TrimSpace(entry)
-		if entry == "" {
-			continue
-		}
-		prefix, err := netip.ParsePrefix(entry)
-		if err != nil {
-			addr, addrErr := netip.ParseAddr(entry)
-			if addrErr != nil {
-				return nil, fmt.Errorf(
-					"HTTP_SERVER_PROXY_PROTOCOL_FROM: %q is not an address or a CIDR",
-					entry,
-				)
-			}
-			prefix = netip.PrefixFrom(addr.Unmap(), addr.Unmap().BitLen())
-		}
-		out = append(out, prefix.Masked())
-	}
-	return out, nil
-}
-
 // ClientAuthOn reports whether client certificates are asked for (optional or require).
 func (c HTTPServerConfig) ClientAuthOn() bool {
 	return c.TLSEnabled() && (c.TLS.ClientAuth == "optional" || c.TLS.ClientAuth == "require")
 }
 
 func (c HTTPServerConfig) validate() error {
-	if _, err := ParseProxyProtocolFrom(c.ProxyProtocolFrom); err != nil {
-		return err
-	}
-	if c.ProxyProtocolSecretTLV != 0 &&
-		(c.ProxyProtocolSecretTLV < 224 || c.ProxyProtocolSecretTLV > 239) {
-		return errors.New(
-			"HTTP_SERVER_PROXY_PROTOCOL_SECRET_TLV must be in the custom range 224-239",
-		)
-	}
-	if c.ProxyProtocolSecret == "" && c.ProxyProtocolSecretNext != "" {
-		return errors.New(
-			"HTTP_SERVER_PROXY_PROTOCOL_SECRET_NEXT needs HTTP_SERVER_PROXY_PROTOCOL_SECRET",
-		)
-	}
-	for name, secret := range map[string]string{"HTTP_SERVER_PROXY_PROTOCOL_SECRET": c.ProxyProtocolSecret, "HTTP_SERVER_PROXY_PROTOCOL_SECRET_NEXT": c.ProxyProtocolSecretNext} {
-		if secret != "" && len(secret) < MinProxyProtocolSecretLen {
-			return fmt.Errorf("%s must be at least %d characters", name, MinProxyProtocolSecretLen)
-		}
-	}
 	if (c.TLS.CertFile == "") != (c.TLS.KeyFile == "") {
 		return errors.New("HTTP_SERVER_TLS_CERT_FILE and HTTP_SERVER_TLS_KEY_FILE must be set together")
 	}

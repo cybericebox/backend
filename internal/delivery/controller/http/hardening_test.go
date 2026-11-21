@@ -51,22 +51,17 @@ func send(r *gin.Engine, method, path string, body []byte, remote, xff string) *
 	return w
 }
 
-// The reported PoC: a client picks its own address with X-Forwarded-For to dodge the per-address limits.
-func TestAClientCannotChooseItsAddressUnlessItsProxyIsTrusted(t *testing.T) {
-	none := hardened(t, config.HTTPControllerConfig{MaxBodyBytes: 1 << 20})
-	if got := send(none, http.MethodGet, "/ip", nil, "203.0.113.50", "198.51.100.7").Body.String(); got != "203.0.113.50" {
-		t.Fatalf("with no trusted proxy the connection address stands: %s", got)
-	}
-	trusted := hardened(t, config.HTTPControllerConfig{MaxBodyBytes: 1 << 20, TrustedProxies: []string{"10.0.0.0/8"}})
-	if got := send(trusted, http.MethodGet, "/ip", nil, "10.1.2.3", "198.51.100.7").Body.String(); got != "198.51.100.7" {
-		t.Fatalf("a trusted proxy reports the client: %s", got)
-	}
-	if got := send(trusted, http.MethodGet, "/ip", nil, "203.0.113.50", "198.51.100.7").Body.String(); got != "203.0.113.50" {
-		t.Fatalf("an untrusted peer cannot report another address: %s", got)
-	}
-	// A forged leftmost entry in front of the proxy's own is ignored: the rightmost untrusted address wins.
-	if got := send(trusted, http.MethodGet, "/ip", nil, "10.1.2.3", "1.2.3.4, 198.51.100.7").Body.String(); got != "198.51.100.7" {
-		t.Fatalf("a forged chain: %s", got)
+// A client picks its own address with a forwarding header to dodge the per-address limits: no header counts,
+// whoever the peer is.
+func TestNoForwardingHeaderChoosesTheClientAddress(t *testing.T) {
+	r := hardened(t, config.HTTPControllerConfig{MaxBodyBytes: 1 << 20})
+	for _, peer := range []string{"203.0.113.50", "10.1.2.3"} {
+		if got := send(r, http.MethodGet, "/ip", nil, peer, "198.51.100.7").Body.String(); got != peer {
+			t.Fatalf("peer %s: the connection address stands, got %s", peer, got)
+		}
+		if got := send(r, http.MethodGet, "/ip", nil, peer, "1.2.3.4, 198.51.100.7").Body.String(); got != peer {
+			t.Fatalf("peer %s: a forged chain: %s", peer, got)
+		}
 	}
 }
 
