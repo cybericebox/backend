@@ -321,3 +321,11 @@ func TestListErrorGroupsRequestFilterNeedsEightHexCharacters(t *testing.T) {
 		assert.ErrorIs(t, err, errorJournal.ErrFilterInvalid.Err(), bad)
 	}
 }
+
+func TestListErrorGroupsRefusesAnOffsetBeyondTheDatabaseRange(t *testing.T) {
+	h := newHarness(DefaultConfig())
+	// 1<<31 wraps to a negative int32 offset, which the database refuses with a 500.
+	_, _, err := h.j.ListErrorGroups(ctx, GroupFilter{Offset: 1 << 31})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errorJournal.ErrFilterInvalid.Err())
+}

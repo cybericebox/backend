@@ -268,7 +268,7 @@ func (r *Repository) StandFacet(ctx context.Context, field string, filter Filter
 	for _, row := range rows {
 		key := row.Key
 		if field == "status" {
-			n, convErr := strconv.Atoi(row.Key)
+			n, convErr := strconv.ParseInt(row.Key, 10, 16)
 			if convErr != nil {
 				continue
 			}

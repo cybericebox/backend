@@ -6,6 +6,7 @@ package mediaRepo
 import (
 	"context"
 	"errors"
+	"github.com/cybericebox/daemon/pkg/safeconv"
 	"time"
 
 	"github.com/gofrs/uuid"
@@ -257,7 +258,7 @@ func (r *Repository) GetUpload(ctx context.Context, id uuid.UUID) (mediaModel.Up
 // rows means the client is out of step. The expiry moves forward with every chunk.
 func (r *Repository) AdvanceUpload(ctx context.Context, id, owner uuid.UUID, chunksReceived int, expiresAt time.Time) (int64, error) {
 	return r.q.AdvanceMediaUpload(ctx, postgres.AdvanceMediaUploadParams{
-		ID: id, CreatedBy: owner, ExpectedChunks: int32(chunksReceived), ExpiresAt: expiresAt,
+		ID: id, CreatedBy: owner, ExpectedChunks: safeconv.Int32(chunksReceived), ExpiresAt: expiresAt,
 	})
 }
 

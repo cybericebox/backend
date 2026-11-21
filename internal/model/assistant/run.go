@@ -2,6 +2,7 @@ package assistant
 
 import (
 	"encoding/json"
+	"maps"
 	"time"
 
 	"github.com/gofrs/uuid"
@@ -121,9 +122,9 @@ func VPNAccess(entry string) Access {
 // WithAddr adds the address of the runner of the tools device on its control gateway (host:port) to an access: the brain joins
 // the control gateway with the entry and dials that address. It is a key of the open union next to the entry, never a credential.
 func (a Access) WithAddr(addr string) Access {
-	out := make(Access, len(a)+1)
-	for k, v := range a {
-		out[k] = v
+	out := maps.Clone(a)
+	if out == nil {
+		out = Access{}
 	}
 	raw, _ := json.Marshal(addr)
 	out["addr"] = raw

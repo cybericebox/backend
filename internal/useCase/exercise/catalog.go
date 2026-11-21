@@ -2,6 +2,7 @@ package exercise
 
 import (
 	"context"
+	"github.com/cybericebox/daemon/pkg/safeconv"
 	"strings"
 	"time"
 
@@ -377,7 +378,7 @@ func (u *ExerciseUseCase) ListExerciseAuthors(ctx context.Context, actor Actor, 
 	if !actor.has(rbac.PermExercisesRead) {
 		viewer = uuid.NullUUID{UUID: actor.UserID, Valid: true}
 	}
-	items, err := u.exercises.ListAuthors(ctx, strings.TrimSpace(search), ids, viewer, int32(limit))
+	items, err := u.exercises.ListAuthors(ctx, strings.TrimSpace(search), ids, viewer, safeconv.Int32(limit))
 	if err != nil {
 		return nil, model.ErrPlatform.WithError(err).WithMessage("Failed to list exercise authors").Err()
 	}
@@ -401,7 +402,7 @@ func (u *ExerciseUseCase) ListExerciseTags(ctx context.Context, actor Actor, pre
 	if !actor.has(rbac.PermExercisesRead) {
 		viewer = uuid.NullUUID{UUID: actor.UserID, Valid: true}
 	}
-	items, err := u.exercises.ListTags(ctx, prefix, viewer, int32(limit))
+	items, err := u.exercises.ListTags(ctx, prefix, viewer, safeconv.Int32(limit))
 	if err != nil {
 		return nil, model.ErrPlatform.WithError(err).WithMessage("Failed to list exercise tags").Err()
 	}

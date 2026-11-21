@@ -5,6 +5,7 @@ package errorJournalUseCase
 
 import (
 	"context"
+	"math"
 	"regexp"
 	"strings"
 	"sync"
@@ -450,7 +451,7 @@ func (j *Journal) ListErrorGroups(ctx context.Context, f GroupFilter) ([]errorJo
 	if f.Limit < 1 || f.Limit > 200 {
 		f.Limit = 50
 	}
-	if f.Offset < 0 || (f.Status != "" && !f.Status.Valid()) {
+	if f.Offset < 0 || f.Offset > math.MaxInt32 || (f.Status != "" && !f.Status.Valid()) {
 		return nil, 0, errorJournal.ErrFilterInvalid.Err()
 	}
 	for _, k := range f.Kinds {

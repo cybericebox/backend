@@ -204,7 +204,7 @@ func documentImageFiles(documents map[string][]byte) (map[string]bool, bool, err
 		prefix := path.Dir(name)
 		for _, version := range doc.Versions {
 			for _, variant := range version.Variants {
-				files := make([]string, 0, len(variant.Topology.Devices)+len(variant.DeviceImages))
+				var files []string
 				for _, device := range variant.Topology.Devices {
 					files = append(files, device.Image.File)
 				}

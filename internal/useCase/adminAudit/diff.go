@@ -69,7 +69,7 @@ func IsSecretField(field string) bool {
 // A secret field keeps its values out even when it is allowed.
 func Diff(before, after any, allowed ...string) []Change {
 	b, a := flatten(before), flatten(after)
-	fields := make([]string, 0, len(b)+len(a))
+	fields := make([]string, 0, max(len(b), len(a)))
 	for f := range b {
 		fields = append(fields, f)
 	}
