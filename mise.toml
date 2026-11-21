@@ -4,7 +4,7 @@
 #   mise run <task> ...     run one; extra arguments go to the command
 
 [tools]
-go = "1.27.1"      # the same as the toolchain line of go.mod and the builder image of the Dockerfile
+go = "1.27.4"      # the same as the toolchain line of go.mod and the builder image of the Dockerfile
 sqlc = "1.31.1"
 gh = "2.104.0"     # dev-push
 "github:mokevnin/heavy" = "0.1.2"   # a machine-wide semaphore: heavy commands of every checkout and agent take turns (heavy --status)
