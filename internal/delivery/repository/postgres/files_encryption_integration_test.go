@@ -293,13 +293,13 @@ VALUES ($1, 'other@x.test', 'a', 'b', 'user', 'active', true, $2, $2, '/api/auth
 	require.Zero(t, refs)
 }
 
-// Migration 0243: the down migration refuses while an encrypted blob (or upload) exists and changes nothing; with none it
+// Migration 0245: the down migration refuses while an encrypted blob (or upload) exists and changes nothing; with none it
 // drops the columns and the table; the up migration then applies again.
 func TestFilesEncryptionMigration(t *testing.T) {
 	db := testhelpers.SetupTestDB(t)
 	ctx := context.Background()
-	up := readMigration(t, "0243_files_encryption.up.sql")
-	down := readMigration(t, "0243_files_encryption.down.sql")
+	up := readMigration(t, "0245_files_encryption.up.sql")
+	down := readMigration(t, "0245_files_encryption.down.sql")
 
 	columns := func(table string) map[string]bool {
 		rows, err := db.Pool.Query(ctx, `SELECT column_name FROM information_schema.columns WHERE table_name = $1`, table)
