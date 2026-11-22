@@ -596,6 +596,8 @@ type importJobResponse struct {
 	BytesTotal  int64 `json:"BytesTotal"`
 	// Exercises are the created tasks (done only).
 	Exercises []exerciseResponse `json:"Exercises,omitempty"`
+	// Warnings are the content warnings of the imported items, as importCommitResponse has them (empty until done).
+	Warnings []importContentWarning `json:"Warnings"`
 	// Error is why it failed (failed only).
 	Error *importJobError `json:"Error,omitempty"`
 }
@@ -627,11 +629,12 @@ func (h *Handler) importJob(ctx *gin.Context) {
 		return
 	}
 	out := importJobResponse{
-		Results: job.Results, Created: job.Created, Updated: job.Updated, Unchanged: job.Unchanged,
+		Results: withResultWarnings(job.Results), Created: job.Created, Updated: job.Updated, Unchanged: job.Unchanged,
 		State: string(job.State), Stage: string(job.Stage),
 		ImagesDone: job.Progress.ImagesDone, ImagesTotal: job.Progress.ImagesTotal,
 		TasksDone: job.Progress.TasksDone, TasksTotal: job.Progress.TasksTotal,
 		BytesPushed: job.Progress.BytesPushed, BytesTotal: job.Progress.BytesTotal,
+		Warnings: importContentWarnings(job.Results),
 	}
 	if job.Error != nil {
 		out.Error = &importJobError{Code: job.Error.Code, Message: job.Error.Message, Context: job.Error.Context}
@@ -713,6 +716,65 @@ type importCommitResponse struct {
 	Updated   int                          `json:"Updated"`
 	// Unchanged: updates skipped because the archive brought nothing new.
 	Unchanged int `json:"Unchanged"`
+	// Warnings are the content warnings of the imported items (also in each item's Report.Warnings), with the
+	// exercise and the item they belong to. They never stop an import. Never null.
+	Warnings []importContentWarning `json:"Warnings"`
+}
+
+// importContentWarning is a content warning (Code, Task, WithFiles, WithoutFiles; see exerciseModel.ContentWarning)
+// of one imported item.
+type importContentWarning struct {
+	exerciseModel.ContentWarning
+	ExerciseID uuid.UUID `json:"ExerciseID"`
+	ItemKey    string    `json:"ItemKey"`
+}
+
+// withResultWarnings copies the results with each one's Warnings: the content warnings of its report (never null;
+// a stored result of an older job has none of its own).
+func withResultWarnings(results []exerciseModel.ImportResult) []exerciseModel.ImportResult {
+	if results == nil {
+		return nil
+	}
+	out := make([]exerciseModel.ImportResult, len(results))
+	for i, result := range results {
+		result.Warnings = []exerciseModel.ContentWarning{}
+		if result.Report != nil {
+			for _, warning := range result.Report.Warnings {
+				if warning.Code == exerciseModel.WarnAttachmentsInSomeVariants {
+					result.Warnings = append(result.Warnings, exerciseModel.ContentWarning{
+						Code: warning.Code, Task: warning.Task,
+						WithFiles: append([]int{}, warning.WithFiles...), WithoutFiles: append([]int{}, warning.WithoutFiles...),
+					})
+				}
+			}
+		}
+		out[i] = result
+	}
+	return out
+}
+
+// importContentWarnings collects the content warnings of every item report, in the order of the items; never nil.
+func importContentWarnings(results []exerciseModel.ImportResult) []importContentWarning {
+	out := []importContentWarning{}
+	for _, result := range results {
+		if result.Report == nil {
+			continue
+		}
+		for _, warning := range result.Report.Warnings {
+			if warning.Code != exerciseModel.WarnAttachmentsInSomeVariants {
+				continue
+			}
+			out = append(out, importContentWarning{
+				ContentWarning: exerciseModel.ContentWarning{
+					Code: warning.Code, Task: warning.Task,
+					WithFiles:    append([]int{}, warning.WithFiles...),
+					WithoutFiles: append([]int{}, warning.WithoutFiles...),
+				},
+				ExerciseID: result.ExerciseID, ItemKey: result.ItemKey,
+			})
+		}
+	}
+	return out
 }
 
 func respondImportStart(ctx *gin.Context, start exerciseUseCase.ArchiveImportStart, explicit bool) {
@@ -725,7 +787,7 @@ func respondImportStart(ctx *gin.Context, start exerciseUseCase.ArchiveImportSta
 		views = append(views, exerciseToResponse(view))
 	}
 	if explicit {
-		response.AbortWithData(ctx, importCommitResponse{Exercises: views, Results: start.Results, Created: start.Created, Updated: start.Updated, Unchanged: start.Unchanged})
+		response.AbortWithData(ctx, importCommitResponse{Exercises: views, Results: withResultWarnings(start.Results), Created: start.Created, Updated: start.Updated, Unchanged: start.Unchanged, Warnings: importContentWarnings(start.Results)})
 		return
 	}
 	response.AbortWithData(ctx, views)

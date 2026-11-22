@@ -10976,6 +10976,21 @@ func (mr *MockQuerierMockRecorder) ListPendingEventLabBindings(ctx, arg any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListPendingEventLabBindings", reflect.TypeOf((*MockQuerier)(nil).ListPendingEventLabBindings), ctx, arg)
 }
 
+// ListPendingEventLabRevealTimeoutAlarms mocks base method.
+func (m *MockQuerier) ListPendingEventLabRevealTimeoutAlarms(ctx context.Context, eventID uuid.UUID) ([]postgres.ListPendingEventLabRevealTimeoutAlarmsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListPendingEventLabRevealTimeoutAlarms", ctx, eventID)
+	ret0, _ := ret[0].([]postgres.ListPendingEventLabRevealTimeoutAlarmsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListPendingEventLabRevealTimeoutAlarms indicates an expected call of ListPendingEventLabRevealTimeoutAlarms.
+func (mr *MockQuerierMockRecorder) ListPendingEventLabRevealTimeoutAlarms(ctx, eventID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListPendingEventLabRevealTimeoutAlarms", reflect.TypeOf((*MockQuerier)(nil).ListPendingEventLabRevealTimeoutAlarms), ctx, eventID)
+}
+
 // ListPendingLabGroupCleanupRequests mocks base method.
 func (m *MockQuerier) ListPendingLabGroupCleanupRequests(ctx context.Context) ([]string, error) {
 	m.ctrl.T.Helper()
@@ -12797,6 +12812,20 @@ func (mr *MockQuerierMockRecorder) MarkEventLabBindingsDestroyed(ctx, eventID an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkEventLabBindingsDestroyed", reflect.TypeOf((*MockQuerier)(nil).MarkEventLabBindingsDestroyed), ctx, eventID)
 }
 
+// MarkEventLabRevealTimeoutAlarmSent mocks base method.
+func (m *MockQuerier) MarkEventLabRevealTimeoutAlarmSent(ctx context.Context, arg postgres.MarkEventLabRevealTimeoutAlarmSentParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkEventLabRevealTimeoutAlarmSent", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// MarkEventLabRevealTimeoutAlarmSent indicates an expected call of MarkEventLabRevealTimeoutAlarmSent.
+func (mr *MockQuerierMockRecorder) MarkEventLabRevealTimeoutAlarmSent(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkEventLabRevealTimeoutAlarmSent", reflect.TypeOf((*MockQuerier)(nil).MarkEventLabRevealTimeoutAlarmSent), ctx, arg)
+}
+
 // MarkEventParticipantInvitationSent mocks base method.
 func (m *MockQuerier) MarkEventParticipantInvitationSent(ctx context.Context, arg postgres.MarkEventParticipantInvitationSentParams) (int64, error) {
 	m.ctrl.T.Helper()
@@ -13151,6 +13180,21 @@ func (m *MockQuerier) OpenReadyEventLabRevealBarriers(ctx context.Context, arg p
 func (mr *MockQuerierMockRecorder) OpenReadyEventLabRevealBarriers(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OpenReadyEventLabRevealBarriers", reflect.TypeOf((*MockQuerier)(nil).OpenReadyEventLabRevealBarriers), ctx, arg)
+}
+
+// OpenTimedOutEventLabRevealBarriers mocks base method.
+func (m *MockQuerier) OpenTimedOutEventLabRevealBarriers(ctx context.Context, arg postgres.OpenTimedOutEventLabRevealBarriersParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "OpenTimedOutEventLabRevealBarriers", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// OpenTimedOutEventLabRevealBarriers indicates an expected call of OpenTimedOutEventLabRevealBarriers.
+func (mr *MockQuerierMockRecorder) OpenTimedOutEventLabRevealBarriers(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OpenTimedOutEventLabRevealBarriers", reflect.TypeOf((*MockQuerier)(nil).OpenTimedOutEventLabRevealBarriers), ctx, arg)
 }
 
 // PlatformImageTagTakenByOtherDigest mocks base method.

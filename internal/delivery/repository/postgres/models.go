@@ -445,13 +445,15 @@ type EventLabObservation struct {
 }
 
 type EventLabRevealBarrier struct {
-	EventID         uuid.UUID          `json:"event_id"`
-	EventExerciseID uuid.UUID          `json:"event_exercise_id"`
-	Revision        int64              `json:"revision"`
-	Mode            string             `json:"mode"`
-	EligibleTeamIds []uuid.UUID        `json:"eligible_team_ids"`
-	OpenedAt        pgtype.Timestamptz `json:"opened_at"`
-	CreatedAt       time.Time          `json:"created_at"`
+	EventID            uuid.UUID          `json:"event_id"`
+	EventExerciseID    uuid.UUID          `json:"event_exercise_id"`
+	Revision           int64              `json:"revision"`
+	Mode               string             `json:"mode"`
+	EligibleTeamIds    []uuid.UUID        `json:"eligible_team_ids"`
+	OpenedAt           pgtype.Timestamptz `json:"opened_at"`
+	CreatedAt          time.Time          `json:"created_at"`
+	TimedOutAt         pgtype.Timestamptz `json:"timed_out_at"`
+	TimeoutAlarmSentAt pgtype.Timestamptz `json:"timeout_alarm_sent_at"`
 }
 
 type EventListColumn struct {

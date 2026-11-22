@@ -6,6 +6,7 @@ package event
 import (
 	"context"
 	"errors"
+	inboxUseCase "github.com/cybericebox/backend/internal/useCase/notification/inbox"
 	"io"
 	"time"
 
@@ -243,13 +244,15 @@ type EventUseCase struct {
 	labSessions        LabSessionIssuer
 	invitationNotifier InvitationNotifier
 	// standInbox closes failed-laboratory requests on re-creation; nil until wired.
-	standInbox       StandInbox
-	inAppTemplates   *inAppTemplateRepo.Repository
-	exercises        *exerciseRepo.Repository
-	uow              postgres.IUnitOfWorker[IRepository]
-	signalPublishers SignalPublisherFactory
-	flagRandomBytes  int
-	mail             *mailRepo.Repository
+	standInbox StandInbox
+	// revealTimeoutInbox raises the organizers' alarm of a task set opened at the reveal timeout; nil sends none.
+	revealTimeoutInbox RevealTimeoutInbox
+	inAppTemplates     *inAppTemplateRepo.Repository
+	exercises          *exerciseRepo.Repository
+	uow                postgres.IUnitOfWorker[IRepository]
+	signalPublishers   SignalPublisherFactory
+	flagRandomBytes    int
+	mail               *mailRepo.Repository
 	// resultsCache shares results reads between the viewers of an event.
 	resultsCache *resultsCache
 	// activity is the event activity log (analytics); taskOpens dedupes the
@@ -489,6 +492,17 @@ type StandInbox interface {
 // SetStandInbox wires the stand inbox after the dispatcher exists.
 func (u *EventUseCase) SetStandInbox(inbox StandInbox) {
 	u.standInbox = inbox
+}
+
+// RevealTimeoutInbox tells the organizers which teams did not get the tasks of a set opened at the reveal timeout
+// (satisfied by inbox.RequestRouter).
+type RevealTimeoutInbox interface {
+	RevealTimedOut(ctx context.Context, alarm inboxUseCase.RevealTimeout) error
+}
+
+// SetRevealTimeoutInbox wires the reveal timeout alarm after the dispatcher exists; nil sends none.
+func (u *EventUseCase) SetRevealTimeoutInbox(inbox RevealTimeoutInbox) {
+	u.revealTimeoutInbox = inbox
 }
 
 // SetLabCleanupWake wires the immediate start of the laboratory cleanup job after a cleanup request is queued.

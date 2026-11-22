@@ -40,6 +40,9 @@ type ImportResult struct {
 	ExerciseID uuid.UUID `json:"ExerciseID"`
 	// Report is what the item did to the exercise; set for an import into an existing exercise and for a new one alike.
 	Report *ImportReport `json:"Report,omitempty"`
+	// Warnings are the content warnings of the item's result (ContentWarning: Code, Task, WithFiles, WithoutFiles), the
+	// same as the attachments_in_some_variants entries of Report.Warnings. Never null.
+	Warnings []ContentWarning `json:"Warnings"`
 }
 
 // ImportSource is where the archive lies: a chunked upload (purpose exercise-archive) or a stored file.

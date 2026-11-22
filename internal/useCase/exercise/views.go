@@ -297,6 +297,8 @@ type VersionView struct {
 	// HasMissingSecrets is whether there are any. Publishing is refused while there are.
 	MissingSecrets    []exerciseModel.MissingSecret
 	HasMissingSecrets bool
+	// Warnings are the content warnings of the version (exerciseModel.ContentWarnings); they never stop a publish.
+	Warnings []exerciseModel.ContentWarning
 
 	VariantCount int
 	CreatedAt    time.Time
@@ -353,5 +355,6 @@ func toVersionView(v exerciseModel.ExerciseVersion) VersionView {
 		// Computed from the stored content before it is masked.
 		MissingSecrets:    exerciseModel.MissingSecrets(v.Variants),
 		HasMissingSecrets: len(exerciseModel.MissingSecrets(v.Variants)) > 0,
+		Warnings:          exerciseModel.ContentWarnings(v.Variants),
 	}
 }

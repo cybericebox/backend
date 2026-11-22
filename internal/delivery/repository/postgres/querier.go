@@ -1503,6 +1503,10 @@ type Querier interface {
 	// the pinned version and variant needed to resolve its topology. The bindings
 	// of one exercise share a Lab, so each Lab is listed once, by its first binding.
 	ListPendingEventLabBindings(ctx context.Context, arg ListPendingEventLabBindingsParams) ([]ListPendingEventLabBindingsRow, error)
+	// The barriers of the event the reveal timeout opened whose alarm is not sent yet (current tuple only), with the teams
+	// of the cohort that still have not got the tasks: their lab fails event_team_lab_reveal_ready and none of their
+	// challenges of the set is published. A team that got the tasks is never named; an empty list means nothing to tell.
+	ListPendingEventLabRevealTimeoutAlarms(ctx context.Context, eventID uuid.UUID) ([]ListPendingEventLabRevealTimeoutAlarmsRow, error)
 	ListPendingLabGroupCleanupRequests(ctx context.Context) ([]string, error)
 	ListPendingStoppedEventTeamLabs(ctx context.Context, arg ListPendingStoppedEventTeamLabsParams) ([]EventTeamLab, error)
 	ListPendingTeamInvitations(ctx context.Context, arg ListPendingTeamInvitationsParams) ([]ListPendingTeamInvitationsRow, error)
@@ -1876,6 +1880,7 @@ type Querier interface {
 	MarkEventFormAssignmentMaterialized(ctx context.Context, arg MarkEventFormAssignmentMaterializedParams) (int64, error)
 	MarkEventLabAccessSyncApplied(ctx context.Context, arg MarkEventLabAccessSyncAppliedParams) (int64, error)
 	MarkEventLabBindingsDestroyed(ctx context.Context, eventID uuid.UUID) error
+	MarkEventLabRevealTimeoutAlarmSent(ctx context.Context, arg MarkEventLabRevealTimeoutAlarmSentParams) error
 	MarkEventParticipantInvitationSent(ctx context.Context, arg MarkEventParticipantInvitationSentParams) (int64, error)
 	MarkEventStartReminderSent(ctx context.Context, arg MarkEventStartReminderSentParams) error
 	// Adds a task the author checked correctly; idempotent (no duplicates).
@@ -1925,6 +1930,12 @@ type Querier interface {
 	ObserveClusterReservation(ctx context.Context, arg ObserveClusterReservationParams) error
 	OpenEventStandRollout(ctx context.Context, arg OpenEventStandRolloutParams) error
 	OpenReadyEventLabRevealBarriers(ctx context.Context, arg OpenReadyEventLabRevealBarriersParams) (int64, error)
+	// The reveal timeout of an all_ready barrier that still waits: timeout_seconds after it would have opened (the latest
+	// of the event start, the opening of the task's stage and the freeze of the cohort) it opens anyway. Opening it shows
+	// the tasks only to the teams whose labs pass event_team_lab_reveal_ready (PublishAvailableTeamChallenges applies the
+	// same test to each team), so a stuck team gets them on its own once its lab is Ready. The same statement marks the
+	// organizers' alarm due (timed_out_at): ListPendingEventLabRevealTimeoutAlarms keeps it due until it is sent.
+	OpenTimedOutEventLabRevealBarriers(ctx context.Context, arg OpenTimedOutEventLabRevealBarriersParams) (int64, error)
 	// Whether a row of another digest already maps this tag: CreateImage refuses then instead of re-pointing the tag.
 	PlatformImageTagTakenByOtherDigest(ctx context.Context, arg PlatformImageTagTakenByOtherDigestParams) (bool, error)
 	// Ready -> Published for board-published challenges. A challenge without a lab

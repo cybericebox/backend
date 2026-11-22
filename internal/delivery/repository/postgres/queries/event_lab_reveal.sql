@@ -18,6 +18,8 @@ WITH candidate AS (
  eligible_team_ids=CASE WHEN event_lab_reveal_barriers.revision<>EXCLUDED.revision OR event_lab_reveal_barriers.mode<>EXCLUDED.mode OR (event_lab_reveal_barriers.opened_at IS NULL AND cardinality(event_lab_reveal_barriers.eligible_team_ids)=0)
   OR event_lab_reveal_barriers.opened_at IS NULL THEN EXCLUDED.eligible_team_ids ELSE event_lab_reveal_barriers.eligible_team_ids END,
  opened_at=CASE WHEN event_lab_reveal_barriers.revision<>EXCLUDED.revision OR event_lab_reveal_barriers.mode<>EXCLUDED.mode THEN NULL ELSE event_lab_reveal_barriers.opened_at END,
+ timed_out_at=CASE WHEN event_lab_reveal_barriers.revision<>EXCLUDED.revision OR event_lab_reveal_barriers.mode<>EXCLUDED.mode THEN NULL ELSE event_lab_reveal_barriers.timed_out_at END,
+ timeout_alarm_sent_at=CASE WHEN event_lab_reveal_barriers.revision<>EXCLUDED.revision OR event_lab_reveal_barriers.mode<>EXCLUDED.mode THEN NULL ELSE event_lab_reveal_barriers.timeout_alarm_sent_at END,
  created_at=CASE WHEN event_lab_reveal_barriers.revision<>EXCLUDED.revision OR event_lab_reveal_barriers.mode<>EXCLUDED.mode OR (event_lab_reveal_barriers.opened_at IS NULL AND cardinality(event_lab_reveal_barriers.eligible_team_ids)=0) THEN EXCLUDED.created_at ELSE event_lab_reveal_barriers.created_at END
  RETURNING eligible_team_ids
 )
@@ -44,14 +46,52 @@ AND cardinality(barrier.eligible_team_ids)>0
 AND EXISTS(SELECT 1 FROM event_exercises ee JOIN event_configs cfg ON cfg.event_id=ee.event_id WHERE ee.id=barrier.event_exercise_id AND ee.revision=barrier.revision AND ee.status=0 AND cfg.task_reveal_mode=barrier.mode)
 AND NOT EXISTS (
  SELECT 1 FROM unnest(barrier.eligible_team_ids) team(id)
- WHERE NOT EXISTS(SELECT 1 FROM event_team_labs l WHERE l.event_team_id=team.id AND l.event_exercise_id=barrier.event_exercise_id
-  AND l.materialized AND l.agent_uid<>'' AND l.agent_generation>0 AND l.desired_state='Running' AND l.logical_closed_at IS NULL
-  AND l.actual_state='Running' AND l.runtime_ready
-  AND l.definition_version_id=(SELECT ee.exercise_version_id FROM event_exercises ee WHERE ee.id=barrier.event_exercise_id)
-  AND EXISTS(SELECT 1 FROM lab_bindings b WHERE b.lab_id=l.id AND b.generation=l.generation AND b.lab_group_name=l.lab_group_name AND b.lab_name=l.lab_name)
-  AND l.observed_revision=l.desired_revision
-  AND NOT EXISTS(SELECT 1 FROM lab_bindings b WHERE b.lab_id=l.id AND b.readiness<>1))
+ WHERE NOT event_team_lab_reveal_ready(team.id, barrier.event_exercise_id)
 );
+
+-- name: OpenTimedOutEventLabRevealBarriers :execrows
+-- The reveal timeout of an all_ready barrier that still waits: timeout_seconds after it would have opened (the latest
+-- of the event start, the opening of the task's stage and the freeze of the cohort) it opens anyway. Opening it shows
+-- the tasks only to the teams whose labs pass event_team_lab_reveal_ready (PublishAvailableTeamChallenges applies the
+-- same test to each team), so a stuck team gets them on its own once its lab is Ready. The same statement marks the
+-- organizers' alarm due (timed_out_at): ListPendingEventLabRevealTimeoutAlarms keeps it due until it is sent.
+UPDATE event_lab_reveal_barriers barrier SET opened_at=sqlc.arg(now)::timestamptz, timed_out_at=sqlc.arg(now)::timestamptz, timeout_alarm_sent_at=NULL
+FROM event_exercises ee
+JOIN event_configs cfg ON cfg.event_id=ee.event_id
+JOIN events e ON e.id=ee.event_id
+LEFT JOIN event_stages stage ON stage.id=ee.stage_id
+WHERE barrier.event_id=sqlc.arg(event_id) AND barrier.opened_at IS NULL AND cardinality(barrier.eligible_team_ids)>0
+ AND ee.id=barrier.event_exercise_id AND ee.event_id=barrier.event_id
+ AND barrier.mode='all_ready' AND cfg.task_reveal_mode=barrier.mode AND ee.status=0 AND ee.revision=barrier.revision
+ AND e.lifecycle_configured
+ AND GREATEST(e.start_at, stage.opens_at, barrier.created_at) + make_interval(secs => sqlc.arg(timeout_seconds)::double precision) <= sqlc.arg(now)::timestamptz;
+
+-- name: ListPendingEventLabRevealTimeoutAlarms :many
+-- The barriers of the event the reveal timeout opened whose alarm is not sent yet (current tuple only), with the teams
+-- of the cohort that still have not got the tasks: their lab fails event_team_lab_reveal_ready and none of their
+-- challenges of the set is published. A team that got the tasks is never named; an empty list means nothing to tell.
+SELECT barrier.event_exercise_id, barrier.revision::bigint AS revision,
+ COALESCE((SELECT v.name FROM exercise_versions v WHERE v.id=ee.exercise_version_id), '')::text AS task_name,
+ COALESCE(ARRAY(SELECT t.id FROM unnest(barrier.eligible_team_ids) team(id) JOIN event_teams t ON t.id=team.id
+  WHERE NOT t.moderators AND NOT event_team_lab_reveal_ready(team.id, barrier.event_exercise_id)
+   AND NOT EXISTS(SELECT 1 FROM team_challenges tc JOIN event_challenges ec ON ec.id=tc.event_challenge_id
+    WHERE tc.event_team_id=team.id AND ec.event_exercise_id=barrier.event_exercise_id AND tc.readiness=2)
+  ORDER BY t.name, t.id), '{}')::uuid[] AS stuck_team_ids,
+ COALESCE(ARRAY(SELECT t.name FROM unnest(barrier.eligible_team_ids) team(id) JOIN event_teams t ON t.id=team.id
+  WHERE NOT t.moderators AND NOT event_team_lab_reveal_ready(team.id, barrier.event_exercise_id)
+   AND NOT EXISTS(SELECT 1 FROM team_challenges tc JOIN event_challenges ec ON ec.id=tc.event_challenge_id
+    WHERE tc.event_team_id=team.id AND ec.event_exercise_id=barrier.event_exercise_id AND tc.readiness=2)
+  ORDER BY t.name, t.id), '{}')::text[] AS stuck_team_names
+FROM event_lab_reveal_barriers barrier
+JOIN event_exercises ee ON ee.id=barrier.event_exercise_id AND ee.event_id=barrier.event_id AND ee.revision=barrier.revision
+WHERE barrier.event_id=sqlc.arg(event_id) AND barrier.timed_out_at IS NOT NULL AND barrier.timeout_alarm_sent_at IS NULL
+ AND barrier.opened_at IS NOT NULL
+ORDER BY barrier.event_exercise_id;
+
+-- name: MarkEventLabRevealTimeoutAlarmSent :exec
+UPDATE event_lab_reveal_barriers SET timeout_alarm_sent_at=sqlc.arg(now)::timestamptz
+WHERE event_exercise_id=sqlc.arg(event_exercise_id) AND revision=sqlc.arg(revision)
+ AND timed_out_at IS NOT NULL AND timeout_alarm_sent_at IS NULL;
 
 -- name: IsEventLabManualReachable :one
 SELECT EXISTS(SELECT 1 FROM event_lab_objectives o

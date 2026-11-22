@@ -895,6 +895,19 @@ type versionResponse struct {
 	UpdatedByName string     `json:"UpdatedByName"`
 }
 
+// publishResponse is the published version plus its content warnings. Warnings (Code attachments_in_some_variants:
+// a subtask of the independent variants has files in the variants WithFiles and none in WithoutFiles, 1-based
+// positions; Task is its key, else its name) never stop a publish; the answer carries them so the editor can show
+// them. Never null.
+type publishResponse struct {
+	versionResponse
+	Warnings []exerciseModel.ContentWarning `json:"Warnings"`
+}
+
+func publishToResponse(v exerciseUseCase.VersionView) publishResponse {
+	return publishResponse{versionResponse: versionToResponse(v), Warnings: append([]exerciseModel.ContentWarning{}, v.Warnings...)}
+}
+
 type missingSecretResponse struct {
 	Variant int    `json:"Variant"`
 	Device  string `json:"Device"`

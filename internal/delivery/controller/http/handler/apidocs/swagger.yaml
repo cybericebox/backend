@@ -8439,6 +8439,32 @@ definitions:
         type: integer
       Updated:
         type: integer
+      Warnings:
+        description: |-
+          Warnings are the content warnings of the imported items (also in each item's Report.Warnings), with the
+          exercise and the item they belong to. They never stop an import. Never null.
+        items:
+          $ref: '#/definitions/exercise.importContentWarning'
+        type: array
+    type: object
+  exercise.importContentWarning:
+    properties:
+      Code:
+        type: string
+      ExerciseID:
+        type: string
+      ItemKey:
+        type: string
+      Task:
+        type: string
+      WithFiles:
+        items:
+          type: integer
+        type: array
+      WithoutFiles:
+        items:
+          type: integer
+        type: array
     type: object
   exercise.importJobError:
     properties:
@@ -8496,6 +8522,12 @@ definitions:
         type: integer
       Updated:
         type: integer
+      Warnings:
+        description: Warnings are the content warnings of the imported items, as importCommitResponse
+          has them (empty until done).
+        items:
+          $ref: '#/definitions/exercise.importContentWarning'
+        type: array
     type: object
   exercise.importJobStarted:
     properties:
@@ -8784,6 +8816,75 @@ definitions:
     properties:
       Note:
         type: string
+    type: object
+  exercise.publishResponse:
+    properties:
+      AdminNote:
+        type: string
+      AuthorName:
+        type: string
+      CreatedAt:
+        type: string
+      CreatedBy:
+        type: string
+      Description:
+        type: string
+      Elevation:
+        allOf:
+        - $ref: '#/definitions/exercise.elevationResponse'
+        description: |-
+          Elevation is the exercise's open resource elevation request, else its latest decided one; null when it
+          never had one.
+      ExerciseID:
+        type: string
+      HasMissingSecrets:
+        type: boolean
+      ID:
+        type: string
+      Label:
+        type: string
+      MissingSecrets:
+        description: |-
+          MissingSecrets lists the secret variables that have no value yet (variant 1-based, device, key); HasMissingSecrets is
+          whether there are any. The version cannot be published while there are; entering the value in the editor clears the entry.
+        items:
+          $ref: '#/definitions/exercise.missingSecretResponse'
+        type: array
+      Name:
+        type: string
+      PublishedAt:
+        type: string
+      Resources:
+        allOf:
+        - $ref: '#/definitions/exercise.versionResourcesResponse'
+        description: |-
+          Resources: the totals of the version (min and max over its variants, per variant), the devices outside
+          the platform frame and whether the task is resource-heavy.
+      Revision:
+        description: |-
+          Revision is the opaque revision of the version: for the working copy, send it back unchanged (never parse it)
+          with the next save. UpdatedAt/UpdatedBy(Name) are when and by whom it was last saved.
+        type: string
+      Status:
+        type: string
+      Tags:
+        items:
+          type: string
+        type: array
+      UpdatedAt:
+        type: string
+      UpdatedBy:
+        type: string
+      UpdatedByName:
+        type: string
+      Variants:
+        items:
+          $ref: '#/definitions/exercise.variantDTO'
+        type: array
+      Warnings:
+        items:
+          $ref: '#/definitions/exerciseModel.ContentWarning'
+        type: array
     type: object
   exercise.pushBlobRequest:
     properties:
@@ -9334,6 +9435,21 @@ definitions:
       value:
         type: string
     type: object
+  exerciseModel.ContentWarning:
+    properties:
+      Code:
+        type: string
+      Task:
+        type: string
+      WithFiles:
+        items:
+          type: integer
+        type: array
+      WithoutFiles:
+        items:
+          type: integer
+        type: array
+    type: object
   exerciseModel.DeviceBootstrapStatus:
     properties:
       attempts:
@@ -9470,6 +9586,13 @@ definitions:
         - $ref: '#/definitions/exerciseModel.ImportReport'
         description: Report is what the item did to the exercise; set for an import
           into an existing exercise and for a new one alike.
+      Warnings:
+        description: |-
+          Warnings are the content warnings of the item's result (ContentWarning: Code, Task, WithFiles, WithoutFiles), the
+          same as the attachments_in_some_variants entries of Report.Warnings. Never null.
+        items:
+          $ref: '#/definitions/exerciseModel.ContentWarning'
+        type: array
     type: object
   exerciseModel.ImportUsage:
     properties:
@@ -9557,6 +9680,16 @@ definitions:
       Context:
         additionalProperties: {}
         type: object
+      Task:
+        type: string
+      WithFiles:
+        items:
+          type: integer
+        type: array
+      WithoutFiles:
+        items:
+          type: integer
+        type: array
     type: object
   exerciseModel.LabAccess:
     properties:
@@ -26638,6 +26771,8 @@ paths:
       - exercises
   /exercises/{id}/publish:
     post:
+      description: 'The published version with Warnings: content warnings that never
+        stop a publish (attachments_in_some_variants).'
       parameters:
       - description: exercise ID
         in: path
@@ -26654,7 +26789,7 @@ paths:
             - $ref: '#/definitions/response.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/exercise.versionResponse'
+                  $ref: '#/definitions/exercise.publishResponse'
               type: object
         "400":
           description: Bad Request
