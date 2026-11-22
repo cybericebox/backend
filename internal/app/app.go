@@ -142,6 +142,7 @@ func Run(cfg *config.Config) {
 		ErrorJournal:       errorJournalConfig(cfg),
 		Telegram:           telegram.New(cfg.Telegram.BotToken),
 	}
+	withBrainConfig(&deps, cfg)
 	applyTunables(cfg.Tunables)
 	labIssuer, err := labaccess.New(labaccess.Config{
 		SessionTTL: cfg.LabSession.TTL,
