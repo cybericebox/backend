@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net/netip"
 	"slices"
 	"unicode/utf8"
+
+	"github.com/gofrs/uuid"
 )
 
 // Opponents are an optional block of a variant of the exercise document (cib-exercise/1.0): the automated attackers or
@@ -105,6 +108,10 @@ type Opponent struct {
 	Foothold string `json:"foothold,omitempty"`
 	// Brief is the author's text for the opponent (author content, not UI text).
 	Brief string `json:"brief,omitempty"`
+	// Seat (defense and attack-defense only, document 1.1) is the device a human defender of the task sits at: a node with
+	// serial ports. A run of the opponent takes that seat (the deploy and the auto-cabling do it, a later phase); here it is
+	// only checked.
+	Seat string `json:"seat,omitempty" cib:"1.1"`
 }
 
 // The reasons ErrOpponentInvalid names in its public context, next to the field.
@@ -125,6 +132,15 @@ const (
 	OpponentReasonFootholdUnknown  = "foothold_unknown"
 	OpponentReasonBriefTooLong     = "brief_too_long"
 	OpponentReasonForbiddenField   = "forbidden_field"
+	// The seat of an opponent (opponents[N].seat).
+	OpponentReasonSeatUnknown    = "seat_unknown"
+	OpponentReasonSeatNoSerial   = "seat_no_serial"
+	OpponentReasonSeatForbidden  = "seat_forbidden"
+	OpponentReasonSeatRepeated   = "seat_repeated"
+	OpponentReasonSeatOperated   = "seat_operated"
+	OpponentReasonSeatOnFoothold = "seat_on_foothold"
+	OpponentReasonSeatNoNetwork  = "seat_no_network"
+	OpponentReasonSeatReferenced = "seat_referenced"
 )
 
 func opponentInvalid(field, reason string) error {
@@ -194,7 +210,143 @@ func (v Variant) ValidateOpponents() error {
 			return opponentInvalid(at+".brief", OpponentReasonBriefTooLong)
 		}
 	}
+	return v.validateSeats()
+}
+
+// validateSeats checks the seats of the opponents (console design, section 8.1): only a role that operates has one; it names a
+// node of the variant with serial ports, held by one opponent at most, that the opponent does not operate; it has a data NIC
+// with a network connection (where a bot run puts its tools device), and the first such NIC is on the foothold segment of
+// no opponent; and no lab check, address reference or route names it (a bot run does not deploy the seat).
+func (v Variant) validateSeats() error {
+	byName := make(map[string]Device, len(v.Topology.Devices))
+	byID := make(map[uuid.UUID]Device, len(v.Topology.Devices))
+	for _, device := range v.Topology.Devices {
+		byName[device.Name] = device
+		byID[device.ID] = device
+	}
+	var footholds []Device
+	for _, opponent := range v.Opponents {
+		if segment, ok := byName[opponent.Foothold]; ok && segment.Type.IsForwarding() {
+			footholds = append(footholds, segment)
+		}
+	}
+	taken := make(map[string]bool)
+	for i, opponent := range v.Opponents {
+		if opponent.Seat == "" {
+			continue
+		}
+		field := fmt.Sprintf("opponents[%d].seat", i+1)
+		seat, known := byName[opponent.Seat]
+		switch {
+		case !opponent.Role.Operates():
+			return opponentInvalid(field, OpponentReasonSeatForbidden)
+		case !known || !seat.Type.IsNode():
+			return opponentInvalid(field, OpponentReasonSeatUnknown)
+		case len(seat.SerialPorts) == 0:
+			return opponentInvalid(field, OpponentReasonSeatNoSerial)
+		case taken[opponent.Seat]:
+			return opponentInvalid(field, OpponentReasonSeatRepeated)
+		case slices.Contains(opponent.Operates, opponent.Seat):
+			return opponentInvalid(field, OpponentReasonSeatOperated)
+		}
+		taken[opponent.Seat] = true
+		nic, ok := v.Topology.firstDataNIC(seat)
+		if !ok {
+			return opponentInvalid(field, OpponentReasonSeatNoNetwork)
+		}
+		if v.Topology.onAnySegment(byID, seat, nic, footholds) {
+			return opponentInvalid(field, OpponentReasonSeatOnFoothold)
+		}
+		if v.referencesSeat(seat) {
+			return opponentInvalid(field, OpponentReasonSeatReferenced)
+		}
+	}
 	return nil
+}
+
+// firstDataNIC is the first interface of the device, in its order, that has a network connection.
+func (t Topology) firstDataNIC(d Device) (string, bool) {
+	for _, iface := range d.Interfaces {
+		for _, c := range t.Connections {
+			if c.IsConsole() {
+				continue
+			}
+			for _, ep := range c.Endpoints {
+				if ep.Kind == EndpointDevice && ep.DeviceID == d.ID && ep.Interface == iface.Name {
+					return iface.Name, true
+				}
+			}
+		}
+	}
+	return "", false
+}
+
+// onAnySegment reports whether the interface of the device is in the broadcast domain of one of the switches or hubs (cabled
+// to it directly or through other switches and hubs).
+func (t Topology) onAnySegment(byID map[uuid.UUID]Device, d Device, iface string, segments []Device) bool {
+	if len(segments) == 0 {
+		return false
+	}
+	links, vertex := t.l2Links(byID)
+	at := vertex(Endpoint{Kind: EndpointDevice, DeviceID: d.ID, Interface: iface})
+	for _, segment := range segments {
+		if reachable(links, vertex(Endpoint{Kind: EndpointDevice, DeviceID: segment.ID}))[at] {
+			return true
+		}
+	}
+	return false
+}
+
+// referencesSeat reports whether something of the variant names the device: a condition of a lab check observes it, or an
+// interface of another device uses one of its addresses as a gateway or a route's next hop (a literal address or the address
+// reference the seat holds).
+func (v Variant) referencesSeat(seat Device) bool {
+	for _, task := range v.Tasks {
+		if task.Check.State == nil {
+			continue
+		}
+		for _, condition := range task.Check.State.Conditions {
+			if condition.DeviceID == seat.ID {
+				return true
+			}
+		}
+	}
+	addresses := map[string]bool{}
+	refs := map[NetworkIPRef]bool{}
+	for _, iface := range seat.Interfaces {
+		for _, address := range iface.IP.Addresses {
+			if prefix, err := netip.ParsePrefix(address); err == nil {
+				addresses[prefix.Addr().String()] = true
+			}
+		}
+		if iface.IP.AddressRef != nil {
+			refs[*iface.IP.AddressRef] = true
+		}
+	}
+	hits := func(literal string, ref *NetworkIPRef) bool {
+		if literal != "" {
+			if parsed, err := netip.ParseAddr(literal); err == nil && addresses[parsed.String()] {
+				return true
+			}
+		}
+		return ref != nil && refs[*ref]
+	}
+	for _, d := range v.Topology.Devices {
+		if d.ID == seat.ID {
+			continue
+		}
+		for _, iface := range d.Interfaces {
+			if hits(iface.IP.Gateway, iface.IP.GatewayRef) {
+				return true
+			}
+			for _, route := range iface.IP.Routes {
+				if hits(route.Via, route.ViaRef) {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 func validateOperates(at string, opponent Opponent, deviceNames map[string]bool) error {

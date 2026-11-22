@@ -41,4 +41,5 @@ const (
 	TablePrefsObjectCode
 	ExerciseDocumentObjectCode
 	AssistantObjectCode
+	ConsoleObjectCode
 )

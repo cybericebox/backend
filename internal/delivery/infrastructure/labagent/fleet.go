@@ -342,6 +342,9 @@ func (f *Fleet) Health(ctx context.Context) error {
 }
 
 func (f *Fleet) DeployLab(ctx context.Context, group, lab string, meta infraModel.LabMeta, topo exerciseModel.Topology) error {
+	if err := requireConsoleCables(topo); err != nil {
+		return err
+	}
 	// The need is read from the presets; then the agent gets explicit resources: requests equal limits, the
 	// size of the preset.
 	policy := f.Policy()

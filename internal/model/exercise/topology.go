@@ -196,6 +196,10 @@ type (
 		// Internet is the device's reach to the public internet: "" or InternetAllow (the default) or InternetDeny. It is the
 		// platform's, set for the tools device of a run; an author has no field for it (documents and the editor never carry it).
 		Internet string `json:"internet,omitempty"`
+		// ConsolePorts (management lines with a program) and SerialPorts (terminal lines inside the device) are the device's
+		// console ports, a node only. A console cable joins one of each.
+		ConsolePorts []ConsolePort `json:"console_ports,omitempty"`
+		SerialPorts  []SerialPort  `json:"serial_ports,omitempty"`
 	}
 
 	// DevicePersistence is the state-persistence policy of a device, set at creation and
@@ -258,8 +262,11 @@ type (
 		Origin string `json:"origin,omitempty"`
 	}
 
+	// Connection is a network connection (Kind empty) or a console cable (Kind console); on a cable an endpoint's Interface
+	// names a port.
 	Connection struct {
-		Endpoints []Endpoint `json:"endpoints"`
+		Kind      ConnectionKind `json:"kind,omitempty"`
+		Endpoints []Endpoint     `json:"endpoints"`
 	}
 
 	Endpoint struct {
@@ -352,6 +359,9 @@ func (t Topology) validateStructure() error {
 			(d.Type.IsForwarding() && (len(d.Interfaces) > 0 || d.Image != "" || len(d.Access) > 0 || d.WaitReadyFile || d.SecurityPreset != "" || d.Resources != nil || d.ResourcePreset != "")) {
 			return ErrDeviceTypeInvalid.WithContext("device", d.Name).Err()
 		}
+		if err := validateDevicePorts(d); err != nil {
+			return err
+		}
 		if d.Profile != "" && (!d.Type.IsNode() || !d.Profile.Valid()) {
 			return ErrNodeProfileInvalid.WithPublicContext("device", d.Name).
 				WithPublicContext("profile", string(d.Profile)).
@@ -390,9 +400,12 @@ func (t Topology) validateStructure() error {
 			return err
 		}
 	}
-	for _, c := range t.Connections {
+	for ci, c := range t.Connections {
 		if len(c.Endpoints) != 2 {
 			return ErrConnectionArityInvalid.Err()
+		}
+		if err := validateConnectionKind(c, ci+1); err != nil {
+			return err
 		}
 		for _, ep := range c.Endpoints {
 			if !ep.Kind.Valid() || ep.DeviceID == uuid.Nil {
@@ -427,6 +440,9 @@ func (t Topology) validateGraph() error {
 	usedPorts := make(map[portKey]bool)
 
 	for ci, c := range t.Connections {
+		if c.IsConsole() {
+			continue // validateConsoleCables
+		}
 		for _, ep := range c.Endpoints {
 			switch ep.Kind {
 			case EndpointDevice:
@@ -453,6 +469,9 @@ func (t Topology) validateGraph() error {
 			}
 		}
 	}
+	if err := t.validateConsoleCables(byID); err != nil {
+		return err
+	}
 	if err := t.validateGatewayNetworks(byID); err != nil {
 		return err
 	}
@@ -464,7 +483,7 @@ func (t Topology) validateGraph() error {
 }
 
 // l2Links is the graph of L2 vertices: each node (or gateway) interface is its own vertex, a switch or hub has one shared
-// vertex for all ports, since either forwards between them.
+// vertex for all ports, since either forwards between them. A console cable is not part of it: it never joins networks.
 func (t Topology) l2Links(byID map[uuid.UUID]Device) (links map[string][]string, vertex func(Endpoint) string) {
 	vertex = func(ep Endpoint) string {
 		key := "device:" + ep.DeviceID.String()
@@ -475,6 +494,9 @@ func (t Topology) l2Links(byID map[uuid.UUID]Device) (links map[string][]string,
 	}
 	links = make(map[string][]string)
 	for _, connection := range t.Connections {
+		if connection.IsConsole() || len(connection.Endpoints) != 2 {
+			continue // a console cable is not L2; a connection of the wrong arity is refused by the structure rules
+		}
 		left := vertex(connection.Endpoints[0])
 		right := vertex(connection.Endpoints[1])
 		links[left] = append(links[left], right)
