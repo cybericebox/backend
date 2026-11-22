@@ -2099,6 +2099,8 @@ type Querier interface {
 	RequestEventLabAccessSyncsForEvent(ctx context.Context, arg RequestEventLabAccessSyncsForEventParams) error
 	// Manager changes alter the moderators team's VPN client set.
 	RequestModeratorsTeamLabAccessSync(ctx context.Context, arg RequestModeratorsTeamLabAccessSyncParams) error
+	// Replaces the sealed key with the same key sealed under the current platform key; nothing when the row changed meanwhile.
+	ResealUserDraftKey(ctx context.Context, arg ResealUserDraftKeyParams) (int64, error)
 	// Claims one message of the provider's daily allowance for the UTC day. No row =
 	// the daily limit is used up. The counter restarts when the day changes.
 	ReservePlatformSMTPSend(ctx context.Context, arg ReservePlatformSMTPSendParams) (int32, error)

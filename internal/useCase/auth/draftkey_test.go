@@ -3,6 +3,7 @@ package auth_test
 import (
 	"bytes"
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -118,6 +119,58 @@ func TestDraftKey_ReusesTheLiveKeyOfThisUser(t *testing.T) {
 	got, err := uc.DraftKey(context.Background(), uid, id)
 	if err != nil || got.ID != id || !bytes.Equal(got.Key, key) {
 		t.Fatalf("reuse: %+v %v", got, err)
+	}
+}
+
+// After a rotation of PLATFORM_SECRETS_KEY a key in use is sealed again under the new primary key on read, so the old
+// key is not held forever by a key that keeps being used.
+func TestDraftKey_AReadMovesAKeySealedByAnOlderKeyToThePrimaryKey(t *testing.T) {
+	uc, repo := newExportUC(t)
+	oldKey, newKey := strings.Repeat("1", 64), strings.Repeat("2", 64)
+	before, err := secret.New("k1:" + oldKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ring, err := secret.New("k2:" + newKey + ",k1:" + oldKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	uc.SetDraftKeyCipher(ring)
+	uid := uuid.Must(uuid.NewV7())
+	id := "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+	key := bytes.Repeat([]byte{3}, 32)
+	sealedOld, err := before.EncryptWithContext(key, secretctx.DraftKey(uid, id))
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectStaleSweep(t, repo, uid)
+	repo.EXPECT().TouchUserDraftKey(gomock.Any(), gomock.Any()).Return(sealedOld, nil)
+	repo.EXPECT().ResealUserDraftKey(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, a postgres.ResealUserDraftKeyParams) (int64, error) {
+			if a.ID != id || a.UserID != uid || a.OldCiphertext != sealedOld {
+				t.Errorf("reseal %+v", a)
+			}
+			if keyID, _ := secret.KeyID(a.KeyCiphertext); keyID != "k2" {
+				t.Errorf("resealed under %q, want the primary k2", keyID)
+			}
+			plain, derr := ring.DecryptWithContext(a.KeyCiphertext, secretctx.DraftKey(uid, id))
+			if derr != nil || !bytes.Equal(plain, key) {
+				t.Errorf("the resealed key does not open to the same key: %v", derr)
+			}
+			return 1, nil
+		})
+
+	got, err := uc.DraftKey(context.Background(), uid, id)
+	if err != nil || got.ID != id || !bytes.Equal(got.Key, key) {
+		t.Fatalf("got %+v: %v", got, err)
+	}
+
+	// A key already under the primary key is not written again.
+	sealedNew, _ := ring.EncryptWithContext(key, secretctx.DraftKey(uid, id))
+	expectStaleSweep(t, repo, uid)
+	repo.EXPECT().TouchUserDraftKey(gomock.Any(), gomock.Any()).Return(sealedNew, nil)
+	if _, err = uc.DraftKey(context.Background(), uid, id); err != nil {
+		t.Fatal(err)
 	}
 }
 

@@ -239,7 +239,7 @@ func (h *Handler) Init(public, secured *gin.RouterGroup) {
 	sec.DELETE("google/link", self, h.unlinkGoogle)
 
 	// The key the catalog editor seals its local drafts with: one per person and browser.
-	secured.Group("me").POST("draft-key", self, h.draftKey)
+	secured.Group("me").POST("draft-key", self, h.requireEditorOrigin, h.draftKey)
 
 	pub.POST("account/email/confirm", h.confirmEmailChange)
 	// Public avatar proxy: streams the stored image so the bucket stays private.

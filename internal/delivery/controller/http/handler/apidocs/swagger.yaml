@@ -30236,6 +30236,7 @@ paths:
         named by the cookie is returned; otherwise (no cookie, a stale key, the key of another person) a new key is
         made and the cookie set. A key unused for 2 days is deleted; signing out deletes the key of this
         browser, signing out the other sessions deletes the keys of the other browsers. Cache-Control: no-store.
+        Only the catalog (exercises) and admin sites get a key: any other Origin (an event site included) is 403.
       produces:
       - application/json
       responses:
@@ -30250,6 +30251,10 @@ paths:
               type: object
         "401":
           description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: Forbidden
           schema:
             $ref: '#/definitions/response.Response'
       summary: Get or create the draft key of this browser

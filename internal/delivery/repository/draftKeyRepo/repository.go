@@ -15,6 +15,7 @@ import (
 type Queries interface {
 	TouchUserDraftKey(ctx context.Context, arg postgres.TouchUserDraftKeyParams) (string, error)
 	InsertUserDraftKey(ctx context.Context, arg postgres.InsertUserDraftKeyParams) error
+	ResealUserDraftKey(ctx context.Context, arg postgres.ResealUserDraftKeyParams) (int64, error)
 	TrimUserDraftKeys(ctx context.Context, arg postgres.TrimUserDraftKeysParams) (int64, error)
 	DeleteUserDraftKey(ctx context.Context, arg postgres.DeleteUserDraftKeyParams) (int64, error)
 	DeleteUserDraftKeysExcept(ctx context.Context, arg postgres.DeleteUserDraftKeysExceptParams) (int64, error)
@@ -50,6 +51,15 @@ func (r *Repository) Create(ctx context.Context, id string, userID uuid.UUID, se
 		return err
 	}
 	_, err := r.q.TrimUserDraftKeys(ctx, postgres.TrimUserDraftKeysParams{UserID: userID, Keep: int64(keep)})
+	return err
+}
+
+// Reseal replaces the sealed key old with sealed (the same key under another platform key); nothing when the row no
+// longer holds old.
+func (r *Repository) Reseal(ctx context.Context, id string, userID uuid.UUID, old, sealed string) error {
+	_, err := r.q.ResealUserDraftKey(ctx, postgres.ResealUserDraftKeyParams{
+		ID: id, UserID: userID, OldCiphertext: old, KeyCiphertext: sealed,
+	})
 	return err
 }
 

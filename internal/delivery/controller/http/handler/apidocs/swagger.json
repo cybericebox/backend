@@ -25024,7 +25024,7 @@
         },
         "/me/draft-key": {
             "post": {
-                "description": "The catalog editor seals its unsaved drafts in the browser (flags and secret values included) with this\nAES-256 key. One key per person and browser: the browser is named by the httpOnly, Secure, SameSite=Lax\ncookie cib_draft_key (Path=/api, Max-Age 2 days, refreshed on every call). The live key of the caller\nnamed by the cookie is returned; otherwise (no cookie, a stale key, the key of another person) a new key is\nmade and the cookie set. A key unused for 2 days is deleted; signing out deletes the key of this\nbrowser, signing out the other sessions deletes the keys of the other browsers. Cache-Control: no-store.",
+                "description": "The catalog editor seals its unsaved drafts in the browser (flags and secret values included) with this\nAES-256 key. One key per person and browser: the browser is named by the httpOnly, Secure, SameSite=Lax\ncookie cib_draft_key (Path=/api, Max-Age 2 days, refreshed on every call). The live key of the caller\nnamed by the cookie is returned; otherwise (no cookie, a stale key, the key of another person) a new key is\nmade and the cookie set. A key unused for 2 days is deleted; signing out deletes the key of this\nbrowser, signing out the other sessions deletes the keys of the other browsers. Cache-Control: no-store.\nOnly the catalog (exercises) and admin sites get a key: any other Origin (an event site included) is 403.",
                 "produces": [
                     "application/json"
                 ],
@@ -25053,6 +25053,12 @@
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/response.Response"
                         }

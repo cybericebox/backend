@@ -14140,6 +14140,21 @@ func (mr *MockQuerierMockRecorder) RequestModeratorsTeamLabAccessSync(ctx, arg a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RequestModeratorsTeamLabAccessSync", reflect.TypeOf((*MockQuerier)(nil).RequestModeratorsTeamLabAccessSync), ctx, arg)
 }
 
+// ResealUserDraftKey mocks base method.
+func (m *MockQuerier) ResealUserDraftKey(ctx context.Context, arg postgres.ResealUserDraftKeyParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ResealUserDraftKey", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ResealUserDraftKey indicates an expected call of ResealUserDraftKey.
+func (mr *MockQuerierMockRecorder) ResealUserDraftKey(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResealUserDraftKey", reflect.TypeOf((*MockQuerier)(nil).ResealUserDraftKey), ctx, arg)
+}
+
 // ReservePlatformSMTPSend mocks base method.
 func (m *MockQuerier) ReservePlatformSMTPSend(ctx context.Context, arg postgres.ReservePlatformSMTPSendParams) (int32, error) {
 	m.ctrl.T.Helper()

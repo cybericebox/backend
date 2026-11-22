@@ -129,6 +129,7 @@ func TestConfirmEmailChange_Success(t *testing.T) {
 	repo.EXPECT().DeleteUserProviders(gomock.Any(), uid).Return(int64(1), nil)
 	// M1: the recovery address changed — every session ends.
 	repo.EXPECT().RevokeUserSessions(gomock.Any(), gomock.Any()).Return(revokedRows(1), nil)
+	repo.EXPECT().DeleteAllUserDraftKeys(gomock.Any(), gomock.Any()).Return(int64(0), nil)
 
 	if err := uc.ConfirmEmailChange(context.Background(), bsCode); err != nil {
 		t.Fatalf("confirm: %v", err)
@@ -180,6 +181,7 @@ func TestConfirmEmailChange_NoticeAndSessionRevocationCommitTogether(t *testing.
 			// M1: the recovery address changed — every session ends.
 			rows := revokedRows(1)
 			repo.EXPECT().RevokeUserSessions(gomock.Any(), gomock.Any()).Return(rows, nil)
+			repo.EXPECT().DeleteAllUserDraftKeys(gomock.Any(), gomock.Any()).Return(int64(0), nil)
 
 			err = uc.ConfirmEmailChange(context.Background(), bsCode)
 			if fail {

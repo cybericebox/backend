@@ -125,5 +125,7 @@ func (h *Handler) changePassword(ctx *gin.Context) {
 		response.AbortWithError(ctx, err)
 		return
 	}
+	// The other sessions were signed out with the old password: their browsers lose their draft keys.
+	h.forgetOtherDraftKeys(ctx, userID)
 	response.AbortWithSuccess(ctx)
 }

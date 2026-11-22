@@ -587,7 +587,7 @@ PATCH  /api/mail/settings/providers/:providerId/enabled | gate: platform.setting
 POST   /api/mail/settings/providers/:providerId/test | gate: platform.settings.write | layers: -
 PUT    /api/mail/settings/providers/order | gate: platform.settings.write | layers: -
 POST   /api/mail/settings/providers/test | gate: platform.settings.write | layers: -
-POST   /api/me/draft-key | gate: self | layers: -
+POST   /api/me/draft-key | gate: self | layers: auth.requireEditorOrigin
 GET    /api/notifications/banners | gate: banners.view(public) | layers: middleware.(*SiteResolver).ResolveSite.func
 PATCH  /api/notifications/banners/:id/dismiss | gate: notifications.self | layers: -
 GET    /api/notifications/broadcasts | gate: notifications.broadcast | layers: -

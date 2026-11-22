@@ -8,6 +8,14 @@ WHERE id = sqlc.arg(id)
   AND last_used_at > sqlc.arg(stale_before)
 RETURNING key_ciphertext;
 
+-- name: ResealUserDraftKey :execrows
+-- Replaces the sealed key with the same key sealed under the current platform key; nothing when the row changed meanwhile.
+UPDATE user_draft_keys
+SET key_ciphertext = sqlc.arg(key_ciphertext)
+WHERE id = sqlc.arg(id)
+  AND user_id = sqlc.arg(user_id)
+  AND key_ciphertext = sqlc.arg(old_ciphertext);
+
 -- name: InsertUserDraftKey :exec
 INSERT INTO user_draft_keys (id, user_id, key_ciphertext, created_at, last_used_at)
 VALUES (sqlc.arg(id), sqlc.arg(user_id), sqlc.arg(key_ciphertext), sqlc.arg(created_at), sqlc.arg(created_at));

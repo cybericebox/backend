@@ -61,6 +61,7 @@ type fakeUC struct {
 	forgotDraft       string
 	keptDraft         string
 	draftCalls        int
+	forgetDraftErr    error
 	passkeys          []passkeyModel.Passkey
 	sessionEmailErr   error
 }

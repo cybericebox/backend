@@ -38,6 +38,7 @@ func (u *AuthUseCase) DraftKey(ctx context.Context, userID uuid.UUID, cookieID s
 		if found {
 			key, derr := u.draftCipher.DecryptWithContext(sealed, secretctx.DraftKey(userID, cookieID))
 			if derr == nil && len(key) == draftKeyModel.KeySize {
+				u.resealDraftKey(ctx, userID, cookieID, sealed, key)
 				return draftKeyModel.Key{ID: cookieID, Key: key}, nil
 			}
 			// A key that does not open is of no use to anyone: replaced by a new one.
@@ -48,6 +49,22 @@ func (u *AuthUseCase) DraftKey(ctx context.Context, userID uuid.UUID, cookieID s
 		}
 	}
 	return u.newDraftKey(ctx, userID, now)
+}
+
+// resealDraftKey moves a key sealed by an older platform key to the current one: a key in use never expires, so
+// without this it would hold the old key forever (keys check counts it). A failure is logged: the key is still
+// returned and the next read tries again.
+func (u *AuthUseCase) resealDraftKey(ctx context.Context, userID uuid.UUID, id, sealed string, key []byte) {
+	if !u.draftCipher.NeedsRotation(sealed) {
+		return
+	}
+	fresh, err := u.draftCipher.EncryptWithContext(key, secretctx.DraftKey(userID, id))
+	if err == nil {
+		err = u.draftKeys.Reseal(ctx, id, userID, sealed, fresh)
+	}
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to seal a draft key again under the current platform key")
+	}
 }
 
 func (u *AuthUseCase) newDraftKey(ctx context.Context, userID uuid.UUID, now time.Time) (draftKeyModel.Key, error) {

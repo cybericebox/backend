@@ -122,6 +122,35 @@ func (q *Queries) InsertUserDraftKey(ctx context.Context, arg InsertUserDraftKey
 	return err
 }
 
+const resealUserDraftKey = `-- name: ResealUserDraftKey :execrows
+UPDATE user_draft_keys
+SET key_ciphertext = $1
+WHERE id = $2
+  AND user_id = $3
+  AND key_ciphertext = $4
+`
+
+type ResealUserDraftKeyParams struct {
+	KeyCiphertext string    `json:"key_ciphertext"`
+	ID            string    `json:"id"`
+	UserID        uuid.UUID `json:"user_id"`
+	OldCiphertext string    `json:"old_ciphertext"`
+}
+
+// Replaces the sealed key with the same key sealed under the current platform key; nothing when the row changed meanwhile.
+func (q *Queries) ResealUserDraftKey(ctx context.Context, arg ResealUserDraftKeyParams) (int64, error) {
+	result, err := q.db.Exec(ctx, resealUserDraftKey,
+		arg.KeyCiphertext,
+		arg.ID,
+		arg.UserID,
+		arg.OldCiphertext,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const touchUserDraftKey = `-- name: TouchUserDraftKey :one
 UPDATE user_draft_keys
 SET last_used_at = $1

@@ -47,6 +47,17 @@ func TestDraftKeys_TouchIsKeyedOnTheOwnerAndTheLifetime(t *testing.T) {
 	require.NoError(t, db.Pool.QueryRow(ctx, `SELECT count(*) FROM user_draft_keys WHERE user_id = $1`, alice).Scan(&left))
 	require.Equal(t, 1, left)
 
+	// A reseal replaces the stored key only while the row still holds the value it was read as.
+	require.NoError(t, repo.Reseal(ctx, draftID(1), alice, "not-what-is-stored", "sealed-x"))
+	require.NoError(t, repo.Reseal(ctx, draftID(1), bob, "sealed-1", "sealed-x"))
+	sealed, _, err = repo.Touch(ctx, draftID(1), alice, now, stale)
+	require.NoError(t, err)
+	require.Equal(t, "sealed-1", sealed)
+	require.NoError(t, repo.Reseal(ctx, draftID(1), alice, "sealed-1", "sealed-new"))
+	sealed, _, err = repo.Touch(ctx, draftID(1), alice, now, stale)
+	require.NoError(t, err)
+	require.Equal(t, "sealed-new", sealed)
+
 	// The touch moved the last use, so the key outlives the bound it was created under.
 	_, found, err = repo.Touch(ctx, draftID(1), alice, now, now.Add(-30*time.Minute))
 	require.NoError(t, err)
