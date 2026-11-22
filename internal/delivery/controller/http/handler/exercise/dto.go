@@ -581,6 +581,30 @@ type deviceDTO struct {
 	DHCPRanges         []dhcpRangeDTO `json:"DHCPRanges,omitempty"`
 	DNS                string         `json:"DNS,omitempty"`
 	ReverseConnections bool           `json:"ReverseConnections,omitempty"`
+	// ConsolePorts are the management lines of a node (console0..., aux0...; at most 4) and SerialPorts its terminal lines
+	// (serial0...; at most 16), the ends of a console cable. Absent when the device has none.
+	ConsolePorts []consolePortDTO `json:"ConsolePorts,omitempty"`
+	SerialPorts  []serialPortDTO  `json:"SerialPorts,omitempty"`
+}
+
+// consolePortDTO: at most one of Command and Native; neither runs /bin/login as root.
+type consolePortDTO struct {
+	Name    string           `json:"Name"`
+	Command []string         `json:"Command,omitempty"`
+	User    string           `json:"User,omitempty"`
+	Native  *nativeSourceDTO `json:"Native,omitempty"`
+}
+
+// nativeSourceDTO: Kind stdio (the service's own terminal) or tcp (Port on the device's loopback).
+type nativeSourceDTO struct {
+	Kind string `json:"Kind" enums:"stdio,tcp"`
+	Port int32  `json:"Port,omitempty"`
+}
+
+// serialPortDTO: Path empty is /dev/ttyCON<n> for serial<n>.
+type serialPortDTO struct {
+	Name string `json:"Name"`
+	Path string `json:"Path,omitempty"`
 }
 
 type endpointDTO struct {
@@ -590,6 +614,9 @@ type endpointDTO struct {
 }
 
 type connectionDTO struct {
+	// Kind is empty for a network connection and console for a console cable (one serial and one console port end; the
+	// endpoints' Interface names the ports).
+	Kind      string        `json:"Kind,omitempty" enums:"console"`
 	Endpoints []endpointDTO `json:"Endpoints"`
 }
 
@@ -637,6 +664,8 @@ type opponentDTO struct {
 	Operates   []string `json:"Operates,omitempty"`
 	// Foothold is a switch or hub of the topology: the opponent's first position (attack, attack-defense).
 	Foothold string `json:"Foothold,omitempty"`
+	// Seat (defense, attack-defense) is the node with serial ports a human defender sits at; a bot run takes it.
+	Seat string `json:"Seat,omitempty"`
 	Brief    string `json:"Brief,omitempty"`
 }
 
@@ -955,7 +984,7 @@ func (d variantDTO) toDomain() exerciseModel.Variant {
 	for _, o := range d.Opponents {
 		out.Opponents = append(out.Opponents, exerciseModel.Opponent{
 			Role: exerciseModel.OpponentRole(o.Role), Band: o.Band, Goal: o.Goal, Start: exerciseModel.OpponentStart{After: o.StartAfter},
-			Operates: o.Operates, Foothold: o.Foothold, Brief: o.Brief,
+			Operates: o.Operates, Foothold: o.Foothold, Brief: o.Brief, Seat: o.Seat,
 		})
 	}
 	if d.ID != nil {
@@ -1253,10 +1282,20 @@ func (d topologyDTO) toDomain() exerciseModel.Topology {
 		if dev.Persistence != nil {
 			domainDev.Persistence = &exerciseModel.DevicePersistence{Enabled: dev.Persistence.Enabled, Debounce: dev.Persistence.Debounce}
 		}
+		for _, p := range dev.ConsolePorts {
+			port := exerciseModel.ConsolePort{Name: p.Name, Command: p.Command, User: p.User}
+			if p.Native != nil {
+				port.Native = &exerciseModel.NativeSource{Kind: exerciseModel.NativeKind(p.Native.Kind), Port: p.Native.Port}
+			}
+			domainDev.ConsolePorts = append(domainDev.ConsolePorts, port)
+		}
+		for _, p := range dev.SerialPorts {
+			domainDev.SerialPorts = append(domainDev.SerialPorts, exerciseModel.SerialPort{Name: p.Name, Path: p.Path})
+		}
 		out.Devices = append(out.Devices, domainDev)
 	}
 	for _, c := range d.Connections {
-		conn := exerciseModel.Connection{}
+		conn := exerciseModel.Connection{Kind: exerciseModel.ConnectionKind(c.Kind)}
 		for _, ep := range c.Endpoints {
 			domainEP := exerciseModel.Endpoint{Kind: exerciseModel.EndpointKind(ep.Kind), Interface: ep.Interface}
 			if ep.DeviceID != nil {
@@ -1312,7 +1351,7 @@ func variantToDTO(v exerciseModel.Variant) variantDTO {
 	}
 	for _, o := range v.Opponents {
 		d.Opponents = append(d.Opponents, opponentDTO{
-			Role: string(o.Role), Band: o.Band, Goal: o.Goal, StartAfter: o.Start.After, Operates: o.Operates, Foothold: o.Foothold, Brief: o.Brief,
+			Role: string(o.Role), Band: o.Band, Goal: o.Goal, StartAfter: o.Start.After, Operates: o.Operates, Foothold: o.Foothold, Brief: o.Brief, Seat: o.Seat,
 		})
 	}
 	return d
@@ -1396,10 +1435,20 @@ func topologyToDTO(t exerciseModel.Topology) topologyDTO {
 		if dev.Persistence != nil {
 			dtoDev.Persistence = &persistenceDTO{Enabled: dev.Persistence.Enabled, Debounce: dev.Persistence.Debounce}
 		}
+		for _, p := range dev.ConsolePorts {
+			port := consolePortDTO{Name: p.Name, Command: p.Command, User: p.User}
+			if p.Native != nil {
+				port.Native = &nativeSourceDTO{Kind: string(p.Native.Kind), Port: p.Native.Port}
+			}
+			dtoDev.ConsolePorts = append(dtoDev.ConsolePorts, port)
+		}
+		for _, p := range dev.SerialPorts {
+			dtoDev.SerialPorts = append(dtoDev.SerialPorts, serialPortDTO{Name: p.Name, Path: p.Path})
+		}
 		out.Devices = append(out.Devices, dtoDev)
 	}
 	for _, c := range t.Connections {
-		dtoConn := connectionDTO{}
+		dtoConn := connectionDTO{Kind: string(c.Kind)}
 		for _, ep := range c.Endpoints {
 			dtoEP := endpointDTO{Kind: string(ep.Kind), Interface: ep.Interface}
 			if ep.DeviceID != uuid.Nil {

@@ -273,7 +273,7 @@ func TestParseExerciseArchive_SchemaRequired(t *testing.T) {
 			continue
 		}
 		ctx := publicContext(t, err)
-		if ctx["expected"] != "cib-exercise/1.0" {
+		if ctx["expected"] != "cib-exercise/1.0, cib-exercise/1.1" {
 			t.Errorf("%s: context = %v", name, ctx)
 		}
 	}

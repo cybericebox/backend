@@ -119,7 +119,7 @@ func TestImportExerciseArchive_StatusStillValidated(t *testing.T) {
 	require.ErrorIs(t, err, exerciseModel.ErrArchiveInvalid.Err())
 }
 
-// Only the schema string cib-exercise/1.0 is read.
+// Only the schema strings cib-exercise/1.0 and cib-exercise/1.1 are read.
 func TestImportExerciseArchive_SchemaString(t *testing.T) {
 	archiveWith := func(schema string) []byte {
 		payload := `{"schema":"` + schema + `","exercise":{"name":"schema check"},"versions":[{"status":"draft",` + draftBody + `}]}`
@@ -127,15 +127,17 @@ func TestImportExerciseArchive_SchemaString(t *testing.T) {
 		require.NoError(t, err)
 		return archive
 	}
-	rows, err := importAsWritten(t, archiveWith("cib-exercise/1.0"))
-	require.NoError(t, err)
-	requireOneDraft(t, rows, "")
-	for _, old := range []string{"cib-exercise/1", "cib-exercise/2", "cib-exercise/1.1"} {
-		_, err = importAsWritten(t, archiveWith(old))
-		require.ErrorIs(t, err, exerciseModel.ErrArchiveSchemaUnsupported.Err(), old)
-		require.Equal(t, "cib-exercise/1.0", publicContext(t, err)["expected"])
+	for _, schema := range []string{"cib-exercise/1.0", "cib-exercise/1.1"} {
+		rows, err := importAsWritten(t, archiveWith(schema))
+		require.NoError(t, err, schema)
+		requireOneDraft(t, rows, "")
 	}
-	require.Contains(t, exerciseModel.ErrArchiveSchemaUnsupported.Err().Error(), "cib-exercise/1.0")
+	for _, old := range []string{"cib-exercise/1", "cib-exercise/2", "cib-exercise/1.2"} {
+		_, err := importAsWritten(t, archiveWith(old))
+		require.ErrorIs(t, err, exerciseModel.ErrArchiveSchemaUnsupported.Err(), old)
+		require.Equal(t, "cib-exercise/1.0, cib-exercise/1.1", publicContext(t, err)["expected"])
+	}
+	require.Contains(t, exerciseModel.ErrArchiveSchemaUnsupported.Err().Error(), "cib-exercise/1.1")
 }
 
 func publicContext(t *testing.T, err error) map[string]any {

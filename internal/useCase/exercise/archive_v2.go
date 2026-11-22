@@ -8,6 +8,7 @@ import (
 	"io"
 	"path"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"unicode"
@@ -19,8 +20,46 @@ import (
 	"github.com/gofrs/uuid"
 )
 
-// archiveSchema is the only accepted value of the document's `schema` key.
-const archiveSchema = "cib-exercise/1.0"
+// The versions of the document's `schema` key the import reads. 1.1 is 1.0 plus the console keys (a device's console_ports
+// and serial_ports, a connection's kind, an opponent's seat): the fields tagged cib:"1.1". A 1.0 document stays valid
+// forever; the export writes the lowest version that holds the content (archiveSchemaOf).
+const (
+	archiveSchema10 = "cib-exercise/1.0"
+	archiveSchema11 = "cib-exercise/1.1"
+)
+
+// archiveSchemas lists the versions read, oldest first.
+var archiveSchemas = []string{archiveSchema10, archiveSchema11}
+
+// archiveSchemaKey is the struct tag that marks a document key added in a later version (cib:"1.1"); a key without it is
+// part of 1.0.
+const archiveSchemaKey = "cib"
+
+func archiveSchemaSupported(schema string) bool { return slices.Contains(archiveSchemas, schema) }
+
+// keyInSchema reports whether a field of a document struct is a key of the schema version.
+func keyInSchema(field reflect.StructField, schema string) bool {
+	since := field.Tag.Get(archiveSchemaKey)
+	return since == "" || schema != archiveSchema10
+}
+
+// archiveSchemaOf is the lowest version that holds the versions: 1.1 when a variant uses a console port, a console cable or an
+// opponent seat, else 1.0 (so an export of an old task still opens in an older reader).
+func archiveSchemaOf(versions []exerciseModel.ExerciseVersion) string {
+	for _, version := range versions {
+		for _, variant := range version.Variants {
+			if variant.Topology.UsesConsole() {
+				return archiveSchema11
+			}
+			for _, opponent := range variant.Opponents {
+				if opponent.Seat != "" {
+					return archiveSchema11
+				}
+			}
+		}
+	}
+	return archiveSchema10
+}
 
 // The DTOs below are the portable document (snake_case keys). Domain types are reused where
 // their JSON shape already is the document shape (placeholders, interfaces, env vars, ...);
@@ -193,6 +232,9 @@ type (
 		DHCPRanges         []exerciseModel.DHCPRange `json:"dhcp_ranges,omitempty"`
 		DNS                string                    `json:"dns,omitempty"`
 		ReverseConnections bool                      `json:"reverse_connections,omitempty"`
+		// The console ports of a node (1.1).
+		ConsolePorts []exerciseModel.ConsolePort `json:"console_ports,omitempty" cib:"1.1"`
+		SerialPorts  []exerciseModel.SerialPort  `json:"serial_ports,omitempty" cib:"1.1"`
 	}
 
 	// archiveEnvVarV2 is a bootstrap env var as the document writes it (the server-side origin of a secret is not).
@@ -227,7 +269,9 @@ type (
 	}
 
 	archiveConnectionV2 struct {
-		Endpoints []archiveEndpointV2 `json:"endpoints"`
+		// Kind (1.1) is empty for a network connection and console for a console cable.
+		Kind      exerciseModel.ConnectionKind `json:"kind,omitempty" cib:"1.1"`
+		Endpoints []archiveEndpointV2          `json:"endpoints"`
 	}
 
 	// archiveEndpointV2: a device is named (Device) or addressed by id (DeviceID, wins when both).
@@ -316,13 +360,13 @@ func archiveBothDocuments() error {
 	return exerciseModel.ErrArchiveBothDocuments.Err()
 }
 
-// archiveUnsupportedSchema: the document does not declare the one schema this import reads.
+// archiveUnsupportedSchema: the document does not declare a schema this import reads.
 func archiveUnsupportedSchema() error {
-	return exerciseModel.ErrArchiveSchemaUnsupported.WithPublicContext("expected", archiveSchema).Err()
+	return exerciseModel.ErrArchiveSchemaUnsupported.WithPublicContext("expected", strings.Join(archiveSchemas, ", ")).Err()
 }
 
 // probeArchiveSchema reads only the schema key of a (comment-free) document and accepts nothing
-// but the JSON string "cib-exercise/1.0".
+// but one of the JSON strings of archiveSchemas.
 func probeArchiveSchema(payload []byte) error {
 	var probe struct {
 		Schema json.RawMessage `json:"schema"`
@@ -331,7 +375,7 @@ func probeArchiveSchema(payload []byte) error {
 		return decodeFailure(payload, err)
 	}
 	var schema string
-	if json.Unmarshal(probe.Schema, &schema) != nil || schema != archiveSchema {
+	if json.Unmarshal(probe.Schema, &schema) != nil || !archiveSchemaSupported(schema) {
 		return archiveUnsupportedSchema()
 	}
 	return nil
@@ -362,7 +406,15 @@ func decodeArchiveV2(payload []byte) (archiveDocV2, error) {
 	if err := checkOpponentKeys(payload); err != nil {
 		return archiveDocV2{}, err
 	}
-	if err := checkArchiveKeys("", generic, reflect.TypeFor[archiveDocV2]()); err != nil {
+	// The keys are those of the declared version; an unknown or missing version is checked as the newest one, and refused
+	// below.
+	schema := archiveSchemas[len(archiveSchemas)-1]
+	if object, ok := generic.(map[string]any); ok {
+		if declared, ok := object["schema"].(string); ok && archiveSchemaSupported(declared) {
+			schema = declared
+		}
+	}
+	if err := checkArchiveKeys("", generic, reflect.TypeFor[archiveDocV2](), schema); err != nil {
 		return archiveDocV2{}, err
 	}
 	var doc archiveDocV2
@@ -371,8 +423,8 @@ func decodeArchiveV2(payload []byte) (archiveDocV2, error) {
 	if err := strict.Decode(&doc); err != nil {
 		return archiveDocV2{}, decodeFailure(payload, err)
 	}
-	if doc.Schema != archiveSchema {
-		return archiveDocV2{}, archiveInvalid(fmt.Sprintf("schema must be %q", archiveSchema))
+	if !archiveSchemaSupported(doc.Schema) {
+		return archiveDocV2{}, archiveInvalid(fmt.Sprintf("schema must be one of %s", strings.Join(archiveSchemas, ", ")))
 	}
 	return doc, nil
 }
@@ -510,8 +562,9 @@ var jsonUnmarshalerType = reflect.TypeFor[json.Unmarshaler]()
 
 // checkArchiveKeys walks the generic JSON tree next to the Go type it decodes into and names the
 // first key (alphabetical, for stable messages) no field declares, matching case-sensitively.
-// Paths are 1-based, as in every message to the author.
-func checkArchiveKeys(path string, value any, t reflect.Type) error {
+// Paths are 1-based, as in every message to the author. A key of a later version than schema is unknown too, and the message
+// names the version that has it.
+func checkArchiveKeys(path string, value any, t reflect.Type, schema string) error {
 	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
@@ -525,9 +578,14 @@ func checkArchiveKeys(path string, value any, t reflect.Type) error {
 			return nil // a type mismatch, reported by the decode
 		}
 		fields := make(map[string]reflect.Type, t.NumField())
+		later := make(map[string]string)
 		for i := range t.NumField() {
 			field := t.Field(i)
 			if name, _, _ := strings.Cut(field.Tag.Get("json"), ","); name != "" && name != "-" {
+				if !keyInSchema(field, schema) {
+					later[name] = "cib-exercise/" + field.Tag.Get(archiveSchemaKey)
+					continue
+				}
 				fields[name] = field.Type
 			}
 		}
@@ -543,13 +601,16 @@ func checkArchiveKeys(path string, value any, t reflect.Type) error {
 				if where == "" {
 					where = "the document"
 				}
+				if since, ok := later[key]; ok {
+					return archiveInvalid(fmt.Sprintf("unknown key %q in %s: it needs schema %s", key, where, since))
+				}
 				return archiveInvalid(fmt.Sprintf("unknown key %q in %s", key, where))
 			}
 			child := key
 			if path != "" {
 				child = path + "." + key
 			}
-			if err := checkArchiveKeys(child, object[key], fieldType); err != nil {
+			if err := checkArchiveKeys(child, object[key], fieldType, schema); err != nil {
 				return err
 			}
 		}
@@ -559,7 +620,7 @@ func checkArchiveKeys(path string, value any, t reflect.Type) error {
 			return nil
 		}
 		for i, item := range items {
-			if err := checkArchiveKeys(fmt.Sprintf("%s[%d]", path, i+1), item, t.Elem()); err != nil {
+			if err := checkArchiveKeys(fmt.Sprintf("%s[%d]", path, i+1), item, t.Elem(), schema); err != nil {
 				return err
 			}
 		}
@@ -1027,12 +1088,14 @@ func (t archiveTopologyV2) toDomain(
 			WaitReadyFile:  device.WaitReadyFile,
 
 			DHCP: device.DHCP, DHCPRanges: device.DHCPRanges, DNS: device.DNS, ReverseConnections: device.ReverseConnections,
+
+			ConsolePorts: device.ConsolePorts, SerialPorts: device.SerialPorts,
 		}
 		domainDevice.Normalize() // the former type container is a node with the container profile
 		topology.Devices = append(topology.Devices, domainDevice)
 	}
 	for ci, connection := range t.Connections {
-		mapped := exerciseModel.Connection{}
+		mapped := exerciseModel.Connection{Kind: connection.Kind}
 		for ei, endpoint := range connection.Endpoints {
 			if endpoint.Kind != "" && !endpoint.Kind.Valid() {
 				return exerciseModel.Topology{}, nil, unknownEnum(fmt.Sprintf("%s.connections[%d].endpoints[%d].kind", path, ci+1, ei+1), string(endpoint.Kind))
@@ -1073,7 +1136,7 @@ func (e *archiveEditV2) base() EditBase {
 
 // buildV2DocumentWithEdit is buildV2DocumentWithImages for the export an edit starts from: it records the edit base.
 func buildV2DocumentWithEdit(e exerciseModel.Exercise, versions []exerciseModel.ExerciseVersion, paths map[uuid.UUID]string, imagePaths map[string]string, edit *archiveEditV2) ([]byte, error) {
-	doc := archiveDocV2{Schema: archiveSchema, Edit: edit, Exercise: archiveExerciseV2{ID: e.ID.String(), Name: e.Name, Description: e.Description, Tags: e.Tags}}
+	doc := archiveDocV2{Schema: archiveSchemaOf(versions), Edit: edit, Exercise: archiveExerciseV2{ID: e.ID.String(), Name: e.Name, Description: e.Description, Tags: e.Tags}}
 	for _, version := range versions {
 		metadata := e.WithVersionMetadata(version)
 		out := archiveVersionV2{Status: version.Status, AdminNote: version.AdminNote, Label: version.Label, Variants: []archiveVariantV2{},
@@ -1141,11 +1204,13 @@ func exportVariantV2(variant exerciseModel.Variant, paths map[uuid.UUID]string, 
 			WaitReadyFile: device.WaitReadyFile,
 
 			DHCP: device.DHCP, DHCPRanges: device.DHCPRanges, DNS: device.DNS, ReverseConnections: device.ReverseConnections,
+
+			ConsolePorts: device.ConsolePorts, SerialPorts: device.SerialPorts,
 		}
 		topology.Devices = append(topology.Devices, exported)
 	}
 	for _, connection := range variant.Topology.Connections {
-		out := archiveConnectionV2{Endpoints: []archiveEndpointV2{}}
+		out := archiveConnectionV2{Kind: connection.Kind, Endpoints: []archiveEndpointV2{}}
 		for _, endpoint := range connection.Endpoints {
 			mapped := archiveEndpointV2{Kind: endpoint.Kind, Interface: endpoint.Interface}
 			mapped.Device, mapped.DeviceID = refs.ref(endpoint.DeviceID)

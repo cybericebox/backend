@@ -160,7 +160,7 @@ func TestOpponentsSurviveTheExportAndImportUnchanged(t *testing.T) {
 	}
 	exported := exportVariantV2(parsed.Versions[0].Variants[0], nil, nil)
 	again, err := json.Marshal(archiveDocV2{
-		Schema: archiveSchema, Exercise: archiveExerciseV2{Name: "Sample"},
+		Schema: archiveSchema10, Exercise: archiveExerciseV2{Name: "Sample"},
 		Versions: []archiveVersionV2{{Variants: []archiveVariantV2{exported}}},
 	})
 	if err != nil {

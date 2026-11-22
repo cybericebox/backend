@@ -7384,6 +7384,26 @@ definitions:
         items:
           $ref: '#/definitions/exercise.endpointDTO'
         type: array
+      Kind:
+        description: |-
+          Kind is empty for a network connection and console for a console cable (one serial and one console port end; the
+          endpoints' Interface names the ports).
+        enum:
+        - console
+        type: string
+    type: object
+  exercise.consolePortDTO:
+    properties:
+      Command:
+        items:
+          type: string
+        type: array
+      Name:
+        type: string
+      Native:
+        $ref: '#/definitions/exercise.nativeSourceDTO'
+      User:
+        type: string
     type: object
   exercise.createExerciseRequest:
     properties:
@@ -7775,6 +7795,13 @@ definitions:
         items:
           type: string
         type: array
+      ConsolePorts:
+        description: |-
+          ConsolePorts are the management lines of a node (console0..., aux0...; at most 4) and SerialPorts its terminal lines
+          (serial0...; at most 16), the ends of a console cable. Absent when the device has none.
+        items:
+          $ref: '#/definitions/exercise.consolePortDTO'
+        type: array
       DHCP:
         description: |-
           The settings of a gateway (Type vpn_gateway or internet_gateway); no other device has them. A gateway has no image,
@@ -7833,6 +7860,10 @@ definitions:
           SecurityPreset is the device security profile: standard (the default when empty) or extended (raw sockets,
           NET_ADMIN and /dev/net/tun). Any other value is refused.
         type: string
+      SerialPorts:
+        items:
+          $ref: '#/definitions/exercise.serialPortDTO'
+        type: array
       System:
         description: System (linux|windows) and Hardware (fast|compatible) are reserved
           for the vm profile.
@@ -8671,6 +8702,16 @@ definitions:
       Variant:
         type: integer
     type: object
+  exercise.nativeSourceDTO:
+    properties:
+      Kind:
+        enum:
+        - stdio
+        - tcp
+        type: string
+      Port:
+        type: integer
+    type: object
   exercise.networkIPRefDTO:
     properties:
       Gateway:
@@ -8702,6 +8743,10 @@ definitions:
           type: string
         type: array
       Role:
+        type: string
+      Seat:
+        description: Seat (defense, attack-defense) is the node with serial ports
+          a human defender sits at; a bot run takes it.
         type: string
       StartAfter:
         type: string
@@ -9048,6 +9093,13 @@ definitions:
         items:
           $ref: '#/definitions/exercise.variantDTO'
         type: array
+    type: object
+  exercise.serialPortDTO:
+    properties:
+      Name:
+        type: string
+      Path:
+        type: string
     type: object
   exercise.setAccessRequest:
     properties:
@@ -26326,12 +26378,13 @@ paths:
     get:
       description: 'Same access as reading the draft. The working copy (the draft,
         else the published content, else an empty copy) written as the exercise document
-        of the archive: schema cib-exercise/1.0, one version, the keys in the order
-        of the specification, files as their archive paths (files/...). Secret env
-        values are empty (secret: true stays); a reader who may not see flags gets
-        no answer values and no conditions. Content-Type application/yaml; charset=utf-8,
-        at most 8 MiB (413 above). It is a view: nothing is written. Not wrapped in
-        the response envelope.'
+        of the archive: the lowest schema that holds it (cib-exercise/1.0, or cib-exercise/1.1
+        with console ports, console cables or an opponent seat), one version, the
+        keys in the order of the specification, files as their archive paths (files/...).
+        Secret env values are empty (secret: true stays); a reader who may not see
+        flags gets no answer values and no conditions. Content-Type application/yaml;
+        charset=utf-8, at most 8 MiB (413 above). It is a view: nothing is written.
+        Not wrapped in the response envelope.'
       parameters:
       - description: exercise ID
         in: path
