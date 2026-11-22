@@ -1248,6 +1248,21 @@ func (mr *MockQuerierMockRecorder) CountNotificationBroadcasts(ctx, arg any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountNotificationBroadcasts", reflect.TypeOf((*MockQuerier)(nil).CountNotificationBroadcasts), ctx, arg)
 }
 
+// CountOtherActiveAssistantRunsOnDeploy mocks base method.
+func (m *MockQuerier) CountOtherActiveAssistantRunsOnDeploy(ctx context.Context, arg postgres.CountOtherActiveAssistantRunsOnDeployParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountOtherActiveAssistantRunsOnDeploy", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountOtherActiveAssistantRunsOnDeploy indicates an expected call of CountOtherActiveAssistantRunsOnDeploy.
+func (mr *MockQuerierMockRecorder) CountOtherActiveAssistantRunsOnDeploy(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountOtherActiveAssistantRunsOnDeploy", reflect.TypeOf((*MockQuerier)(nil).CountOtherActiveAssistantRunsOnDeploy), ctx, arg)
+}
+
 // CountPendingExerciseResourceElevations mocks base method.
 func (m *MockQuerier) CountPendingExerciseResourceElevations(ctx context.Context) (int64, error) {
 	m.ctrl.T.Helper()

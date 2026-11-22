@@ -2,6 +2,7 @@ package assistant_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -28,7 +29,24 @@ type opponentPort struct {
 	started int
 	stopped int
 	index   int
+	indexes []int
 	gotUser uuid.UUID
+}
+
+func (p *opponentPort) StartOpponentRuns(_ context.Context, a exerciseUseCase.Actor, _, version, variant uuid.UUID, indexes []int) ([]assistantModel.Run, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.started++
+	p.gotUser, p.indexes = a.UserID, indexes
+	if p.err != nil {
+		return nil, p.err
+	}
+	deploy := uuid.Must(uuid.NewV7())
+	out := make([]assistantModel.Run, 0, len(indexes))
+	for i, index := range indexes {
+		out = append(out, assistantModel.Run{ID: uuid.Must(uuid.NewV7()), VersionID: version, VariantID: variant, DeployID: deploy, Role: "attack", Opponent: index, ToolsIndex: i, State: assistantModel.RunStarting, CreatedAt: time.Now(), ExpiresAt: time.Now().Add(time.Hour)})
+	}
+	return out, nil
 }
 
 func (p *opponentPort) StartOpponentRun(_ context.Context, a exerciseUseCase.Actor, _, version, variant uuid.UUID, index int) (assistantModel.Run, error) {
@@ -161,5 +179,68 @@ func TestOpponentGetStopAndEventsCarryThePathPosition(t *testing.T) {
 	frames := readFramesUntilClosed(t, resp)
 	if len(frames) != 1 || !strings.Contains(frames[0], "id: 2") || !strings.Contains(frames[0], "event: run_finished") {
 		t.Fatalf("%v", frames)
+	}
+}
+
+var opponentsBase = strings.TrimSuffix(opponentBase, "/opponents/2/try") + "/opponents/try"
+
+// postJSON posts a body as the author.
+func postJSON(t *testing.T, srv *httptest.Server, path, body string, user bool) *http.Response {
+	t.Helper()
+	req, _ := http.NewRequest(http.MethodPost, srv.URL+path, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	if user {
+		req.Header.Set("X-Test-User", author.String())
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
+	return resp
+}
+
+func TestTryingSeveralOpponentsStartsThemTogetherInTheOrderOfTheBody(t *testing.T) {
+	srv, port := opponentServer(t)
+	resp := postJSON(t, srv, opponentsBase, `{"indexes":[3,1]}`, true)
+	var got struct {
+		Data []struct {
+			ID       string
+			Opponent int
+			DeployID string
+		}
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusAccepted || port.started != 1 || port.gotUser != author || len(port.indexes) != 2 || port.indexes[0] != 3 || port.indexes[1] != 1 {
+		t.Fatalf("%d %+v", resp.StatusCode, port)
+	}
+	if len(got.Data) != 2 || got.Data[0].Opponent != 3 || got.Data[1].Opponent != 1 || got.Data[0].DeployID != got.Data[1].DeployID || got.Data[0].ID == got.Data[1].ID {
+		t.Fatalf("%+v", got)
+	}
+	// the single opponent's route still answers under its own path
+	if resp, _ := measureCall(t, srv, http.MethodPost, opponentBase); resp.StatusCode != http.StatusAccepted || port.index != 2 {
+		t.Fatalf("%d", resp.StatusCode)
+	}
+}
+
+func TestTryingSeveralOpponentsRefusesABadBodyAndAnswersTheUseCaseError(t *testing.T) {
+	srv, port := opponentServer(t)
+	for _, body := range []string{``, `{}`, `{"indexes":[]}`, `{"indexes":[0]}`, `{"indexes":[1,1]}`, `{"indexes":[1,2,3,4,5,6,7,8,9]}`, `{"indexes":"1"}`, `[1]`} {
+		if resp := postJSON(t, srv, opponentsBase, body, true); resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("%q: %d", body, resp.StatusCode)
+		}
+	}
+	if port.started != 0 {
+		t.Fatal("nothing is started for a bad body")
+	}
+	port.err = assistantModel.ErrAssistantRunLimit.Err()
+	want := assistantModel.ErrAssistantRunLimit.Err().StatusCode()
+	if resp := postJSON(t, srv, opponentsBase, `{"indexes":[1,2]}`, true); resp.StatusCode != want.HTTPCode() {
+		t.Errorf("%d", resp.StatusCode)
+	}
+	if resp := postJSON(t, srv, opponentsBase, `{"indexes":[1,2]}`, false); resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("no session: %d", resp.StatusCode)
 	}
 }

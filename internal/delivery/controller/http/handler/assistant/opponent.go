@@ -10,6 +10,7 @@ import (
 
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	assistantModel "github.com/cybericebox/backend/internal/model/assistant"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 	"github.com/cybericebox/backend/internal/model/rbac"
 	assistantUseCase "github.com/cybericebox/backend/internal/useCase/assistant"
 	exerciseUseCase "github.com/cybericebox/backend/internal/useCase/exercise"
@@ -21,6 +22,7 @@ type (
 	// under the opponent and the variant it belongs to.
 	IOpponentUseCase interface {
 		StartOpponentRun(ctx context.Context, actor exerciseUseCase.Actor, exerciseID, versionID, variantID uuid.UUID, index int) (assistantModel.Run, error)
+		StartOpponentRuns(ctx context.Context, actor exerciseUseCase.Actor, exerciseID, versionID, variantID uuid.UUID, indexes []int) ([]assistantModel.Run, error)
 		OpponentRuns(ctx context.Context, actor exerciseUseCase.Actor, exerciseID, versionID, variantID uuid.UUID, index int) ([]assistantModel.Run, error)
 		OpponentRun(ctx context.Context, actor exerciseUseCase.Actor, exerciseID, versionID, variantID uuid.UUID, index int, runID uuid.UUID) (assistantUseCase.RunView, error)
 		StopOpponentRun(ctx context.Context, actor exerciseUseCase.Actor, exerciseID, versionID, variantID uuid.UUID, index int, runID uuid.UUID) (assistantModel.Run, error)
@@ -46,10 +48,12 @@ func (h *OpponentHandler) Init(r *gin.RouterGroup) {
 	g.GET(":runID", self, h.get)
 	g.GET(":runID/events", self, h.events)
 	g.POST(":runID/stop", self, h.stop)
+	// Several opponents of the variant together in one lab; each run is then read and stopped under its own opponent above.
+	r.POST("exercises/:id/versions/:versionID/variants/:variantID/opponents/try", self, h.startMany)
 }
 
-// ids reads the actor, the variant's path and the opponent's position; false means the response is already written.
-func (h *OpponentHandler) ids(c *gin.Context) (actor exerciseUseCase.Actor, exerciseID, versionID, variantID uuid.UUID, index int, ok bool) {
+// variantIDs reads the actor and the variant's path; false means the response is already written.
+func variantIDs(c *gin.Context) (actor exerciseUseCase.Actor, exerciseID, versionID, variantID uuid.UUID, ok bool) {
 	claims, found := rbac.CurrentUserSessionFromContext(c.Request.Context())
 	if !found {
 		response.AbortWithUnauthenticated(c)
@@ -58,16 +62,77 @@ func (h *OpponentHandler) ids(c *gin.Context) (actor exerciseUseCase.Actor, exer
 	var err error
 	if exerciseID, err = uuid.FromString(c.Param("id")); err == nil {
 		if versionID, err = uuid.FromString(c.Param("versionID")); err == nil {
-			if variantID, err = uuid.FromString(c.Param("variantID")); err == nil {
-				index, err = strconv.Atoi(c.Param("index"))
-			}
+			variantID, err = uuid.FromString(c.Param("variantID"))
 		}
 	}
-	if err != nil || index < 1 {
+	if err != nil {
 		response.AbortWithBadRequest(c)
 		return
 	}
-	return exerciseUseCase.Actor{UserID: claims.UserID, Role: claims.Role}, exerciseID, versionID, variantID, index, true
+	return exerciseUseCase.Actor{UserID: claims.UserID, Role: claims.Role}, exerciseID, versionID, variantID, true
+}
+
+// ids reads the actor, the variant's path and the opponent's position; false means the response is already written.
+func (h *OpponentHandler) ids(c *gin.Context) (actor exerciseUseCase.Actor, exerciseID, versionID, variantID uuid.UUID, index int, ok bool) {
+	if actor, exerciseID, versionID, variantID, ok = variantIDs(c); !ok {
+		return
+	}
+	index, err := strconv.Atoi(c.Param("index"))
+	if err != nil || index < 1 {
+		response.AbortWithBadRequest(c)
+		return actor, exerciseID, versionID, variantID, 0, false
+	}
+	return actor, exerciseID, versionID, variantID, index, true
+}
+
+// startManyRequest names the opponents to try together: their 1-based positions in the variant's manifest.
+type startManyRequest struct {
+	Indexes []int `json:"indexes"`
+}
+
+// startMany godoc
+// @Summary  Try several opponents of a variant together against one test lab; each gets a run of its own
+// @Tags     exercises
+// @Accept   json
+// @Produce  json
+// @Param    body  body      startManyRequest  true  "the 1-based positions of the opponents"
+// @Success  202   {object}  response.Response{data=[]runResponse}
+// @Router   /exercises/{id}/versions/{versionID}/variants/{variantID}/opponents/try [post]
+func (h *OpponentHandler) startMany(c *gin.Context) {
+	actor, exerciseID, versionID, variantID, ok := variantIDs(c)
+	if !ok {
+		return
+	}
+	var body startManyRequest
+	if err := c.ShouldBindJSON(&body); err != nil || !validIndexes(body.Indexes) {
+		response.AbortWithBadRequest(c)
+		return
+	}
+	runs, err := h.useCase.StartOpponentRuns(c.Request.Context(), actor, exerciseID, versionID, variantID, body.Indexes)
+	if err != nil {
+		response.AbortWithError(c, err)
+		return
+	}
+	out := make([]runResponse, 0, len(runs))
+	for _, r := range runs {
+		out = append(out, runToResponse(r))
+	}
+	response.AbortWithDataStatus(c, http.StatusAccepted, out)
+}
+
+// validIndexes: one to MaxOpponents positions, each at least 1, none twice.
+func validIndexes(indexes []int) bool {
+	if len(indexes) == 0 || len(indexes) > exerciseModel.MaxOpponents {
+		return false
+	}
+	seen := make(map[int]bool, len(indexes))
+	for _, index := range indexes {
+		if index < 1 || seen[index] {
+			return false
+		}
+		seen[index] = true
+	}
+	return true
 }
 
 // start godoc
@@ -140,7 +205,7 @@ func (h *OpponentHandler) get(c *gin.Context) {
 }
 
 // stop godoc
-// @Summary  Stop a run of an opponent; its lab and tools device are torn down
+// @Summary  Stop a run of an opponent; its lab is torn down once no other run plays in it
 // @Tags     exercises
 // @Produce  json
 // @Success  200  {object}  response.Response{data=runResponse}

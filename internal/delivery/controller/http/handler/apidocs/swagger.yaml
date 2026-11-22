@@ -142,6 +142,13 @@ definitions:
       VersionID:
         type: string
     type: object
+  assistant.startManyRequest:
+    properties:
+      indexes:
+        items:
+          type: integer
+        type: array
+    type: object
   auth.accountResponse:
     properties:
       CreatedAt:
@@ -27228,7 +27235,37 @@ paths:
                 data:
                   $ref: '#/definitions/assistant.runResponse'
               type: object
-      summary: Stop a run of an opponent; its lab and tools device are torn down
+      summary: Stop a run of an opponent; its lab is torn down once no other run plays
+        in it
+      tags:
+      - exercises
+  /exercises/{id}/versions/{versionID}/variants/{variantID}/opponents/try:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: the 1-based positions of the opponents
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/assistant.startManyRequest'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/assistant.runResponse'
+                  type: array
+              type: object
+      summary: Try several opponents of a variant together against one test lab; each
+        gets a run of its own
       tags:
       - exercises
   /exercises/access:

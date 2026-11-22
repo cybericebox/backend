@@ -1,0 +1,292 @@
+{
+  "devices": [
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "name": "web",
+      "type": "node",
+      "profile": "container",
+      "image": "nginx:1.27",
+      "resource_preset": "micro",
+      "interfaces": [
+        {
+          "name": "eth0",
+          "ip": {
+            "type": "static",
+            "address_ref": {
+              "gateway": "attack",
+              "host": 10
+            },
+            "gateway_ref": {
+              "gateway": "attack",
+              "host": 1
+            }
+          }
+        }
+      ],
+      "access": [
+        {
+          "kind": "http",
+          "port": 80,
+          "protocol": "http"
+        }
+      ],
+      "bootstrap": {
+        "timeout": "60s",
+        "files": [
+          {
+            "path": "/usr/share/nginx/html/status.txt",
+            "content": "{{task.recon}}",
+            "mode": "0644"
+          }
+        ]
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000002",
+      "name": "db",
+      "type": "node",
+      "profile": "container",
+      "image": "redis:7",
+      "resource_preset": "micro",
+      "interfaces": [
+        {
+          "name": "eth0",
+          "ip": {
+            "type": "static",
+            "address_ref": {
+              "gateway": "attack",
+              "host": 20
+            },
+            "gateway_ref": {
+              "gateway": "attack",
+              "host": 1
+            }
+          }
+        }
+      ],
+      "bootstrap": {
+        "timeout": "60s",
+        "env": [
+          {
+            "name": "SECRET",
+            "value": "{{task.root}}",
+            "secret": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000003",
+      "name": "sw1",
+      "type": "unmanaged-switch"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000004",
+      "name": "attack",
+      "type": "vpn_gateway",
+      "dhcp": true,
+      "dhcp_ranges": [
+        {
+          "start": 100,
+          "end": 200
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000005",
+      "name": "ctl",
+      "type": "vpn_gateway"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000006",
+      "name": "ctl-switch",
+      "type": "unmanaged-switch"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000007",
+      "name": "tools",
+      "type": "node",
+      "profile": "container",
+      "image": "registry.example/cib-tools:1",
+      "security_preset": "extended",
+      "interfaces": [
+        {
+          "name": "eth0",
+          "ip": {
+            "type": "dhcp-preset"
+          }
+        },
+        {
+          "name": "eth1",
+          "ip": {
+            "type": "static",
+            "address_ref": {
+              "gateway": "ctl",
+              "host": 10
+            }
+          }
+        }
+      ],
+      "bootstrap": {
+        "env": [
+          {
+            "name": "EDA_RUN_ID",
+            "value": "00000000-0000-4000-8000-000000000008",
+            "secret": false
+          }
+        ]
+      },
+      "internet": "deny"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000009",
+      "name": "tools-2",
+      "type": "node",
+      "profile": "container",
+      "image": "registry.example/cib-tools:1",
+      "security_preset": "extended",
+      "interfaces": [
+        {
+          "name": "eth0",
+          "ip": {
+            "type": "dhcp-preset"
+          }
+        },
+        {
+          "name": "eth1",
+          "ip": {
+            "type": "static",
+            "address_ref": {
+              "gateway": "ctl",
+              "host": 11
+            }
+          }
+        }
+      ],
+      "bootstrap": {
+        "env": [
+          {
+            "name": "EDA_RUN_ID",
+            "value": "00000000-0000-4000-8000-00000000000a",
+            "secret": false
+          }
+        ]
+      },
+      "internet": "deny"
+    }
+  ],
+  "connections": [
+    {
+      "endpoints": [
+        {
+          "kind": "device",
+          "device_id": "00000000-0000-4000-8000-000000000004",
+          "interface": "eth0"
+        },
+        {
+          "kind": "device",
+          "device_id": "00000000-0000-4000-8000-000000000003",
+          "interface": "GigabitEthernet0/1"
+        }
+      ]
+    },
+    {
+      "endpoints": [
+        {
+          "kind": "device",
+          "device_id": "00000000-0000-4000-8000-000000000003",
+          "interface": "GigabitEthernet0/2"
+        },
+        {
+          "kind": "device",
+          "device_id": "00000000-0000-4000-8000-000000000001",
+          "interface": "eth0"
+        }
+      ]
+    },
+    {
+      "endpoints": [
+        {
+          "kind": "device",
+          "device_id": "00000000-0000-4000-8000-000000000003",
+          "interface": "GigabitEthernet0/3"
+        },
+        {
+          "kind": "device",
+          "device_id": "00000000-0000-4000-8000-000000000002",
+          "interface": "eth0"
+        }
+      ]
+    },
+    {
+      "endpoints": [
+        {
+          "kind": "device",
+          "device_id": "00000000-0000-4000-8000-000000000007",
+          "interface": "eth0"
+        },
+        {
+          "kind": "device",
+          "device_id": "00000000-0000-4000-8000-000000000003",
+          "interface": "GigabitEthernet0/4"
+        }
+      ]
+    },
+    {
+      "endpoints": [
+        {
+          "kind": "device",
+          "device_id": "00000000-0000-4000-8000-000000000005",
+          "interface": "eth0"
+        },
+        {
+          "kind": "device",
+          "device_id": "00000000-0000-4000-8000-000000000006",
+          "interface": "GigabitEthernet0/1"
+        }
+      ]
+    },
+    {
+      "endpoints": [
+        {
+          "kind": "device",
+          "device_id": "00000000-0000-4000-8000-000000000007",
+          "interface": "eth1"
+        },
+        {
+          "kind": "device",
+          "device_id": "00000000-0000-4000-8000-000000000006",
+          "interface": "GigabitEthernet0/2"
+        }
+      ]
+    },
+    {
+      "endpoints": [
+        {
+          "kind": "device",
+          "device_id": "00000000-0000-4000-8000-000000000009",
+          "interface": "eth0"
+        },
+        {
+          "kind": "device",
+          "device_id": "00000000-0000-4000-8000-000000000003",
+          "interface": "GigabitEthernet0/5"
+        }
+      ]
+    },
+    {
+      "endpoints": [
+        {
+          "kind": "device",
+          "device_id": "00000000-0000-4000-8000-000000000009",
+          "interface": "eth1"
+        },
+        {
+          "kind": "device",
+          "device_id": "00000000-0000-4000-8000-000000000006",
+          "interface": "GigabitEthernet0/3"
+        }
+      ]
+    }
+  ]
+}

@@ -2,6 +2,7 @@ package exerciseModel
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/gofrs/uuid"
@@ -253,5 +254,193 @@ func TestTheControlNamesAreReservedAtValidation(t *testing.T) {
 	ok := Variant{Topology: Topology{Devices: []Device{{ID: uuid.Must(uuid.NewV7()), Name: "ctl2", Type: DeviceTypeNode}, {ID: uuid.Must(uuid.NewV7()), Name: "web", Type: DeviceTypeNode}}}}
 	if err := ValidateDeviceNames([]Variant{ok}); err != nil {
 		t.Fatalf("other names are free: %v", err)
+	}
+}
+
+// controlOf finds the platform's control gateway and the switch the gateway is cabled to.
+func controlOf(t *testing.T, topo Topology) (gateway Device, sw uuid.UUID) {
+	t.Helper()
+	n := 0
+	for _, d := range topo.Devices {
+		if d.Name == ControlGatewayName {
+			gateway = d
+			n++
+		}
+	}
+	if n != 1 {
+		t.Fatalf("one control gateway, got %d", n)
+	}
+	for _, c := range topo.Connections {
+		for i, ep := range c.Endpoints {
+			if ep.DeviceID == gateway.ID {
+				sw = c.Endpoints[1-i].DeviceID
+			}
+		}
+	}
+	return gateway, sw
+}
+
+// peerOf is the endpoint a device's interface is cabled to.
+func peerOf(topo Topology, id uuid.UUID, iface string) Endpoint {
+	for _, c := range topo.Connections {
+		for i, ep := range c.Endpoints {
+			if ep.DeviceID == id && ep.Interface == iface {
+				return c.Endpoints[1-i]
+			}
+		}
+	}
+	return Endpoint{}
+}
+
+func TestSeveralToolsDevicesShareOneControlGateway(t *testing.T) {
+	topo, _, _ := toolsBase(t, func(vpn, web Device) []Connection {
+		return []Connection{link(port(vpn, GatewayPort), port(web, "eth0"))}
+	})
+	out, tools, err := topo.WithToolsDevices([]ToolsPlacement{{Image: "a:1"}, {Image: "b:1"}, {Image: "c:1"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tools) != 3 || tools[0].Name != "tools" || tools[1].Name != "tools-2" || tools[2].Name != "tools-3" || tools[1].Image != "b:1" {
+		t.Fatalf("the devices in the order of the placements: %+v", tools)
+	}
+	gateway, sw := controlOf(t, out)
+	switches := 0
+	for _, d := range out.Devices {
+		if d.Name == controlSwitchName {
+			switches++
+		}
+	}
+	if switches != 1 {
+		t.Fatalf("one control switch: %d", switches)
+	}
+	ports := map[string]bool{}
+	for i, d := range tools {
+		eth1 := d.Interfaces[1]
+		if eth1.Name != "eth1" || eth1.IP.AddressRef == nil || eth1.IP.AddressRef.Gateway != ControlGatewayName || eth1.IP.AddressRef.Host != ControlHost(i) {
+			t.Fatalf("device %d has the host of its index: %+v", i, eth1)
+		}
+		p := peerOf(out, d.ID, "eth1")
+		if p.DeviceID != sw || ports[p.Interface] {
+			t.Fatalf("device %d is on a port of its own of the control switch: %+v", i, p)
+		}
+		ports[p.Interface] = true
+	}
+	if p := peerOf(out, gateway.ID, GatewayPort); p.DeviceID != sw || p.Interface != "GigabitEthernet0/1" {
+		t.Fatalf("the gateway is on the first port: %+v", p)
+	}
+}
+
+func TestOneToolsDeviceLooksAsBefore(t *testing.T) {
+	topo, _, _ := toolsBase(t, func(vpn, web Device) []Connection {
+		return []Connection{link(port(vpn, GatewayPort), port(web, "eth0"))}
+	})
+	one, single, err := topo.WithToolsDevice("tools:1", ToolsPlacement{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	many, list, err := topo.WithToolsDevices([]ToolsPlacement{{Image: "tools:1"}})
+	if err != nil || len(list) != 1 {
+		t.Fatal(err)
+	}
+	if deviceNameList(one) != deviceNameList(many) || len(one.Connections) != len(many.Connections) || single.Name != list[0].Name {
+		t.Fatalf("%s vs %s", deviceNameList(one), deviceNameList(many))
+	}
+}
+
+func deviceNameList(t Topology) string {
+	s := ""
+	for _, d := range t.Devices {
+		s += d.Name + ","
+	}
+	return s
+}
+
+func TestTwoAttackersOnOneFootholdTakeDistinctPorts(t *testing.T) {
+	sw := Device{ID: uuid.Must(uuid.NewV7()), Name: "dmz", Type: DeviceTypeUnmanagedSwitch}
+	topo, vpn, web := toolsBase(t, nil)
+	topo.Devices = append(topo.Devices, sw)
+	topo.Connections = []Connection{link(port(vpn, GatewayPort), port(sw, "GigabitEthernet0/1")), link(port(web, "eth0"), port(sw, "GigabitEthernet0/2"))}
+	out, tools, err := topo.WithToolsDevices([]ToolsPlacement{{Image: "a:1", Foothold: "dmz"}, {Image: "a:1", Foothold: "dmz"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, b := peerOf(out, tools[0].ID, "eth0"), peerOf(out, tools[1].ID, "eth0")
+	if a.DeviceID != sw.ID || b.DeviceID != sw.ID || a.Interface == b.Interface || a.Interface != "GigabitEthernet0/3" || b.Interface != "GigabitEthernet0/4" {
+		t.Fatalf("%+v %+v", a, b)
+	}
+}
+
+func TestTwoDefendersBesideOneDeviceShareTheInsertedSwitch(t *testing.T) {
+	db := node("db")
+	topo, vpn, web := toolsBase(t, nil)
+	topo.Devices = append(topo.Devices, db)
+	topo.Devices[1].Interfaces = append(topo.Devices[1].Interfaces, Interface{Name: "eth1", IP: IPConfig{Type: IPConfigTypeDHCPPreset}})
+	topo.Connections = []Connection{link(port(vpn, GatewayPort), port(web, "eth0")), link(port(db, "eth0"), port(web, "eth1"))}
+	out, tools, err := topo.WithToolsDevices([]ToolsPlacement{{Image: "d:1", Beside: []string{"db"}}, {Image: "d:1", Beside: []string{"db"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var inserted []Device
+	for _, d := range out.Devices {
+		if d.Type == DeviceTypeUnmanagedSwitch && d.Name != controlSwitchName {
+			inserted = append(inserted, d)
+		}
+	}
+	if len(inserted) != 1 || inserted[0].Name != toolsSwitchName {
+		t.Fatalf("one tools switch for the segment: %+v", inserted)
+	}
+	sw := inserted[0].ID
+	dbPeer, webPeer := peerOf(out, db.ID, "eth0"), peerOf(out, web.ID, "eth1")
+	a, b := peerOf(out, tools[0].ID, "eth0"), peerOf(out, tools[1].ID, "eth0")
+	if dbPeer.DeviceID != sw || webPeer.DeviceID != sw || a.DeviceID != sw || b.DeviceID != sw {
+		t.Fatalf("the segment and both devices meet at the switch: %+v %+v %+v %+v", dbPeer, webPeer, a, b)
+	}
+	if used := map[string]bool{dbPeer.Interface: true, webPeer.Interface: true, a.Interface: true, b.Interface: true}; len(used) != 4 {
+		t.Fatalf("every end on a port of its own: %v", used)
+	}
+}
+
+func TestDefendersBesideTwoDevicesGetSwitchesWithTheirOwnNames(t *testing.T) {
+	db, cache := node("db"), node("cache")
+	topo, vpn, web := toolsBase(t, nil)
+	topo.Devices = append(topo.Devices, db, cache)
+	topo.Devices[1].Interfaces = append(topo.Devices[1].Interfaces, Interface{Name: "eth1", IP: IPConfig{Type: IPConfigTypeDHCPPreset}}, Interface{Name: "eth2", IP: IPConfig{Type: IPConfigTypeDHCPPreset}})
+	topo.Connections = []Connection{link(port(vpn, GatewayPort), port(web, "eth0")), link(port(db, "eth0"), port(web, "eth1")), link(port(cache, "eth0"), port(web, "eth2"))}
+	out, _, err := topo.WithToolsDevices([]ToolsPlacement{{Image: "d:1", Beside: []string{"db"}}, {Image: "d:1", Beside: []string{"cache"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := deviceNameList(out)
+	if !strings.Contains(names, toolsSwitchName+",") || !strings.Contains(names, toolsSwitchName+"-2,") {
+		t.Fatalf("%s", names)
+	}
+}
+
+func TestTheToolsDevicesAreCappedAndATasksControlGatewayIsRefused(t *testing.T) {
+	topo, _, _ := toolsBase(t, nil)
+	places := make([]ToolsPlacement, MaxOpponents+1)
+	for i := range places {
+		places[i] = ToolsPlacement{Image: "a:1"}
+	}
+	if _, _, err := topo.WithToolsDevices(places); !errors.Is(err, ErrToolsTooMany) {
+		t.Fatalf("more than MaxOpponents: %v", err)
+	}
+	out, tools, err := topo.WithToolsDevices(places[:MaxOpponents])
+	if err != nil || len(tools) != MaxOpponents || tools[MaxOpponents-1].Interfaces[1].IP.AddressRef.Host != ControlHost(MaxOpponents-1) {
+		t.Fatalf("MaxOpponents fit: %v", err)
+	}
+	controlOf(t, out)
+	if _, _, err := topo.WithToolsDevices([]ToolsPlacement{{Image: "a:1"}, {}}); !errors.Is(err, ErrToolsNoImage) {
+		t.Fatalf("every device has an image: %v", err)
+	}
+	clash := topo
+	clash.Devices = []Device{topo.Devices[0], node("ctl")}
+	if _, _, err := clash.WithToolsDevices([]ToolsPlacement{{Image: "a:1"}, {Image: "b:1"}}); !errors.Is(err, ErrToolsNoControl) {
+		t.Fatalf("a task's own ctl: %v", err)
+	}
+	// a topology that holds the platform's control already (a second call) is refused like a task's own ctl: all the
+	// tools devices of a lab are added in one call
+	if _, _, err := out.WithToolsDevices([]ToolsPlacement{{Image: "a:1"}}); !errors.Is(err, ErrToolsNoControl) {
+		t.Fatalf("a second call: %v", err)
 	}
 }

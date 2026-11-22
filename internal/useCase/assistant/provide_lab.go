@@ -126,7 +126,7 @@ func (u *UseCase) provideTaskLab(ctx context.Context, requestID, subjectRef stri
 		if caErr != nil {
 			return nil, &AnswerError{Code: codeUnavailable, Message: "labs are not available"}
 		}
-		handle, err = u.labs.DeployVariantTestWithTools(ctx, user, version, target.VariantID, 0, exerciseModel.ToolsPlacement{Env: exerciseModel.EDAEnv(rowID.String(), ca)})
+		handle, err = u.labs.DeployVariantTestWithTools(ctx, user, version, target.VariantID, 0, []exerciseModel.ToolsPlacement{{Env: exerciseModel.EDAEnv(rowID.String(), ca)}})
 	} else {
 		handle, err = u.labs.DeployVariantTest(ctx, user, version, target.VariantID, 0)
 	}

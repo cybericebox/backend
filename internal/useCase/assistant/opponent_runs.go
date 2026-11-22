@@ -45,7 +45,7 @@ func (u *UseCase) opponentBudget() *brainapiv1.Budget {
 // later task); how a result affects anything is the platform's decision too. Until then a run stores the brain's events and
 // its measurement as they come and the platform judges nothing: no verdict, no score, no statistics.
 
-// toolsPlacement is where an opponent's one tools device sits, and what it is told. This is the single place that decides
+// toolsPlacement is where an opponent's own tools device sits, and what it is told. This is the single place that decides
 // it: an attacker (and an attack-defender, who must be able to reach both) sits on its foothold, a defender on the segment of
 // the devices it operates.
 //
@@ -113,8 +113,8 @@ func toolsPlacement(o exerciseModel.Opponent, run uuid.UUID, trustCA string) exe
 	return place
 }
 
-// opponentOf reads the opponent at a 1-based position of the variant's manifest, for an actor who may test the variant.
-func (u *UseCase) opponentOf(ctx context.Context, actor exerciseUseCase.Actor, exerciseID, versionID, variantID uuid.UUID, index int) (exerciseUseCase.RunTarget, error) {
+// opponentTarget reads the task of a variant for an actor who may test the variant.
+func (u *UseCase) opponentTarget(ctx context.Context, actor exerciseUseCase.Actor, exerciseID, versionID, variantID uuid.UUID) (exerciseUseCase.RunTarget, error) {
 	if err := u.runsReady(); err != nil {
 		return exerciseUseCase.RunTarget{}, err
 	}
@@ -128,6 +128,15 @@ func (u *UseCase) opponentOf(ctx context.Context, actor exerciseUseCase.Actor, e
 	if target.ExerciseID != exerciseID || target.VariantID != variantID {
 		return exerciseUseCase.RunTarget{}, exerciseModel.ErrExerciseVersionNotFound.Err()
 	}
+	return target, nil
+}
+
+// opponentOf reads the opponent at a 1-based position of the variant's manifest, for an actor who may test the variant.
+func (u *UseCase) opponentOf(ctx context.Context, actor exerciseUseCase.Actor, exerciseID, versionID, variantID uuid.UUID, index int) (exerciseUseCase.RunTarget, error) {
+	target, err := u.opponentTarget(ctx, actor, exerciseID, versionID, variantID)
+	if err != nil {
+		return exerciseUseCase.RunTarget{}, err
+	}
 	if index < 1 || index > len(target.Opponents) {
 		return exerciseUseCase.RunTarget{}, assistantModel.ErrAssistantOpponentNotFound.Err()
 	}
@@ -135,70 +144,115 @@ func (u *UseCase) opponentOf(ctx context.Context, actor exerciseUseCase.Actor, e
 }
 
 // StartOpponentRun starts the opponent at a 1-based position of the variant's manifest against the author's test lab of the
-// variant: the lab is deployed with the platform tools device in it (the same path, limits and authorization as the author's
-// own test deploy), and the leader then starts the run at the brain once the lab is ready (and, for an opponent that
-// starts after a subtask, once that subtask is solved in the lab). The run is returned as it is, still starting. An
-// opponent has at most one active run, a user a few.
+// variant: StartOpponentRuns with that one opponent.
 func (u *UseCase) StartOpponentRun(ctx context.Context, actor exerciseUseCase.Actor, exerciseID, versionID, variantID uuid.UUID, index int) (assistantModel.Run, error) {
-	target, err := u.opponentOf(ctx, actor, exerciseID, versionID, variantID, index)
+	runs, err := u.StartOpponentRuns(ctx, actor, exerciseID, versionID, variantID, []int{index})
 	if err != nil {
 		return assistantModel.Run{}, err
+	}
+	return runs[0], nil
+}
+
+// StartOpponentRuns starts several opponents of the variant's manifest (their 1-based positions) together in one test lab of
+// the variant: the lab is deployed once with a tools device per opponent (the same path, limits and authorization as the
+// author's own test deploy), and every opponent gets a run of its own: its own GetOpponent spec, its own device (the run's
+// ToolsIndex is the opponent's position in indexes), its own VPN client that reaches only that device, its own StartRun. The
+// leader starts each run at the brain once the lab is ready (and, for an opponent that starts after a subtask, once that
+// subtask is solved in the lab); the lab is destroyed when the last of its runs ends, a run that ends earlier revokes only its
+// own client. The runs are returned in the order of indexes, still starting. An empty list, a repeated or unknown position and
+// more than MaxOpponents are refused; an opponent has at most one active run, a user a few (each run counts).
+func (u *UseCase) StartOpponentRuns(ctx context.Context, actor exerciseUseCase.Actor, exerciseID, versionID, variantID uuid.UUID, indexes []int) ([]assistantModel.Run, error) {
+	target, err := u.opponentTarget(ctx, actor, exerciseID, versionID, variantID)
+	if err != nil {
+		return nil, err
+	}
+	if len(indexes) == 0 || len(indexes) > exerciseModel.MaxOpponents {
+		return nil, assistantModel.ErrAssistantOpponentNotFound.Err()
+	}
+	seen := make(map[int]bool, len(indexes))
+	for _, index := range indexes {
+		if index < 1 || index > len(target.Opponents) || seen[index] {
+			return nil, assistantModel.ErrAssistantOpponentNotFound.Err()
+		}
+		seen[index] = true
 	}
 	if !target.HasLab {
-		return assistantModel.Run{}, exerciseModel.ErrTestDeployNoLab.Err()
+		return nil, exerciseModel.ErrTestDeployNoLab.Err()
 	}
-	opponent := target.Opponents[index-1]
-	if err = u.requireOpponentRoom(ctx, actor.UserID, variantID, index); err != nil {
-		return assistantModel.Run{}, err
+	if err = u.requireOpponentRoom(ctx, actor.UserID, variantID, indexes); err != nil {
+		return nil, err
 	}
-	runID := uuid.Must(uuid.NewV7()) // known before the lab is made: the tools device is told which run it works for
 	ca, err := u.brainCA(ctx)
 	if err != nil {
-		return assistantModel.Run{}, err
+		return nil, err
 	}
-	// The brain says what to deploy (GetOpponent); a brain without opponent specs leaves the platform's fallback tools image.
-	place, specID, _, err := u.opponentSpec(ctx, runID, opponent, exerciseID, versionID, toolsPlacement(opponent, runID, ca))
-	if err != nil {
-		return assistantModel.Run{}, err
+	runIDs := make([]uuid.UUID, len(indexes))
+	specIDs := make([]string, len(indexes))
+	places := make([]exerciseModel.ToolsPlacement, len(indexes))
+	for i, index := range indexes {
+		opponent := target.Opponents[index-1]
+		runIDs[i] = uuid.Must(uuid.NewV7()) // known before the lab is made: the tools device is told which run it works for
+		// The brain says what to deploy (GetOpponent); a brain without opponent specs leaves the platform's fallback tools image.
+		if places[i], specIDs[i], _, err = u.opponentSpec(ctx, runIDs[i], opponent, exerciseID, versionID, toolsPlacement(opponent, runIDs[i], ca)); err != nil {
+			return nil, err
+		}
 	}
-	handle, err := u.labs.DeployVariantTestWithTools(ctx, actor.UserID, versionID, variantID, target.Lease, place)
-	place.Pull = nil // the credential is the lab's now: it goes nowhere else
+	handle, err := u.labs.DeployVariantTestWithTools(ctx, actor.UserID, versionID, variantID, target.Lease, places)
+	for i := range places {
+		places[i].Pull = nil // the credential is the lab's now: it goes nowhere else
+	}
 	switch {
 	case errors.Is(err, exerciseModel.ErrToolsTooLarge):
-		return assistantModel.Run{}, assistantModel.ErrAssistantOpponentTooLarge.Err()
-	case errors.Is(err, exerciseModel.ErrToolsNoImage) || errors.Is(err, exerciseModel.ErrToolsNoVPN) || errors.Is(err, exerciseModel.ErrToolsNoSegment) || errors.Is(err, exerciseModel.ErrToolsPullConflict):
-		return assistantModel.Run{}, assistantModel.ErrAssistantOpponentUnavailable.Err()
+		return nil, assistantModel.ErrAssistantOpponentTooLarge.Err()
+	case errors.Is(err, exerciseModel.ErrToolsNoImage) || errors.Is(err, exerciseModel.ErrToolsNoVPN) || errors.Is(err, exerciseModel.ErrToolsNoSegment) ||
+		errors.Is(err, exerciseModel.ErrToolsPullConflict) || errors.Is(err, exerciseModel.ErrToolsTooMany):
+		return nil, assistantModel.ErrAssistantOpponentUnavailable.Err()
 	case err != nil:
-		return assistantModel.Run{}, err
+		return nil, err
 	}
 	deployID, err := uuid.FromString(handle.Group)
 	if err != nil {
-		return assistantModel.Run{}, model.ErrPlatform.WithError(err).WithMessage("The test deploy has no id").Err()
+		return nil, model.ErrPlatform.WithError(err).WithMessage("The test deploy has no id").Err()
 	}
 	now := u.now().UTC()
-	run := assistantModel.Run{
-		ID: runID, ExerciseID: exerciseID, VersionID: versionID, VariantID: variantID, DeployID: deployID,
-		Actor: actor.UserID, Role: string(opponent.Role), Opponent: index, SpecID: specID, State: assistantModel.RunStarting, CreatedAt: now, UpdatedAt: now,
-		ExpiresAt: now.Add(u.runMax),
-	}
-	if err = u.runs.Create(ctx, run, now); err != nil {
-		u.dropLab(ctx, actor.UserID, deployID)
-		if errors.Is(err, assistantRunRepo.ErrActive) {
-			return assistantModel.Run{}, assistantModel.ErrAssistantRunActive.Err()
+	runs := make([]assistantModel.Run, 0, len(indexes))
+	for i, index := range indexes {
+		run := assistantModel.Run{
+			ID: runIDs[i], ExerciseID: exerciseID, VersionID: versionID, VariantID: variantID, DeployID: deployID, Actor: actor.UserID,
+			Role: string(target.Opponents[index-1].Role), Opponent: index, ToolsIndex: i, SpecID: specIDs[i], State: assistantModel.RunStarting,
+			CreatedAt: now, UpdatedAt: now, ExpiresAt: now.Add(u.runMax),
 		}
-		return assistantModel.Run{}, model.ErrPlatform.WithError(err).WithMessage("Failed to save the run").Err()
+		if err = u.runs.Create(ctx, run, now); err != nil {
+			// The lab was made for runs that cannot all start: the ones saved already are ended, the lab is taken down.
+			u.abandonRuns(ctx, runs)
+			u.dropLab(ctx, actor.UserID, deployID)
+			if errors.Is(err, assistantRunRepo.ErrActive) {
+				return nil, assistantModel.ErrAssistantRunActive.Err()
+			}
+			return nil, model.ErrPlatform.WithError(err).WithMessage("Failed to save the run").Err()
+		}
+		runs = append(runs, run)
 	}
-	return run, nil
+	return runs, nil
 }
 
-// requireOpponentRoom refuses a run the opponent or the user has no room for (the unique index is the real guard).
-func (u *UseCase) requireOpponentRoom(ctx context.Context, user, variant uuid.UUID, index int) error {
+// abandonRuns ends runs that were saved for a lab that is taken down before they started; the leader finishes them.
+func (u *UseCase) abandonRuns(ctx context.Context, runs []assistantModel.Run) {
+	for _, run := range runs {
+		if _, err := u.runs.Close(context.WithoutCancel(ctx), run.ID, assistantModel.RunFailed, assistantModel.FailureStartRefused, u.now().UTC()); err != nil {
+			log.Warn().Err(err).Msg("A run of a lab that was taken down was not ended; its window will end it")
+		}
+	}
+}
+
+// requireOpponentRoom refuses runs the opponents or the user have no room for (the unique index is the real guard).
+func (u *UseCase) requireOpponentRoom(ctx context.Context, user, variant uuid.UUID, indexes []int) error {
 	of, err := u.runs.OpponentsOfVariant(ctx, variant, maxRunsListed)
 	if err != nil {
 		return model.ErrPlatform.WithError(err).WithMessage("Failed to list the runs").Err()
 	}
 	for _, r := range of {
-		if r.Opponent == index && r.State.Active() {
+		if slices.Contains(indexes, r.Opponent) && r.State.Active() {
 			return assistantModel.ErrAssistantRunActive.Err()
 		}
 	}
@@ -206,7 +260,7 @@ func (u *UseCase) requireOpponentRoom(ctx context.Context, user, variant uuid.UU
 	if err != nil {
 		return model.ErrPlatform.WithError(err).WithMessage("Failed to count the runs").Err()
 	}
-	if n >= u.maxActive {
+	if n+len(indexes) > u.maxActive {
 		return assistantModel.ErrAssistantRunLimit.Err()
 	}
 	return nil
@@ -244,7 +298,7 @@ func (u *UseCase) OpponentRun(ctx context.Context, actor exerciseUseCase.Actor, 
 }
 
 // StopOpponentRun ends a run of an opponent at the request of the actor; the leader tears it down (the brain is told to
-// stop, the access is revoked, the lab and the tools device are destroyed).
+// stop, the run's access is revoked, and the lab with its tools devices is destroyed once no other run plays in it).
 func (u *UseCase) StopOpponentRun(ctx context.Context, actor exerciseUseCase.Actor, exerciseID, versionID, variantID uuid.UUID, index int, runID uuid.UUID) (assistantModel.Run, error) {
 	run, err := u.loadRunOf(ctx, actor, exerciseID, versionID, variantID, index, runID)
 	if err != nil {

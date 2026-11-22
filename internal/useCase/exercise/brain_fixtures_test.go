@@ -139,6 +139,18 @@ func TestBrainFixturesOpponentLab(t *testing.T) {
 	})
 	require.NoError(t, err)
 	checkGolden(t, "tasks/opponent-lab/deployed-topology-defense.json", defender)
+
+	// Both opponents together in one lab: a tools device each, one control gateway; the attacker's device has index 0 (host .10),
+	// the defender's index 1 (host .11).
+	both, devices, err := v.Topology.WithToolsDevices([]exerciseModel.ToolsPlacement{
+		{Image: "registry.example/cib-tools:1", Foothold: v.Opponents[0].Foothold, Env: exerciseModel.EDAEnv("00000000-0000-4000-8000-0000000000aa", "")},
+		{Image: "registry.example/cib-tools:1", Beside: v.Opponents[1].Operates, Env: exerciseModel.EDAEnv("00000000-0000-4000-8000-0000000000bb", "")},
+	})
+	require.NoError(t, err)
+	require.Len(t, devices, 2)
+	require.Equal(t, []string{"tools", "tools-2"}, []string{devices[0].Name, devices[1].Name})
+	require.Equal(t, exerciseModel.ControlHost(1), devices[1].Interfaces[1].IP.AddressRef.Host)
+	checkGolden(t, "tasks/opponent-lab/deployed-topology-both.json", both)
 }
 
 func deviceNames(t exerciseModel.Topology) []string {

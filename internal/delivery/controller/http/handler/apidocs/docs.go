@@ -22453,6 +22453,54 @@ const docTemplate = `{
                 }
             }
         },
+        "/exercises/{id}/versions/{versionID}/variants/{variantID}/opponents/try": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "exercises"
+                ],
+                "summary": "Try several opponents of a variant together against one test lab; each gets a run of its own",
+                "parameters": [
+                    {
+                        "description": "the 1-based positions of the opponents",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/assistant.startManyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/assistant.runResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/exercises/{id}/versions/{versionID}/variants/{variantID}/opponents/{index}/try": {
             "get": {
                 "produces": [
@@ -22567,7 +22615,7 @@ const docTemplate = `{
                 "tags": [
                     "exercises"
                 ],
-                "summary": "Stop a run of an opponent; its lab and tools device are torn down",
+                "summary": "Stop a run of an opponent; its lab is torn down once no other run plays in it",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -29950,6 +29998,17 @@ const docTemplate = `{
                 },
                 "VersionID": {
                     "type": "string"
+                }
+            }
+        },
+        "assistant.startManyRequest": {
+            "type": "object",
+            "properties": {
+                "indexes": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
                 }
             }
         },

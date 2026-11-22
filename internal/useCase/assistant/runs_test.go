@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -28,12 +29,14 @@ import (
 
 // memRuns is the run store in memory.
 type memRuns struct {
-	mu      sync.Mutex
-	runs    map[uuid.UUID]assistantModel.Run
-	order   []uuid.UUID
-	events  map[uuid.UUID][]assistantModel.RunEvent
-	answers map[uuid.UUID][]assistantModel.RunAnswer
-	users   map[uuid.UUID]uuid.UUID
+	mu sync.Mutex
+	// refuseOpponent makes the create of a run of that opponent lose the race for it (the unique index).
+	refuseOpponent int
+	runs           map[uuid.UUID]assistantModel.Run
+	order          []uuid.UUID
+	events         map[uuid.UUID][]assistantModel.RunEvent
+	answers        map[uuid.UUID][]assistantModel.RunAnswer
+	users          map[uuid.UUID]uuid.UUID
 }
 
 func newMemRuns() *memRuns {
@@ -43,6 +46,9 @@ func newMemRuns() *memRuns {
 func (m *memRuns) Create(_ context.Context, run assistantModel.Run, _ time.Time) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if run.Opponent > 0 && run.Opponent == m.refuseOpponent {
+		return assistantRunRepo.ErrActive
+	}
 	for _, r := range m.runs {
 		if run.Role == assistantModel.RoleGrader && r.Role == assistantModel.RoleGrader && r.VariantID == run.VariantID && r.State.Active() {
 			return assistantRunRepo.ErrActive
@@ -292,6 +298,28 @@ func (m *memRuns) LabCount() int {
 	return n
 }
 
+func (m *memRuns) OthersActiveOnLab(_ context.Context, deploy, except uuid.UUID) (int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	n := 0
+	for _, r := range m.runs {
+		if r.DeployID == deploy && r.ID != except && r.State.Active() {
+			n++
+		}
+	}
+	return n, nil
+}
+
+func (m *memRuns) all() []assistantModel.Run {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]assistantModel.Run, 0, len(m.runs))
+	for _, id := range m.order {
+		out = append(out, m.runs[id])
+	}
+	return out
+}
+
 func (m *memRuns) state(id uuid.UUID) assistantModel.Run {
 	r, _, _ := m.Get(context.Background(), id)
 	return r
@@ -322,6 +350,7 @@ type fakeLabs struct {
 	toolsErr    error
 	ctlErr      error
 	places      []exerciseModel.ToolsPlacement
+	placeCalls  [][]exerciseModel.ToolsPlacement
 	opponents   []exerciseModel.Opponent
 	solved      map[string]bool
 }
@@ -363,9 +392,10 @@ func (f *fakeLabs) DeployVariantTest(_ context.Context, owner, _, _ uuid.UUID, l
 	}
 	return exerciseModel.DeployHandle{Group: runDeploy.String(), Lab: "l-lab"}, nil
 }
-func (f *fakeLabs) DeployVariantTestWithTools(ctx context.Context, owner, version, variant uuid.UUID, length time.Duration, place exerciseModel.ToolsPlacement) (exerciseModel.DeployHandle, error) {
+func (f *fakeLabs) DeployVariantTestWithTools(ctx context.Context, owner, version, variant uuid.UUID, length time.Duration, places []exerciseModel.ToolsPlacement) (exerciseModel.DeployHandle, error) {
 	f.mu.Lock()
-	f.places = append(f.places, place)
+	f.places = append(f.places, places...)
+	f.placeCalls = append(f.placeCalls, places)
 	f.mu.Unlock()
 	f.mu.Lock()
 	toolsErr := f.toolsErr
@@ -377,14 +407,14 @@ func (f *fakeLabs) DeployVariantTestWithTools(ctx context.Context, owner, versio
 	f.record("deploy-tools")
 	return f.DeployVariantTest(ctx, owner, version, variant, length)
 }
-func (f *fakeLabs) ControlAddress(context.Context, uuid.UUID, uuid.UUID) (string, error) {
+func (f *fakeLabs) ControlAddress(_ context.Context, _, _ uuid.UUID, index int) (string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls = append(f.calls, "control-address")
 	if f.ctlErr != nil {
 		return "", f.ctlErr
 	}
-	return "10.8.4.10", nil
+	return "10.8.4." + strconv.Itoa(10+index), nil
 }
 func (f *fakeLabs) DestroyDeployTest(context.Context, uuid.UUID, uuid.UUID) error {
 	f.record("destroy")

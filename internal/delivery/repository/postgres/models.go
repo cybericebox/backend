@@ -58,6 +58,7 @@ type AssistantRun struct {
 	LabReadyAt      pgtype.Timestamptz `json:"lab_ready_at"`
 	LabActivity     []byte             `json:"lab_activity"`
 	SpecID          string             `json:"spec_id"`
+	ToolsIndex      int32              `json:"tools_index"`
 }
 
 type BrainConnection struct {
