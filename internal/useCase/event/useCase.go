@@ -684,7 +684,18 @@ type LabLifecyclePreparationCapability interface {
 	RequireLabLifecyclePreparation(context.Context, string, eventLabModel.Policy, exerciseModel.Topology) error
 }
 
+// ConsoleLinesCapability refuses a topology with console ports or cables while no laboratory offers them.
+type ConsoleLinesCapability interface {
+	RequireConsoleLines(exerciseModel.Topology) error
+}
+
 func (u *EventUseCase) validateLabPreparation(ctx context.Context, group string, policy eventLabModel.Policy, topology exerciseModel.Topology) error {
+	// Console lines first, whatever the snapshot mode: the event fails when it is prepared, not at each stand.
+	if capability, ok := u.infra.(ConsoleLinesCapability); ok {
+		if err := capability.RequireConsoleLines(topology); err != nil {
+			return err
+		}
+	}
 	if err := policy.ValidatePreparation(topology, true); err != nil {
 		return err
 	}

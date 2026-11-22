@@ -257,7 +257,7 @@ func (t Topology) WithToolsDevices(places []ToolsPlacement) (Topology, []Device,
 	out.Devices = append([]Device(nil), t.Devices...)
 	out.Connections = make([]Connection, len(t.Connections))
 	for i, c := range t.Connections {
-		out.Connections[i] = Connection{Endpoints: append([]Endpoint(nil), c.Endpoints...)}
+		out.Connections[i] = Connection{Kind: c.Kind, Endpoints: append([]Endpoint(nil), c.Endpoints...)}
 	}
 
 	devices := make([]Device, 0, len(places))
@@ -337,9 +337,13 @@ func (t *Topology) placeTools(vpn Device, place ToolsPlacement) (Device, error) 
 	return tools, nil
 }
 
-// firstConnectionOf is the index of the first connection with an end at the device, -1 when it has none.
+// firstConnectionOf is the index of the first network connection with an end at the device, -1 when it has none. A console
+// cable is no segment to sit on.
 func (t Topology) firstConnectionOf(id uuid.UUID) int {
 	for i, c := range t.Connections {
+		if c.IsConsole() {
+			continue
+		}
 		for _, ep := range c.Endpoints {
 			if ep.Kind == EndpointDevice && ep.DeviceID == id {
 				return i

@@ -46,6 +46,7 @@ type (
 		InfrastructureAvailable() bool
 		MaxActiveTestDeploys() int
 		DevicePersistenceAllowed() bool
+		ConsoleCablesAvailable() bool
 		LabCapabilities(ctx context.Context) exerciseUseCase.LabCapabilitiesView
 		DraftDocument(ctx context.Context, exerciseID uuid.UUID, withFlags bool) ([]byte, error)
 		// Policy is the platform's device resources settings (presets, frame, ceiling).
@@ -421,10 +422,14 @@ func (h *Handler) capabilities(ctx *gin.Context) {
 		Resources resourceSettingsResponse `json:"Resources"`
 		// LabCapabilities is what the laboratories that are used can run, without naming any: see labCapabilitiesResponse.
 		LabCapabilities labCapabilitiesResponse `json:"LabCapabilities"`
+		// ConsoleCablesAvailable: a laboratory agent offers console ports and console cables, so a lab that uses them can be
+		// deployed. False until the laboratories report the feature; the editor may still show the ports (they save and
+		// publish), but a test lab with them is refused.
+		ConsoleCablesAvailable bool `json:"ConsoleCablesAvailable"`
 	}{
 		Laboratories: h.useCase.InfrastructureAvailable(), MaxActiveTestDeploys: h.useCase.MaxActiveTestDeploys(), MaxLabGateways: exerciseModel.MaxLabGateways,
 		DevicePersistence: h.useCase.DevicePersistenceAllowed(), Resources: toResourceSettings(h.useCase.Policy()),
-		LabCapabilities: toLabCapabilities(h.useCase.LabCapabilities(ctx)),
+		LabCapabilities: toLabCapabilities(h.useCase.LabCapabilities(ctx)), ConsoleCablesAvailable: h.useCase.ConsoleCablesAvailable(),
 	})
 }
 
@@ -806,7 +811,7 @@ func (h *Handler) getVersion(ctx *gin.Context) {
 
 // getDraftDocument godoc
 // @Summary  The working copy as the exercise document (YAML)
-// @Description Same access as reading the draft. The working copy (the draft, else the published content, else an empty copy) written as the exercise document of the archive: schema cib-exercise/1.0, one version, the keys in the order of the specification, files as their archive paths (files/...). Secret env values are empty (secret: true stays); a reader who may not see flags gets no answer values and no conditions. Content-Type application/yaml; charset=utf-8, at most 8 MiB (413 above). It is a view: nothing is written. Not wrapped in the response envelope.
+// @Description Same access as reading the draft. The working copy (the draft, else the published content, else an empty copy) written as the exercise document of the archive: the lowest schema that holds it (cib-exercise/1.0, or cib-exercise/1.1 with console ports, console cables or an opponent seat), one version, the keys in the order of the specification, files as their archive paths (files/...). Secret env values are empty (secret: true stays); a reader who may not see flags gets no answer values and no conditions. Content-Type application/yaml; charset=utf-8, at most 8 MiB (413 above). It is a view: nothing is written. Not wrapped in the response envelope.
 // @Tags     exercises
 // @Produce  application/yaml
 // @Param    id  path  string  true  "exercise ID"

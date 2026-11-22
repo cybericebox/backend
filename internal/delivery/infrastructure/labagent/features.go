@@ -425,6 +425,9 @@ func (f *Fleet) SchedulerMaxPods() int {
 // RequireLabLifecyclePreparation checks the actual selected producer; ordinary
 // persistence support is not a required capture barrier.
 func (c *Client) RequireLabLifecyclePreparation(ctx context.Context, _ string, policy eventLabModel.Policy, topology exerciseModel.Topology) error {
+	if err := requireConsoleCables(topology); err != nil {
+		return err
+	}
 	if err := policy.ValidatePreparation(topology, true); err != nil {
 		return err
 	}
@@ -446,6 +449,9 @@ func (c *Client) lifecycleFeature(ctx context.Context) (*labpb.LifecycleFeature,
 }
 
 func (f *Fleet) RequireLabLifecyclePreparation(ctx context.Context, group string, policy eventLabModel.Policy, topology exerciseModel.Topology) error {
+	if err := requireConsoleCables(topology); err != nil {
+		return err
+	}
 	if err := policy.ValidatePreparation(topology, true); err != nil {
 		return err
 	}

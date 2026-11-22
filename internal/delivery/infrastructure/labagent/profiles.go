@@ -122,6 +122,28 @@ func (f *Fleet) RunnableNodeProfiles(context.Context) map[exerciseModel.NodeProf
 	return out
 }
 
+// requireConsoleCables refuses a topology with console ports or console cables: no agent is known to offer them yet. The
+// agent client does not read the console feature of an agent (FeaturesResponse.console_cables, agent contract 3.1) and the
+// lab spec carries no ports or cables yet; both come with the deploy phase of console cables, which replaces this refusal
+// with the agent's report. Until then a console cable must never reach an agent as a network connection.
+func requireConsoleCables(topo exerciseModel.Topology) error {
+	if topo.UsesConsoleLines() && !consoleCablesOffered {
+		return exerciseModel.ErrConsoleUnavailable.Err()
+	}
+	return nil
+}
+
+// consoleCablesOffered is false until the agent client reads the console feature of the agents (phase 8 of the console
+// design replaces it with their report).
+const consoleCablesOffered = false
+
+// ConsoleCablesAvailable reports whether an agent offers console ports and console cables (the editor's capability).
+func (f *Fleet) ConsoleCablesAvailable() bool { return consoleCablesOffered }
+
+// RequireConsoleLines refuses a topology with console lines while no agent offers them: the event pre-flight asks it for
+// every task, so an event fails when it is prepared, not at each stand.
+func (f *Fleet) RequireConsoleLines(topo exerciseModel.Topology) error { return requireConsoleCables(topo) }
+
 // requireProfiles refuses a topology that asks for a node profile the lab cannot get: the VM profile is not run yet,
 // and another one needs an agent that reports it runnable. An agent that has not reported yet is not refused here:
 // it answers for itself when the lab is created.

@@ -393,6 +393,9 @@ func (u *ExerciseUseCase) storeStagedUpdate(ctx context.Context, id uuid.UUID, s
 	if err != nil {
 		return ExerciseView{}, err
 	}
+	if err = exerciseModel.ValidateConsoleLines(source.Variants); err != nil {
+		return ExerciseView{}, err
+	}
 	if err = u.requireFilesClaimable(ctx, id, by, exerciseModel.CollectFileIDs(source.Variants)); err != nil {
 		return ExerciseView{}, err
 	}

@@ -1,12 +1,14 @@
 package exercise
 
-//go:generate go run ../../../tools/archiveschema -o ../../../testdata/brain/schema/cib-exercise-1.0.schema.json
+//go:generate go run ../../../tools/archiveschema -schema cib-exercise/1.0 -o ../../../testdata/brain/schema/cib-exercise-1.0.schema.json
+//go:generate go run ../../../tools/archiveschema -schema cib-exercise/1.1 -o ../../../testdata/brain/schema/cib-exercise-1.1.schema.json
 
 import (
 	"bytes"
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 
@@ -19,12 +21,16 @@ import (
 // without. The rules that need the whole task (a check on every task, a resolving device graph, a single flag, names and limits, no
 // secret without a value at publish) are checked by the platform on import and publish, not here; testdata/brain/create/README.md
 // lists them. The output is deterministic (generate it with `go generate ./internal/useCase/exercise`; a test fails on drift).
-func ArchiveDocumentSchema() ([]byte, error) {
-	g := &schemaGenerator{defs: map[string]any{}, names: map[reflect.Type]string{}}
+// schema is a version the import reads (ArchiveSchemas); the keys of a later version are left out of an earlier one.
+func ArchiveDocumentSchema(schema string) ([]byte, error) {
+	if !archiveSchemaSupported(schema) {
+		return nil, fmt.Errorf("archive schema: unknown version %q", schema)
+	}
+	g := &schemaGenerator{defs: map[string]any{}, names: map[reflect.Type]string{}, schema: schema}
 	root := g.ref(reflect.TypeFor[archiveDocV2]())
 	doc := map[string]any{
 		"$schema":     "https://json-schema.org/draft/2020-12/schema",
-		"title":       archiveSchema,
+		"title":       schema,
 		"description": "The exercise document of a task archive (exercise.json). Generated from internal/useCase/exercise/archive_v2.go; the platform checks the rest (publish rules, limits, linked files) on import and publish.",
 		"$ref":        root["$ref"],
 		"$defs":       g.defs,
@@ -58,6 +64,9 @@ var schemaRequired = map[string][]string{
 	"archiveFileCheckV2":     {"path"},
 	"archiveCustomCheckV2":   {"run"},
 	"Placeholder":            {"kind"},
+	"ConsolePort":            {"name"},
+	"NativeSource":           {"kind"},
+	"SerialPort":             {"name"},
 }
 
 // schemaEnums are the spellings of the named string types of the document, from the domain's own constants.
@@ -80,6 +89,9 @@ var schemaEnums = map[reflect.Type][]string{
 	},
 	reflect.TypeFor[exerciseModel.SecurityPreset](): {string(exerciseModel.SecurityPresetStandard), string(exerciseModel.SecurityPresetExtended)},
 	reflect.TypeFor[exerciseModel.EndpointKind]():   {string(exerciseModel.EndpointDevice)},
+	reflect.TypeFor[exerciseModel.ConnectionKind](): {string(exerciseModel.ConnectionConsole)},
+	// vm-serial is the platform's (the vm profile): an author never writes it.
+	reflect.TypeFor[exerciseModel.NativeKind](): {string(exerciseModel.NativeStdio), string(exerciseModel.NativeTCP)},
 	reflect.TypeFor[exerciseModel.VersionStatus](): {
 		string(exerciseModel.VersionStatusDraft), string(exerciseModel.VersionStatusPublished),
 		string(exerciseModel.VersionStatusUnpublished), string(exerciseModel.VersionStatusCheckpoint),
@@ -95,9 +107,13 @@ var schemaEnums = map[reflect.Type][]string{
 }
 
 type schemaGenerator struct {
-	defs  map[string]any
-	names map[reflect.Type]string
+	defs   map[string]any
+	names  map[reflect.Type]string
+	schema string
 }
+
+// ArchiveSchemas lists the document versions the import reads, oldest first.
+func ArchiveSchemas() []string { return slices.Clone(archiveSchemas) }
 
 // ref registers a named struct once under $defs and returns its reference.
 func (g *schemaGenerator) ref(t reflect.Type) map[string]any {
@@ -121,12 +137,12 @@ func (g *schemaGenerator) object(t reflect.Type, name string) map[string]any {
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
 		key, skip := jsonKey(field)
-		if skip {
+		if skip || !keyInSchema(field, g.schema) {
 			continue
 		}
 		property := g.of(field.Type)
 		if name == "archiveDocV2" && key == "schema" {
-			property = map[string]any{"const": archiveSchema}
+			property = map[string]any{"const": g.schema}
 		}
 		properties[key] = property
 	}

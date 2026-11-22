@@ -21125,7 +21125,7 @@
         },
         "/exercises/{id}/draft/document": {
             "get": {
-                "description": "Same access as reading the draft. The working copy (the draft, else the published content, else an empty copy) written as the exercise document of the archive: schema cib-exercise/1.0, one version, the keys in the order of the specification, files as their archive paths (files/...). Secret env values are empty (secret: true stays); a reader who may not see flags gets no answer values and no conditions. Content-Type application/yaml; charset=utf-8, at most 8 MiB (413 above). It is a view: nothing is written. Not wrapped in the response envelope.",
+                "description": "Same access as reading the draft. The working copy (the draft, else the published content, else an empty copy) written as the exercise document of the archive: the lowest schema that holds it (cib-exercise/1.0, or cib-exercise/1.1 with console ports, console cables or an opponent seat), one version, the keys in the order of the specification, files as their archive paths (files/...). Secret env values are empty (secret: true stays); a reader who may not see flags gets no answer values and no conditions. Content-Type application/yaml; charset=utf-8, at most 8 MiB (413 above). It is a view: nothing is written. Not wrapped in the response envelope.",
                 "produces": [
                     "application/yaml"
                 ],
@@ -40585,6 +40585,33 @@
                     "items": {
                         "$ref": "#/definitions/exercise.endpointDTO"
                     }
+                },
+                "Kind": {
+                    "description": "Kind is empty for a network connection and console for a console cable (one serial and one console port end; the\nendpoints' Interface names the ports).",
+                    "type": "string",
+                    "enum": [
+                        "console"
+                    ]
+                }
+            }
+        },
+        "exercise.consolePortDTO": {
+            "type": "object",
+            "properties": {
+                "Command": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "Name": {
+                    "type": "string"
+                },
+                "Native": {
+                    "$ref": "#/definitions/exercise.nativeSourceDTO"
+                },
+                "User": {
+                    "type": "string"
                 }
             }
         },
@@ -41110,6 +41137,13 @@
                         "type": "string"
                     }
                 },
+                "ConsolePorts": {
+                    "description": "ConsolePorts are the management lines of a node (console0..., aux0...; at most 4) and SerialPorts its terminal lines\n(serial0...; at most 16), the ends of a console cable. Absent when the device has none.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/exercise.consolePortDTO"
+                    }
+                },
                 "DHCP": {
                     "description": "The settings of a gateway (Type vpn_gateway or internet_gateway); no other device has them. A gateway has no image,\ninterfaces, access or bootstrap, and one port, eth0, that a connection endpoint names. DHCP switches the DHCP server of the\ngateway's network on and needs DHCPRanges. DNS (one IPv4 address, internet_gateway only) is what that server advertises.\nReverseConnections (vpn_gateway only): devices of the lab may start connections to the participants' machines (default false).",
                     "type": "boolean"
@@ -41180,6 +41214,12 @@
                 "SecurityPreset": {
                     "description": "SecurityPreset is the device security profile: standard (the default when empty) or extended (raw sockets,\nNET_ADMIN and /dev/net/tun). Any other value is refused.",
                     "type": "string"
+                },
+                "SerialPorts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/exercise.serialPortDTO"
+                    }
                 },
                 "System": {
                     "description": "System (linux|windows) and Hardware (fast|compatible) are reserved for the vm profile.",
@@ -42351,6 +42391,21 @@
                 }
             }
         },
+        "exercise.nativeSourceDTO": {
+            "type": "object",
+            "properties": {
+                "Kind": {
+                    "type": "string",
+                    "enum": [
+                        "stdio",
+                        "tcp"
+                    ]
+                },
+                "Port": {
+                    "type": "integer"
+                }
+            }
+        },
         "exercise.networkIPRefDTO": {
             "type": "object",
             "properties": {
@@ -42396,6 +42451,10 @@
                     }
                 },
                 "Role": {
+                    "type": "string"
+                },
+                "Seat": {
+                    "description": "Seat (defense, attack-defense) is the node with serial ports a human defender sits at; a bot run takes it.",
                     "type": "string"
                 },
                 "StartAfter": {
@@ -42889,6 +42948,17 @@
                     "items": {
                         "$ref": "#/definitions/exercise.variantDTO"
                     }
+                }
+            }
+        },
+        "exercise.serialPortDTO": {
+            "type": "object",
+            "properties": {
+                "Name": {
+                    "type": "string"
+                },
+                "Path": {
+                    "type": "string"
                 }
             }
         },

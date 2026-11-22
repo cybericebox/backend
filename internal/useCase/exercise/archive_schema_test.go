@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
@@ -15,26 +16,56 @@ import (
 	exercise "github.com/cybericebox/backend/internal/useCase/exercise"
 )
 
-const archiveSchemaFile = brainFixtures + "/schema/cib-exercise-1.0.schema.json"
+const (
+	archiveSchemaFile   = brainFixtures + "/schema/cib-exercise-1.0.schema.json"
+	archiveSchemaFile11 = brainFixtures + "/schema/cib-exercise-1.1.schema.json"
+)
 
-// The committed schema is exactly what the generator writes from the structs of archive_v2.go; a changed struct fails here until
-// `go generate ./internal/useCase/exercise` (or -update-brain-fixtures) rewrites the file.
+// schemaFileOf is the committed schema file of a document version.
+func schemaFileOf(version string) string {
+	return brainFixtures + "/schema/" + strings.ReplaceAll(version, "/", "-") + ".schema.json"
+}
+
+// Each committed schema is exactly what the generator writes from the structs of archive_v2.go; a changed struct fails here
+// until `go generate ./internal/useCase/exercise` (or -update-brain-fixtures) rewrites the files.
 func TestArchiveSchemaIsUpToDate(t *testing.T) {
-	got, err := exercise.ArchiveDocumentSchema()
-	require.NoError(t, err)
-	if *updateBrainFixtures {
-		require.NoError(t, os.MkdirAll(filepath.Dir(archiveSchemaFile), 0o755))
-		require.NoError(t, os.WriteFile(archiveSchemaFile, got, 0o644))
-		return
+	require.Equal(t, []string{"cib-exercise/1.0", "cib-exercise/1.1"}, exercise.ArchiveSchemas())
+	require.Equal(t, archiveSchemaFile, schemaFileOf("cib-exercise/1.0"))
+	require.Equal(t, archiveSchemaFile11, schemaFileOf("cib-exercise/1.1"))
+	for _, version := range exercise.ArchiveSchemas() {
+		t.Run(version, func(t *testing.T) {
+			got, err := exercise.ArchiveDocumentSchema(version)
+			require.NoError(t, err)
+			file := schemaFileOf(version)
+			if *updateBrainFixtures {
+				require.NoError(t, os.MkdirAll(filepath.Dir(file), 0o755))
+				require.NoError(t, os.WriteFile(file, got, 0o644))
+				return
+			}
+			want, err := os.ReadFile(file)
+			require.NoError(t, err, "missing schema: run go generate ./internal/useCase/exercise")
+			require.Equal(t, string(want), string(got), "schema is out of date: run go generate ./internal/useCase/exercise")
+		})
 	}
-	want, err := os.ReadFile(archiveSchemaFile)
-	require.NoError(t, err, "missing schema: run go generate ./internal/useCase/exercise")
-	require.Equal(t, string(want), string(got), "schema is out of date: run go generate ./internal/useCase/exercise")
+}
+
+// The 1.0 schema has none of the 1.1 keys, so it stays what the brain read before 1.1.
+func TestArchiveSchema10HasNoConsoleKeys(t *testing.T) {
+	got, err := exercise.ArchiveDocumentSchema("cib-exercise/1.0")
+	require.NoError(t, err)
+	for _, key := range []string{"console_ports", "serial_ports", "seat", "ConsolePort", "SerialPort", "cib-exercise/1.1"} {
+		require.NotContains(t, string(got), key)
+	}
 }
 
 func compileArchiveSchema(t *testing.T) *jsonschema.Schema {
 	t.Helper()
-	raw, err := os.ReadFile(archiveSchemaFile)
+	return compileSchemaFile(t, archiveSchemaFile)
+}
+
+func compileSchemaFile(t *testing.T, file string) *jsonschema.Schema {
+	t.Helper()
+	raw, err := os.ReadFile(file)
 	require.NoError(t, err)
 	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(raw))
 	require.NoError(t, err)
@@ -74,6 +105,21 @@ func TestArchiveSchemaAcceptsTheSamples(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, validateDocument(t, schema, document))
 	})
+}
+
+// A 1.1 document with console ports, a console cable and a seat satisfies the 1.1 schema and not the 1.0 one; a 1.0 document
+// satisfies neither as 1.1 (the schema key is a const).
+func TestArchiveSchema11AcceptsTheConsoleKeys(t *testing.T) {
+	schema11 := compileSchemaFile(t, archiveSchemaFile11)
+	body := `"exercise":{"name":"x"},"versions":[{"variants":[{"tasks":[{"key":"k","name":"t"}],"topology":{"devices":[
+ {"name":"r1","type":"node","console_ports":[{"name":"console0","command":["/usr/bin/vtysh"],"user":"frr"},{"name":"aux0","native":{"kind":"tcp","port":2001}}]},
+ {"name":"pc1","type":"node","serial_ports":[{"name":"serial0","path":"/dev/ttyCON0"}]}],
+ "connections":[{"kind":"console","endpoints":[{"kind":"device","device":"pc1","interface":"serial0"},{"kind":"device","device":"r1","interface":"console0"}]}]},
+ "opponents":[{"role":"defense","band":1,"goal":["k"],"operates":["r1"],"seat":"pc1"}]}]}]}`
+	require.NoError(t, validateDocument(t, schema11, []byte(`{"schema":"cib-exercise/1.1",`+body)))
+	require.Error(t, validateDocument(t, compileArchiveSchema(t), []byte(`{"schema":"cib-exercise/1.0",`+body)))
+	require.Error(t, validateDocument(t, schema11, []byte(`{"schema":"cib-exercise/1.0",`+body)))
+	require.Error(t, validateDocument(t, schema11, []byte(strings.Replace(`{"schema":"cib-exercise/1.1",`+body, `"tcp"`, `"vm-serial"`, 1))))
 }
 
 func TestArchiveSchemaRefusesWhatTheDecoderRefuses(t *testing.T) {
