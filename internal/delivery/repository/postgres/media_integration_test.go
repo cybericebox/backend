@@ -329,3 +329,64 @@ VALUES ($1, $2, 'a', 'b', 'user', $3, true, $4, $4, $5, $6)`, id, email, status,
 		t.Fatalf("the pass lists every user, deleted ones too: %d %v", len(rows), err)
 	}
 }
+
+// DeleteUnreferencedFile removes one file at once for the one who stored it, only while nothing references it, and gives its
+// reference back to the blob (which the collector removes later).
+func TestMedia_DeleteUnreferencedFile(t *testing.T) {
+	db := testhelpers.SetupTestDB(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	owner, other := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	for _, user := range []uuid.UUID{owner, other} {
+		if _, err := db.Pool.Exec(ctx, `INSERT INTO users (id, email, first_name, last_name, role, status, email_confirmed, last_seen, created_at)
+VALUES ($1, $2, 'a', 'b', 'user', 'active', true, $3, $3)`, user, user.String()+"@x.test", now); err != nil {
+			t.Fatalf("insert user: %v", err)
+		}
+	}
+	mk := func(by uuid.UUID) uuid.UUID {
+		row, err := db.Queries.CreateFile(ctx, postgres.CreateFileParams{
+			ID: uuid.Must(uuid.NewV7()), Name: "f", ContentType: "t", SizeBytes: 3, ContentHash: "hash-discard", CreatedAt: now,
+			CreatedBy: uuid.NullUUID{UUID: by, Valid: true},
+		})
+		if err != nil {
+			t.Fatalf("CreateFile: %v", err)
+		}
+		return row.ID
+	}
+	mine, referenced, theirs := mk(owner), mk(owner), mk(other)
+	if err := db.Queries.ReplaceFileReferences(ctx, postgres.ReplaceFileReferencesParams{
+		RefType: "exercise_version", RefID: uuid.Must(uuid.NewV7()), FileIds: []uuid.UUID{referenced},
+	}); err != nil {
+		t.Fatalf("ReplaceFileReferences: %v", err)
+	}
+	discard := func(id, by uuid.UUID) int64 {
+		n, err := db.Queries.DeleteUnreferencedFile(ctx, postgres.DeleteUnreferencedFileParams{ID: id, CreatedBy: uuid.NullUUID{UUID: by, Valid: true}})
+		if err != nil {
+			t.Fatalf("DeleteUnreferencedFile: %v", err)
+		}
+		return n
+	}
+	if n := discard(theirs, owner); n != 0 {
+		t.Fatalf("another user's file must stay: %d", n)
+	}
+	if n := discard(referenced, owner); n != 0 {
+		t.Fatalf("a referenced file must stay: %d", n)
+	}
+	if n := discard(mine, owner); n != 1 {
+		t.Fatalf("the owner's unreferenced file must go: %d", n)
+	}
+	if _, err := db.Queries.GetFileByID(ctx, mine); err == nil {
+		t.Fatal("the discarded file is still there")
+	}
+	blob, err := db.Queries.GetFileBlob(ctx, "hash-discard")
+	if err != nil {
+		t.Fatalf("GetFileBlob: %v", err)
+	}
+	var refs int64
+	if err = db.Pool.QueryRow(ctx, "SELECT ref_count FROM file_blobs WHERE content_hash = $1", blob.ContentHash).Scan(&refs); err != nil {
+		t.Fatalf("ref_count: %v", err)
+	}
+	if refs != 2 {
+		t.Fatalf("the blob gives back the discarded file's reference: ref_count = %d, want 2", refs)
+	}
+}

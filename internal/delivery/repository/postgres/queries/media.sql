@@ -149,6 +149,20 @@ FROM counted
 WHERE b.content_hash = counted.content_hash
 RETURNING b.content_hash, b.ref_count;
 
+-- name: DeleteUnreferencedFile :execrows
+-- Removes one file at once for the one who stored it (a stored source that nothing came to use), only while nothing references
+-- it, and gives its reference back to the blob; the collector removes the blob once nothing holds it.
+WITH doomed AS (
+    DELETE FROM files f
+        WHERE f.id = sqlc.arg(id)
+            AND f.created_by = sqlc.arg(created_by)
+            AND NOT EXISTS (SELECT 1 FROM file_references r WHERE r.file_id = f.id)
+        RETURNING f.content_hash)
+UPDATE file_blobs b
+SET ref_count = b.ref_count - 1
+FROM doomed
+WHERE b.content_hash = doomed.content_hash;
+
 -- name: ListOrphanBlobs :many
 -- touched_at < touched_before (the same GC grace cutoff DeleteUnreferencedFiles
 -- uses) gives a concurrent dedup upload of this exact content a grace window

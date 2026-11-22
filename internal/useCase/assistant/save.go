@@ -32,6 +32,15 @@ type (
 		ImportRawArchive(ctx context.Context, actor exerciseUseCase.Actor, in exerciseUseCase.ImportExerciseInput) (exerciseUseCase.ArchiveImportStart, error)
 		QueueArchiveImport(ctx context.Context, in exerciseUseCase.QueueImportInput) (uuid.UUID, error)
 		ArchiveImportJob(ctx context.Context, id, user uuid.UUID) (exerciseUseCase.ImportJobView, error)
+		// EditedArchiveTarget is the task an archive is the edited version of (ExerciseID uuid.Nil: a new task) and what the
+		// edit started from.
+		EditedArchiveTarget(ctx context.Context, actor exerciseUseCase.Actor, archive []byte, lim exerciseModel.ArchiveLimits) (exerciseUseCase.EditTarget, error)
+		// StaleDraftError is the 409 of an edit whose working copy has moved on (the current revision and who saved it).
+		StaleDraftError(ctx context.Context, exerciseID uuid.UUID) error
+		// ArchiveCarriesSecretValue: the archive holds the value of a secret variable (the brain never sets one).
+		ArchiveCarriesSecretValue(archive []byte, lim exerciseModel.ArchiveLimits) (bool, error)
+		PreviewArchiveImport(ctx context.Context, actor exerciseUseCase.Actor, in exerciseUseCase.PreviewArchiveInput) (exerciseUseCase.ArchiveImportPreview, error)
+		CommitArchiveImport(ctx context.Context, actor exerciseUseCase.Actor, in exerciseUseCase.CommitArchiveInput) (exerciseUseCase.ArchiveImportStart, error)
 	}
 	// SaveStore remembers how a session was saved. A save is claimed first (pending), then done with the task or failed;
 	// the claim is atomic, so one request owns it.
@@ -47,6 +56,8 @@ type (
 	// FileStore stores the archive for a background import (the media use case).
 	FileStore interface {
 		UploadFile(ctx context.Context, name, contentType string, r io.Reader, createdBy uuid.UUID) (mediaModel.File, error)
+		// DiscardFile removes a stored file of its owner that nothing came to use.
+		DiscardFile(ctx context.Context, id, owner uuid.UUID) error
 	}
 )
 
@@ -100,9 +111,29 @@ func (u *UseCase) start(ctx context.Context, actor exerciseUseCase.Actor, sessio
 	}
 	lim := u.importer.ArchiveLimits(ctx)
 	images := u.namesImages(archive, lim)
-	if images {
+	// The brain never sets a secret value: they are entered in the catalog. An archive that carries one is refused, whether it is a
+	// new task or the edit of one.
+	if carries, carryErr := u.importer.ArchiveCarriesSecretValue(archive, lim); carryErr != nil {
+		return false, importError(carryErr)
+	} else if carries {
+		return false, assistantModel.ErrAssistantSecretValue.Err()
+	}
+	// The edit of a task that came from the platform (a provide_task) goes back into that task as its new working version.
+	target, err := u.importer.EditedArchiveTarget(ctx, actor, archive, lim)
+	if err != nil {
+		return false, editTargetError(err)
+	}
+	edited := target.ExerciseID
+	if images && edited == uuid.Nil {
 		// Checked before the claim: a refusal must not leave a claim behind.
 		if err = u.importer.AuthorizeImport(ctx, actor, nil); err != nil {
+			return false, err
+		}
+	}
+	// An edit of a task of the platform is previewed before anything is claimed: it may ask the author to confirm.
+	var plan *editPlan
+	if edited != uuid.Nil {
+		if plan, err = u.prepareEdit(ctx, actor, archive, target); err != nil {
 			return false, err
 		}
 	}
@@ -110,13 +141,18 @@ func (u *UseCase) start(ctx context.Context, actor exerciseUseCase.Actor, sessio
 	now := u.now().UTC()
 	claimed, err := u.saves.Claim(ctx, sessionID, actor.UserID, hex.EncodeToString(sum[:]), now, now.Add(-claimLease))
 	if err != nil {
+		u.discardSource(ctx, actor, plan)
 		return false, model.ErrPlatform.WithError(err).WithMessage("Failed to claim the assistant save").Err()
 	}
 	if !claimed {
-		// Another request owns it and will tell the brain.
+		// Another request owns it and will tell the brain; the archive this one stored is not used.
+		u.discardSource(ctx, actor, plan)
 		return false, nil
 	}
 	rec := assistantModel.Save{Session: sessionID, Author: actor.UserID}
+	if plan != nil {
+		return u.commitEdit(ctx, rec, actor, plan)
+	}
 	if images {
 		return false, u.queue(ctx, rec, actor, archive)
 	}
@@ -129,6 +165,108 @@ func (u *UseCase) start(ctx context.Context, actor exerciseUseCase.Actor, sessio
 	}
 	rec.ExerciseID, err = onlyExercise(start)
 	if err != nil {
+		return false, u.failed(ctx, rec, err)
+	}
+	if err = u.complete(ctx, rec); err != nil {
+		return false, err
+	}
+	return true, u.notify(ctx, rec)
+}
+
+// editPlan is an edit that is ready to be committed: the stored archive, and the preview item whose revision the commit confirms.
+type editPlan struct {
+	source exerciseUseCase.PreviewArchiveInput
+	item   exerciseUseCase.ArchiveImportPreviewItem
+}
+
+// prepareEdit stores the archive of an edit and previews the update of the task it came from (nothing is claimed or written yet).
+// An edit is applied only on top of the working copy it started from: the document says which revision of the working copy it
+// was given (none, or the draft at that revision; an export of a task with a working copy is always of the working copy), and
+// a working copy that has changed since, appeared or gone is the concurrent-edit 409 (ErrDraftModified, with the current
+// revision and who saved it). The commit then confirms the preview's revision, which binds the task's state as the preview saw it.
+func (u *UseCase) prepareEdit(ctx context.Context, actor exerciseUseCase.Actor, archive []byte, edit exerciseUseCase.EditTarget) (*editPlan, error) {
+	target := edit.ExerciseID
+	if u.files == nil {
+		return nil, assistantModel.ErrAssistantUnavailable.Err()
+	}
+	stored, err := u.files.UploadFile(ctx, "assistant-task.cybericebox.zip", "application/zip", bytes.NewReader(archive), actor.UserID)
+	if err != nil {
+		return nil, err
+	}
+	plan := &editPlan{source: exerciseUseCase.PreviewArchiveInput{FileID: stored.ID, FixedExerciseID: target}}
+	// The stored archive serves only this edit: whatever refuses it removes the file again.
+	refuse := func(cause error) (*editPlan, error) {
+		u.discardSource(ctx, actor, plan)
+		return nil, cause
+	}
+	preview, err := u.importer.PreviewArchiveImport(ctx, actor, plan.source)
+	if err != nil {
+		return refuse(importError(err))
+	}
+	if len(preview.Items) != 1 {
+		return refuse(assistantModel.ErrAssistantImportFailed.WithPublicContext("tasks", len(preview.Items)).Err())
+	}
+	plan.item = preview.Items[0]
+	if plan.item.DraftRevision != edit.Base.DraftRevision || (edit.Base.DraftRevision == "" && !samePublished(plan.item.PublishedVersionID, edit.Base.PublishedVersionID)) {
+		// The working copy moved on, appeared or went; or, for an edit with no working copy, another version was published (or
+		// the published one withdrawn) since the export.
+		return refuse(u.importer.StaleDraftError(ctx, target))
+	}
+	return plan, nil
+}
+
+// samePublished says whether the task's published version now is the one an edit was exported at (uuid.Nil: none).
+func samePublished(now *uuid.UUID, then uuid.UUID) bool {
+	if now == nil {
+		return then == uuid.Nil
+	}
+	return *now == then
+}
+
+// discardSource removes the archive an edit stored for its preview when nothing will import it. Best effort: the media collector
+// removes what is left after its grace.
+func (u *UseCase) discardSource(ctx context.Context, actor exerciseUseCase.Actor, plan *editPlan) {
+	if plan == nil || u.files == nil {
+		return
+	}
+	if err := u.files.DiscardFile(context.WithoutCancel(ctx), plan.source.FileID, actor.UserID); err != nil {
+		log.Warn().Err(err).Str("file", plan.source.FileID.String()).Msg("The stored archive of an assistant edit was not removed; the media cleanup removes it")
+	}
+}
+
+// editTargetError is the refusal of an edit whose task the user may no longer edit, that is gone or archived, in the assistant's
+// own codes (the page shows them); other errors are those of the import.
+func editTargetError(err error) error {
+	switch {
+	case errors.Is(err, exerciseModel.ErrExerciseForbidden.Err()):
+		return assistantModel.ErrAssistantEditForbidden.WithError(err).Err()
+	case errors.Is(err, exerciseModel.ErrExerciseNotFound.Err()):
+		return assistantModel.ErrAssistantEditGone.WithError(err).Err()
+	case errors.Is(err, exerciseModel.ErrExerciseArchived.Err()):
+		return assistantModel.ErrAssistantEditArchived.WithError(err).Err()
+	}
+	return importError(err)
+}
+
+// commitEdit brings the edited task back into the task it came from, as its new working version: committed with the
+// confirmation of the preview and with the kept secrets put back. The outcome is recorded as for a new task: done at once, or a
+// queued job.
+func (u *UseCase) commitEdit(ctx context.Context, rec assistantModel.Save, actor exerciseUseCase.Actor, plan *editPlan) (bool, error) {
+	start, err := u.importer.CommitArchiveImport(ctx, actor, exerciseUseCase.CommitArchiveInput{
+		PreviewArchiveInput: plan.source,
+		ConfirmedUpdates:    []exerciseUseCase.ConfirmedImportUpdate{{ItemKey: plan.item.ItemKey, Revision: plan.item.ConfirmationRevision, ReplaceDraft: plan.item.ReplacesDraft}},
+		RestoreKeptSecrets:  true,
+	})
+	if start.JobID != uuid.Nil && err == nil {
+		// The queued job reads the stored archive.
+		return false, u.recordJob(ctx, rec, start.JobID)
+	}
+	// Imported at once or refused: the stored archive is not needed any more.
+	u.discardSource(ctx, actor, plan)
+	if err != nil {
+		return false, u.failed(ctx, rec, importError(err))
+	}
+	if rec.ExerciseID, err = onlyExercise(start); err != nil {
 		return false, u.failed(ctx, rec, err)
 	}
 	if err = u.complete(ctx, rec); err != nil {

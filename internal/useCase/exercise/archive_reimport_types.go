@@ -24,11 +24,16 @@ type ImportOptions struct {
 	Targets          []ImportTarget          `json:"Targets"`
 	FixedExerciseID  uuid.UUID               `json:"FixedExerciseID"`
 	ConfirmedUpdates []ConfirmedImportUpdate `json:"ConfirmedUpdates"`
+	// RestoreKeptSecrets (an import of an edited task into the task it came from, set by the assistant's save only, never read
+	// from a request) puts the stored value back where an update leaves a secret variable empty.
+	RestoreKeptSecrets bool `json:"RestoreKeptSecrets,omitempty" swaggerignore:"true"`
 }
 
 type CommitArchiveInput struct {
 	PreviewArchiveInput
 	ConfirmedUpdates []ConfirmedImportUpdate `json:"ConfirmedUpdates"`
+	// RestoreKeptSecrets: see ImportOptions.
+	RestoreKeptSecrets bool `json:"-"`
 }
 
 type PreviewArchiveInput struct {
@@ -94,9 +99,15 @@ type ArchiveImportPreviewItem struct {
 	SourceIDMismatch bool                  `json:"SourceIDMismatch"`
 	// ConfirmationRevision binds immutable source/item/snapshot and selected
 	// target/current content. No password, flags or secret values are returned.
-	ConfirmationRevision string               `json:"ConfirmationRevision"`
-	ReplacesDraft        bool                 `json:"ReplacesDraft"`
-	Summary              ArchiveImportSummary `json:"Summary"`
+	ConfirmationRevision string `json:"ConfirmationRevision"`
+	ReplacesDraft        bool   `json:"ReplacesDraft"`
+	// DraftVersionID and DraftRevision are the target's working copy this preview was made against (nil and "" when it has
+	// none): the revision is what a write of the working copy must still find.
+	DraftVersionID *uuid.UUID `json:"DraftVersionID"`
+	DraftRevision  string     `json:"DraftRevision"`
+	// PublishedVersionID is the target's published version this preview was made against (nil when it has none).
+	PublishedVersionID *uuid.UUID           `json:"PublishedVersionID"`
+	Summary            ArchiveImportSummary `json:"Summary"`
 	// Report is the dry-run answer: what stays, comes and goes by identity, the errors that would stop the result
 	// being published, who uses the exercise and the warnings. The apply call returns the same report per item.
 	Report exerciseModel.ImportReport `json:"Report"`

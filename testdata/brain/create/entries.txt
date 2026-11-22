@@ -1,0 +1,4 @@
+exercise.json
+files/v1/shared/common.bin
+files/v1/variant-1/1/once.txt
+files/v1/variant-2/shared/copy1.txt

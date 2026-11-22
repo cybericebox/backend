@@ -535,7 +535,7 @@ func (u *ExerciseUseCase) runArchiveImport(ctx context.Context, job exerciseMode
 			return ArchiveImportStart{}, err
 		}
 	}
-	in := CommitArchiveInput{PreviewArchiveInput: PreviewArchiveInput{Password: password, OwnerEventID: uuidPtr(job.OwnerEventID), Targets: options.Targets, FixedExerciseID: options.FixedExerciseID}, ConfirmedUpdates: options.ConfirmedUpdates}
+	in := CommitArchiveInput{PreviewArchiveInput: PreviewArchiveInput{Password: password, OwnerEventID: uuidPtr(job.OwnerEventID), Targets: options.Targets, FixedExerciseID: options.FixedExerciseID}, ConfirmedUpdates: options.ConfirmedUpdates, RestoreKeptSecrets: options.RestoreKeptSecrets}
 	switch job.Source {
 	case exerciseModel.ImportSourceUpload:
 		in.UploadID = job.SourceID

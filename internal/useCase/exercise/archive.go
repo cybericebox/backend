@@ -21,6 +21,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
 	"github.com/cybericebox/backend/internal/model"
 	appErr "github.com/cybericebox/backend/pkg/err"
 	yzip "github.com/yeka/zip"
@@ -37,12 +38,16 @@ type ExportOptions struct {
 	// IncludeImages writes the platform images of the devices into the archive ("with images"). Up to 10 GiB, so only
 	// the background export (StartArchiveExport) takes it; ExportExerciseArchive refuses it.
 	IncludeImages bool
+	// edit is the base recorded in an export made for editing (ExportTaskVersionForEdit).
+	edit *archiveEditV2
 }
 type exportedFile struct {
 	Name        string `json:"name"`
 	ContentType string `json:"content_type"`
 }
 type ParsedExerciseArchive struct {
+	// EditBase is what the document says its edit started from (zero for a document that is not an edit export).
+	EditBase EditBase
 	// SourceExerciseID is only a re-import suggestion. New imports still allocate
 	// their own identity; legacy archives may omit it or use an unrelated id format.
 	SourceExerciseID uuid.UUID
@@ -547,6 +552,60 @@ func (u *ExerciseUseCase) ExportExerciseArchive(ctx context.Context, id uuid.UUI
 	return archive, checkArchiveSize(int64(len(archive)), lim.ArchiveBytes)
 }
 
+// ExportTaskVersionForEdit gives the import archive of one version of a task to a user who may edit it (the Teacher's edit flow:
+// the brain asks for the source of an existing task). It is the admin export's format and content for that one version, without
+// secret values: every secret variable is delivered by name with an empty value, which an import of the edited task
+// (RestoreKeptSecrets) turns back into the stored value, by variant, device and variable name. ErrExerciseNotFound for a task that does not
+// exist, ErrExerciseArchived for an archived one, ErrExerciseVersionNotFound for a version that is not of that task, ErrExerciseForbidden when the user may not edit it
+// (rights as for saving a change of the task: exercises.write, or owner or manager of the event whose task it is). A task that has
+// a working copy is exported as that working copy whichever version is asked for (it must still be a version of the task).
+func (u *ExerciseUseCase) ExportTaskVersionForEdit(ctx context.Context, actor Actor, id, versionID uuid.UUID) ([]byte, error) {
+	access, err := u.AuthorizeExercise(ctx, actor, id, ActionWrite)
+	if err != nil {
+		return nil, err
+	}
+	if !access.Full || !access.Flags {
+		return nil, exerciseModel.ErrExerciseForbidden.Err()
+	}
+	lim := exerciseModel.DefaultArchiveLimits()
+	// What the edit starts from. A task with a working copy is always exported as that working copy (what its author sees and
+	// edits), with its revision; a task without one is exported as the version asked for, with no revision. The save of the edit
+	// refuses a working copy that has moved on, appeared or gone since, so no edit can silently replace work it did not contain.
+	var base archiveEditV2
+	switch draft, draftErr := u.exercises.GetDraftRevision(ctx, id); {
+	case draftErr == nil:
+		if versionID != draft.ID {
+			requested, versionErr := u.exercises.GetVersion(ctx, versionID)
+			if versionErr != nil && !repositoryTools.IsObjectNotFoundError(versionErr) {
+				return nil, model.ErrPlatform.WithError(versionErr).WithMessage("Failed to read the version").Err()
+			}
+			if versionErr != nil || requested.ExerciseID != id {
+				return nil, exerciseModel.ErrExerciseVersionNotFound.Err()
+			}
+		}
+		versionID = draft.ID
+		base.DraftRevision = exerciseModel.FormatRevision(draft.UpdatedAt)
+	case !repositoryTools.IsObjectNotFoundError(draftErr):
+		return nil, model.ErrPlatform.WithError(draftErr).WithMessage("Failed to read the working copy revision").Err()
+	}
+	base.Version = versionID.String()
+	plan, err := u.planExportVersions(ctx, id, versionID, ExportOptions{edit: &base}, lim)
+	if err != nil {
+		if repositoryTools.IsObjectNotFoundError(err) {
+			return nil, exerciseModel.ErrExerciseNotFound.Err()
+		}
+		return nil, err
+	}
+	if err = checkExportEntries(plan.Contents, lim); err != nil {
+		return nil, err
+	}
+	archive, err := BuildArchiveV1(plan.Contents)
+	if err != nil {
+		return nil, err
+	}
+	return archive, checkArchiveSize(int64(len(archive)), lim.ArchiveBytes)
+}
+
 // exportPlan is one task laid out for its archive: the small files (exercise.json and the attachments, by path in
 // the task folder) and the image files, which are streamed.
 type exportPlan struct {
@@ -558,13 +617,33 @@ type exportPlan struct {
 // planExport reads a task and lays it out: the document, the attachments once per content and, with
 // opts.IncludeImages, its platform images. Without secrets their values are masked; with them they are decrypted.
 func (u *ExerciseUseCase) planExport(ctx context.Context, id uuid.UUID, opts ExportOptions, lim exerciseModel.ArchiveLimits) (exportPlan, error) {
+	return u.planExportVersions(ctx, id, uuid.Nil, opts, lim)
+}
+
+// planExportVersions is planExport for one version of the task (only is its id) or, with uuid.Nil, for all of them.
+func (u *ExerciseUseCase) planExportVersions(ctx context.Context, id, only uuid.UUID, opts ExportOptions, lim exerciseModel.ArchiveLimits) (exportPlan, error) {
 	e, err := u.exercises.GetByID(ctx, id)
 	if err != nil {
 		return exportPlan{}, err
 	}
+	if opts.edit != nil {
+		// An archived task is frozen: it is not given out for editing.
+		if err = e.EnsureNotArchived(); err != nil {
+			return exportPlan{}, err
+		}
+		if e.PublishedVersionID.Valid {
+			opts.edit.PublishedVersion = e.PublishedVersionID.UUID.String()
+		}
+	}
 	versions, err := u.exercises.ListVersions(ctx, id)
 	if err != nil {
 		return exportPlan{}, err
+	}
+	if only != uuid.Nil {
+		versions = slices.DeleteFunc(versions, func(v exerciseModel.ExerciseVersion) bool { return v.ID != only })
+		if len(versions) == 0 {
+			return exportPlan{}, exerciseModel.ErrExerciseVersionNotFound.Err()
+		}
 	}
 	if !opts.IncludeSecrets {
 		for i := range versions {
@@ -586,7 +665,7 @@ func (u *ExerciseUseCase) planExport(ctx context.Context, id uuid.UUID, opts Exp
 			return exportPlan{}, err
 		}
 	}
-	document, err := buildV2DocumentWithImages(e, versions, filePaths, imagePaths)
+	document, err := buildV2DocumentWithEdit(e, versions, filePaths, imagePaths, opts.edit)
 	if err != nil {
 		return exportPlan{}, err
 	}

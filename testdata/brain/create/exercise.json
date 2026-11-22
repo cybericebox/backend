@@ -1,0 +1,286 @@
+{
+  "exercise": {
+    "description": "description",
+    "name": "Експорт",
+    "tags": [
+      "web"
+    ]
+  },
+  "schema": "cib-exercise/1.0",
+  "versions": [
+    {
+      "admin_note": "note",
+      "exercise": {
+        "description": "description",
+        "name": "Експорт",
+        "tags": [
+          "web"
+        ]
+      },
+      "status": "draft",
+      "variants": [
+        {
+          "index": 1,
+          "note": "first",
+          "tasks": [
+            {
+              "attachments": [
+                {
+                  "file": "files/v1/variant-1/1/once.txt"
+                }
+              ],
+              "check": {
+                "answer": {
+                  "type": "flag",
+                  "values": [
+                    "ICE{one}"
+                  ]
+                }
+              },
+              "description": {
+                "root": {
+                  "text": "Description",
+                  "type": "text"
+                }
+              },
+              "difficulty": "medium",
+              "hints": [
+                {
+                  "level": "steps",
+                  "text": "hint"
+                }
+              ],
+              "key": "one",
+              "name": "one"
+            },
+            {
+              "attachments": [
+                {
+                  "file": "files/v1/shared/common.bin"
+                }
+              ],
+              "check": {
+                "answer": {
+                  "type": "flag",
+                  "values": [
+                    "ICE{two}"
+                  ]
+                }
+              },
+              "description": {
+                "root": {
+                  "text": "Description",
+                  "type": "text"
+                }
+              },
+              "difficulty": "medium",
+              "hints": [
+                {
+                  "level": "steps",
+                  "text": "hint"
+                }
+              ],
+              "key": "two",
+              "name": "two"
+            }
+          ],
+          "topology": {
+            "connections": [
+              {
+                "endpoints": [
+                  {
+                    "device": "vpn",
+                    "interface": "eth0",
+                    "kind": "device"
+                  },
+                  {
+                    "device": "web",
+                    "kind": "device"
+                  }
+                ]
+              }
+            ],
+            "devices": [
+              {
+                "bootstrap": {
+                  "env": [
+                    {
+                      "name": "MODE",
+                      "value": "prod"
+                    },
+                    {
+                      "name": "DB_PASSWORD",
+                      "secret": true,
+                      "value": ""
+                    }
+                  ]
+                },
+                "image": "nginx:1.27",
+                "name": "web",
+                "profile": "container",
+                "resource_preset": "micro",
+                "security_preset": "standard",
+                "type": "node"
+              },
+              {
+                "bootstrap": {
+                  "env": [
+                    {
+                      "name": "MODE",
+                      "value": "prod"
+                    }
+                  ]
+                },
+                "image": "nginx:1.27",
+                "name": "db",
+                "profile": "container",
+                "resource_preset": "micro",
+                "security_preset": "standard",
+                "type": "node"
+              },
+              {
+                "name": "vpn",
+                "type": "vpn_gateway"
+              }
+            ],
+            "visual_render": {
+              "nodes": []
+            }
+          }
+        },
+        {
+          "index": 2,
+          "tasks": [
+            {
+              "attachments": [
+                {
+                  "file": "files/v1/shared/common.bin"
+                },
+                {
+                  "file": "files/v1/variant-2/shared/copy1.txt"
+                }
+              ],
+              "check": {
+                "answer": {
+                  "type": "flag",
+                  "values": [
+                    "ICE{one}"
+                  ]
+                }
+              },
+              "description": {
+                "root": {
+                  "text": "Description",
+                  "type": "text"
+                }
+              },
+              "difficulty": "medium",
+              "hints": [
+                {
+                  "level": "steps",
+                  "text": "hint"
+                }
+              ],
+              "key": "one",
+              "name": "one"
+            },
+            {
+              "attachments": [
+                {
+                  "file": "files/v1/variant-2/shared/copy1.txt",
+                  "name": "copy2.txt"
+                }
+              ],
+              "check": {
+                "answer": {
+                  "type": "flag",
+                  "values": [
+                    "ICE{two}"
+                  ]
+                }
+              },
+              "description": {
+                "root": {
+                  "text": "Description",
+                  "type": "text"
+                }
+              },
+              "difficulty": "medium",
+              "hints": [
+                {
+                  "level": "steps",
+                  "text": "hint"
+                }
+              ],
+              "key": "two",
+              "name": "two"
+            }
+          ],
+          "topology": {
+            "connections": [
+              {
+                "endpoints": [
+                  {
+                    "device": "vpn",
+                    "interface": "eth0",
+                    "kind": "device"
+                  },
+                  {
+                    "device": "web",
+                    "kind": "device"
+                  }
+                ]
+              }
+            ],
+            "devices": [
+              {
+                "bootstrap": {
+                  "env": [
+                    {
+                      "name": "MODE",
+                      "value": "prod"
+                    },
+                    {
+                      "name": "DB_PASSWORD",
+                      "secret": true,
+                      "value": ""
+                    }
+                  ]
+                },
+                "image": "nginx:1.27",
+                "name": "web",
+                "profile": "container",
+                "resource_preset": "micro",
+                "security_preset": "standard",
+                "type": "node"
+              },
+              {
+                "bootstrap": {
+                  "env": [
+                    {
+                      "name": "MODE",
+                      "value": "prod"
+                    }
+                  ]
+                },
+                "image": "nginx:1.27",
+                "name": "db",
+                "profile": "container",
+                "resource_preset": "micro",
+                "security_preset": "standard",
+                "type": "node"
+              },
+              {
+                "name": "vpn",
+                "type": "vpn_gateway"
+              }
+            ],
+            "visual_render": {
+              "nodes": []
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

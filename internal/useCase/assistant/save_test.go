@@ -69,6 +69,46 @@ type fakeImporter struct {
 	delay   time.Duration
 	// during runs while the import is in progress (the row must already be claimed).
 	during func()
+	// The edit of an existing task (uuid.Nil in editTarget: the archive is a new task).
+	editTarget   uuid.UUID
+	editBase     exerciseUseCase.EditBase // what the edit started from
+	carriesValue bool
+	editErr      error
+	previewItems []exerciseUseCase.ArchiveImportPreviewItem
+	previewErr   error
+	previewIn    exerciseUseCase.PreviewArchiveInput
+	commitStart  exerciseUseCase.ArchiveImportStart
+	commitErr    error
+	commitIn     exerciseUseCase.CommitArchiveInput
+}
+
+func (f *fakeImporter) EditedArchiveTarget(context.Context, exerciseUseCase.Actor, []byte, exerciseModel.ArchiveLimits) (exerciseUseCase.EditTarget, error) {
+	return exerciseUseCase.EditTarget{ExerciseID: f.editTarget, Base: f.editBase}, f.editErr
+}
+
+func (f *fakeImporter) StaleDraftError(context.Context, uuid.UUID) error {
+	f.line.add("stale")
+	return exerciseModel.ErrDraftModified.Err()
+}
+
+func (f *fakeImporter) ArchiveCarriesSecretValue([]byte, exerciseModel.ArchiveLimits) (bool, error) {
+	return f.carriesValue, nil
+}
+
+func (f *fakeImporter) PreviewArchiveImport(_ context.Context, _ exerciseUseCase.Actor, in exerciseUseCase.PreviewArchiveInput) (exerciseUseCase.ArchiveImportPreview, error) {
+	f.line.add("preview")
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.previewIn = in
+	return exerciseUseCase.ArchiveImportPreview{Items: f.previewItems}, f.previewErr
+}
+
+func (f *fakeImporter) CommitArchiveImport(_ context.Context, _ exerciseUseCase.Actor, in exerciseUseCase.CommitArchiveInput) (exerciseUseCase.ArchiveImportStart, error) {
+	f.line.add("commit")
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.commitIn = in
+	return f.commitStart, f.commitErr
 }
 
 func (f *fakeImporter) AuthorizeImport(context.Context, exerciseUseCase.Actor, *uuid.UUID) error {
@@ -113,12 +153,33 @@ func (f *fakeImporter) setJob(v exerciseUseCase.ImportJobView) { f.mu.Lock(); f.
 type fakeFiles struct {
 	line *timeline
 	body []byte
+	// owner is who the stored file belongs to (zero: the author of the test).
+	owner uuid.UUID
+	// discarded are the stored files removed again.
+	discarded []uuid.UUID
+}
+
+// DiscardFile records that the stored file was removed again.
+func (f *fakeFiles) DiscardFile(_ context.Context, id, _ uuid.UUID) error {
+	f.line.add("discard")
+	f.discarded = append(f.discarded, id)
+	return nil
 }
 
 func (f *fakeFiles) UploadFile(_ context.Context, _, _ string, r io.Reader, _ uuid.UUID) (mediaModel.File, error) {
 	f.line.add("upload")
 	f.body, _ = io.ReadAll(r)
 	return mediaModel.File{ID: fileID}, nil
+}
+
+// GetFile is the record of the stored file: its owner and the SHA-256 of its bytes.
+func (f *fakeFiles) GetFile(context.Context, uuid.UUID) (mediaModel.File, error) {
+	sum := sha256.Sum256(f.body)
+	owner := f.owner
+	if owner == uuid.Nil {
+		owner = actor.UserID
+	}
+	return mediaModel.File{ID: fileID, ContentHash: hex.EncodeToString(sum[:]), CreatedBy: uuid.NullUUID{UUID: owner, Valid: true}}, nil
 }
 
 // memSaves is the save store in memory, with the same claim rules as the table.
@@ -128,6 +189,8 @@ type memSaves struct {
 	hash map[string]string
 	// completeFails makes the next n Complete calls fail.
 	completeFails int
+	// lose makes every claim go to another request.
+	lose bool
 }
 
 func key(session string, author uuid.UUID) string { return session + "/" + author.String() }
@@ -143,6 +206,9 @@ func (m *memSaves) Claim(_ context.Context, session string, author uuid.UUID, ha
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	k := key(session, author)
+	if m.lose {
+		return false, nil
+	}
 	if r, ok := m.rows[k]; ok && !(r.State == assistantModel.SaveFailed || (r.State == assistantModel.SavePending && r.JobID == uuid.Nil && r.ClaimedAt.Before(staleBefore))) {
 		return false, nil
 	}

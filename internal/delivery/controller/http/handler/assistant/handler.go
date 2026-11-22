@@ -249,11 +249,6 @@ func (h *Handler) save(c *gin.Context) {
 	if !ok {
 		return
 	}
-	middleware.LimitBody(c, maxJSONBody)
-	if _, err := io.Copy(io.Discard, c.Request.Body); err != nil {
-		response.AbortWithBadRequest(c, err)
-		return
-	}
 	done, err := h.useCase.AssistantSaveSession(c.Request.Context(), actor, id)
 	if err != nil {
 		response.AbortWithError(c, err)

@@ -203,6 +203,10 @@ func (m *memQueries) DeleteUnreferencedFiles(context.Context, time.Time) ([]post
 	return nil, nil
 }
 
+func (m *memQueries) DeleteUnreferencedFile(context.Context, postgres.DeleteUnreferencedFileParams) (int64, error) {
+	return 0, nil
+}
+
 func (m *memQueries) ListExpiredMediaUploads(context.Context, postgres.ListExpiredMediaUploadsParams) ([]postgres.MediaUpload, error) {
 	return nil, nil
 }

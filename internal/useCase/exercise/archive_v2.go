@@ -27,9 +27,21 @@ const archiveSchema = "cib-exercise/1.0"
 // everything that differs (names instead of ids, optional ids, image forms) has its own DTO.
 type (
 	archiveDocV2 struct {
-		Schema   string             `json:"schema"`
-		Exercise archiveExerciseV2  `json:"exercise"`
+		Schema   string            `json:"schema"`
+		Exercise archiveExerciseV2 `json:"exercise"`
+		// Edit is written only into the export a task is given for editing (ExportTaskVersionForEdit): what the edit started
+		// from. The editor returns it unchanged; saving the edit refuses a working copy that is no longer at it.
+		Edit     *archiveEditV2     `json:"edit,omitempty"`
 		Versions []archiveVersionV2 `json:"versions"`
+	}
+
+	// archiveEditV2 is the base of an edit: the version the editor was given and the revision of the task's working copy then
+	// (empty: it had none). Both are opaque to the editor.
+	archiveEditV2 struct {
+		Version       string `json:"version,omitempty"`
+		DraftRevision string `json:"draft_revision,omitempty"`
+		// PublishedVersion is the task's published version at the export ("" when it had none).
+		PublishedVersion string `json:"published_version,omitempty"`
 	}
 
 	// archiveExerciseV2: id suggests a re-import target; a new exercise gets its own.
@@ -601,6 +613,7 @@ func (d archiveDocV2) toParsed(files map[string][]byte) (ParsedExerciseArchive, 
 func (d archiveDocV2) toParsedWithImages(files map[string][]byte, images map[string]*archiveImageFile) (ParsedExerciseArchive, error) {
 	parsed := ParsedExerciseArchive{
 		SourceExerciseID: uuid.FromStringOrNil(d.Exercise.ID),
+		EditBase:         d.Edit.base(),
 		Exercise:         exerciseModel.Exercise{Name: d.Exercise.Name, Description: d.Exercise.Description, Tags: d.Exercise.Tags},
 		Files:            files,
 	}
@@ -1047,7 +1060,20 @@ func buildV2Document(e exerciseModel.Exercise, versions []exerciseModel.Exercise
 // buildV2DocumentWithImages is buildV2Document for an export "with images": a device whose platform image has a path in
 // imagePaths (by the image's digest) names that file, `image: {file: …}`.
 func buildV2DocumentWithImages(e exerciseModel.Exercise, versions []exerciseModel.ExerciseVersion, paths map[uuid.UUID]string, imagePaths map[string]string) ([]byte, error) {
-	doc := archiveDocV2{Schema: archiveSchema, Exercise: archiveExerciseV2{ID: e.ID.String(), Name: e.Name, Description: e.Description, Tags: e.Tags}}
+	return buildV2DocumentWithEdit(e, versions, paths, imagePaths, nil)
+}
+
+// base is the edit base of the document ("edit" key), nil for the plain export.
+func (e *archiveEditV2) base() EditBase {
+	if e == nil {
+		return EditBase{}
+	}
+	return EditBase{VersionID: uuid.FromStringOrNil(e.Version), DraftRevision: e.DraftRevision, PublishedVersionID: uuid.FromStringOrNil(e.PublishedVersion)}
+}
+
+// buildV2DocumentWithEdit is buildV2DocumentWithImages for the export an edit starts from: it records the edit base.
+func buildV2DocumentWithEdit(e exerciseModel.Exercise, versions []exerciseModel.ExerciseVersion, paths map[uuid.UUID]string, imagePaths map[string]string, edit *archiveEditV2) ([]byte, error) {
+	doc := archiveDocV2{Schema: archiveSchema, Edit: edit, Exercise: archiveExerciseV2{ID: e.ID.String(), Name: e.Name, Description: e.Description, Tags: e.Tags}}
 	for _, version := range versions {
 		metadata := e.WithVersionMetadata(version)
 		out := archiveVersionV2{Status: version.Status, AdminNote: version.AdminNote, Label: version.Label, Variants: []archiveVariantV2{},

@@ -158,6 +158,12 @@ func (u *ExerciseUseCase) SaveDraft(ctx context.Context, exerciseID uuid.UUID, i
 	return view, nil
 }
 
+// StaleDraftError is the 409 for an edit that started from a working copy that has moved on since (see draftModified): the
+// public context names the current revision and who saved it when.
+func (u *ExerciseUseCase) StaleDraftError(ctx context.Context, exerciseID uuid.UUID) error {
+	return u.draftModified(ctx, exerciseID)
+}
+
 // draftModified is the one 409 of the working copy's optimistic check: the writer did not start from the current
 // revision. The public context names the current revision (opaque; "" when the working copy is gone) and who saved it
 // and when, so the editor can offer to reload. A missing exercise is its own error.

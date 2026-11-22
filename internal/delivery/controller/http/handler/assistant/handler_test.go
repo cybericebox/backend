@@ -147,6 +147,23 @@ func (i *importer) ArchiveImportJob(context.Context, uuid.UUID, uuid.UUID) (exer
 	return exerciseUseCase.ImportJobView{State: exerciseModel.ImportJobRunning}, nil
 }
 
+// The edit of an existing task is not exercised here: every archive of these tests is a new task.
+func (i *importer) EditedArchiveTarget(context.Context, exerciseUseCase.Actor, []byte, exerciseModel.ArchiveLimits) (exerciseUseCase.EditTarget, error) {
+	return exerciseUseCase.EditTarget{}, nil
+}
+func (i *importer) StaleDraftError(context.Context, uuid.UUID) error {
+	return exerciseModel.ErrDraftModified.Err()
+}
+func (i *importer) ArchiveCarriesSecretValue([]byte, exerciseModel.ArchiveLimits) (bool, error) {
+	return false, nil
+}
+func (i *importer) PreviewArchiveImport(context.Context, exerciseUseCase.Actor, exerciseUseCase.PreviewArchiveInput) (exerciseUseCase.ArchiveImportPreview, error) {
+	return exerciseUseCase.ArchiveImportPreview{}, nil
+}
+func (i *importer) CommitArchiveImport(context.Context, exerciseUseCase.Actor, exerciseUseCase.CommitArchiveInput) (exerciseUseCase.ArchiveImportStart, error) {
+	return exerciseUseCase.ArchiveImportStart{}, nil
+}
+
 type subjects struct {
 	mu   sync.Mutex
 	rows map[uuid.UUID]uuid.UUID
@@ -182,6 +199,12 @@ type files struct{}
 
 func (files) UploadFile(context.Context, string, string, io.Reader, uuid.UUID) (mediaModel.File, error) {
 	return mediaModel.File{ID: taskID}, nil
+}
+
+func (files) DiscardFile(context.Context, uuid.UUID, uuid.UUID) error { return nil }
+
+func (files) GetFile(_ context.Context, id uuid.UUID) (mediaModel.File, error) {
+	return mediaModel.File{ID: id}, nil
 }
 
 // port is the handler's use case port over the real assistant use case. Only the author may author.

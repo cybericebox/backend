@@ -298,6 +298,7 @@
   "23526": "Secret variables have no value yet: enter them before publishing",
   "23604": "The authoring assistant did not accept the request",
   "23611": "Unknown statistics source or mode",
+  "23618": "The finished task carries a secret value, which the assistant never sets",
   "30101": "Setting not found",
   "30201": "Notification dispatch not found",
   "30202": "Notification template not found",
@@ -368,6 +369,7 @@
   "33612": "Event not found",
   "33613": "Assistant run not found",
   "33616": "The variant has no such opponent",
+  "33620": "The task this edit belongs to no longer exists",
   "40211": "Event already has its own template for this notification type",
   "40903": "Exercise with this name already exists",
   "41102": "Event with this tag already exists",
@@ -414,6 +416,7 @@
   "62616": "The laboratory is outside its available stage",
   "62625": "A solved laboratory is terminal",
   "63608": "The assistant refused the request",
+  "63619": "The task this edit belongs to can no longer be edited by you",
   "70219": "Inbox request is already resolved",
   "70228": "A broadcast template with this name already exists",
   "70229": "The broadcast is not being sent",
@@ -591,5 +594,6 @@
   "73610": "The finished task is still being imported",
   "73614": "The variant already has an active run",
   "73615": "Too many active runs",
-  "73617": "Opponents cannot be run in this lab"
+  "73617": "Opponents cannot be run in this lab",
+  "73621": "The task this edit belongs to is archived"
 }

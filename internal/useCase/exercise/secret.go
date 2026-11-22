@@ -407,3 +407,51 @@ func maskSecrets(variants []exerciseModel.Variant) []exerciseModel.Variant {
 	}
 	return out
 }
+
+// restoreKeptSecrets puts the stored value back where an edited version left a secret variable empty: an edit export delivers
+// every secret variable by name with an empty value, so an empty secret on a variable the stored version has (found by variant,
+// device name and variable name, the variant being matched by identity first) is the stored secret kept, and a variable that is
+// not there yet stays empty: it is a missing value of the version (ExerciseVersion.MissingSecrets), which the author fills in
+// and which refuses publishing until then. The value is opened with the stored variant's
+// context, so it is plaintext until encryptImportedSecrets seals it for its place. A value that is set is taken as entered.
+func (u *ExerciseUseCase) restoreKeptSecrets(imported *exerciseModel.ExerciseVersion, stored exerciseModel.ExerciseVersion) error {
+	type key struct {
+		variant      uuid.UUID
+		device, name string
+	}
+	kept := map[key]string{}
+	for _, variant := range stored.Variants {
+		for _, device := range variant.Topology.Devices {
+			for _, env := range device.Bootstrap.Env {
+				if env.Secret && env.Value != "" {
+					kept[key{variant.ID, device.Name, env.Name}] = env.Value
+				}
+			}
+		}
+	}
+	for vi := range imported.Variants {
+		variant := &imported.Variants[vi]
+		for di := range variant.Topology.Devices {
+			device := &variant.Topology.Devices[di]
+			for ei := range device.Bootstrap.Env {
+				env := &device.Bootstrap.Env[ei]
+				if !env.Secret || env.Value != "" {
+					continue
+				}
+				sealed, found := kept[key{variant.ID, device.Name, env.Name}]
+				if !found {
+					continue
+				}
+				if u.cipher == nil {
+					return exerciseModel.ErrSecretsNotConfigured.Err()
+				}
+				plain, err := u.cipher.DecryptWithContext(sealed, EnvSecretContext(variant.ID, device.Name, env.Name))
+				if err != nil {
+					return model.ErrPlatform.WithError(err).WithMessage("Failed to open a kept secret env var").Err()
+				}
+				env.Value = string(plain)
+			}
+		}
+	}
+	return nil
+}

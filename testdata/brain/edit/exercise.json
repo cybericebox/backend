@@ -1,0 +1,308 @@
+{
+  "schema": "cib-exercise/1.0",
+  "exercise": {
+    "id": "0192f0a0-0000-7000-8000-00000000e001",
+    "name": "Експорт",
+    "description": "description",
+    "tags": [
+      "web"
+    ]
+  },
+  "edit": {
+    "version": "0192f0a0-0000-7000-8000-000000000384",
+    "draft_revision": "2026-11-16T10:00:00.123456Z"
+  },
+  "versions": [
+    {
+      "status": "draft",
+      "exercise": {
+        "name": "Експорт",
+        "description": "description",
+        "tags": [
+          "web"
+        ]
+      },
+      "admin_note": "note",
+      "variants": [
+        {
+          "id": "0192f0a0-0000-7000-8000-000000000001",
+          "index": 1,
+          "note": "first",
+          "tasks": [
+            {
+              "id": "0192f0a0-0000-7000-8000-00000000000a",
+              "key": "one",
+              "name": "one",
+              "description": {
+                "root": {
+                  "type": "text",
+                  "text": "Description"
+                }
+              },
+              "difficulty": "medium",
+              "check": {
+                "answer": {
+                  "type": "flag",
+                  "values": [
+                    "ICE{one}"
+                  ]
+                }
+              },
+              "attachments": [
+                {
+                  "file": "files/v1/variant-1/1/once.txt"
+                }
+              ],
+              "hints": [
+                {
+                  "id": "0192f0a0-0000-7000-8000-00000000003c",
+                  "text": "hint",
+                  "level": "steps"
+                }
+              ]
+            },
+            {
+              "id": "0192f0a0-0000-7000-8000-00000000000b",
+              "key": "two",
+              "name": "two",
+              "description": {
+                "root": {
+                  "type": "text",
+                  "text": "Description"
+                }
+              },
+              "difficulty": "medium",
+              "check": {
+                "answer": {
+                  "type": "flag",
+                  "values": [
+                    "ICE{two}"
+                  ]
+                }
+              },
+              "attachments": [
+                {
+                  "file": "files/v1/shared/common.bin"
+                }
+              ],
+              "hints": [
+                {
+                  "id": "0192f0a0-0000-7000-8000-00000000003d",
+                  "text": "hint",
+                  "level": "steps"
+                }
+              ]
+            }
+          ],
+          "topology": {
+            "devices": [
+              {
+                "id": "0192f0a0-0000-7000-8000-000000000064",
+                "name": "web",
+                "type": "node",
+                "profile": "container",
+                "image": "nginx:1.27",
+                "security_preset": "standard",
+                "resource_preset": "micro",
+                "bootstrap": {
+                  "env": [
+                    {
+                      "name": "MODE",
+                      "value": "prod"
+                    },
+                    {
+                      "name": "DB_PASSWORD",
+                      "value": "",
+                      "secret": true
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "0192f0a0-0000-7000-8000-000000000065",
+                "name": "db",
+                "type": "node",
+                "profile": "container",
+                "image": "nginx:1.27",
+                "security_preset": "standard",
+                "resource_preset": "micro",
+                "bootstrap": {
+                  "env": [
+                    {
+                      "name": "MODE",
+                      "value": "prod"
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "0192f0a0-0000-7000-8000-0000000000be",
+                "name": "vpn",
+                "type": "vpn_gateway"
+              }
+            ],
+            "connections": [
+              {
+                "endpoints": [
+                  {
+                    "kind": "device",
+                    "device": "vpn",
+                    "interface": "eth0"
+                  },
+                  {
+                    "kind": "device",
+                    "device": "web"
+                  }
+                ]
+              }
+            ],
+            "visual_render": {
+              "nodes": []
+            }
+          }
+        },
+        {
+          "id": "0192f0a0-0000-7000-8000-000000000002",
+          "index": 2,
+          "tasks": [
+            {
+              "id": "0192f0a0-0000-7000-8000-00000000000a",
+              "key": "one",
+              "name": "one",
+              "description": {
+                "root": {
+                  "type": "text",
+                  "text": "Description"
+                }
+              },
+              "difficulty": "medium",
+              "check": {
+                "answer": {
+                  "type": "flag",
+                  "values": [
+                    "ICE{one}"
+                  ]
+                }
+              },
+              "attachments": [
+                {
+                  "file": "files/v1/shared/common.bin"
+                },
+                {
+                  "file": "files/v1/variant-2/shared/copy1.txt"
+                }
+              ],
+              "hints": [
+                {
+                  "id": "0192f0a0-0000-7000-8000-00000000003c",
+                  "text": "hint",
+                  "level": "steps"
+                }
+              ]
+            },
+            {
+              "id": "0192f0a0-0000-7000-8000-00000000000b",
+              "key": "two",
+              "name": "two",
+              "description": {
+                "root": {
+                  "type": "text",
+                  "text": "Description"
+                }
+              },
+              "difficulty": "medium",
+              "check": {
+                "answer": {
+                  "type": "flag",
+                  "values": [
+                    "ICE{two}"
+                  ]
+                }
+              },
+              "attachments": [
+                {
+                  "file": "files/v1/variant-2/shared/copy1.txt",
+                  "name": "copy2.txt"
+                }
+              ],
+              "hints": [
+                {
+                  "id": "0192f0a0-0000-7000-8000-00000000003d",
+                  "text": "hint",
+                  "level": "steps"
+                }
+              ]
+            }
+          ],
+          "topology": {
+            "devices": [
+              {
+                "id": "0192f0a0-0000-7000-8000-000000000064",
+                "name": "web",
+                "type": "node",
+                "profile": "container",
+                "image": "nginx:1.27",
+                "security_preset": "standard",
+                "resource_preset": "micro",
+                "bootstrap": {
+                  "env": [
+                    {
+                      "name": "MODE",
+                      "value": "prod"
+                    },
+                    {
+                      "name": "DB_PASSWORD",
+                      "value": "",
+                      "secret": true
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "0192f0a0-0000-7000-8000-000000000065",
+                "name": "db",
+                "type": "node",
+                "profile": "container",
+                "image": "nginx:1.27",
+                "security_preset": "standard",
+                "resource_preset": "micro",
+                "bootstrap": {
+                  "env": [
+                    {
+                      "name": "MODE",
+                      "value": "prod"
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "0192f0a0-0000-7000-8000-0000000000be",
+                "name": "vpn",
+                "type": "vpn_gateway"
+              }
+            ],
+            "connections": [
+              {
+                "endpoints": [
+                  {
+                    "kind": "device",
+                    "device": "vpn",
+                    "interface": "eth0"
+                  },
+                  {
+                    "kind": "device",
+                    "device": "web"
+                  }
+                ]
+              }
+            ],
+            "visual_render": {
+              "nodes": []
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
+

@@ -3637,6 +3637,21 @@ func (mr *MockQuerierMockRecorder) DeleteUnbornEventTeamLab(ctx, id any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUnbornEventTeamLab", reflect.TypeOf((*MockQuerier)(nil).DeleteUnbornEventTeamLab), ctx, id)
 }
 
+// DeleteUnreferencedFile mocks base method.
+func (m *MockQuerier) DeleteUnreferencedFile(ctx context.Context, arg postgres.DeleteUnreferencedFileParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteUnreferencedFile", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteUnreferencedFile indicates an expected call of DeleteUnreferencedFile.
+func (mr *MockQuerierMockRecorder) DeleteUnreferencedFile(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUnreferencedFile", reflect.TypeOf((*MockQuerier)(nil).DeleteUnreferencedFile), ctx, arg)
+}
+
 // DeleteUnreferencedFiles mocks base method.
 func (m *MockQuerier) DeleteUnreferencedFiles(ctx context.Context, createdBefore time.Time) ([]postgres.DeleteUnreferencedFilesRow, error) {
 	m.ctrl.T.Helper()
