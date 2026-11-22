@@ -69,6 +69,7 @@ type BrainConnection struct {
 	CertNotAfter        time.Time `json:"cert_not_after"`
 	CreatedAt           time.Time `json:"created_at"`
 	UpdatedAt           time.Time `json:"updated_at"`
+	OutboxSeq           int64     `json:"outbox_seq"`
 	GrpcEndpoint        string    `json:"grpc_endpoint"`
 }
 

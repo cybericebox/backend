@@ -134,7 +134,9 @@ installation the Privacy Policy wording gets its legal review.
    the total size and the sha256, then the files in chunks of at most 1 MiB), then `StartRun`. It follows `RunEvents` (reopened
    with `after_seq` = the last stored event; a closed stream is not the end of the run, only `run_finished` is; `NotFound` ends
    the run as `brain_failed`), judges each `answer` event with the platform checker and replies with `PostVerdict` keyed by
-   `(run_id, answer_seq)` (only `correct`, never the expected value); at the end it sends `PostLabFacts` and destroys the lab.
+   `(run_id, answer_seq)` (only `correct`, never the expected value); a state subtask that the lab's check decides goes as
+   `state=true` with `answer_seq` unset, keyed by `(run_id, subtask_ref)`. `run_finished` `done` finishes the run, `stopped`
+   (StopRun or a brain shutdown) ends it stopped, not failed, and `failed` fails it; at the end it sends `PostLabFacts` and destroys the lab.
 3. For an opponent import and publish `testdata/brain/tasks/opponent-lab` and try an opponent
    (`POST /api/exercises/{id}/versions/{versionID}/variants/{variantID}/opponents/{index}/try`). The daemon asks the brain
    `GetOpponent(run_id, role, band, task_ref, version)` and deploys the tools device from the spec: `deploy.image` and `deploy.env`

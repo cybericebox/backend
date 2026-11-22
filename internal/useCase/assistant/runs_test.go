@@ -749,7 +749,7 @@ func TestAGraderRunFromStartToTeardown(t *testing.T) {
 		t.Fatalf("%v", verdicts)
 	}
 	first, second := mustJSON(t, verdicts[0]), mustJSON(t, verdicts[1])
-	if string(first["correct"]) != "false" || string(second["correct"]) != "true" || string(first["subtask_ref"]) != `"login"` || len(first) != 5 ||
+	if string(first["correct"]) != "false" || string(second["correct"]) != "true" || string(first["subtask_ref"]) != `"login"` || len(first) != 6 || string(first["state"]) != "false" ||
 		string(first["run_id"]) != `"`+id+`"` || string(first["answer_seq"]) != `"2"` || string(second["answer_seq"]) != `"3"` {
 		t.Fatalf("%s %s", verdicts[0], verdicts[1])
 	}
@@ -1415,7 +1415,7 @@ func TestAStateSubtaskIsToldCorrectOnTheFirstPassAndOnlyOnce(t *testing.T) {
 	eventually(t, "the verdict of the passed subtask", func() bool { return len(r.brn.Verdicts(id)) == 1 })
 	time.Sleep(50 * time.Millisecond) // the state is looked at every pass, and the verdict goes once
 	got := verdictBodies(t, r, id)
-	if len(got) != 1 || string(got[0]["subtask_ref"]) != `"service"` || string(got[0]["correct"]) != "true" || len(got[0]) != 5 {
+	if len(got) != 1 || string(got[0]["subtask_ref"]) != `"service"` || string(got[0]["correct"]) != "true" || string(got[0]["state"]) != "true" || string(got[0]["answer_seq"]) != `"0"` || len(got[0]) != 6 {
 		t.Fatalf("%v", r.brn.Verdicts(id))
 	}
 	// a check that stops passing is not told again: only a change from nothing to a result is

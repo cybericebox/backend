@@ -82,6 +82,21 @@ func TestRetryRetriesOnlyUnavailableResourceExhaustedAndTheNetwork(t *testing.T)
 	}
 }
 
+// An error marked NoRetry stops Retry at once, whatever code it carries.
+func TestRetryStopsAtAnErrorMarkedNoRetry(t *testing.T) {
+	n := 0
+	err := brain.Retry(context.Background(), 3, time.Millisecond, func(context.Context) error {
+		n++
+		return brain.NoRetry(status.Error(codes.Unavailable, "down"))
+	})
+	if n != 1 || brain.Code(err) != codes.Unavailable {
+		t.Fatalf("%d attempts, %v", n, err)
+	}
+	if brain.NoRetry(nil) != nil {
+		t.Fatal("NoRetry(nil) is nil")
+	}
+}
+
 func TestRetryHonoursRetryInfo(t *testing.T) {
 	started := time.Now()
 	n := 0

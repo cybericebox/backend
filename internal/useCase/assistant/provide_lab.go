@@ -80,7 +80,12 @@ func (u *UseCase) provideTaskLab(ctx context.Context, requestID, subjectRef stri
 		log.Error().Err(err).Msg("Reading the lab of a request failed")
 		return nil, internal
 	} else if claimed {
-		if lab.Answered && lab.State == assistantModel.RunRunning {
+		switch {
+		case lab.State != assistantModel.RunStarting && lab.State != assistantModel.RunRunning:
+			// The lab is over (closing, finished, failed, stopped): whatever was sent before, the brain did not get it, and the
+			// lab will not come back. It gets the refusal now.
+			return nil, labRefusal(lab.FailureReason)
+		case lab.Answered:
 			// The brain sends again only a request it has no answer for: the answer was lost with a stream. The driver
 			// answers it once more.
 			u.reanswer.Store(lab.ID, true)

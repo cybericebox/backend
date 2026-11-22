@@ -137,3 +137,10 @@ Migration 0196 extends the existing automatic `cybericebox.catalog_metadata_writ
 Source-backed import retries recover an owned running/completed job by its exact non-secret canonical plan before reopening the archive or rechecking its now-stale execution confirmation. A different active/completed plan is a conflict; failed/stale attempts still pass current source, permission and confirmation checks before restart. Successful UploadID cleanup therefore does not prevent outcome recovery.
 
 New executions recheck and lock source metadata after staging and target-lock waits, before catalog writes: current existence, ownership and upload purpose/completeness/expiry. Archive/object streaming stays outside that short transaction. Restore/rollback draft transitions and their checkpoint/draft file references use the same required catalog transaction and family lock as save/import, preventing a late reference replacement from erasing an acknowledged draft's attachments.
+
+
+## Brain gRPC control plane migration (0249)
+
+Migration 0249 only adds columns (`brain_connections.grpc_endpoint`, `assistant_runs.spec_id`), so old and new pods run side by side during a rolling update. The outbox cursor `brain_connections.outbox_seq` is no longer read or written (the gRPC outbox has no sequence numbers), but old pods' queries still name it (`GetBrainConnection` selects every column), so it is kept for now.
+
+TODO(next release): drop `brain_connections.outbox_seq` in a migration of the release after the one that ships 0249, once no pod of the earlier release can run.

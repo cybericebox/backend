@@ -50,7 +50,7 @@ func (q *Queries) CreateBrainConnection(ctx context.Context, arg CreateBrainConn
 }
 
 const getBrainConnection = `-- name: GetBrainConnection :one
-SELECT endpoint, tenant, client_cert_pem, client_key_ciphertext, ca_pem, cert_not_after, created_at, updated_at, grpc_endpoint
+SELECT endpoint, tenant, client_cert_pem, client_key_ciphertext, ca_pem, cert_not_after, created_at, updated_at, outbox_seq, grpc_endpoint
 FROM brain_connections
 WHERE endpoint = $1
 `
@@ -68,6 +68,7 @@ func (q *Queries) GetBrainConnection(ctx context.Context, endpoint string) (Brai
 		&i.CertNotAfter,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OutboxSeq,
 		&i.GrpcEndpoint,
 	)
 	return i, err

@@ -195,11 +195,13 @@ func (d *runDriver) run(ctx context.Context) {
 	}
 }
 
-func (d *runDriver) close(ctx context.Context, run assistantModel.Run, end assistantModel.RunState, reason string) {
+func (d *runDriver) close(ctx context.Context, run assistantModel.Run, end assistantModel.RunState, reason string) error {
 	if _, err := d.u.runs.Close(ctx, run.ID, end, reason, d.u.now().UTC()); err != nil {
 		log.Error().Err(err).Msg("Closing a run failed")
+		return err
 	}
 	log.Info().Str("run", run.ID.String()).Str("end", string(end)).Str("reason", reason).Msg("A run is ending")
+	return nil
 }
 
 // down notes that the brain cannot be reached and fails the run once that has lasted the grace. It reports whether it did.
@@ -449,31 +451,14 @@ func (d *runDriver) sendMaterials(ctx context.Context, run assistantModel.Run) s
 		if brain.Code(err) == codes.ResourceExhausted {
 			return err // retried here
 		}
-		return noRetry(err)
+		return brain.NoRetry(err)
 	})
 	return startOutcomeOf(err, "The brain refused the materials of a run")
 }
 
-// noRetry keeps an error from Retry (the caller decides about an unreachable brain itself).
-func noRetry(err error) error {
-	if err == nil {
-		return nil
-	}
-	return finalErr{err}
-}
-
-// finalErr is an error Retry does not try again.
-type finalErr struct{ error }
-
-func (e finalErr) Unwrap() error { return e.error }
-
 // startOutcomeOf maps the answer of a call that starts a run: success, a brain that cannot be reached now (the grace decides),
 // or a refusal that cannot change. A rate limit the retries did not get past refuses the run.
 func startOutcomeOf(err error, refused string) startOutcome {
-	var final finalErr
-	if errors.As(err, &final) {
-		err = final.error
-	}
 	switch code := brain.Code(err); {
 	case err == nil:
 		return startAccepted
@@ -646,15 +631,18 @@ func (d *runDriver) frame(ctx context.Context, run assistantModel.Run, last *int
 		_ = json.Unmarshal(data, &finished)
 		// The outcome is decided before the frame is stored, for the same reason; the measurement is already stored. "done"
 		// finished, "stopped" was cancelled (StopRun, or the brain shutting down: no failure), anything else ("failed") errored.
-		d.brainEnded = true
+		// The event is stored only once the close is: a close that fails leaves it unread, and the reopened stream brings it again.
+		end, reason := assistantModel.RunFailed, assistantModel.FailureBrainFailed
 		switch finished.Status {
 		case "done":
-			d.close(ctx, run, assistantModel.RunFinished, "")
+			end, reason = assistantModel.RunFinished, ""
 		case "stopped":
-			d.close(ctx, run, assistantModel.RunStopped, "")
-		default:
-			d.close(ctx, run, assistantModel.RunFailed, assistantModel.FailureBrainFailed)
+			end, reason = assistantModel.RunStopped, ""
 		}
+		if err = d.close(ctx, run, end, reason); err != nil {
+			return err
+		}
+		d.brainEnded = true
 	case measurementEvents[typ]:
 		if err = u.runs.SetMeasurement(ctx, run.ID, data, now); err != nil {
 			return err
@@ -805,11 +793,13 @@ func (d *runDriver) sendVerdict(ctx context.Context, run assistantModel.Run, a a
 	if err != nil {
 		return
 	}
-	// answer_seq is the seq of the answer event: the idempotency key of the verdict with run_id. A state subtask's verdict has no
-	// answer event; its stored key is negative and goes as its two's complement, which no event of the brain reaches.
-	body := &brainapiv1.VerdictRequest{
-		RunId: run.ID.String(), AnswerSeq: uint64(a.Seq), SubtaskRef: a.SubtaskRef, Correct: a.Correct, //nolint:gosec // see above
-		At: timestamppb.New(a.At.UTC()),
+	// An answer verdict is keyed by (run_id, answer_seq), the seq of its answer event. A state subtask's verdict has no answer
+	// event (its stored key is the platform's own negative number): state=true, answer_seq unset, keyed by (run_id, subtask_ref).
+	body := &brainapiv1.VerdictRequest{RunId: run.ID.String(), SubtaskRef: a.SubtaskRef, Correct: a.Correct, At: timestamppb.New(a.At.UTC())}
+	if a.Seq > 0 {
+		body.AnswerSeq = uint64(a.Seq)
+	} else {
+		body.State = true
 	}
 	err = brain.Retry(ctx, verdictAttempts, u.runPause, func(ctx context.Context) error { return c.PostVerdict(ctx, body) })
 	if err == nil || finalRefusal(err) {

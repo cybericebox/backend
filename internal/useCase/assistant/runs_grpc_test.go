@@ -7,7 +7,6 @@ import (
 	"google.golang.org/grpc/codes"
 
 	assistantModel "github.com/cybericebox/backend/internal/model/assistant"
-	exerciseUseCase "github.com/cybericebox/backend/internal/useCase/exercise"
 )
 
 // The stream is reopened with after_seq = the last stored event, and anything at or below it that the brain sends again is
@@ -85,17 +84,4 @@ func TestStartRunCodesFollowTheErrorModel(t *testing.T) {
 			t.Fatalf("%+v", got)
 		}
 	})
-}
-
-// A state subtask's verdict has no answer event: its key is the platform's own negative number, sent as its two's complement.
-func TestAStateVerdictIsKeyedOutsideTheBrainsSequence(t *testing.T) {
-	r := newRunRig(t, nil)
-	r.labs.stateTasks = []exerciseUseCase.StateSubtask{{Key: "service", Passed: true}}
-	run := r.start(t)
-	r.drive(t)
-	r.waitState(t, run.ID, assistantModel.RunRunning)
-	eventually(t, "the verdict", func() bool { return len(r.brn.VerdictRequests(run.ID.String())) == 1 })
-	if seq := r.brn.VerdictRequests(run.ID.String())[0].GetAnswerSeq(); seq != ^uint64(0) {
-		t.Fatalf("answer_seq = %d", seq)
-	}
 }

@@ -1013,12 +1013,14 @@ func (x *RunEvent) GetData() []byte {
 }
 
 type VerdictRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	RunId         string                 `protobuf:"bytes,1,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
-	AnswerSeq     uint64                 `protobuf:"varint,2,opt,name=answer_seq,json=answerSeq,proto3" json:"answer_seq,omitempty"`   // the seq of the `answer` event this verdicts; idempotency = (run_id, answer_seq)
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	RunId     string                 `protobuf:"bytes,1,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	AnswerSeq uint64                 `protobuf:"varint,2,opt,name=answer_seq,json=answerSeq,proto3" json:"answer_seq,omitempty"` // the seq of the `answer` event this verdicts; idempotency is (run_id, answer_seq) for an answer verdict;
+	// (run_id, subtask_ref) when state=true (a state subtask passes once, answer_seq unset)
 	SubtaskRef    string                 `protobuf:"bytes,3,opt,name=subtask_ref,json=subtaskRef,proto3" json:"subtask_ref,omitempty"` // informational (the brain already knows it from the answer event)
 	Correct       bool                   `protobuf:"varint,4,opt,name=correct,proto3" json:"correct,omitempty"`                        // the brain learns ONLY this + the time, never the expected value
 	At            *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=at,proto3" json:"at,omitempty"`
+	State         bool                   `protobuf:"varint,6,opt,name=state,proto3" json:"state,omitempty"` // true for a STATE-checked subtask: no answer event, answer_seq unset, keyed by subtask_ref
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1086,6 +1088,13 @@ func (x *VerdictRequest) GetAt() *timestamppb.Timestamp {
 		return x.At
 	}
 	return nil
+}
+
+func (x *VerdictRequest) GetState() bool {
+	if x != nil {
+		return x.State
+	}
+	return false
 }
 
 type LabFactsRequest struct {
@@ -2946,7 +2955,7 @@ const file_brain_proto_rawDesc = "" +
 	"\bRunEvent\x12\x10\n" +
 	"\x03seq\x18\x01 \x01(\x04R\x03seq\x12\x12\n" +
 	"\x04type\x18\x02 \x01(\tR\x04type\x12\x12\n" +
-	"\x04data\x18\x03 \x01(\fR\x04data\"\xad\x01\n" +
+	"\x04data\x18\x03 \x01(\fR\x04data\"\xc3\x01\n" +
 	"\x0eVerdictRequest\x12\x15\n" +
 	"\x06run_id\x18\x01 \x01(\tR\x05runId\x12\x1d\n" +
 	"\n" +
@@ -2954,7 +2963,8 @@ const file_brain_proto_rawDesc = "" +
 	"\vsubtask_ref\x18\x03 \x01(\tR\n" +
 	"subtaskRef\x12\x18\n" +
 	"\acorrect\x18\x04 \x01(\bR\acorrect\x12*\n" +
-	"\x02at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\x02at\"\xf7\x02\n" +
+	"\x02at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\x02at\x12\x14\n" +
+	"\x05state\x18\x06 \x01(\bR\x05state\"\xf7\x02\n" +
 	"\x0fLabFactsRequest\x12\x15\n" +
 	"\x06run_id\x18\x01 \x01(\tR\x05runId\x12 \n" +
 	"\fready_time_s\x18\x02 \x01(\x01R\n" +

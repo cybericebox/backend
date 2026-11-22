@@ -54,10 +54,30 @@ func RetryDelay(err error) (time.Duration, bool) {
 	return 0, false
 }
 
+// noRetryErr marks an error Retry must not try again, whatever its code (the caller decides about it itself).
+type noRetryErr struct{ error }
+
+func (e noRetryErr) Unwrap() error { return e.error }
+
+// GRPCStatus keeps the status of the wrapped error visible to status.FromError and Code.
+func (e noRetryErr) GRPCStatus() *status.Status {
+	st, _ := status.FromError(e.error)
+	return st
+}
+
+// NoRetry marks err so that Retry returns it at once (nil stays nil).
+func NoRetry(err error) error {
+	if err == nil {
+		return nil
+	}
+	return noRetryErr{err}
+}
+
 // Retryable says a call may be tried again: the brain is unavailable or rate limits the platform, or the network failed (no
 // status, or our own deadline ran out before an answer). A cancelled context is never retried.
 func Retryable(err error) bool {
-	if err == nil || errors.Is(err, context.Canceled) {
+	var marked noRetryErr
+	if err == nil || errors.Is(err, context.Canceled) || errors.As(err, &marked) {
 		return false
 	}
 	st, ok := status.FromError(err)
@@ -78,6 +98,10 @@ func Retry(ctx context.Context, attempts int, pause time.Duration, fn func(ctx c
 	var err error
 	for attempt := 1; ; attempt++ {
 		if err = fn(ctx); err == nil || !Retryable(err) || attempt >= attempts {
+			var marked noRetryErr
+			if errors.As(err, &marked) {
+				return marked.error
+			}
 			return err
 		}
 		wait := time.Duration(float64(pause) * (0.8 + 0.4*rand.Float64())) //nolint:gosec // jitter, not a secret
