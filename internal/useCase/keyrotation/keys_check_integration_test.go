@@ -169,6 +169,25 @@ VALUES ($1::river_job_state, 'exercise_import', jsonb_build_object('sealed_passw
 	require.True(t, v.Retirable, "%v", v.Blockers)
 }
 
+// 7b. a draft key sealed by the old key blocks it while it is not stale (used within two days); a stale one does not.
+func TestKeysCheck_LiveDraftKeysBlockTheKeyThatSealsThem(t *testing.T) {
+	w := newWorld(t)
+	w.smtp(1, w.seal(w.ring, "p1", w.ctxs.SMTP(id(1))))
+	user := id(50)
+	w.exec(`INSERT INTO users (id, email, first_name, last_name, role, status, created_at) VALUES ($1, 'draft@keys.test', 'A', 'B', 'user', 'active', now())`, user)
+	sealedOld := w.seal(w.oldC, "draft", []byte("draft-key:x"))
+	w.exec(`INSERT INTO user_draft_keys (id, user_id, key_ciphertext, created_at, last_used_at) VALUES ('stale', $1, $2, now() - interval '3 days', now() - interval '49 hours')`, user, sealedOld)
+	v, err := w.checkReport().Verdict(secretkeys.FamilyPlatform, "k1")
+	require.NoError(t, err)
+	require.True(t, v.Retirable, "a stale draft key does not hold the key: %v", v.Blockers)
+
+	w.exec(`INSERT INTO user_draft_keys (id, user_id, key_ciphertext, created_at, last_used_at) VALUES ('live', $1, $2, now(), now())`, user, sealedOld)
+	v, err = w.checkReport().Verdict(secretkeys.FamilyPlatform, "k1")
+	require.NoError(t, err)
+	require.False(t, v.Retirable)
+	require.Contains(t, strings.Join(v.Blockers, "\n"), "1 short-lived value(s) in user_draft_keys.key_ciphertext (not stale)")
+}
+
 // 14. end to end on a database with mixed key ids: not retirable while old-key, legacy and broken values are there, and
 // retirable after they are fixed and the family was re-encrypted; the time of the last move comes from the progress rows.
 func TestKeysCheck_MixedDatabaseBecomesRetirableAfterTheRotation(t *testing.T) {

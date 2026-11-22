@@ -12,6 +12,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/repository/draftKeyRepo"
 	"github.com/cybericebox/backend/internal/delivery/repository/googleLinkTicketRepo"
 	"github.com/cybericebox/backend/internal/delivery/repository/passkeyRepo"
 	"github.com/cybericebox/backend/internal/delivery/repository/sessionRepo"
@@ -30,6 +31,7 @@ import (
 	"github.com/cybericebox/backend/internal/session"
 	"github.com/cybericebox/backend/pkg/oauth"
 	"github.com/cybericebox/backend/pkg/password"
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
 // IRepository is the narrow data port: the User, Session and TemporalCode repos'
@@ -42,6 +44,7 @@ type IRepository interface {
 	passkeyRepo.Queries
 	userExportRepo.Queries
 	tablePrefsRepo.Queries
+	draftKeyRepo.Queries
 	googleLinkTicketRepo.Queries
 }
 
@@ -98,6 +101,9 @@ type AuthUseCase struct {
 	passkeys   *passkeyRepo.Repository
 	exports    *userExportRepo.Repository
 	tablePrefs *tablePrefsRepo.Repository
+	draftKeys  *draftKeyRepo.Repository
+	// draftCipher seals the draft keys at rest; nil when PLATFORM_SECRETS_KEY is unset.
+	draftCipher *secret.Cipher
 	// webauthn is the relying party of passkey sign-in; nil when the hosts do not allow one.
 	webauthn           *webauthn.WebAuthn
 	googleTickets      *googleLinkTicketRepo.Repository
@@ -179,6 +185,7 @@ func NewAuthUseCase(deps Dependencies) *AuthUseCase {
 		passkeys:          passkeyRepo.New(deps.Repo),
 		exports:           userExportRepo.New(deps.Repo),
 		tablePrefs:        tablePrefsRepo.New(deps.Repo),
+		draftKeys:         draftKeyRepo.New(deps.Repo),
 		googleTickets:     googleLinkTicketRepo.New(deps.Repo),
 		token:             deps.Token,
 		password:          deps.Password,
@@ -301,6 +308,9 @@ func (u *AuthUseCase) deleteUserCascade(ctx context.Context, userID uuid.UUID, a
 	}
 	if err := u.tablePrefs.DeleteAll(ctx, userID); err != nil {
 		return model.ErrPlatform.WithError(err).WithMessage("Failed to delete user table views").Err()
+	}
+	if err := u.forgetAllDraftKeys(ctx, userID); err != nil {
+		return err
 	}
 	if _, err := u.passkeys.DeleteAll(ctx, userID); err != nil {
 		return model.ErrPlatform.WithError(err).WithMessage("Failed to delete user passkeys").Err()

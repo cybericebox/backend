@@ -25030,6 +25030,50 @@ const docTemplate = `{
                 }
             }
         },
+        "/me/draft-key": {
+            "post": {
+                "description": "The catalog editor seals its unsaved drafts in the browser (flags and secret values included) with this\nAES-256 key. One key per person and browser: the browser is named by the httpOnly, Secure, SameSite=Lax\ncookie cib_draft_key (Path=/api, Max-Age 2 days, refreshed on every call). The live key of the caller\nnamed by the cookie is returned; otherwise (no cookie, a stale key, the key of another person) a new key is\nmade and the cookie set. A key unused for 2 days is deleted; signing out deletes the key of this\nbrowser, signing out the other sessions deletes the keys of the other browsers. Cache-Control: no-store.\nOnly the catalog (exercises) and admin sites get a key: any other Origin (an event site included) is 403.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Get or create the draft key of this browser",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/auth.draftKeyResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/notifications/banners": {
             "get": {
                 "description": "The site banners of the platform and of the event site, filtered by window, targeting and audience; on an event site the results-freeze banner (Kind system, ID system-results-freeze:\u003cevent id\u003e, text and level from the event's freeze settings) only while the freeze applies to this viewer, never an error; and, for a signed-in user, the user's own banner notifications (Kind personal). The ETag is the Banners version of the pulse, so the client can tell whether it holds the version the pulse reported. Sorted by severity, then platform before event, then newest.",
@@ -29989,6 +30033,19 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "Code": {
+                    "type": "string"
+                }
+            }
+        },
+        "auth.draftKeyResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "description": "ID names the key; the browser also holds it in the httpOnly cookie cib_draft_key.",
+                    "type": "string"
+                },
+                "key": {
+                    "description": "Key is the 256-bit key, standard base64 (44 characters).",
                     "type": "string"
                 }
             }

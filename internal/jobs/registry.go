@@ -10,6 +10,7 @@ import (
 	"github.com/cybericebox/backend/internal/jobs/broadcastsend"
 	"github.com/cybericebox/backend/internal/jobs/clusterreservations"
 	"github.com/cybericebox/backend/internal/jobs/dataretention"
+	"github.com/cybericebox/backend/internal/jobs/draftkeygc"
 	"github.com/cybericebox/backend/internal/jobs/errorjournal"
 	"github.com/cybericebox/backend/internal/jobs/eventanalytics"
 	"github.com/cybericebox/backend/internal/jobs/eventformdelivery"
@@ -49,6 +50,7 @@ type (
 		mediagcJob.IUseCase
 		mediaencryptJob.IUseCase
 		idempotencygcJob.IUseCase
+		draftkeygcJob.IUseCase
 		eventscoringpopulationJob.IUseCase
 		eventformdeliveryJob.IUseCase
 		eventstandsJob.IUseCase
@@ -124,6 +126,7 @@ func (wr *workerRegistry) RegisterAll(workers *river.Workers) {
 	river.AddWorker(workers, mediagcJob.NewWorker(wr.uc))
 	river.AddWorker(workers, mediaencryptJob.NewWorker(wr.uc))
 	river.AddWorker(workers, idempotencygcJob.NewWorker(wr.uc))
+	river.AddWorker(workers, draftkeygcJob.NewWorker(wr.uc))
 	river.AddWorker(workers, eventscoringpopulationJob.NewWorker(wr.uc))
 	river.AddWorker(workers, eventformdeliveryJob.NewWorker(wr.uc))
 	// Stands also prepare static challenges, so the engine runs even without
@@ -179,6 +182,10 @@ func (wr *workerRegistry) PeriodicJobs() []*river.PeriodicJob {
 			return jobsModel.RegistryCheckArgs{}, standPassInsertOpts()
 		}, &river.PeriodicJobOpts{RunOnStart: true}),
 		river.NewPeriodicJob(river.PeriodicInterval(time.Hour), func() (river.JobArgs, *river.InsertOpts) { return jobsModel.IdempotencyGCArgs{}, standPassInsertOpts() }, &river.PeriodicJobOpts{RunOnStart: true}),
+		// Draft keys nobody used for two days (a read deletes the stale keys of its person; this catches the rest), hourly.
+		river.NewPeriodicJob(river.PeriodicInterval(time.Hour), func() (river.JobArgs, *river.InsertOpts) {
+			return jobsModel.DraftKeyGCArgs{}, standPassInsertOpts()
+		}, &river.PeriodicJobOpts{RunOnStart: true}),
 		river.NewPeriodicJob(river.PeriodicInterval(5*time.Minute), func() (river.JobArgs, *river.InsertOpts) {
 			return jobsModel.ResultChangeGCArgs{}, standPassInsertOpts()
 		}, &river.PeriodicJobOpts{RunOnStart: true}),

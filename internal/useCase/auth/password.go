@@ -179,6 +179,11 @@ func (u *AuthUseCase) revokeSessions(ctx context.Context, userID, keep uuid.UUID
 	if err != nil {
 		return model.ErrPlatform.WithError(err).WithMessage("Failed to revoke sessions").Err()
 	}
+	if keep == uuid.Nil {
+		// Every browser is signed out: none keeps its draft key. With a kept session the handler deletes the keys of
+		// the other browsers, since only it knows which key is this browser's (the cookie).
+		return u.forgetAllDraftKeys(ctx, userID)
+	}
 	return nil
 }
 
