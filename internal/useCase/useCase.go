@@ -468,6 +468,8 @@ func NewUseCase(deps Dependencies) *UseCase {
 	inboxRequests := inboxUseCase.NewRequestRouter(deps.Repo, notificationDispatcher)
 	inboxRequests.SetAdminURL(deps.AuthConfig.Hosts.AdminURL("/"))
 	eventUC.SetStandInbox(inboxRequests)
+	// A task set shown at the reveal timeout without every team tells the organizers which teams still wait.
+	eventUC.SetRevealTimeoutInbox(inboxRequests)
 	exerciseUC.SetProposalInbox(inboxRequests)
 	exerciseUC.SetElevationInbox(inboxRequests)
 	exerciseUC.SetImportInbox(inboxRequests)

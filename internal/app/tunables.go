@@ -21,6 +21,7 @@ import (
 // at start, before anything serves.
 func applyTunables(t config.TunablesConfig) {
 	eventStandModel.DeployTimeout = t.EventStandDeployTimeout
+	eventStandModel.RevealTimeout = t.EventLabRevealTimeout
 	sse.SetMaxLifetime(t.SSEMaxLifetime)
 	download.SetLongOperationTimeout(t.LongOperationTimeout)
 	mediaModel.LongOperationTimeout = t.LongOperationTimeout

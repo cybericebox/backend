@@ -5,6 +5,22 @@ import (
 	"time"
 )
 
+func TestEventLabRevealTimeoutDefaultAndEnvironment(t *testing.T) {
+	t.Setenv("RECAPTCHA_SECRET", "rsecret")
+	if got := MustGetConfig().Tunables.EventLabRevealTimeout; got != 5*time.Minute {
+		t.Fatalf("default reveal timeout %v, want 5m", got)
+	}
+	t.Setenv("EVENT_LAB_REVEAL_TIMEOUT", "90s")
+	if got := MustGetConfig().Tunables.EventLabRevealTimeout; got != 90*time.Second {
+		t.Fatalf("reveal timeout %v, want 90s", got)
+	}
+	cfg := MustGetConfig().Tunables
+	cfg.EventLabRevealTimeout = 0
+	if cfg.Validate() == nil {
+		t.Fatal("a zero reveal timeout must be refused")
+	}
+}
+
 func TestLabLifecycleDefaultsAndEnvironment(t *testing.T) {
 	t.Setenv("RECAPTCHA_SECRET", "rsecret")
 	cfg := MustGetConfig().LabLifecycle

@@ -13064,6 +13064,21 @@ func (mr *MockQuerierMockRecorder) OpenReadyEventLabRevealBarriers(ctx, arg any)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OpenReadyEventLabRevealBarriers", reflect.TypeOf((*MockQuerier)(nil).OpenReadyEventLabRevealBarriers), ctx, arg)
 }
 
+// OpenTimedOutEventLabRevealBarriers mocks base method.
+func (m *MockQuerier) OpenTimedOutEventLabRevealBarriers(ctx context.Context, arg postgres.OpenTimedOutEventLabRevealBarriersParams) ([]postgres.OpenTimedOutEventLabRevealBarriersRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "OpenTimedOutEventLabRevealBarriers", ctx, arg)
+	ret0, _ := ret[0].([]postgres.OpenTimedOutEventLabRevealBarriersRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// OpenTimedOutEventLabRevealBarriers indicates an expected call of OpenTimedOutEventLabRevealBarriers.
+func (mr *MockQuerierMockRecorder) OpenTimedOutEventLabRevealBarriers(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OpenTimedOutEventLabRevealBarriers", reflect.TypeOf((*MockQuerier)(nil).OpenTimedOutEventLabRevealBarriers), ctx, arg)
+}
+
 // PlatformImageTagTakenByOtherDigest mocks base method.
 func (m *MockQuerier) PlatformImageTagTakenByOtherDigest(ctx context.Context, arg postgres.PlatformImageTagTakenByOtherDigestParams) (bool, error) {
 	m.ctrl.T.Helper()

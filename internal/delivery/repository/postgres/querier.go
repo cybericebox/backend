@@ -1919,6 +1919,12 @@ type Querier interface {
 	ObserveClusterReservation(ctx context.Context, arg ObserveClusterReservationParams) error
 	OpenEventStandRollout(ctx context.Context, arg OpenEventStandRolloutParams) error
 	OpenReadyEventLabRevealBarriers(ctx context.Context, arg OpenReadyEventLabRevealBarriersParams) (int64, error)
+	// The reveal timeout of an all_ready barrier that still waits: timeout_seconds after it would have opened (the latest
+	// of the event start, the opening of the task's stage and the freeze of the cohort) it opens anyway. Opening it shows
+	// the tasks only to the teams whose labs are Ready: PublishAvailableTeamChallenges still checks each team's own lab, so
+	// a stuck team gets them on its own once its lab is Ready. Each barrier opened here is returned once, with the teams
+	// of its cohort that were not Ready (the organizers' alarm names them) and the task name.
+	OpenTimedOutEventLabRevealBarriers(ctx context.Context, arg OpenTimedOutEventLabRevealBarriersParams) ([]OpenTimedOutEventLabRevealBarriersRow, error)
 	// Whether a row of another digest already maps this tag: CreateImage refuses then instead of re-pointing the tag.
 	PlatformImageTagTakenByOtherDigest(ctx context.Context, arg PlatformImageTagTakenByOtherDigestParams) (bool, error)
 	// Ready -> Published for board-published challenges. A challenge without a lab

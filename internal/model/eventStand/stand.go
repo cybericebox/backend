@@ -155,6 +155,11 @@ func AutoRecreateBackoff(attempts int) time.Duration {
 // (EVENT_STAND_DEPLOY_TIMEOUT, set once at start).
 var DeployTimeout = 20 * time.Minute
 
+// RevealTimeout is how long an all_ready task set waits, after it would have opened, for every team of its cohort to
+// have a Ready lab; then it opens for the teams that do and the organizers are told which teams still wait. Set at
+// start (EVENT_LAB_REVEAL_TIMEOUT).
+var RevealTimeout = 5 * time.Minute
+
 // Timing is the event's stand schedule: tear down N minutes after the effective finish. The deploy lead is not a
 // setting: the platform computes it (ComputeLead).
 type Timing struct {

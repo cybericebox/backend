@@ -165,6 +165,11 @@ type (
 	TunablesConfig struct {
 		// EventStandDeployTimeout fails a Lab the agent accepted but never reported ready.
 		EventStandDeployTimeout time.Duration `env:"EVENT_STAND_DEPLOY_TIMEOUT" envDefault:"20m"`
+		// EventLabRevealTimeout is how long an all_ready task set waits, after it would have opened (the event start,
+		// its stage opening or the freeze of its cohort, whichever is last), for every team's lab to be Ready. Then it
+		// opens for the teams whose labs are Ready, each stuck team gets the tasks once its own lab is Ready, and the
+		// organizers get one alarm naming the stuck teams.
+		EventLabRevealTimeout time.Duration `env:"EVENT_LAB_REVEAL_TIMEOUT" envDefault:"5m"`
 		// SSEMaxLifetime bounds one event stream; the client reconnects with Last-Event-ID.
 		SSEMaxLifetime time.Duration `env:"SSE_MAX_LIFETIME" envDefault:"30m"`
 		// LongOperationTimeout is how long a route that works on a whole big file on the server (assembling and
@@ -864,7 +869,7 @@ func (c HTTPServerConfig) validate() error {
 // Validate rejects values that would turn a limit off by accident.
 func (c TunablesConfig) Validate() error {
 	durations := map[string]time.Duration{
-		"EVENT_STAND_DEPLOY_TIMEOUT": c.EventStandDeployTimeout, "SSE_MAX_LIFETIME": c.SSEMaxLifetime, "LONG_OPERATION_TIMEOUT": c.LongOperationTimeout,
+		"EVENT_STAND_DEPLOY_TIMEOUT": c.EventStandDeployTimeout, "EVENT_LAB_REVEAL_TIMEOUT": c.EventLabRevealTimeout, "SSE_MAX_LIFETIME": c.SSEMaxLifetime, "LONG_OPERATION_TIMEOUT": c.LongOperationTimeout,
 		"LIVE_SCREEN_LINK_MAX_TTL": c.LiveScreenLinkMaxTTL, "MAIL_MAX_RATE_WAIT": c.MailMaxRateWait,
 		"MAIL_QUOTA_RETRY_AFTER": c.MailQuotaRetryAfter, "MAIL_QUOTA_RECHECK": c.MailQuotaRecheck,
 		"MAIL_QUOTA_WINDOW": c.MailQuotaWindow, "JOB_COMPLETED_RETENTION": c.JobCompletedRetention, "JOB_FAILED_RETENTION": c.JobFailedRetention,

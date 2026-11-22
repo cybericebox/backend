@@ -178,6 +178,9 @@ func (u *EventUseCase) reconcileEventStands(ctx context.Context, eventID uuid.UU
 		if err = eventLabRevealRepo.New(u.repo).OpenReady(ctx, eventID, now); err != nil {
 			return err
 		}
+		if err = u.openTimedOutReveals(ctx, e, now); err != nil {
+			errs = append(errs, err)
+		}
 	}
 	published, err := u.teamChallenges.PublishAvailable(ctx, eventID, open && e.InfrastructureAllowed)
 	if err != nil {

@@ -17,6 +17,7 @@ type Queries interface {
 	FreezeEventLabRevealBarrier(context.Context, postgres.FreezeEventLabRevealBarrierParams) ([]uuid.UUID, error)
 	ListRetryableEmptyEventLabRevealBarriers(context.Context, uuid.UUID) ([]uuid.UUID, error)
 	OpenReadyEventLabRevealBarriers(context.Context, postgres.OpenReadyEventLabRevealBarriersParams) (int64, error)
+	OpenTimedOutEventLabRevealBarriers(context.Context, postgres.OpenTimedOutEventLabRevealBarriersParams) ([]postgres.OpenTimedOutEventLabRevealBarriersRow, error)
 	IsEventLabManualReachable(context.Context, postgres.IsEventLabManualReachableParams) (bool, error)
 }
 type Repository struct{ q Queries }
@@ -33,6 +34,35 @@ func (r *Repository) OpenReady(ctx context.Context, eventID uuid.UUID, now time.
 	_, err := r.q.OpenReadyEventLabRevealBarriers(ctx, postgres.OpenReadyEventLabRevealBarriersParams{EventID: eventID, Now: pgtype.Timestamptz{Time: now, Valid: true}})
 	return err
 }
+
+// TimedOut is a barrier the reveal timeout opened: its task and the teams of its cohort whose labs were not Ready.
+type TimedOut struct {
+	EventExerciseID uuid.UUID
+	Revision        int64
+	TaskName        string
+	StuckTeamIDs    []uuid.UUID
+	StuckTeamNames  []string
+}
+
+// OpenTimedOut opens the all_ready barriers of the event that still wait timeout after they would have opened, and
+// returns each of them once (see OpenTimedOutEventLabRevealBarriers).
+func (r *Repository) OpenTimedOut(ctx context.Context, eventID uuid.UUID, now time.Time, timeout time.Duration) ([]TimedOut, error) {
+	rows, err := r.q.OpenTimedOutEventLabRevealBarriers(ctx, postgres.OpenTimedOutEventLabRevealBarriersParams{
+		EventID: eventID, TimeoutSeconds: timeout.Seconds(), Now: now,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]TimedOut, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, TimedOut{
+			EventExerciseID: row.EventExerciseID, Revision: row.Revision, TaskName: row.TaskName,
+			StuckTeamIDs: row.StuckTeamIds, StuckTeamNames: row.StuckTeamNames,
+		})
+	}
+	return out, nil
+}
+
 func (r *Repository) Reachable(ctx context.Context, labID uuid.UUID, now time.Time) (bool, error) {
 	return r.q.IsEventLabManualReachable(ctx, postgres.IsEventLabManualReachableParams{LabID: labID, Now: now})
 }
