@@ -18,6 +18,7 @@ import (
 	authHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/auth"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	authModel "github.com/cybericebox/backend/internal/model/auth"
+	draftKeyModel "github.com/cybericebox/backend/internal/model/draftKey"
 	passkeyModel "github.com/cybericebox/backend/internal/model/passkey"
 	"github.com/cybericebox/backend/internal/model/rbac"
 	tablePrefsModel "github.com/cybericebox/backend/internal/model/tablePrefs"
@@ -55,6 +56,12 @@ type fakeUC struct {
 	exportErr         error
 	tablePrefs        *tablePrefsModel.Prefs
 	tableKey          string
+	draftKey          draftKeyModel.Key
+	draftCookie       string
+	forgotDraft       string
+	keptDraft         string
+	draftCalls        int
+	forgetDraftErr    error
 	passkeys          []passkeyModel.Passkey
 	sessionEmailErr   error
 }

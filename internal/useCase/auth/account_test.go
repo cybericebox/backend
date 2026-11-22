@@ -80,6 +80,7 @@ func TestDeleteAccount_SoftDeletesAndCutsLinks(t *testing.T) {
 		repo.EXPECT().DeleteTemporalCodesForUser(gomock.Any(), postgres.DeleteTemporalCodesForUserParams{Type: codeType, UserID: uid.String()}).Return(int64(0), nil)
 	}
 	repo.EXPECT().DeleteAllUserTablePrefs(gomock.Any(), uid).Return(int64(0), nil)
+	repo.EXPECT().DeleteAllUserDraftKeys(gomock.Any(), uid).Return(int64(0), nil)
 	repo.EXPECT().DeleteUserPasskeys(gomock.Any(), uid).Return(int64(0), nil)
 
 	if err := uc.DeleteAccount(context.Background(), uid, "Correct!1"); err != nil {
@@ -146,6 +147,7 @@ func TestDeleteAccount_SuperAdminWithPeer_Allowed(t *testing.T) {
 		repo.EXPECT().DeleteTemporalCodesForUser(gomock.Any(), postgres.DeleteTemporalCodesForUserParams{Type: codeType, UserID: uid.String()}).Return(int64(0), nil)
 	}
 	repo.EXPECT().DeleteAllUserTablePrefs(gomock.Any(), uid).Return(int64(0), nil)
+	repo.EXPECT().DeleteAllUserDraftKeys(gomock.Any(), uid).Return(int64(0), nil)
 	repo.EXPECT().DeleteUserPasskeys(gomock.Any(), uid).Return(int64(0), nil)
 
 	if err := uc.DeleteAccount(context.Background(), uid, "Correct!1"); err != nil {
@@ -173,6 +175,7 @@ func TestDeleteInactiveAccount_StillInactive_Deletes(t *testing.T) {
 		repo.EXPECT().DeleteTemporalCodesForUser(gomock.Any(), postgres.DeleteTemporalCodesForUserParams{Type: codeType, UserID: uid.String()}).Return(int64(0), nil)
 	}
 	repo.EXPECT().DeleteAllUserTablePrefs(gomock.Any(), uid).Return(int64(0), nil)
+	repo.EXPECT().DeleteAllUserDraftKeys(gomock.Any(), uid).Return(int64(0), nil)
 	repo.EXPECT().DeleteUserPasskeys(gomock.Any(), uid).Return(int64(0), nil)
 
 	deleted, err := uc.DeleteInactiveAccount(context.Background(), uid, warnedAt)
@@ -233,6 +236,7 @@ func TestDeleteAccount_GoogleOnlyNeedsARecentSignIn(t *testing.T) {
 					repo.EXPECT().DeleteTemporalCodesForUser(gomock.Any(), postgres.DeleteTemporalCodesForUserParams{Type: codeType, UserID: uid.String()}).Return(int64(0), nil)
 				}
 				repo.EXPECT().DeleteAllUserTablePrefs(gomock.Any(), uid).Return(int64(0), nil)
+				repo.EXPECT().DeleteAllUserDraftKeys(gomock.Any(), uid).Return(int64(0), nil)
 				repo.EXPECT().DeleteUserPasskeys(gomock.Any(), uid).Return(int64(0), nil)
 				if err := uc.DeleteAccount(ctx, uid, ""); err != nil {
 					t.Fatalf("a recent sign-in must be enough: %v", err)
@@ -258,6 +262,7 @@ func TestDeleteAccount_RemovesTheAvatarAndTheLegacyObject(t *testing.T) {
 	repo.EXPECT().DeleteUserProviders(gomock.Any(), uid).Return(int64(0), nil)
 	repo.EXPECT().DeleteTemporalCodesForUser(gomock.Any(), gomock.Any()).Return(int64(0), nil).Times(3)
 	repo.EXPECT().DeleteAllUserTablePrefs(gomock.Any(), uid).Return(int64(0), nil)
+	repo.EXPECT().DeleteAllUserDraftKeys(gomock.Any(), uid).Return(int64(0), nil)
 	repo.EXPECT().DeleteUserPasskeys(gomock.Any(), uid).Return(int64(0), nil)
 
 	if err := uc.DeleteAccount(context.Background(), uid, "Correct!1"); err != nil {

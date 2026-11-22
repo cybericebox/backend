@@ -310,6 +310,9 @@ func (u *AuthUseCase) UpdateUserStatus(ctx context.Context, userID uuid.UUID, st
 		if _, err := u.revokeAll(ctx, userID); err != nil {
 			return model.ErrPlatform.WithError(err).WithMessage("Failed to revoke sessions for blocked user").Err()
 		}
+		if err := u.forgetAllDraftKeys(ctx, userID); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -407,7 +410,7 @@ func (u *AuthUseCase) EndUserSessions(ctx context.Context, userID uuid.UUID) err
 			WithMessage("Failed to end the sessions of the user").
 			Err()
 	}
-	return nil
+	return u.forgetAllDraftKeys(ctx, userID)
 }
 
 // ResendUserInvitation sends the invitation of an unfinished registration again with a new link (the old one stops

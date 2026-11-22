@@ -519,6 +519,7 @@ func NewUseCase(deps Dependencies) *UseCase {
 	)
 	authUC.SetDeliveryQueue(deps.EnqueuerFactory.NewEnqueuer(), deps.PlatformCipher, postgres.NewUnitOfWorker[authUseCase.IRepository](deps.Repo.UoWFactory()))
 	authUC.SetInboxRequests(inboxRequests)
+	authUC.SetDraftKeyCipher(deps.PlatformCipher)
 
 	// Inactive accounts leave through the same cascade as a deletion request.
 	retentionUC := retentionUseCase.New(retentionUseCase.Dependencies{

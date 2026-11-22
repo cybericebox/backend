@@ -140,6 +140,7 @@ func (h *Handler) revokeOtherSessions(ctx *gin.Context) {
 		response.AbortWithError(ctx, err)
 		return
 	}
+	h.forgetOtherDraftKeys(ctx, userID)
 	response.AbortWithSuccess(ctx)
 }
 

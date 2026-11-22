@@ -2670,6 +2670,21 @@ func (mr *MockQuerierMockRecorder) DeclineEventLabRevealTeam(ctx, arg any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeclineEventLabRevealTeam", reflect.TypeOf((*MockQuerier)(nil).DeclineEventLabRevealTeam), ctx, arg)
 }
 
+// DeleteAllUserDraftKeys mocks base method.
+func (m *MockQuerier) DeleteAllUserDraftKeys(ctx context.Context, userID uuid.UUID) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteAllUserDraftKeys", ctx, userID)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteAllUserDraftKeys indicates an expected call of DeleteAllUserDraftKeys.
+func (mr *MockQuerierMockRecorder) DeleteAllUserDraftKeys(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAllUserDraftKeys", reflect.TypeOf((*MockQuerier)(nil).DeleteAllUserDraftKeys), ctx, userID)
+}
+
 // DeleteAllUserTablePrefs mocks base method.
 func (m *MockQuerier) DeleteAllUserTablePrefs(ctx context.Context, userID uuid.UUID) (int64, error) {
 	m.ctrl.T.Helper()
@@ -3490,6 +3505,21 @@ func (mr *MockQuerierMockRecorder) DeleteSolveIntegrityReview(ctx, arg any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteSolveIntegrityReview", reflect.TypeOf((*MockQuerier)(nil).DeleteSolveIntegrityReview), ctx, arg)
 }
 
+// DeleteStaleDraftKeys mocks base method.
+func (m *MockQuerier) DeleteStaleDraftKeys(ctx context.Context, staleBefore time.Time) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteStaleDraftKeys", ctx, staleBefore)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteStaleDraftKeys indicates an expected call of DeleteStaleDraftKeys.
+func (mr *MockQuerierMockRecorder) DeleteStaleDraftKeys(ctx, staleBefore any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteStaleDraftKeys", reflect.TypeOf((*MockQuerier)(nil).DeleteStaleDraftKeys), ctx, staleBefore)
+}
+
 // DeleteStaleImageBlobPushes mocks base method.
 func (m *MockQuerier) DeleteStaleImageBlobPushes(ctx context.Context, updatedAt time.Time) (int64, error) {
 	m.ctrl.T.Helper()
@@ -3517,6 +3547,21 @@ func (m *MockQuerier) DeleteStaleLabMonitoringCurrent(ctx context.Context, arg p
 func (mr *MockQuerierMockRecorder) DeleteStaleLabMonitoringCurrent(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteStaleLabMonitoringCurrent", reflect.TypeOf((*MockQuerier)(nil).DeleteStaleLabMonitoringCurrent), ctx, arg)
+}
+
+// DeleteStaleUserDraftKeys mocks base method.
+func (m *MockQuerier) DeleteStaleUserDraftKeys(ctx context.Context, arg postgres.DeleteStaleUserDraftKeysParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteStaleUserDraftKeys", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteStaleUserDraftKeys indicates an expected call of DeleteStaleUserDraftKeys.
+func (mr *MockQuerierMockRecorder) DeleteStaleUserDraftKeys(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteStaleUserDraftKeys", reflect.TypeOf((*MockQuerier)(nil).DeleteStaleUserDraftKeys), ctx, arg)
 }
 
 // DeleteTeamChallengeSolve mocks base method.
@@ -3605,6 +3650,36 @@ func (m *MockQuerier) DeleteUnreferencedFiles(ctx context.Context, createdBefore
 func (mr *MockQuerierMockRecorder) DeleteUnreferencedFiles(ctx, createdBefore any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUnreferencedFiles", reflect.TypeOf((*MockQuerier)(nil).DeleteUnreferencedFiles), ctx, createdBefore)
+}
+
+// DeleteUserDraftKey mocks base method.
+func (m *MockQuerier) DeleteUserDraftKey(ctx context.Context, arg postgres.DeleteUserDraftKeyParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteUserDraftKey", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteUserDraftKey indicates an expected call of DeleteUserDraftKey.
+func (mr *MockQuerierMockRecorder) DeleteUserDraftKey(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUserDraftKey", reflect.TypeOf((*MockQuerier)(nil).DeleteUserDraftKey), ctx, arg)
+}
+
+// DeleteUserDraftKeysExcept mocks base method.
+func (m *MockQuerier) DeleteUserDraftKeysExcept(ctx context.Context, arg postgres.DeleteUserDraftKeysExceptParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteUserDraftKeysExcept", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteUserDraftKeysExcept indicates an expected call of DeleteUserDraftKeysExcept.
+func (mr *MockQuerierMockRecorder) DeleteUserDraftKeysExcept(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUserDraftKeysExcept", reflect.TypeOf((*MockQuerier)(nil).DeleteUserDraftKeysExcept), ctx, arg)
 }
 
 // DeleteUserPasskey mocks base method.
@@ -7257,6 +7332,20 @@ func (m *MockQuerier) InsertPlatformSMTPProvider(ctx context.Context, arg postgr
 func (mr *MockQuerierMockRecorder) InsertPlatformSMTPProvider(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertPlatformSMTPProvider", reflect.TypeOf((*MockQuerier)(nil).InsertPlatformSMTPProvider), ctx, arg)
+}
+
+// InsertUserDraftKey mocks base method.
+func (m *MockQuerier) InsertUserDraftKey(ctx context.Context, arg postgres.InsertUserDraftKeyParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertUserDraftKey", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertUserDraftKey indicates an expected call of InsertUserDraftKey.
+func (mr *MockQuerierMockRecorder) InsertUserDraftKey(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertUserDraftKey", reflect.TypeOf((*MockQuerier)(nil).InsertUserDraftKey), ctx, arg)
 }
 
 // InvalidateEventLabRevealBarrier mocks base method.
@@ -14051,6 +14140,21 @@ func (mr *MockQuerierMockRecorder) RequestModeratorsTeamLabAccessSync(ctx, arg a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RequestModeratorsTeamLabAccessSync", reflect.TypeOf((*MockQuerier)(nil).RequestModeratorsTeamLabAccessSync), ctx, arg)
 }
 
+// ResealUserDraftKey mocks base method.
+func (m *MockQuerier) ResealUserDraftKey(ctx context.Context, arg postgres.ResealUserDraftKeyParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ResealUserDraftKey", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ResealUserDraftKey indicates an expected call of ResealUserDraftKey.
+func (mr *MockQuerierMockRecorder) ResealUserDraftKey(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResealUserDraftKey", reflect.TypeOf((*MockQuerier)(nil).ResealUserDraftKey), ctx, arg)
+}
+
 // ReservePlatformSMTPSend mocks base method.
 func (m *MockQuerier) ReservePlatformSMTPSend(ctx context.Context, arg postgres.ReservePlatformSMTPSendParams) (int32, error) {
 	m.ctrl.T.Helper()
@@ -15377,6 +15481,21 @@ func (mr *MockQuerierMockRecorder) TouchSession(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TouchSession", reflect.TypeOf((*MockQuerier)(nil).TouchSession), ctx, arg)
 }
 
+// TouchUserDraftKey mocks base method.
+func (m *MockQuerier) TouchUserDraftKey(ctx context.Context, arg postgres.TouchUserDraftKeyParams) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TouchUserDraftKey", ctx, arg)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// TouchUserDraftKey indicates an expected call of TouchUserDraftKey.
+func (mr *MockQuerierMockRecorder) TouchUserDraftKey(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TouchUserDraftKey", reflect.TypeOf((*MockQuerier)(nil).TouchUserDraftKey), ctx, arg)
+}
+
 // TrimErrorSamples mocks base method.
 func (m *MockQuerier) TrimErrorSamples(ctx context.Context, arg postgres.TrimErrorSamplesParams) error {
 	m.ctrl.T.Helper()
@@ -15389,6 +15508,21 @@ func (m *MockQuerier) TrimErrorSamples(ctx context.Context, arg postgres.TrimErr
 func (mr *MockQuerierMockRecorder) TrimErrorSamples(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TrimErrorSamples", reflect.TypeOf((*MockQuerier)(nil).TrimErrorSamples), ctx, arg)
+}
+
+// TrimUserDraftKeys mocks base method.
+func (m *MockQuerier) TrimUserDraftKeys(ctx context.Context, arg postgres.TrimUserDraftKeysParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TrimUserDraftKeys", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// TrimUserDraftKeys indicates an expected call of TrimUserDraftKeys.
+func (mr *MockQuerierMockRecorder) TrimUserDraftKeys(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TrimUserDraftKeys", reflect.TypeOf((*MockQuerier)(nil).TrimUserDraftKeys), ctx, arg)
 }
 
 // TryAddEventTeamMember mocks base method.

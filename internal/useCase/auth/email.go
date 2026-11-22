@@ -10,6 +10,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/delivery/repository/draftKeyRepo"
 	"github.com/cybericebox/backend/internal/delivery/repository/sessionRepo"
 	"github.com/cybericebox/backend/internal/delivery/repository/temporalCodeRepo"
 	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
@@ -91,7 +92,7 @@ func (u *AuthUseCase) ConfirmEmailChange(ctx context.Context, bsCode string) err
 	}
 	defer unit.Restore()
 	var revocations []sessionRepo.Revoked
-	bound := &AuthUseCase{users: userRepo.New(repo), codes: temporalCodeRepo.New(repo), sessions: sessionRepo.New(repo), notifier: u.notifier, cfg: u.cfg, pendingRevocations: &revocations}
+	bound := &AuthUseCase{users: userRepo.New(repo), codes: temporalCodeRepo.New(repo), sessions: sessionRepo.New(repo), draftKeys: draftKeyRepo.New(repo), notifier: u.notifier, cfg: u.cfg, pendingRevocations: &revocations}
 	if err = bound.confirmEmailChange(txCtx, bsCode); err != nil {
 		return err
 	}

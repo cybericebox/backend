@@ -199,6 +199,16 @@ definitions:
       Code:
         type: string
     type: object
+  auth.draftKeyResponse:
+    properties:
+      id:
+        description: ID names the key; the browser also holds it in the httpOnly cookie
+          cib_draft_key.
+        type: string
+      key:
+        description: Key is the 256-bit key, standard base64 (44 characters).
+        type: string
+    type: object
   auth.googleLinkCodeResponse:
     properties:
       ResendAfterSeconds:
@@ -30217,6 +30227,39 @@ paths:
         in use
       tags:
       - mail
+  /me/draft-key:
+    post:
+      description: |-
+        The catalog editor seals its unsaved drafts in the browser (flags and secret values included) with this
+        AES-256 key. One key per person and browser: the browser is named by the httpOnly, Secure, SameSite=Lax
+        cookie cib_draft_key (Path=/api, Max-Age 2 days, refreshed on every call). The live key of the caller
+        named by the cookie is returned; otherwise (no cookie, a stale key, the key of another person) a new key is
+        made and the cookie set. A key unused for 2 days is deleted; signing out deletes the key of this
+        browser, signing out the other sessions deletes the keys of the other browsers. Cache-Control: no-store.
+        Only the catalog (exercises) and admin sites get a key: any other Origin (an event site included) is 403.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/auth.draftKeyResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: Get or create the draft key of this browser
+      tags:
+      - auth
   /notifications/banners:
     get:
       description: The site banners of the platform and of the event site, filtered

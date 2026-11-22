@@ -75,6 +75,12 @@ func ArchiveExportPassword(jobID uuid.UUID) []byte {
 	return []byte("exercise-export:password:" + jobID.String())
 }
 
+// DraftKey binds the stored draft key of a browser to its person and its id: a key copied to another person or row does
+// not open there.
+func DraftKey(userID uuid.UUID, keyID string) []byte {
+	return []byte("draft-key:" + userID.String() + ":" + keyID)
+}
+
 // SessionTicket is the context of the session cookie. A cookie is opened before anyone is signed in, so there is no row to
 // bind it to: the context only keeps a ticket from opening as any other value.
 func SessionTicket() []byte { return []byte("cybericebox/session-ticket/v1") }

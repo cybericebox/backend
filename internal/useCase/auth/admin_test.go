@@ -343,6 +343,7 @@ func TestAdminDeleteUser_Success(t *testing.T) {
 		repo.EXPECT().DeleteTemporalCodesForUser(gomock.Any(), postgres.DeleteTemporalCodesForUserParams{Type: codeType, UserID: uid.String()}).Return(int64(0), nil)
 	}
 	repo.EXPECT().DeleteAllUserTablePrefs(gomock.Any(), uid).Return(int64(0), nil)
+	repo.EXPECT().DeleteAllUserDraftKeys(gomock.Any(), uid).Return(int64(0), nil)
 	repo.EXPECT().DeleteUserPasskeys(gomock.Any(), uid).Return(int64(0), nil)
 
 	if err := uc.DeleteUser(ctx, uid); err != nil {
@@ -422,6 +423,7 @@ func TestUpdateUserStatus_BlockedRevokesSessions(t *testing.T) {
 			return 1, nil
 		})
 	repo.EXPECT().RevokeUserSessions(gomock.Any(), gomock.Any()).Return(revokedRows(2), nil)
+	repo.EXPECT().DeleteAllUserDraftKeys(gomock.Any(), uid).Return(int64(0), nil)
 
 	if err := uc.UpdateUserStatus(ctx, uid, userModel.UserStatusBlocked); err != nil {
 		t.Fatalf("UpdateUserStatus(blocked): %v", err)
@@ -576,6 +578,7 @@ func TestAdminAccountManagementByRole(t *testing.T) {
 					repo.EXPECT().CountUsers(gomock.Any(), gomock.Any()).Return(int64(2), nil).AnyTimes()
 					repo.EXPECT().UpdateUser(gomock.Any(), gomock.Any()).Return(int64(1), nil)
 					repo.EXPECT().RevokeUserSessions(gomock.Any(), gomock.Any()).Return(revokedRows(0), nil)
+					repo.EXPECT().DeleteAllUserDraftKeys(gomock.Any(), gomock.Any()).Return(int64(0), nil)
 				}
 				err := uc.UpdateUserStatus(adminCtx(caller), uid, userModel.UserStatusBlocked)
 				if allowed == errors.Is(err, authModel.ErrInsufficientPermission.Err()) {
@@ -635,6 +638,7 @@ func TestBulkUserAction_OneResultPerUserAndTheSingleActionChecks(t *testing.T) {
 		GetUserByID(gomock.Any(), plain).
 		Return(postgres.User{ID: plain, Role: string(rbac.RoleUser), Status: "active"}, nil)
 	repo.EXPECT().RevokeUserSessions(gomock.Any(), gomock.Any()).Return(revokedRows(1), nil)
+	repo.EXPECT().DeleteAllUserDraftKeys(gomock.Any(), gomock.Any()).Return(int64(0), nil)
 	repo.EXPECT().
 		GetUserByID(gomock.Any(), peer).
 		Return(postgres.User{ID: peer, Role: string(rbac.RoleAdmin), Status: "active"}, nil)
