@@ -1,6 +1,8 @@
-// Package brainfake is a stand-in cyber-brain for tests: an HTTPS server with its own CA that enrolls and renews client
-// certificates (server-only TLS for /v1/enroll, mutual TLS for everything else) and hands the assistant routes to a
-// test handler. It lives outside _test files so the client, use case and HTTP handler tests share one fake.
+// Package brainfake is a stand-in cyber-brain for tests, with its own CA. Its HTTPS server enrolls and renews client
+// certificates (server-only TLS for /v1/enroll, mutual TLS for everything else) and hands the chat routes (/v1/assistant/*) to
+// a test handler. Its gRPC server, on a second local port, requires mutual TLS with a certificate of that CA and implements the
+// control plane of pkg/brainapi/v1 (runs, outbox, statistics, task archives, opponents) with scripted behaviour. It lives
+// outside _test files so the client, use case and HTTP handler tests share one fake.
 package brainfake
 
 import (
@@ -16,9 +18,13 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"sync"
 	"time"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+
+	brainapiv1 "github.com/cybericebox/backend/pkg/brainapi/v1"
 )
 
 // Tenant is the CN of every certificate the fake issues.
@@ -36,11 +42,15 @@ type Fake struct {
 	CertTTL time.Duration
 	// Assistant answers /v1/assistant/* (after the client certificate was verified).
 	Assistant http.Handler
-	// RunsBackend, when set, answers /v1/runs/* instead of Runs: a real brain behind this fake's TLS (a contract test puts a
-	// reverse proxy to a locally started brain here).
-	RunsBackend http.Handler
-	// Runs answers /v1/runs/* (after the client certificate was verified); nil: not found.
-	Runs *Runs
+	// Runs, Outbox, Data, Archives and Opponents are the gRPC control plane (see GRPCEndpoint).
+	Runs      *Runs
+	Outbox    *Outbox
+	Data      *Data
+	Archives  *Archives
+	Opponents *Opponents
+
+	grpcServer   *grpc.Server
+	grpcListener net.Listener
 
 	mu            sync.Mutex
 	ca            *authority
@@ -88,13 +98,13 @@ func (a *authority) serverCertificate(serial int64) tls.Certificate {
 	return tls.Certificate{Certificate: [][]byte{der}, PrivateKey: key}
 }
 
-// New starts the fake. Close it with Fake.Server.Close.
+// New starts the fake. Close it with Close.
 func New() *Fake { return NewOn(nil) }
 
-// NewOn starts the fake on an existing listener (nil: a new local one), for a test that puts another brain on the
-// address of a closed one.
+// NewOn starts the fake's HTTPS server on an existing listener (nil: a new local one), for a test that puts another brain on
+// the address of a closed one. The gRPC server always gets a new local port.
 func NewOn(l net.Listener) *Fake {
-	f := &Fake{CertTTL: 90 * 24 * time.Hour}
+	f := &Fake{CertTTL: 90 * 24 * time.Hour, Runs: NewRuns(), Outbox: NewOutbox(), Data: NewData(), Archives: NewArchives(), Opponents: &Opponents{}}
 	f.ca = newAuthority(1)
 	f.CAPEM = f.ca.encoded
 	f.serverCert = f.ca.serverCertificate(2)
@@ -106,19 +116,48 @@ func NewOn(l net.Listener) *Fake {
 	f.Server.TLS = &tls.Config{
 		ClientAuth: tls.VerifyClientCertIfGiven, MinVersion: tls.VersionTLS12,
 		// The certificate and the accepted client CAs follow the current CA (and the previous one during a rotation).
-		GetConfigForClient: func(*tls.ClientHelloInfo) (*tls.Config, error) {
-			f.mu.Lock()
-			defer f.mu.Unlock()
-			pool := x509.NewCertPool()
-			pool.AddCert(f.ca.cert)
-			if f.oldCA != nil {
-				pool.AddCert(f.oldCA.cert)
-			}
-			return &tls.Config{Certificates: []tls.Certificate{f.serverCert}, ClientCAs: pool, ClientAuth: tls.VerifyClientCertIfGiven, MinVersion: tls.VersionTLS12}, nil
-		},
+		GetConfigForClient: f.tlsFor(tls.VerifyClientCertIfGiven, nil),
 	}
 	f.Server.StartTLS()
+	f.Archives.onStored = f.Outbox.resolve
+	f.startGRPC()
 	return f
+}
+
+// tlsFor is the server side of a connection: the current server certificate, and the current CA (and the previous one during a
+// rotation) for client certificates.
+func (f *Fake) tlsFor(clientAuth tls.ClientAuthType, protos []string) func(*tls.ClientHelloInfo) (*tls.Config, error) {
+	return func(*tls.ClientHelloInfo) (*tls.Config, error) {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		pool := x509.NewCertPool()
+		pool.AddCert(f.ca.cert)
+		if f.oldCA != nil {
+			pool.AddCert(f.oldCA.cert)
+		}
+		return &tls.Config{Certificates: []tls.Certificate{f.serverCert}, ClientCAs: pool, ClientAuth: clientAuth, MinVersion: tls.VersionTLS12, NextProtos: protos}, nil
+	}
+}
+
+// startGRPC serves the control plane over mutual TLS: a client certificate of the fake's CA is required for every call.
+func (f *Fake) startGRPC() {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		panic(err)
+	}
+	creds := credentials.NewTLS(&tls.Config{MinVersion: tls.VersionTLS12, GetConfigForClient: f.tlsFor(tls.RequireAndVerifyClientCert, []string{"h2"})})
+	f.grpcServer, f.grpcListener = grpc.NewServer(grpc.Creds(creds), grpc.MaxRecvMsgSize(16<<20), grpc.MaxSendMsgSize(16<<20)), l
+	brainapiv1.RegisterBrainServer(f.grpcServer, &service{f: f})
+	go func() { _ = f.grpcServer.Serve(l) }()
+}
+
+// GRPCEndpoint is host:port of the gRPC control plane.
+func (f *Fake) GRPCEndpoint() string { return f.grpcListener.Addr().String() }
+
+// Close stops both servers.
+func (f *Fake) Close() {
+	f.Server.Close()
+	f.grpcServer.Stop()
 }
 
 // CurrentCAPEM is the CA that signs the server certificate and the client certificates now.
@@ -162,14 +201,6 @@ func (f *Fake) serve(w http.ResponseWriter, r *http.Request) {
 	default:
 		if len(r.TLS.VerifiedChains) == 0 {
 			Fail(w, http.StatusUnauthorized, "client_certificate_required", "mutual TLS is required")
-			return
-		}
-		if f.RunsBackend != nil && (r.URL.Path == "/v1/runs" || strings.HasPrefix(r.URL.Path, "/v1/runs/")) {
-			f.RunsBackend.ServeHTTP(w, r)
-			return
-		}
-		if f.Runs != nil && (r.URL.Path == "/v1/runs" || strings.HasPrefix(r.URL.Path, "/v1/runs/")) {
-			f.Runs.ServeHTTP(w, r)
 			return
 		}
 		if f.Assistant == nil {

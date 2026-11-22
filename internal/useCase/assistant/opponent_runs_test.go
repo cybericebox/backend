@@ -54,28 +54,31 @@ func TestAnOpponentRunStartsWithTheManifestTheBudgetAndTheEDAAccess(t *testing.T
 		t.Fatalf("an opponent gets no materials: %v", order)
 	}
 	var got struct {
-		Role     string                     `json:"role"`
-		Band     int                        `json:"band"`
-		Goal     []string                   `json:"goal"`
-		Operates []string                   `json:"operates"`
-		Start    string                     `json:"start"`
-		Budget   assistantModel.RunBudget   `json:"budget"`
-		Access   map[string]json.RawMessage `json:"access"`
+		Role     string          `json:"role"`
+		Band     int             `json:"band"`
+		Goal     []string        `json:"goal"`
+		Operates []string        `json:"operates"`
+		Start    json.RawMessage `json:"start"`
+		SpecID   string          `json:"spec_id"`
+		Budget   struct {
+			Actions int    `json:"actions"`
+			Tokens  string `json:"tokens"`
+			Seconds int    `json:"seconds"`
+		} `json:"budget"`
+		Access struct {
+			Vpn struct{ Entry, Addr string }
+		} `json:"access"`
 	}
 	if err := json.Unmarshal([]byte(r.brn.Started()[0]), &got); err != nil {
 		t.Fatal(err)
 	}
-	if got.Role != "defense" || got.Band != 2 || len(got.Goal) != 1 || got.Goal[0] != "root" || len(got.Operates) != 1 || got.Operates[0] != "web" || got.Start != "immediate" {
+	if got.Role != "defense" || got.Band != 2 || len(got.Goal) != 1 || got.Goal[0] != "root" || len(got.Operates) != 1 || got.Operates[0] != "web" || string(got.Start) != `{"immediate":{}}` || got.SpecID != "" {
 		t.Fatalf("%s", r.brn.Started()[0])
 	}
-	if got.Budget != (assistantModel.RunBudget{Actions: 40, Tokens: 9000, Time: 600}) {
+	if got.Budget.Actions != 40 || got.Budget.Tokens != "9000" || got.Budget.Seconds != 600 {
 		t.Fatalf("the platform's budget: %+v", got.Budget)
 	}
-	var addr string
-	var vpn struct{ Entry string }
-	_ = json.Unmarshal(got.Access["addr"], &addr)
-	_ = json.Unmarshal(got.Access["vpn"], &vpn)
-	if vpn.Entry == "" || len(got.Access) != 2 || addr != "10.8.4.10:9099" {
+	if got.Access.Vpn.Entry == "" || got.Access.Vpn.Addr != "10.8.4.10:9099" {
 		t.Fatalf("the VPN access of the run's own client and the address of the runner on the control gateway: %s", r.brn.Started()[0])
 	}
 	if got := r.runs.state(run.ID); !strings.HasPrefix(got.AccessClient, "g-") {

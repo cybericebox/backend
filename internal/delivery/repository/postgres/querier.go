@@ -542,8 +542,6 @@ type Querier interface {
 	GetAssistantSubjectUser(ctx context.Context, subject uuid.UUID) (uuid.UUID, error)
 	// The stored connection to one brain endpoint.
 	GetBrainConnection(ctx context.Context, endpoint string) (BrainConnection, error)
-	// The last outbox request that was answered.
-	GetBrainOutboxSeq(ctx context.Context, endpoint string) (int64, error)
 	GetClusterReservation(ctx context.Context, id uuid.UUID) (ClusterReservation, error)
 	GetClusterReservationOfTestGroup(ctx context.Context, ownerID uuid.NullUUID) (ClusterReservation, error)
 	GetClusterReservationOfTestRun(ctx context.Context, testDeployID uuid.NullUUID) (ClusterReservation, error)
@@ -2232,8 +2230,8 @@ type Querier interface {
 	SetAssistantSaveNotified(ctx context.Context, arg SetAssistantSaveNotifiedParams) (int64, error)
 	// A renewed client certificate with its new key (the tenant is the certificate CN and stays).
 	SetBrainConnectionCertificate(ctx context.Context, arg SetBrainConnectionCertificateParams) (int64, error)
-	// Moves the outbox cursor forward; it never goes back.
-	SetBrainOutboxSeq(ctx context.Context, arg SetBrainOutboxSeqParams) (int64, error)
+	// The gRPC endpoint of the control plane changed in the configuration (BRAIN_GRPC_ENDPOINT); the replicas rebuild their client.
+	SetBrainConnectionGRPCEndpoint(ctx context.Context, arg SetBrainConnectionGRPCEndpointParams) (int64, error)
 	SetDispatchStatus(ctx context.Context, arg SetDispatchStatusParams) error
 	SetErrorGroupStatus(ctx context.Context, arg SetErrorGroupStatusParams) (ErrorGroup, error)
 	SetErrorTelegramChatFailing(ctx context.Context, arg SetErrorTelegramChatFailingParams) error

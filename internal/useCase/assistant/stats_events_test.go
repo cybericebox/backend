@@ -229,14 +229,13 @@ func TestAnEventsSourcePushCarriesOnlyAggregateFields(t *testing.T) {
 	if _, err := r.uc.BootstrapBrain(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	b := &dataBrain{}
-	r.fake.Assistant = b
-	if err := r.uc.PushStatistics(context.Background()); err != nil || len(b.bodies) != 1 {
-		t.Fatalf("push: %v %d", err, len(b.bodies))
+	b := &dataBrain{fake: r.fake}
+	if err := r.uc.PushStatistics(context.Background()); err != nil || len(b.bodies()) != 1 {
+		t.Fatalf("push: %v %d", err, len(b.bodies()))
 	}
-	checkKeys(t, "PushData from the events source", []byte(b.bodies[0]))
+	checkKeys(t, "PushData from the events source", []byte(b.bodies()[0]))
 	var sent struct{ Aggregates []assistantModel.Aggregate }
-	if err := json.Unmarshal([]byte(b.bodies[0]), &sent); err != nil || len(sent.Aggregates) != 1 || sent.Aggregates[0].Solves != 1 {
+	if err := json.Unmarshal([]byte(b.bodies()[0]), &sent); err != nil || len(sent.Aggregates) != 1 || sent.Aggregates[0].Solves != 1 {
 		t.Fatalf("%v %+v", err, sent)
 	}
 }

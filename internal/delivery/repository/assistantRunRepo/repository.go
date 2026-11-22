@@ -65,7 +65,7 @@ func toRun(r postgres.AssistantRun) assistantModel.Run {
 	return assistantModel.Run{
 		ID: r.ID, ExerciseID: r.ExerciseID, VersionID: r.VersionID, VariantID: r.VariantID, DeployID: r.DeployID, Actor: r.ActorID,
 		Role: r.Role, Opponent: int(r.Opponent), State: assistantModel.RunState(r.State), EndState: assistantModel.RunState(r.EndState), FailureReason: r.FailureReason,
-		AccessClient: r.AccessClient, RequestID: r.RequestID, Answered: r.Answered, LastSeq: r.LastSeq, StreamDownSince: timeOf(r.StreamDownSince), Measurement: r.Measurement,
+		AccessClient: r.AccessClient, RequestID: r.RequestID, Answered: r.Answered, SpecID: r.SpecID, LastSeq: r.LastSeq, StreamDownSince: timeOf(r.StreamDownSince), Measurement: r.Measurement,
 		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, StartedAt: timeOf(r.StartedAt), FinishedAt: timeOf(r.FinishedAt), LabReadyAt: timeOf(r.LabReadyAt), LabActivity: r.LabActivity, ExpiresAt: r.ExpiresAt,
 	}
 }
@@ -82,7 +82,7 @@ func toRuns(rows []postgres.AssistantRun) []assistantModel.Run {
 func (r *Repository) Create(ctx context.Context, run assistantModel.Run, now time.Time) error {
 	err := r.q.CreateAssistantRun(ctx, postgres.CreateAssistantRunParams{
 		ID: run.ID, ExerciseID: run.ExerciseID, VersionID: run.VersionID, VariantID: run.VariantID, DeployID: run.DeployID,
-		ActorID: run.Actor, Role: run.Role, Opponent: safeconv.Int32(run.Opponent), RequestID: run.RequestID, Now: now, ExpiresAt: run.ExpiresAt,
+		ActorID: run.Actor, Role: run.Role, Opponent: safeconv.Int32(run.Opponent), RequestID: run.RequestID, SpecID: run.SpecID, Now: now, ExpiresAt: run.ExpiresAt,
 	})
 	if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == pgerrcode.UniqueViolation {
 		return ErrActive

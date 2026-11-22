@@ -2,7 +2,6 @@ package assistant
 
 import (
 	"encoding/json"
-	"maps"
 	"time"
 
 	"github.com/gofrs/uuid"
@@ -25,7 +24,8 @@ func IsLabRole(role string) bool { return role == RoleLab || role == RoleTools }
 
 // RunState is where a run stands. starting: the lab is being deployed and the run is not accepted by the brain yet;
 // running: its events are read; closing: the outcome is decided and the lab and the access are being torn down;
-// finished, failed, stopped: over.
+// finished, failed, stopped: over. stopped is a cancelled run (the actor stopped it, or the brain did: its run_finished
+// "stopped"), never a failure; failed is a run that errored.
 type RunState string
 
 const (
@@ -72,7 +72,10 @@ type Run struct {
 	// RequestID is the outbox request a lab (RoleLab) was made for, Answered whether the brain got its answer.
 	RequestID string
 	Answered  bool
-	LastSeq   int64
+	// SpecID is the GetOpponent spec an opponent run was deployed from ("" for every other run, and for an opponent deployed
+	// from the fallback tools image); StartRun names it.
+	SpecID  string
+	LastSeq int64
 	// StreamDownSince is when the brain's event stream stopped being readable (zero while it is).
 	StreamDownSince time.Time
 	Measurement     json.RawMessage
@@ -106,35 +109,6 @@ type RunAnswer struct {
 	VerdictSent bool
 }
 
-// Access is how a run reaches the lab: an open union keyed by kind, so a new kind needs no change in the storage or the
-// transport. Today ssh, http and vpn; the value of a kind is that kind's own object, passed through untouched.
-type Access map[string]json.RawMessage
-
-// VPNAccess is the access of a run that joins the lab's network as a participant: entry is the full WireGuard
-// configuration text.
-func VPNAccess(entry string) Access {
-	raw, _ := json.Marshal(struct {
-		Entry string `json:"entry"`
-	}{Entry: entry})
-	return Access{"vpn": raw}
-}
-
-// WithAddr adds the address of the runner of the tools device on its control gateway (host:port) to an access: the brain joins
-// the control gateway with the entry and dials that address. It is a key of the open union next to the entry, never a credential.
-func (a Access) WithAddr(addr string) Access {
-	out := maps.Clone(a)
-	if out == nil {
-		out = Access{}
-	}
-	raw, _ := json.Marshal(addr)
-	out["addr"] = raw
-	return out
-}
-
-// NoAccess is the access of a run that joins no lab: a task with nothing to reach (only its materials and answers). It is
-// one more kind of the open union, written {"none": {}}.
-func NoAccess() Access { return Access{"none": json.RawMessage(`{}`)} }
-
 // runRoleExcluded lists the roles of a run and whether their runs are left out of the participant statistics. None is
 // counted: the grader measures the task and an opponent plays against it, so the figures stay those of people. A role
 // has to be listed here to exist.
@@ -148,39 +122,10 @@ func ExcludeRun(role string) bool {
 	return excluded || !known
 }
 
-// StartRun is the body of `POST /v1/runs` for a run the platform originates: the grader has no band and no budget (the
-// brain applies its own reference configuration) and no goal. Access is the one entry point; Start is "immediate" or
-// {"after": "<ref>"}.
-//
-// An opponent run also carries what its manifest entry says (Band, Goal, Operates, Brief) and the platform's budget; the
-// grader sends none of them.
-type StartRun struct {
-	RunID    string          `json:"run_id"`
-	Role     string          `json:"role"`
-	TaskRef  string          `json:"task_ref"`
-	Version  string          `json:"version"`
-	Image    string          `json:"image"`
-	Access   Access          `json:"access"`
-	Start    json.RawMessage `json:"start"`
-	Band     int             `json:"band,omitempty"`
-	Goal     []string        `json:"goal,omitempty"`
-	Operates []string        `json:"operates,omitempty"`
-	Foothold string          `json:"foothold,omitempty"`
-	Brief    string          `json:"brief,omitempty"`
-	Budget   *RunBudget      `json:"budget,omitempty"`
-}
-
-// RunBudget is what an opponent may spend: actions and tokens, and a time in whole seconds (omitted when zero).
+// RunBudget is what an opponent may spend (the configuration's BRAIN_OPPONENT_*): actions and tokens, and a time in whole
+// seconds.
 type RunBudget struct {
 	Actions int `json:"actions"`
 	Tokens  int `json:"tokens"`
 	Time    int `json:"time,omitempty"`
-}
-
-// Verdict is the body of `POST /v1/runs/{id}/verdict`: whether the answer was right and when it was judged. Never the
-// expected value.
-type Verdict struct {
-	SubtaskRef string `json:"subtask_ref"`
-	Correct    bool   `json:"correct"`
-	At         string `json:"at"`
 }

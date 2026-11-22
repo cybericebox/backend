@@ -3,14 +3,20 @@ package assistant
 import (
 	"context"
 	"errors"
+	"maps"
+	"slices"
 
 	"github.com/gofrs/uuid"
+	"github.com/rs/zerolog/log"
+	"google.golang.org/grpc/codes"
 
+	"github.com/cybericebox/backend/internal/delivery/infrastructure/brain"
 	"github.com/cybericebox/backend/internal/delivery/repository/assistantRunRepo"
 	"github.com/cybericebox/backend/internal/model"
 	assistantModel "github.com/cybericebox/backend/internal/model/assistant"
 	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 	exerciseUseCase "github.com/cybericebox/backend/internal/useCase/exercise"
+	brainapiv1 "github.com/cybericebox/backend/pkg/brainapi/v1"
 )
 
 // The defaults of the budget every opponent run gets when the platform sets none.
@@ -20,7 +26,7 @@ const (
 	defaultOpponentSeconds = 1200
 )
 
-func (u *UseCase) opponentBudget() *assistantModel.RunBudget {
+func (u *UseCase) opponentBudget() *brainapiv1.Budget {
 	b := u.oppBudget
 	if b.Actions <= 0 {
 		b.Actions = defaultOpponentActions
@@ -31,7 +37,7 @@ func (u *UseCase) opponentBudget() *assistantModel.RunBudget {
 	if b.Time <= 0 {
 		b.Time = defaultOpponentSeconds
 	}
-	return &b
+	return &brainapiv1.Budget{Actions: uint32(b.Actions), Tokens: uint64(b.Tokens), Seconds: uint32(b.Time)} //nolint:gosec // positive, from the config
 }
 
 // TODO(owner-design): whether an opponent run succeeded is OPEN. The attacker is judged by the task's success check over the
@@ -43,6 +49,64 @@ func (u *UseCase) opponentBudget() *assistantModel.RunBudget {
 // it: an attacker (and an attack-defender, who must be able to reach both) sits on its foothold, a defender on the segment of
 // the devices it operates.
 //
+// opponentSpec asks the brain for the opponent (GetOpponent) and turns its spec into the placement of the tools device: the
+// image and the env as the brain gave them, the size as a hint, the short-lived pull credential (kept in memory only, for this
+// deploy). ok is false when the brain has no specs (Unimplemented): the caller then deploys the fallback tools image of the
+// platform (BRAIN_TOOLS_IMAGE). Every required input must be one the platform fills, and a pull credential must still be valid
+// (one that expired on the way is fetched once more).
+func (u *UseCase) opponentSpec(ctx context.Context, runID uuid.UUID, o exerciseModel.Opponent, exerciseID, versionID uuid.UUID, place exerciseModel.ToolsPlacement) (exerciseModel.ToolsPlacement, string, bool, error) {
+	c, err := u.control(ctx)
+	if err != nil {
+		return place, "", false, err
+	}
+	req := &brainapiv1.GetOpponentRequest{RunId: runID.String(), Role: string(o.Role), Band: uint32(max(o.Band, 0)), TaskRef: exerciseID.String(), Version: versionID.String()} //nolint:gosec // 1..6
+	var spec *brainapiv1.OpponentSpec
+	for attempt := 1; ; attempt++ {
+		if spec, err = c.GetOpponent(ctx, req); err != nil {
+			switch brain.Code(err) {
+			case codes.Unimplemented:
+				return place, "", false, nil
+			case codes.Unavailable, codes.DeadlineExceeded, codes.ResourceExhausted:
+				return place, "", false, assistantModel.ErrAssistantBrainUnreachable.WithError(err).Err()
+			}
+			log.Warn().Str("code", brain.Code(err).String()).Str("reason", brain.Reason(err)).Msg("The brain refused an opponent")
+			return place, "", false, assistantModel.ErrAssistantOpponentUnavailable.WithError(err).Err()
+		}
+		pull := spec.GetDeploy().GetPull()
+		if pull == nil || pull.GetExpiresAt() == nil || u.now().Before(pull.GetExpiresAt().AsTime()) || attempt >= 2 {
+			break
+		}
+	}
+	deploy := spec.GetDeploy()
+	if deploy.GetImage() == "" || spec.GetSpecId() == "" {
+		return place, "", false, assistantModel.ErrAssistantOpponentSpecInvalid.WithMessage("The opponent spec has no image or no id").Err()
+	}
+	for _, in := range spec.GetRequiredInputs() {
+		switch in.GetKind() {
+		case brainapiv1.InputKind_VPN_ENTRY, brainapiv1.InputKind_CONTROL_ADDR:
+		case brainapiv1.InputKind_FOOTHOLD:
+			if o.Foothold == "" {
+				return place, "", false, assistantModel.ErrAssistantOpponentSpecInvalid.WithMessage("The opponent needs a foothold the manifest does not name").Err()
+			}
+		default:
+			return place, "", false, assistantModel.ErrAssistantOpponentSpecInvalid.WithMessage("The opponent needs an input the platform cannot fill").Err()
+		}
+	}
+	if pull := deploy.GetPull(); pull != nil {
+		if pull.GetExpiresAt() != nil && !u.now().Before(pull.GetExpiresAt().AsTime()) {
+			return place, "", false, assistantModel.ErrAssistantOpponentSpecInvalid.WithMessage("The pull credential of the opponent image has expired").Err()
+		}
+		place.Pull = &exerciseModel.ToolsPull{Registry: pull.GetRegistry(), Username: pull.GetUsername(), Password: pull.GetPassword()}
+	}
+	place.Image = deploy.GetImage()
+	place.Env = make([]exerciseModel.EnvVar, 0, len(deploy.GetEnv()))
+	for _, name := range slices.Sorted(maps.Keys(deploy.GetEnv())) {
+		place.Env = append(place.Env, exerciseModel.EnvVar{Name: name, Value: deploy.GetEnv()[name]})
+	}
+	place.CPUMillis, place.MemoryBytes = int64(deploy.GetResources().GetCpuMillis()), int64(deploy.GetResources().GetMemBytes()) //nolint:gosec // sizes
+	return place, spec.GetSpecId(), true, nil
+}
+
 // TODO(owner-design): the defender's admin credentials for its operates devices belong on the tools host, so the brain gets no
 // extra secrets. The manifest holds none today (a device's access entry names a user and a command, never a password or key),
 // so nothing is placed; this waits for where those credentials come from.
@@ -99,11 +163,19 @@ func (u *UseCase) StartOpponentRun(ctx context.Context, actor exerciseUseCase.Ac
 	if err != nil {
 		return assistantModel.Run{}, err
 	}
-	handle, err := u.labs.DeployVariantTestWithTools(ctx, actor.UserID, versionID, variantID, target.Lease, toolsPlacement(opponent, runID, ca))
-	if errors.Is(err, exerciseModel.ErrToolsNoImage) || errors.Is(err, exerciseModel.ErrToolsNoVPN) || errors.Is(err, exerciseModel.ErrToolsNoSegment) {
-		return assistantModel.Run{}, assistantModel.ErrAssistantOpponentUnavailable.Err()
-	}
+	// The brain says what to deploy (GetOpponent); a brain without opponent specs leaves the platform's fallback tools image.
+	place, specID, _, err := u.opponentSpec(ctx, runID, opponent, exerciseID, versionID, toolsPlacement(opponent, runID, ca))
 	if err != nil {
+		return assistantModel.Run{}, err
+	}
+	handle, err := u.labs.DeployVariantTestWithTools(ctx, actor.UserID, versionID, variantID, target.Lease, place)
+	place.Pull = nil // the credential is the lab's now: it goes nowhere else
+	switch {
+	case errors.Is(err, exerciseModel.ErrToolsTooLarge):
+		return assistantModel.Run{}, assistantModel.ErrAssistantOpponentTooLarge.Err()
+	case errors.Is(err, exerciseModel.ErrToolsNoImage) || errors.Is(err, exerciseModel.ErrToolsNoVPN) || errors.Is(err, exerciseModel.ErrToolsNoSegment) || errors.Is(err, exerciseModel.ErrToolsPullConflict):
+		return assistantModel.Run{}, assistantModel.ErrAssistantOpponentUnavailable.Err()
+	case err != nil:
 		return assistantModel.Run{}, err
 	}
 	deployID, err := uuid.FromString(handle.Group)
@@ -113,7 +185,7 @@ func (u *UseCase) StartOpponentRun(ctx context.Context, actor exerciseUseCase.Ac
 	now := u.now().UTC()
 	run := assistantModel.Run{
 		ID: runID, ExerciseID: exerciseID, VersionID: versionID, VariantID: variantID, DeployID: deployID,
-		Actor: actor.UserID, Role: string(opponent.Role), Opponent: index, State: assistantModel.RunStarting, CreatedAt: now, UpdatedAt: now,
+		Actor: actor.UserID, Role: string(opponent.Role), Opponent: index, SpecID: specID, State: assistantModel.RunStarting, CreatedAt: now, UpdatedAt: now,
 		ExpiresAt: now.Add(u.runMax),
 	}
 	if err = u.runs.Create(ctx, run, now); err != nil {

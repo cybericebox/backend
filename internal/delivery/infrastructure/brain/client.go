@@ -1,6 +1,8 @@
-// Package brain is the HTTP client of cyber-brain, the external service behind the authoring assistant: the
-// one-time enrollment over server-only TLS, the mutual-TLS calls (renewal and the assistant routes) and the mapping
-// of its error envelope. The brain is a plain HTTPS/SSE service; this is not the laboratory agents' gRPC.
+// Package brain holds the two clients of cyber-brain, the external service behind the authoring assistant. Client is the
+// HTTP/SSE one: the one-time enrollment over server-only TLS, the mutual-TLS renewal and the chat routes (/v1/assistant/*), with
+// the mapping of its error envelope. Control is the gRPC one of the machine control plane (pkg/brainapi/v1: runs, outbox,
+// statistics, task archives, opponents) over mutual TLS with the same certificate and pinned CA, with its error model
+// (status.go). Neither is the laboratory agents' gRPC.
 package brain
 
 import (

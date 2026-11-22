@@ -11,15 +11,16 @@ import (
 )
 
 const createBrainConnection = `-- name: CreateBrainConnection :execrows
-INSERT INTO brain_connections (endpoint, tenant, client_cert_pem, client_key_ciphertext, ca_pem, cert_not_after,
+INSERT INTO brain_connections (endpoint, grpc_endpoint, tenant, client_cert_pem, client_key_ciphertext, ca_pem, cert_not_after,
                                created_at, updated_at)
-VALUES ($1, $2, $3, $4,
-        $5, $6, $7, $8)
+VALUES ($1, $2, $3, $4, $5,
+        $6, $7, $8, $9)
 ON CONFLICT (endpoint) DO NOTHING
 `
 
 type CreateBrainConnectionParams struct {
 	Endpoint            string    `json:"endpoint"`
+	GrpcEndpoint        string    `json:"grpc_endpoint"`
 	Tenant              string    `json:"tenant"`
 	ClientCertPem       string    `json:"client_cert_pem"`
 	ClientKeyCiphertext string    `json:"client_key_ciphertext"`
@@ -33,6 +34,7 @@ type CreateBrainConnectionParams struct {
 func (q *Queries) CreateBrainConnection(ctx context.Context, arg CreateBrainConnectionParams) (int64, error) {
 	result, err := q.db.Exec(ctx, createBrainConnection,
 		arg.Endpoint,
+		arg.GrpcEndpoint,
 		arg.Tenant,
 		arg.ClientCertPem,
 		arg.ClientKeyCiphertext,
@@ -48,7 +50,7 @@ func (q *Queries) CreateBrainConnection(ctx context.Context, arg CreateBrainConn
 }
 
 const getBrainConnection = `-- name: GetBrainConnection :one
-SELECT endpoint, tenant, client_cert_pem, client_key_ciphertext, ca_pem, cert_not_after, created_at, updated_at, outbox_seq
+SELECT endpoint, tenant, client_cert_pem, client_key_ciphertext, ca_pem, cert_not_after, created_at, updated_at, outbox_seq, grpc_endpoint
 FROM brain_connections
 WHERE endpoint = $1
 `
@@ -67,22 +69,9 @@ func (q *Queries) GetBrainConnection(ctx context.Context, endpoint string) (Brai
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.OutboxSeq,
+		&i.GrpcEndpoint,
 	)
 	return i, err
-}
-
-const getBrainOutboxSeq = `-- name: GetBrainOutboxSeq :one
-SELECT outbox_seq
-FROM brain_connections
-WHERE endpoint = $1
-`
-
-// The last outbox request that was answered.
-func (q *Queries) GetBrainOutboxSeq(ctx context.Context, endpoint string) (int64, error) {
-	row := q.db.QueryRow(ctx, getBrainOutboxSeq, endpoint)
-	var outbox_seq int64
-	err := row.Scan(&outbox_seq)
-	return outbox_seq, err
 }
 
 const setBrainConnectionCertificate = `-- name: SetBrainConnectionCertificate :execrows
@@ -123,21 +112,23 @@ func (q *Queries) SetBrainConnectionCertificate(ctx context.Context, arg SetBrai
 	return result.RowsAffected(), nil
 }
 
-const setBrainOutboxSeq = `-- name: SetBrainOutboxSeq :execrows
+const setBrainConnectionGRPCEndpoint = `-- name: SetBrainConnectionGRPCEndpoint :execrows
 UPDATE brain_connections
-SET outbox_seq = $1
-WHERE endpoint = $2
-  AND outbox_seq < $1
+SET grpc_endpoint = $1,
+    updated_at    = $2
+WHERE endpoint = $3
+  AND grpc_endpoint <> $1
 `
 
-type SetBrainOutboxSeqParams struct {
-	OutboxSeq int64  `json:"outbox_seq"`
-	Endpoint  string `json:"endpoint"`
+type SetBrainConnectionGRPCEndpointParams struct {
+	GrpcEndpoint string    `json:"grpc_endpoint"`
+	UpdatedAt    time.Time `json:"updated_at"`
+	Endpoint     string    `json:"endpoint"`
 }
 
-// Moves the outbox cursor forward; it never goes back.
-func (q *Queries) SetBrainOutboxSeq(ctx context.Context, arg SetBrainOutboxSeqParams) (int64, error) {
-	result, err := q.db.Exec(ctx, setBrainOutboxSeq, arg.OutboxSeq, arg.Endpoint)
+// The gRPC endpoint of the control plane changed in the configuration (BRAIN_GRPC_ENDPOINT); the replicas rebuild their client.
+func (q *Queries) SetBrainConnectionGRPCEndpoint(ctx context.Context, arg SetBrainConnectionGRPCEndpointParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setBrainConnectionGRPCEndpoint, arg.GrpcEndpoint, arg.UpdatedAt, arg.Endpoint)
 	if err != nil {
 		return 0, err
 	}

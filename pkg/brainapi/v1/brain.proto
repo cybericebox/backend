@@ -64,7 +64,7 @@ service Brain {
   // dedupes seq <= last; the run ends only with a `run_finished` event. An unknown run => NotFound (the
   // client then closes the run as brain_failed). gRPC keepalive, no server heartbeats.
   rpc RunEvents(RunEventsRequest) returns (stream RunEvent);
-  rpc PostVerdict(VerdictRequest) returns (google.protobuf.Empty); // idempotent by (run_id, answer_seq)
+  rpc PostVerdict(VerdictRequest) returns (google.protobuf.Empty); // idempotent by (run_id, answer_seq) for an answer verdict; (run_id, subtask_ref) when state=true (a state subtask passes once, answer_seq unset)
   rpc PostLabFacts(LabFactsRequest) returns (google.protobuf.Empty);
   rpc StopRun(RunRef) returns (google.protobuf.Empty);             // best-effort; NotFound = success
 
@@ -153,10 +153,12 @@ message RunEvent { uint64 seq = 1; string type = 2; bytes data = 3; } // data = 
 
 message VerdictRequest {
   string run_id = 1;
-  uint64 answer_seq = 2;   // the seq of the `answer` event this verdicts; idempotency = (run_id, answer_seq)
+  uint64 answer_seq = 2;   // the seq of the `answer` event this verdicts; idempotency is (run_id, answer_seq) for an answer verdict;
+                           //   (run_id, subtask_ref) when state=true (a state subtask passes once, answer_seq unset)
   string subtask_ref = 3;  // informational (the brain already knows it from the answer event)
   bool   correct = 4;      // the brain learns ONLY this + the time, never the expected value
   google.protobuf.Timestamp at = 5;
+  bool   state = 6;        // true for a STATE-checked subtask: no answer event, answer_seq unset, keyed by subtask_ref
 }
 
 message LabFactsRequest {

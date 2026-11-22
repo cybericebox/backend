@@ -576,8 +576,8 @@ func NewUseCase(deps Dependencies) *UseCase {
 	}
 	labActivityUC := labActivityUseCase.New(labActivityUseCase.Dependencies{Agent: activityAgent, Store: labActivityRepo.New(deps.Repo), Modes: statsRepo, ConsoleMaxLifetime: deps.Brain.ConsoleMaxLifetime})
 	assistantUC := assistantUseCase.New(assistantUseCase.Dependencies{
-		Store: brainConnectionRepo.New(deps.Repo), Cursor: brainConnectionRepo.New(deps.Repo), Cipher: deps.PlatformCipher,
-		Config:     assistantUseCase.Config{Endpoint: deps.Brain.Endpoint, EnrollmentToken: deps.Brain.EnrollmentToken, CAFile: deps.Brain.CAFile},
+		Store: brainConnectionRepo.New(deps.Repo), Cipher: deps.PlatformCipher,
+		Config:     assistantUseCase.Config{Endpoint: deps.Brain.Endpoint, GRPCEndpoint: deps.Brain.GRPCEndpoint, EnrollmentToken: deps.Brain.EnrollmentToken, CAFile: deps.Brain.CAFile},
 		Stats:      assistantUseCase.MultiSource{assistantUseCase.EventsSource{Store: statsRepo, Exclusion: assistantUseCase.NoExclusion{}, Activity: labActivityUC}},
 		StatsAdmin: statsRepo,
 		Importer:   exerciseUC, Files: mediaUC, Saves: assistantSaveRepo.New(deps.Repo), Subjects: assistantSubjectRepo.New(deps.Repo), Audit: adminAuditUC.RecordAdminAction,

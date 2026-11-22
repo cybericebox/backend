@@ -57,6 +57,7 @@ type AssistantRun struct {
 	Opponent        int32              `json:"opponent"`
 	LabReadyAt      pgtype.Timestamptz `json:"lab_ready_at"`
 	LabActivity     []byte             `json:"lab_activity"`
+	SpecID          string             `json:"spec_id"`
 }
 
 type BrainConnection struct {
@@ -69,6 +70,7 @@ type BrainConnection struct {
 	CreatedAt           time.Time `json:"created_at"`
 	UpdatedAt           time.Time `json:"updated_at"`
 	OutboxSeq           int64     `json:"outbox_seq"`
+	GrpcEndpoint        string    `json:"grpc_endpoint"`
 }
 
 type ChallengeAttempt struct {

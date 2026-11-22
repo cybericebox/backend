@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net"
-	"net/http"
 	"sort"
 	"strconv"
 	"strings"
@@ -14,13 +14,18 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/cybericebox/backend/internal/delivery/infrastructure/brain"
 	assistantModel "github.com/cybericebox/backend/internal/model/assistant"
 	"github.com/cybericebox/backend/internal/model/challengeAttempt"
+	"github.com/cybericebox/backend/internal/model/errorJournal"
 	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 	exerciseUseCase "github.com/cybericebox/backend/internal/useCase/exercise"
 	labActivityUseCase "github.com/cybericebox/backend/internal/useCase/labActivity"
+	brainapiv1 "github.com/cybericebox/backend/pkg/brainapi/v1"
 )
 
 const (
@@ -125,7 +130,12 @@ type runDriver struct {
 	// materialsSent: the materials of this run are with the brain (kept for this leadership; a new leader sends them again).
 	materialsSent bool
 	revoked       bool
-	pause         time.Duration
+	// brainEnded: the brain ended the run itself (run_finished), so it is not told to stop.
+	brainEnded bool
+	// credFails counts the verdicts the brain refused for the platform's credentials; credAlarmed: the alarm was raised.
+	credFails   int
+	credAlarmed bool
+	pause       time.Duration
 }
 
 func sleep(ctx context.Context, d time.Duration) bool {
@@ -185,11 +195,13 @@ func (d *runDriver) run(ctx context.Context) {
 	}
 }
 
-func (d *runDriver) close(ctx context.Context, run assistantModel.Run, end assistantModel.RunState, reason string) {
+func (d *runDriver) close(ctx context.Context, run assistantModel.Run, end assistantModel.RunState, reason string) error {
 	if _, err := d.u.runs.Close(ctx, run.ID, end, reason, d.u.now().UTC()); err != nil {
 		log.Error().Err(err).Msg("Closing a run failed")
+		return err
 	}
 	log.Info().Str("run", run.ID.String()).Str("end", string(end)).Str("reason", reason).Msg("A run is ending")
+	return nil
 }
 
 // down notes that the brain cannot be reached and fails the run once that has lasted the grace. It reports whether it did.
@@ -277,7 +289,7 @@ func (d *runDriver) starting(ctx context.Context, run assistantModel.Run) time.D
 
 // started sends StartRun and acts on the answer: accepted marks the run running, a refusal fails it, anything else is tried
 // again within the grace.
-func (d *runDriver) started(ctx context.Context, run assistantModel.Run, body assistantModel.StartRun) time.Duration {
+func (d *runDriver) started(ctx context.Context, run assistantModel.Run, body *brainapiv1.StartRunRequest) time.Duration {
 	u := d.u
 	switch outcome := u.startAtBrain(ctx, body); outcome {
 	case startAccepted:
@@ -328,10 +340,13 @@ func (d *runDriver) startingOpponent(ctx context.Context, run assistantModel.Run
 		return wait
 	}
 	image, _ := imageAndKind(target.VariantsJS)
-	body := assistantModel.StartRun{
-		RunID: run.ID.String(), Role: string(opponent.Role), TaskRef: run.ExerciseID.String(), Version: run.VersionID.String(),
-		Image: image, Access: assistantModel.VPNAccess(d.config).WithAddr(addr), Start: json.RawMessage(`"immediate"`),
-		Band: opponent.Band, Goal: opponent.Goal, Operates: opponent.Operates, Foothold: opponent.Foothold, Brief: opponent.Brief, Budget: u.opponentBudget(),
+	// The lab-side inputs of the spec are filled here: VPN_ENTRY is the run's own client, CONTROL_ADDR the runner of its tools
+	// device, FOOTHOLD the manifest's segment (the kinds were checked when the spec was taken, before the lab was deployed).
+	body := &brainapiv1.StartRunRequest{
+		RunId: run.ID.String(), Role: string(opponent.Role), TaskRef: run.ExerciseID.String(), Version: run.VersionID.String(),
+		Image: image, Access: vpnAccess(d.config, addr), Start: immediateStart(),
+		Band: uint32(max(opponent.Band, 0)), Goal: opponent.Goal, Operates: opponent.Operates, Foothold: opponent.Foothold, Brief: opponent.Brief,
+		Budget: u.opponentBudget(), SpecId: run.SpecID,
 	}
 	return d.started(ctx, run, body)
 }
@@ -382,24 +397,40 @@ func (d *runDriver) access(ctx context.Context, run assistantModel.Run) (wait ti
 	return 0, true
 }
 
-func (d *runDriver) startBody(run assistantModel.Run, target exerciseUseCase.RunTarget) assistantModel.StartRun {
+func (d *runDriver) startBody(run assistantModel.Run, target exerciseUseCase.RunTarget) *brainapiv1.StartRunRequest {
 	image, _ := imageAndKind(target.VariantsJS)
-	access := assistantModel.NoAccess()
+	access := noAccess()
 	if d.config != "" {
-		access = assistantModel.VPNAccess(d.config)
+		access = vpnAccess(d.config, "")
 	}
-	return assistantModel.StartRun{
-		RunID: run.ID.String(), Role: assistantModel.RoleGrader, TaskRef: run.ExerciseID.String(), Version: run.VersionID.String(),
-		Image: image, Access: access, Start: json.RawMessage(`"immediate"`),
+	return &brainapiv1.StartRunRequest{
+		RunId: run.ID.String(), Role: assistantModel.RoleGrader, TaskRef: run.ExerciseID.String(), Version: run.VersionID.String(),
+		Image: image, Access: access, Start: immediateStart(),
 	}
 }
 
-// materialsAttempts is how often the upload of the materials is tried when the brain answers a server error.
+// vpnAccess is Access.vpn: the full WireGuard configuration of the run's own client and, for a tools-device runner, its
+// address on the control gateway ("": a plain participant vantage).
+func vpnAccess(entry, addr string) *brainapiv1.Access {
+	return &brainapiv1.Access{Kind: &brainapiv1.Access_Vpn_{Vpn: &brainapiv1.Access_Vpn{Entry: entry, Addr: addr}}}
+}
+
+// noAccess is Access.none: a run that joins no lab (only its materials and answers).
+func noAccess() *brainapiv1.Access {
+	return &brainapiv1.Access{Kind: &brainapiv1.Access_None_{None: &brainapiv1.Access_None{}}}
+}
+
+func immediateStart() *brainapiv1.Start {
+	return &brainapiv1.Start{When: &brainapiv1.Start_Immediate{Immediate: &emptypb.Empty{}}}
+}
+
+// materialsAttempts is how often the upload of the materials is tried while the brain rate limits it.
 const materialsAttempts = 3
 
-// sendMaterials gives the brain the participant's view of the task before the run starts: the task as text and the
-// attachments a participant downloads, built from what the lab and the task say. A server error is retried, and a refusal
-// that cannot change (or the retries running out) fails the run; 409 means the brain has them already.
+// sendMaterials gives the brain the participant's view of the task before the run starts (UploadMaterials): the task as text
+// and the attachments a participant downloads, built from what the lab and the task say. An unreachable brain is left to the
+// grace, a rate limit is retried (with the delay the brain asks for), and a refusal that cannot change (or the retries running
+// out) fails the run; AlreadyExists means the brain has them already.
 func (d *runDriver) sendMaterials(ctx context.Context, run assistantModel.Run) startOutcome {
 	u := d.u
 	m, err := u.labs.RunMaterials(ctx, run.Actor, run.DeployID)
@@ -407,37 +438,35 @@ func (d *runDriver) sendMaterials(ctx context.Context, run assistantModel.Run) s
 		log.Warn().Err(err).Msg("Building the materials of a run failed")
 		return startRefused
 	}
-	parts := []brain.Part{{Field: "task", Filename: "task.json", ContentType: "application/json", Data: m.Task}}
+	files := make([]brain.File, 0, len(m.Files))
 	for _, f := range m.Files {
-		parts = append(parts, brain.Part{Field: "file", Filename: f.Name, ContentType: f.ContentType, Data: f.Data})
+		files = append(files, brain.File{Name: f.Name, ContentType: f.ContentType, Data: f.Data})
 	}
-	c, err := u.client(ctx)
+	c, err := u.control(ctx)
 	if err != nil {
 		return startRetry
 	}
-	pause := u.runPause
-	for attempt := 1; ; attempt++ {
-		err = c.PostMultipart(ctx, "/v1/runs/"+run.ID.String()+"/materials", parts)
-		var api *brain.APIError
-		switch {
-		case err == nil:
-			return startAccepted
-		case !errors.As(err, &api):
-			return startRetry // the brain cannot be reached: the grace decides
-		case api.Status == http.StatusConflict:
-			return startAccepted
-		case api.Status < http.StatusInternalServerError && api.Status != http.StatusTooManyRequests:
-			log.Warn().Int("status", api.Status).Str("code", api.Code).Msg("The brain refused the materials of a run")
-			return startRefused
+	err = brain.Retry(ctx, materialsAttempts, u.runPause, func(ctx context.Context) error {
+		err := c.UploadMaterials(ctx, run.ID.String(), m.Task, files)
+		if brain.Code(err) == codes.ResourceExhausted {
+			return err // retried here
 		}
-		if attempt >= materialsAttempts {
-			log.Warn().Err(err).Msg("The materials of a run were not accepted")
-			return startRefused
-		}
-		if !sleep(ctx, pause) {
-			return startRetry
-		}
-		pause *= 2
+		return brain.NoRetry(err)
+	})
+	return startOutcomeOf(err, "The brain refused the materials of a run")
+}
+
+// startOutcomeOf maps the answer of a call that starts a run: success, a brain that cannot be reached now (the grace decides),
+// or a refusal that cannot change. A rate limit the retries did not get past refuses the run.
+func startOutcomeOf(err error, refused string) startOutcome {
+	switch code := brain.Code(err); {
+	case err == nil:
+		return startAccepted
+	case code == codes.Unavailable || code == codes.DeadlineExceeded || code == codes.Unknown || code == codes.Canceled:
+		return startRetry
+	default:
+		log.Warn().Str("code", code.String()).Str("reason", brain.Reason(err)).Msg(refused)
+		return startRefused
 	}
 }
 
@@ -449,29 +478,19 @@ const (
 	startRetry
 )
 
-// startAtBrain sends StartRun. A refusal that cannot change (400, 401, 403, 404, 415, 422) fails the run; 409 means the
-// brain has this run already (an earlier leader started it), which is as good as accepted; anything else is retried.
-func (u *UseCase) startAtBrain(ctx context.Context, body assistantModel.StartRun) startOutcome {
-	c, err := u.client(ctx)
+// startAtBrain sends StartRun. AlreadyExists means the brain has this run already (an earlier leader started it), which is as
+// good as accepted; an unreachable brain (Unavailable, the network) is retried within the grace and so is a rate limit; any
+// other code is a refusal that cannot change and fails the run.
+func (u *UseCase) startAtBrain(ctx context.Context, body *brainapiv1.StartRunRequest) startOutcome {
+	c, err := u.control(ctx)
 	if err != nil {
 		return startRetry
 	}
-	err = c.PostJSON(ctx, "/v1/runs", body)
-	if err == nil {
-		return startAccepted
+	err = c.StartRun(ctx, body)
+	if brain.Code(err) == codes.ResourceExhausted {
+		return startRetry
 	}
-	var api *brain.APIError
-	if errors.As(err, &api) {
-		switch api.Status {
-		case http.StatusConflict:
-			return startAccepted
-		case http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusUnsupportedMediaType, http.StatusUnprocessableEntity:
-			log.Warn().Int("status", api.Status).Str("code", api.Code).Msg("The brain refused a run")
-			return startRefused
-		}
-	}
-	log.Warn().Err(err).Msg("Starting a run at the brain failed")
-	return startRetry
+	return startOutcomeOf(err, "The brain refused a run")
 }
 
 func runClientName(id uuid.UUID) string { return "g-" + strings.ReplaceAll(id.String(), "-", "")[:12] }
@@ -485,7 +504,7 @@ func (d *runDriver) running(ctx context.Context, run assistantModel.Run) time.Du
 	}
 	d.judgeStateTasks(ctx, run, false)
 	d.sendUnsent(ctx, run)
-	c, err := u.client(ctx)
+	c, err := u.control(ctx)
 	if err != nil {
 		if d.down(ctx, run) {
 			return 0
@@ -530,14 +549,14 @@ func (d *runDriver) running(ctx context.Context, run assistantModel.Run) time.Du
 			}
 		}
 	}()
-	resp, err := c.Do(readCtx, brain.Request{
-		Method: http.MethodGet, Path: "/v1/runs/" + run.ID.String() + "/events",
-		Query:  map[string][]string{"after": {strconv.FormatInt(run.LastSeq, 10)}},
-		Header: http.Header{"Accept": {"text/event-stream"}},
-	})
-	if err != nil {
-		var api *brain.APIError
-		if errors.As(err, &api) && (api.Status == http.StatusNotFound || api.Status == http.StatusGone) {
+	stream, err := c.RunEvents(readCtx, run.ID.String(), uint64(max(run.LastSeq, 0)))
+	var event *brainapiv1.RunEvent
+	if err == nil {
+		// A server stream reports its refusal (NotFound) with the first read.
+		event, err = stream.Recv()
+	}
+	if err != nil && !errors.Is(err, io.EOF) {
+		if brain.Code(err) == codes.NotFound {
 			// The brain does not know the run (any more): nothing will come, the lab is not kept for it.
 			d.close(ctx, run, assistantModel.RunFailed, assistantModel.FailureBrainFailed)
 			return 0
@@ -550,14 +569,19 @@ func (d *runDriver) running(ctx context.Context, run assistantModel.Run) time.Du
 		}
 		return d.backoff()
 	}
-	defer func() { _ = resp.Body.Close() }()
 	d.reachable(ctx, run)
 	d.pause = 0
-	err = brain.ReadFrames(resp.Body, func(f brain.Frame) error { return d.frame(readCtx, run, f) })
+	// last is the newest sequence number stored by this read: a brain that re-sends what it sent is deduped.
+	last := run.LastSeq
+	for err == nil {
+		if err = d.frame(readCtx, run, &last, event); err == nil {
+			event, err = stream.Recv()
+		}
+	}
 	if ctx.Err() != nil {
 		return 0
 	}
-	if err != nil {
+	if !errors.Is(err, io.EOF) && !errors.Is(err, errStreamDone) {
 		log.Debug().Err(err).Msg("The run event stream ended with an error")
 	}
 	// A closed stream is not the end of the run: it starts the grace and is reopened after the last stored event.
@@ -571,59 +595,75 @@ func (d *runDriver) running(ctx context.Context, run assistantModel.Run) time.Du
 	return d.backoff()
 }
 
-// frame stores one frame of the stream and acts on it.
-func (d *runDriver) frame(ctx context.Context, run assistantModel.Run, f brain.Frame) error {
-	seq, err := strconv.ParseInt(f.ID, 10, 64)
-	if err != nil || seq <= 0 {
-		return nil // a heartbeat, or a frame without a sequence number
+// frame stores one event of the stream and acts on it. last is the newest sequence number stored: an event at or below it is
+// a repeat (the stream was reopened after it, or the brain sent it twice) and is dropped.
+func (d *runDriver) frame(ctx context.Context, run assistantModel.Run, last *int64, f *brainapiv1.RunEvent) error {
+	if f.GetSeq() == 0 || f.GetSeq() > maxSeq {
+		return nil // an event without a usable sequence number
 	}
-	if seq <= run.LastSeq {
+	seq := int64(f.GetSeq())
+	if seq <= *last {
 		return nil // stored already
 	}
-	typ := f.Event
+	typ := f.GetType()
+	data := f.GetData()
 	if typ == "" {
 		var probe struct {
 			Type string `json:"type"`
 		}
-		_ = json.Unmarshal(f.Data, &probe)
+		_ = json.Unmarshal(data, &probe)
 		typ = probe.Type
 	}
 	u, now := d.u, d.u.now().UTC()
-	event := assistantModel.RunEvent{Seq: seq, Type: typ, Data: string(f.Data), At: now}
+	event := assistantModel.RunEvent{Seq: seq, Type: typ, Data: string(data), At: now}
+	var err error
 	switch {
 	case typ == eventAnswer:
-		// Judged and told before the frame is stored: a crash in between replays the frame, and the stored judgement
+		// Judged and told before the event is stored: a crash in between replays the event, and the stored judgement
 		// answers it again.
-		if err = d.answer(ctx, run, seq, f.Data); err != nil {
+		if err = d.answer(ctx, run, seq, data); err != nil {
 			return err
 		}
 	case typ == eventRunFinished:
 		var finished struct {
 			Status string `json:"status"`
 		}
-		_ = json.Unmarshal(f.Data, &finished)
-		// The outcome is decided before the frame is stored, for the same reason; the measurement is already stored.
-		if finished.Status == "done" {
-			d.close(ctx, run, assistantModel.RunFinished, "")
-		} else {
-			d.close(ctx, run, assistantModel.RunFailed, assistantModel.FailureBrainFailed)
+		_ = json.Unmarshal(data, &finished)
+		// The outcome is decided before the frame is stored, for the same reason; the measurement is already stored. "done"
+		// finished, "stopped" was cancelled (StopRun, or the brain shutting down: no failure), anything else ("failed") errored.
+		// The event is stored only once the close is: a close that fails leaves it unread, and the reopened stream brings it again.
+		end, reason := assistantModel.RunFailed, assistantModel.FailureBrainFailed
+		switch finished.Status {
+		case "done":
+			end, reason = assistantModel.RunFinished, ""
+		case "stopped":
+			end, reason = assistantModel.RunStopped, ""
 		}
+		if err = d.close(ctx, run, end, reason); err != nil {
+			return err
+		}
+		d.brainEnded = true
 	case measurementEvents[typ]:
-		if err = u.runs.SetMeasurement(ctx, run.ID, f.Data, now); err != nil {
+		if err = u.runs.SetMeasurement(ctx, run.ID, data, now); err != nil {
 			return err
 		}
 	}
 	if _, err = u.runs.AppendEvent(ctx, run.ID, event, now); err != nil {
 		return err
 	}
+	*last = seq
 	if typ == eventRunFinished {
 		return errStreamDone
 	}
 	return nil
 }
 
-// errStreamDone ends the read after run_finished: the brain closes the stream anyway.
+// errStreamDone ends the read after run_finished: the brain closes the stream anyway. Only run_finished ends a run; a stream
+// that closes before it is reopened.
 var errStreamDone = errors.New("the run is finished")
+
+// maxSeq is the largest sequence number the run's store keeps (a signed 64-bit column).
+const maxSeq = 1<<63 - 1
 
 type answerEvent struct {
 	SubtaskRef string          `json:"subtask_ref"`
@@ -749,36 +789,57 @@ func (d *runDriver) sendVerdict(ctx context.Context, run assistantModel.Run, a a
 	if stored, found, err := u.runs.Answer(ctx, run.ID, a.Seq); err == nil && found && stored.VerdictSent {
 		return // told already, by the other sender
 	}
-	c, err := u.client(ctx)
+	c, err := u.control(ctx)
 	if err != nil {
 		return
 	}
-	body := assistantModel.Verdict{SubtaskRef: a.SubtaskRef, Correct: a.Correct, At: a.At.UTC().Format(time.RFC3339Nano)}
-	pause := u.runPause
-	for attempt := 1; attempt <= verdictAttempts; attempt++ {
-		err = c.PostJSON(ctx, "/v1/runs/"+run.ID.String()+"/verdict", body)
-		if err == nil || finalRefusal(err) {
-			if markErr := u.runs.SetAnswerSent(ctx, run.ID, a.Seq); markErr != nil {
-				log.Warn().Err(markErr).Msg("Recording a delivered verdict failed")
-			}
-			return
+	// An answer verdict is keyed by (run_id, answer_seq), the seq of its answer event. A state subtask's verdict has no answer
+	// event (its stored key is the platform's own negative number): state=true, answer_seq unset, keyed by (run_id, subtask_ref).
+	body := &brainapiv1.VerdictRequest{RunId: run.ID.String(), SubtaskRef: a.SubtaskRef, Correct: a.Correct, At: timestamppb.New(a.At.UTC())}
+	if a.Seq > 0 {
+		body.AnswerSeq = uint64(a.Seq)
+	} else {
+		body.State = true
+	}
+	err = brain.Retry(ctx, verdictAttempts, u.runPause, func(ctx context.Context) error { return c.PostVerdict(ctx, body) })
+	if err == nil || finalRefusal(err) {
+		d.credFails = 0
+		if markErr := u.runs.SetAnswerSent(ctx, run.ID, a.Seq); markErr != nil {
+			log.Warn().Err(markErr).Msg("Recording a delivered verdict failed")
 		}
-		if attempt < verdictAttempts && !sleep(ctx, pause) {
-			return
-		}
-		pause *= 2
+		return
+	}
+	if code := brain.Code(err); code == codes.PermissionDenied || code == codes.Unauthenticated {
+		d.credentialRefusal(run, code)
 	}
 	log.Warn().Err(err).Msg("A verdict was not delivered; it is sent again on the next pass")
 }
 
-// finalRefusal says the brain answered with a status that retrying cannot change.
-func finalRefusal(err error) bool {
-	var api *brain.APIError
-	if !errors.As(err, &api) {
-		return false
+// credentialPasses is how many refusals of a verdict for the platform's credentials pass before the alarm is raised.
+const credentialPasses = 3
+
+// credentialRefusal counts a verdict the brain refused for the platform's credentials (PermissionDenied, Unauthenticated). No
+// retry can fix that, so once it persists the super admins are told in the error journal, once per run; the verdict stays
+// unsent and goes as soon as the brain takes it again.
+func (d *runDriver) credentialRefusal(run assistantModel.Run, code codes.Code) {
+	d.credFails++
+	if d.credFails < credentialPasses || d.credAlarmed {
+		return
 	}
-	switch api.Status {
-	case http.StatusBadRequest, http.StatusNotFound, http.StatusConflict, http.StatusGone, http.StatusUnprocessableEntity:
+	d.credAlarmed = true
+	errorJournal.Report(errorJournal.Event{
+		Kind: errorJournal.KindJob, Source: "assistant/brain/verdicts", Key: "brain-verdict-refused:" + code.String(),
+		Message: "Cyber-brain refuses the verdicts of a run with " + code.String() + ": check the platform's brain connection (certificate, tenant)",
+		Details: map[string]string{"run": run.ID.String(), "code": code.String(), "attempts": strconv.Itoa(d.credFails)},
+	})
+}
+
+// finalRefusal says the brain answered with a code that no retry can change (the request is wrong, or the run is gone): the
+// call counts as done. An unreachable brain, a rate limit, a refused certificate or an internal error of the brain are not
+// final: the next pass tries again.
+func finalRefusal(err error) bool {
+	switch brain.Code(err) {
+	case codes.InvalidArgument, codes.NotFound, codes.AlreadyExists, codes.FailedPrecondition, codes.OutOfRange:
 		return true
 	}
 	return false
@@ -815,7 +876,7 @@ func (d *runDriver) closing(ctx context.Context, run assistantModel.Run) time.Du
 		d.refused = true
 		d.refuseLab(ctx, run)
 	}
-	if !d.stopSent && !assistantModel.IsLabRole(run.Role) && !run.StartedAt.IsZero() && run.EndState != assistantModel.RunFinished {
+	if !d.stopSent && !d.brainEnded && !assistantModel.IsLabRole(run.Role) && !run.StartedAt.IsZero() && run.EndState != assistantModel.RunFinished {
 		d.stopSent = true
 		d.stopAtBrain(ctx, run)
 	}
@@ -905,10 +966,10 @@ func (d *runDriver) captureActivity(ctx context.Context, run assistantModel.Run)
 // labFactsPasses is how many passes of the teardown try to deliver the lab facts before the run is finished without them.
 const labFactsPasses = 5
 
-// sendLabFacts tells the brain the lab-side facts of a grader run (`POST /v1/runs/{run_id}/lab_facts`): the time the lab took
-// to come up, its restarts, whether the topology has Internet egress, and the laboratory's activity figures (not reported
-// yet: null). They are the single-run counterpart of the lab_health and effort figures of a participants' aggregate. The
-// call is idempotent at the brain (a repeat is a 409, which counts as delivered). It reports whether the brain has them,
+// sendLabFacts tells the brain the lab-side facts of a grader run (PostLabFacts, best effort within 5 s): the time the lab took
+// to come up, its restarts, whether the topology has Internet egress, and the laboratory's activity figures (not reported:
+// the optional fields are left unset). They are the single-run counterpart of the lab_health and effort figures of a
+// participants' aggregate. The call is idempotent at the brain (a repeat is AlreadyExists, which counts as delivered). It reports whether the brain has them,
 // or nothing can be said (no recorded ready time), so the run does not wait for them.
 func (d *runDriver) sendLabFacts(ctx context.Context, run assistantModel.Run) bool {
 	u := d.u
@@ -921,22 +982,11 @@ func (d *runDriver) sendLabFacts(ctx context.Context, run assistantModel.Run) bo
 		log.Warn().Err(err).Msg("Reading the task of a run for its lab facts failed")
 		return false
 	}
-	ctx, cancel := context.WithTimeout(ctx, bestEffort)
-	defer cancel()
-	c, err := u.client(ctx)
+	c, err := u.control(ctx)
 	if err != nil {
 		return false
 	}
-	body := assistantModel.LabFacts{
-		ReadyTimeS: max(run.LabReadyAt.Sub(run.CreatedAt).Seconds(), 0), Restarts: 0, EgressEnabled: target.EgressEnabled,
-	}
-	// The activity figures are the laboratory's, read before the lab was destroyed; null while they are not reported. Egress is
-	// the lab's own, never a device's or a person's.
-	var activity assistantModel.RunLabActivity
-	if len(run.LabActivity) > 0 && json.Unmarshal(run.LabActivity, &activity) == nil && activity.Reported {
-		body.EgressUsed, body.VPNBytes, body.DevicesTouched, body.ConsoleMinutes = &activity.EgressUsed, activity.VPNBytes, activity.DevicesTouched, &activity.ConsoleMinutes
-	}
-	err = c.PostJSON(ctx, "/v1/runs/"+run.ID.String()+"/lab_facts", body)
+	err = c.PostLabFacts(ctx, LabFactsRequest(run, target.EgressEnabled))
 	if err == nil || finalRefusal(err) {
 		d.factsSent = true
 		return true
@@ -945,25 +995,32 @@ func (d *runDriver) sendLabFacts(ctx context.Context, run assistantModel.Run) bo
 	return false
 }
 
-// stopAtBrain sends StopRun best effort: an unreachable brain must not hold the lab, so it is tried a few times and then
-// left (the brain ends the run itself when its stream is not read).
+// LabFactsRequest is the PostLabFacts of a grader run: the time its lab took to come up, its restarts, the topology's egress,
+// and the activity figures of its lab read before the lab was destroyed, left unset (not measured) while the laboratory does
+// not report them. Egress is the lab's own, never a device's or a person's.
+func LabFactsRequest(run assistantModel.Run, egressEnabled bool) *brainapiv1.LabFactsRequest {
+	body := &brainapiv1.LabFactsRequest{
+		RunId: run.ID.String(), ReadyTimeS: max(run.LabReadyAt.Sub(run.CreatedAt).Seconds(), 0), Restarts: 0, EgressEnabled: egressEnabled,
+	}
+	var activity assistantModel.RunLabActivity
+	if len(run.LabActivity) > 0 && json.Unmarshal(run.LabActivity, &activity) == nil && activity.Reported {
+		body.EgressUsed, body.VpnBytes, body.DevicesTouched, body.ConsoleMinutes = &activity.EgressUsed, activity.VPNBytes, activity.DevicesTouched, &activity.ConsoleMinutes
+	}
+	return body
+}
+
+// stopAtBrain sends StopRun best effort (5 s a call; NotFound is a success): an unreachable brain must not hold the lab, so it
+// is tried a few times within bestEffort and then left (the brain ends the run itself when its stream is not read).
 func (d *runDriver) stopAtBrain(ctx context.Context, run assistantModel.Run) {
 	ctx, cancel := context.WithTimeout(ctx, bestEffort)
 	defer cancel()
-	c, err := d.u.client(ctx)
+	c, err := d.u.control(ctx)
 	if err != nil {
 		return
 	}
-	pause := d.u.runPause
-	for attempt := 1; attempt <= stopAttempts; attempt++ {
-		err = c.PostJSON(ctx, "/v1/runs/"+run.ID.String()+"/stop", struct{}{})
-		if err == nil || finalRefusal(err) {
-			return
-		}
-		if attempt < stopAttempts && !sleep(ctx, pause) {
-			return
-		}
-		pause *= 2
+	err = brain.Retry(ctx, stopAttempts, d.u.runPause, func(ctx context.Context) error { return c.StopRun(ctx, run.ID.String()) })
+	if err == nil || finalRefusal(err) {
+		return
 	}
 	log.Warn().Err(err).Msg("The brain was not told to stop a run; the lab is torn down anyway")
 }
@@ -1010,6 +1067,10 @@ func (d *runDriver) lab(ctx context.Context, run assistantModel.Run) time.Durati
 			return 0
 		}
 		if unanswered {
+			return d.labAnswer(ctx, run)
+		}
+		if _, again := u.reanswer.LoadAndDelete(run.ID); again {
+			// The brain asked again: the answer it was sent was lost with a stream.
 			return d.labAnswer(ctx, run)
 		}
 		d.pause = 0
@@ -1066,15 +1127,17 @@ func (d *runDriver) labAnswer(ctx context.Context, run assistantModel.Run) time.
 		log.Warn().Err(err).Msg("Making the VPN client of a lab again failed")
 		return d.backoff()
 	}
-	access := assistantModel.VPNAccess(d.config)
+	addr := ""
 	if run.Role == assistantModel.RoleTools {
-		addr, wait, ok := d.runnerAddr(ctx, run)
-		if !ok {
+		var wait time.Duration
+		var ok bool
+		if addr, wait, ok = d.runnerAddr(ctx, run); !ok {
 			return wait
 		}
-		access = access.WithAddr(addr)
 	}
-	result := map[string]any{"device_ref": run.DeployID.String(), "access": access}
+	result := &brainapiv1.RequestAnswer{Result: &brainapiv1.RequestAnswer_Device{Device: &brainapiv1.DeviceResult{
+		DeviceRef: run.DeployID.String(), Access: vpnAccess(d.config, addr),
+	}}}
 	if err := u.answer(ctx, run.RequestID, result, nil); err != nil {
 		log.Warn().Err(err).Msg("Answering a lab request failed; trying again")
 		return d.backoff()

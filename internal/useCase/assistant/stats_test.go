@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"reflect"
 	"regexp"
 	"sort"
@@ -14,6 +12,9 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/grpc/codes"
+
+	"github.com/cybericebox/backend/internal/delivery/infrastructure/brain/brainfake"
 	assistantModel "github.com/cybericebox/backend/internal/model/assistant"
 	"github.com/cybericebox/backend/internal/useCase/assistant"
 )
@@ -75,28 +76,28 @@ func provideDataFrame(seq int64, id string, refs ...assistantModel.TaskRef) outb
 
 func newStatsRig(t *testing.T, stats *fakeStats, frames ...outboxFrame) *outboxRig {
 	t.Helper()
-	cursor := &memCursor{}
-	r := newRig(t, func(d *assistant.Dependencies) {
-		d.Cursor, d.Stats = cursor, stats
-		d.WatchMin, d.WatchMax, d.AnswerPause = 5*time.Millisecond, 20*time.Millisecond, time.Millisecond
-	})
-	if _, err := r.uc.BootstrapBrain(context.Background()); err != nil {
-		t.Fatal(err)
+	return newOutboxRigWith(t, func(d *assistant.Dependencies) { d.Stats = stats }, frames...)
+}
+
+// dataJSON is the data_json of the request's answer, as {"result": <it>}.
+func (b *outboxBrain) dataJSON(t *testing.T, id string) string {
+	t.Helper()
+	answers := b.fake.Outbox.Answers(id)
+	if len(answers) == 0 || answers[0].GetDataJson() == nil {
+		t.Fatalf("no data answer: %v", b.answered(id))
 	}
-	b := &outboxBrain{frames: frames}
-	r.fake.Assistant = b.handler()
-	return &outboxRig{rig: r, brain: b, cursor: cursor}
+	return `{"result":` + string(answers[0].GetDataJson()) + `}`
 }
 
 func TestProvideDataAnswersWithTheAggregatesOfTheRequestedTasks(t *testing.T) {
 	stats := &fakeStats{on: map[assistantModel.TaskRef]bool{refA: true, refB: true}}
 	o := newStatsRig(t, stats, provideDataFrame(1, "d1", refA, refB))
 	o.run(t)
-	eventually(t, "answered", func() bool { return o.cursor.get() == 1 })
+	eventually(t, "answered", func() bool { return len(o.brain.answered("d1")) == 1 })
 	var got struct {
 		Result struct{ Aggregates []assistantModel.Aggregate }
 	}
-	if err := json.Unmarshal([]byte(o.brain.answered("d1")[0]), &got); err != nil || len(got.Result.Aggregates) != 2 {
+	if err := json.Unmarshal([]byte(o.brain.dataJSON(t, "d1")), &got); err != nil || len(got.Result.Aggregates) != 2 {
 		t.Fatalf("answer: %v %v", o.brain.answered("d1"), err)
 	}
 	if got.Result.Aggregates[0].TaskRef != refA || got.Result.Aggregates[0].Solves != 7 || got.Result.Aggregates[0].Time.P75 != 1200 {
@@ -108,7 +109,7 @@ func TestProvideDataWithCollectionOffIsCollectionDisabledNotAnEmptyResult(t *tes
 	stats := &fakeStats{on: map[assistantModel.TaskRef]bool{}}
 	o := newStatsRig(t, stats, provideDataFrame(1, "d1", refA, refB))
 	o.run(t)
-	eventually(t, "answered", func() bool { return o.cursor.get() == 1 })
+	eventually(t, "answered", func() bool { return len(o.brain.answered("d1")) == 1 })
 	if code := refusalCode(t, o.brain.answered("d1")[0]); code != "collection_disabled" {
 		t.Fatalf("code = %q", code)
 	}
@@ -123,7 +124,7 @@ func TestProvideDataForSomeTasksListsTheOffOnesWithTheCode(t *testing.T) {
 	stats := &fakeStats{on: map[assistantModel.TaskRef]bool{refB: true}}
 	o := newStatsRig(t, stats, provideDataFrame(1, "d1", refA, refB))
 	o.run(t)
-	eventually(t, "answered", func() bool { return o.cursor.get() == 1 })
+	eventually(t, "answered", func() bool { return len(o.brain.answered("d1")) == 1 })
 	var got struct {
 		Result struct {
 			Aggregates []struct {
@@ -133,7 +134,7 @@ func TestProvideDataForSomeTasksListsTheOffOnesWithTheCode(t *testing.T) {
 			}
 		}
 	}
-	if err := json.Unmarshal([]byte(o.brain.answered("d1")[0]), &got); err != nil || len(got.Result.Aggregates) != 2 {
+	if err := json.Unmarshal([]byte(o.brain.dataJSON(t, "d1")), &got); err != nil || len(got.Result.Aggregates) != 2 {
 		t.Fatalf("answer: %v %v", o.brain.answered("d1"), err)
 	}
 	data, off := got.Result.Aggregates[0], got.Result.Aggregates[1]
@@ -143,13 +144,13 @@ func TestProvideDataForSomeTasksListsTheOffOnesWithTheCode(t *testing.T) {
 	if off.TaskRef != refA || off.Error != "collection_disabled" || off.Solves != 0 {
 		t.Fatalf("the off task says so and carries no figures: %+v", off)
 	}
-	checkKeys(t, "partial ProvideData answer", []byte(o.brain.answered("d1")[0]))
+	checkKeys(t, "partial ProvideData answer", []byte(o.brain.dataJSON(t, "d1")))
 }
 
 func TestProvideDataWithoutTaskRefsIsAnInvalidRequest(t *testing.T) {
 	o := newStatsRig(t, &fakeStats{}, provideDataFrame(1, "d1"))
 	o.run(t)
-	eventually(t, "answered", func() bool { return o.cursor.get() == 1 })
+	eventually(t, "answered", func() bool { return len(o.brain.answered("d1")) == 1 })
 	if code := refusalCode(t, o.brain.answered("d1")[0]); code != "invalid_request" {
 		t.Fatalf("code = %q", code)
 	}
@@ -158,7 +159,7 @@ func TestProvideDataWithoutTaskRefsIsAnInvalidRequest(t *testing.T) {
 func TestWithoutAStatsSourceCollectionIsDisabled(t *testing.T) {
 	o := newOutboxRig(t, provideDataFrame(1, "d1", refA))
 	o.run(t)
-	eventually(t, "answered", func() bool { return o.cursor.get() == 1 })
+	eventually(t, "answered", func() bool { return len(o.brain.answered("d1")) == 1 })
 	if code := refusalCode(t, o.brain.answered("d1")[0]); code != "collection_disabled" {
 		t.Fatalf("code = %q", code)
 	}
@@ -166,28 +167,16 @@ func TestWithoutAStatsSourceCollectionIsDisabled(t *testing.T) {
 
 // ── PushData ────────────────────────────────────────────────────────────────
 
-type dataBrain struct {
-	mu      sync.Mutex
-	bodies  []string
-	status  int
-	handler http.Handler
-}
+// dataBrain reads what PushData carried from the fake: the body of each call as {"aggregates": [the JSON of each item]}.
+type dataBrain struct{ fake *brainfake.Fake }
 
-func (b *dataBrain) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	if req.URL.Path != "/v1/data" || req.Method != http.MethodPost {
-		http.NotFound(w, req)
-		return
+func (b *dataBrain) bodies() []string {
+	var out []string
+	for _, call := range b.fake.Data.Calls() {
+		raw, _ := json.Marshal(map[string][]json.RawMessage{"aggregates": call})
+		out = append(out, string(raw))
 	}
-	body, _ := io.ReadAll(req.Body)
-	b.mu.Lock()
-	b.bodies = append(b.bodies, string(body))
-	status := b.status
-	b.mu.Unlock()
-	if status != 0 {
-		http.Error(w, "x", status)
-		return
-	}
-	_, _ = w.Write([]byte("{}"))
+	return out
 }
 
 func newPushRig(t *testing.T, stats *fakeStats) (*rig, *dataBrain) {
@@ -196,12 +185,12 @@ func newPushRig(t *testing.T, stats *fakeStats) (*rig, *dataBrain) {
 	if _, err := r.uc.BootstrapBrain(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	b := &dataBrain{}
-	r.fake.Assistant = b
-	return r, b
+	return r, &dataBrain{fake: r.fake}
 }
 
-func TestPushSendsTheAggregatesInBatches(t *testing.T) {
+// One TaskAggregate per aggregate, the JSON of the backend's Aggregate; the batches are split by size (the control client's
+// test covers the split), so a thousand small aggregates go in one call.
+func TestPushSendsEveryAggregateAsOneJSONItem(t *testing.T) {
 	stats := &fakeStats{}
 	for i := range 1100 {
 		stats.all = append(stats.all, aggregate(assistantModel.TaskRef{TaskRef: fmt.Sprintf("ex-%d", i), Version: "v", Image: ""}))
@@ -210,42 +199,48 @@ func TestPushSendsTheAggregatesInBatches(t *testing.T) {
 	if err := r.uc.PushStatistics(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if len(b.bodies) != 3 {
-		t.Fatalf("1100 aggregates in batches of 500: %d calls", len(b.bodies))
+	calls := b.fake.Data.Calls()
+	if len(calls) != 1 || len(calls[0]) != 1100 {
+		t.Fatalf("calls: %d", len(calls))
 	}
-	total := 0
-	for _, body := range b.bodies {
-		var in struct{ Aggregates []assistantModel.Aggregate }
-		if err := json.Unmarshal([]byte(body), &in); err != nil {
-			t.Fatal(err)
-		}
-		total += len(in.Aggregates)
+	var first assistantModel.Aggregate
+	if err := json.Unmarshal(calls[0][0], &first); err != nil || first.TaskRef.TaskRef != "ex-0" {
+		t.Fatalf("an item is one Aggregate object: %v %+v", err, first)
 	}
-	if total != 1100 {
-		t.Fatalf("total %d", total)
+}
+
+// A rejected item is logged and the push goes on: the next push sends it again.
+func TestPushTakesTheRejectionsPerItem(t *testing.T) {
+	stats := &fakeStats{all: []assistantModel.Aggregate{aggregate(refA), aggregate(assistantModel.TaskRef{TaskRef: "other", Version: "v"})}}
+	r, b := newPushRig(t, stats)
+	b.fake.Data.Reject(refA.TaskRef, "unknown task")
+	if err := r.uc.PushStatistics(context.Background()); err != nil {
+		t.Fatalf("a rejected item is not a failed push: %v", err)
+	}
+	if calls := b.fake.Data.Calls(); len(calls) != 1 || len(calls[0]) != 2 {
+		t.Fatalf("%v", calls)
 	}
 }
 
 func TestPushWithNothingToSendOrNoSourceSendsNothing(t *testing.T) {
 	r, b := newPushRig(t, &fakeStats{})
-	if err := r.uc.PushStatistics(context.Background()); err != nil || len(b.bodies) != 0 {
-		t.Fatalf("empty: %v %d", err, len(b.bodies))
+	if err := r.uc.PushStatistics(context.Background()); err != nil || len(b.bodies()) != 0 {
+		t.Fatalf("empty: %v %d", err, len(b.bodies()))
 	}
 	r2 := newRig(t, nil)
 	if _, err := r2.uc.BootstrapBrain(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	b2 := &dataBrain{}
-	r2.fake.Assistant = b2
-	if err := r2.uc.PushStatistics(context.Background()); err != nil || len(b2.bodies) != 0 {
-		t.Fatalf("no source: %v %d", err, len(b2.bodies))
+	b2 := &dataBrain{fake: r2.fake}
+	if err := r2.uc.PushStatistics(context.Background()); err != nil || len(b2.bodies()) != 0 {
+		t.Fatalf("no source: %v %d", err, len(b2.bodies()))
 	}
 }
 
 func TestPushReportsAFailingBrain(t *testing.T) {
 	stats := &fakeStats{all: []assistantModel.Aggregate{aggregate(refA)}}
 	r, b := newPushRig(t, stats)
-	b.status = http.StatusServiceUnavailable
+	b.fake.Data.FailNext(codes.Unavailable)
 	if err := r.uc.PushStatistics(context.Background()); err == nil {
 		t.Fatal("a refused push must be reported so the next run tries again")
 	}
@@ -313,15 +308,15 @@ func TestStatisticsPayloadsCarryOnlyAggregateFields(t *testing.T) {
 
 	o := newStatsRig(t, stats, provideDataFrame(1, "d1", refA))
 	o.run(t)
-	eventually(t, "answered", func() bool { return o.cursor.get() == 1 })
-	checkKeys(t, "ProvideData answer", []byte(o.brain.answered("d1")[0]))
+	eventually(t, "answered", func() bool { return len(o.brain.answered("d1")) == 1 })
+	checkKeys(t, "ProvideData answer", []byte(o.brain.dataJSON(t, "d1")))
 
 	r, b := newPushRig(t, stats)
-	if err := r.uc.PushStatistics(context.Background()); err != nil || len(b.bodies) != 1 {
-		t.Fatalf("push: %v %d", err, len(b.bodies))
+	if err := r.uc.PushStatistics(context.Background()); err != nil || len(b.bodies()) != 1 {
+		t.Fatalf("push: %v %d", err, len(b.bodies()))
 	}
-	checkKeys(t, "PushData", []byte(b.bodies[0]))
-	if strings.Contains(b.bodies[0], "11111111-1111") {
+	checkKeys(t, "PushData", []byte(b.bodies()[0]))
+	if strings.Contains(b.bodies()[0], "11111111-1111") {
 		t.Fatal("a user id is in the payload")
 	}
 }

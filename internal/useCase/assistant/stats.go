@@ -1,24 +1,22 @@
 package assistant
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/backend/internal/delivery/infrastructure/brain"
 	assistantModel "github.com/cybericebox/backend/internal/model/assistant"
+	brainapiv1 "github.com/cybericebox/backend/pkg/brainapi/v1"
 )
 
 // StatsInterval is how often the leader pushes the aggregates of the events whose collection is on.
 const StatsInterval = time.Hour
 
-// maxStatsBatch caps the aggregates in one PushData call.
+// maxStatsBatch caps the tasks one provide_data request may ask for (PushData batches are split by size instead).
 const maxStatsBatch = 500
 
 // StatsSource gives the aggregates of the tasks of the events whose statistics collection is on. Hidden teams and
@@ -77,23 +75,25 @@ func (m MultiSource) CollectionOn(ctx context.Context, refs []assistantModel.Tas
 
 // provideData answers the brain's pull request: the aggregates of the requested tasks, or collection_disabled when
 // collection is off for all of them.
-func (u *UseCase) provideData(ctx context.Context, req OutboxRequest) (any, *AnswerError) {
+func (u *UseCase) provideData(ctx context.Context, req OutboxRequest) (*brainapiv1.RequestAnswer, *AnswerError) {
 	if u.stats == nil {
 		return nil, &AnswerError{Code: codeCollectionDisabled, Message: "statistics collection is off"}
 	}
-	var in struct {
-		TaskRefs []assistantModel.TaskRef `json:"task_refs"`
+	tasks := req.Req.GetProvideData().GetTasks()
+	if len(tasks) == 0 || len(tasks) > maxStatsBatch {
+		return nil, &AnswerError{Code: codeInvalidRequest, Message: "tasks must list 1 to 500 tasks"}
 	}
-	if err := json.Unmarshal(req.Raw, &in); err != nil || len(in.TaskRefs) == 0 || len(in.TaskRefs) > maxStatsBatch {
-		return nil, &AnswerError{Code: codeInvalidRequest, Message: "task_refs must list 1 to 500 tasks"}
+	refs := make([]assistantModel.TaskRef, 0, len(tasks))
+	for _, t := range tasks {
+		refs = append(refs, assistantModel.TaskRef{TaskRef: t.GetTaskRef(), Version: t.GetVersion(), Image: t.GetImage()})
 	}
-	on, err := u.stats.CollectionOn(ctx, in.TaskRefs)
+	on, err := u.stats.CollectionOn(ctx, refs)
 	if err != nil {
 		log.Error().Err(err).Msg("Reading the statistics collection switches failed")
 		return nil, &AnswerError{Code: codeInternal, Message: "the platform could not read the statistics settings"}
 	}
 	var enabled, disabled []assistantModel.TaskRef
-	for _, ref := range in.TaskRefs {
+	for _, ref := range refs {
 		if on[ref] {
 			enabled = append(enabled, ref)
 		} else {
@@ -116,12 +116,17 @@ func (u *UseCase) provideData(ctx context.Context, req OutboxRequest) (any, *Ans
 	for _, ref := range disabled {
 		entries = append(entries, assistantModel.Unavailable{TaskRef: ref, Error: codeCollectionDisabled})
 	}
-	return map[string]any{"aggregates": entries}, nil
+	raw, err := json.Marshal(map[string]any{"aggregates": entries})
+	if err != nil {
+		return nil, &AnswerError{Code: codeInternal, Message: "the platform could not encode the statistics"}
+	}
+	return &brainapiv1.RequestAnswer{Result: &brainapiv1.RequestAnswer_DataJson{DataJson: raw}}, nil
 }
 
-// PushStatistics sends the aggregates of every task whose collection is on to the brain (`POST /v1/data`), in batches.
-// The figures are cumulative, so a repeat replaces the earlier one and no state is kept between runs. Nothing is sent
-// when there is nothing to send.
+// PushStatistics sends the aggregates of every task whose collection is on to the brain (PushData): one JSON object per
+// aggregate, in batches split by size under the message limit. The figures are cumulative, so a repeat replaces the earlier one
+// and no state is kept between runs; an aggregate the brain rejects is logged and goes again with the next push. Nothing is
+// sent when there is nothing to send.
 func (u *UseCase) PushStatistics(ctx context.Context) error {
 	if u.stats == nil || !u.Enabled() {
 		return nil
@@ -130,24 +135,27 @@ func (u *UseCase) PushStatistics(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("read the statistics aggregates: %w", err)
 	}
-	c, err := u.client(ctx)
+	if len(aggregates) == 0 {
+		return nil
+	}
+	c, err := u.control(ctx)
 	if err != nil {
 		return err
 	}
-	for start := 0; start < len(aggregates); start += maxStatsBatch {
-		batch := aggregates[start:min(start+maxStatsBatch, len(aggregates))]
-		body, marshalErr := json.Marshal(map[string]any{"aggregates": batch})
+	items := make([][]byte, 0, len(aggregates))
+	for _, a := range aggregates {
+		raw, marshalErr := json.Marshal(a)
 		if marshalErr != nil {
 			return marshalErr
 		}
-		resp, doErr := c.Do(ctx, brain.Request{
-			Method: http.MethodPost, Path: "/v1/data",
-			Header: http.Header{"Content-Type": {"application/json"}}, Body: bytes.NewReader(body), ContentLength: int64(len(body)),
-		})
-		if doErr != nil {
-			return fmt.Errorf("push the statistics: %w", doErr)
-		}
-		_ = resp.Body.Close()
+		items = append(items, raw)
+	}
+	rejected, err := c.PushData(ctx, items)
+	for _, r := range rejected {
+		log.Warn().Str("task_ref", r.GetTaskRef()).Str("version", r.GetVersion()).Str("reason", r.GetReason()).Msg("The brain rejected a statistics aggregate")
+	}
+	if err != nil {
+		return fmt.Errorf("push the statistics: %w", err)
 	}
 	return nil
 }

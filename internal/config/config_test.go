@@ -246,13 +246,14 @@ func TestBrainConfig_DefaultsEnvAndRejectsInvalidEndpoint(t *testing.T) {
 	t.Setenv("BRAIN_ENDPOINT", "brain.example.test:8443")
 	t.Setenv("BRAIN_ENROLLMENT_TOKEN", "one-time")
 	t.Setenv("BRAIN_CA_FILE", "/ca/brain.crt")
+	t.Setenv("BRAIN_GRPC_ENDPOINT", "brain.example.test:9443")
 	t.Setenv("BRAIN_RUN_GRACE", "90s")
 	t.Setenv("BRAIN_RUN_MAX_DURATION", "45m")
 	got := MustGetConfig().Brain
 	if got.RunGrace != 90*time.Second || got.RunMaxDuration != 45*time.Minute {
 		t.Fatalf("the run settings come from the environment: %+v", got)
 	}
-	if got.Endpoint != "brain.example.test:8443" || got.EnrollmentToken != "one-time" || got.CAFile != "/ca/brain.crt" {
+	if got.Endpoint != "brain.example.test:8443" || got.GRPCEndpoint != "brain.example.test:9443" || got.EnrollmentToken != "one-time" || got.CAFile != "/ca/brain.crt" {
 		t.Fatalf("brain config from env: %+v", got)
 	}
 
@@ -269,6 +270,14 @@ func TestBrainConfig_DefaultsEnvAndRejectsInvalidEndpoint(t *testing.T) {
 	}
 	if (BrainConfig{Endpoint: "[::1]:443"}).Validate() != nil {
 		t.Fatal("rejected an IPv6 endpoint")
+	}
+	for _, bad := range []string{"brain.example.test", ":9443", "grpcs://brain.example.test:9443"} {
+		if (BrainConfig{Endpoint: "brain.example.test:443", GRPCEndpoint: bad}).Validate() == nil {
+			t.Fatalf("accepted gRPC endpoint %q", bad)
+		}
+	}
+	if (BrainConfig{Endpoint: "brain.example.test:443", GRPCEndpoint: "brain.example.test:9443"}).Validate() != nil {
+		t.Fatal("rejected a gRPC endpoint")
 	}
 }
 

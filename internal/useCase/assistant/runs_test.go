@@ -1,14 +1,9 @@
 package assistant_test
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
-	"mime"
-	"mime/multipart"
-	"net/http"
 	"strings"
 	"sync"
 	"testing"
@@ -18,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
 
 	"github.com/cybericebox/backend/internal/delivery/infrastructure/brain/brainfake"
 	"github.com/cybericebox/backend/internal/delivery/repository/assistantRunRepo"
@@ -553,8 +549,7 @@ func newRunRig(t *testing.T, mutate func(*assistant.Dependencies)) *runRig {
 	if _, err := r.uc.BootstrapBrain(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	brn := brainfake.NewRuns()
-	r.fake.Runs = brn
+	brn := r.fake.Runs
 	return &runRig{rig: r, runs: runs, labs: labs, brn: brn, users: users}
 }
 
@@ -692,33 +687,37 @@ func TestAGraderRunFromStartToTeardown(t *testing.T) {
 		t.Fatalf("materials first, then the start: %v", order)
 	}
 	uploaded := r.brn.Materials(id)
-	if len(uploaded) != 1 || uploaded[0].RequestedWith != "cybericebox-daemon" {
+	if len(uploaded) != 1 {
 		t.Fatalf("%+v", uploaded)
 	}
-	form := parseUpload(t, uploaded[0])
-	if form["task"].filename != "task.json" || !strings.Contains(form["task"].body, `"answer_kind":"flag"`) || form["file"].filename != "notes.txt" || form["file"].body != "participant file" {
-		t.Fatalf("%+v", form)
+	up := uploaded[0]
+	if up.Meta.GetRunId() != id || !strings.Contains(string(up.Meta.GetTaskJson()), `"answer_kind":"flag"`) || up.Meta.GetTotalSize() != uint64(len("participant file")) ||
+		len(up.Files) != 1 || up.Files[0].Name != "notes.txt" || up.Files[0].ContentType != "text/plain" || string(up.Files[0].Data) != "participant file" {
+		t.Fatalf("the meta with task.json inline, then the file: %+v", up)
 	}
 	body := mustJSON(t, r.brn.Started()[0])
-	for _, forbidden := range []string{"band", "budget", "goal"} {
-		if _, has := body[forbidden]; has {
-			t.Fatalf("the grader has no %s: %s", forbidden, r.brn.Started()[0])
+	for _, unset := range []string{"band", "goal", "spec_id"} {
+		if v := string(body[unset]); v != "0" && v != "[]" && v != `""` {
+			t.Fatalf("the grader has no %s: %s", unset, r.brn.Started()[0])
 		}
 	}
-	var role, taskRef, version, image, start string
+	if string(body["budget"]) != "null" {
+		t.Fatalf("the grader has no budget: %s", r.brn.Started()[0])
+	}
+	var role, taskRef, version, image string
 	_ = json.Unmarshal(body["role"], &role)
 	_ = json.Unmarshal(body["task_ref"], &taskRef)
 	_ = json.Unmarshal(body["version"], &version)
 	_ = json.Unmarshal(body["image"], &image)
-	_ = json.Unmarshal(body["start"], &start)
-	var access map[string]struct{ Entry string }
+	start := string(body["start"])
+	var access map[string]struct{ Entry, Addr string }
 	_ = json.Unmarshal(body["access"], &access)
 	var runID string
 	_ = json.Unmarshal(body["run_id"], &runID)
-	if runID != id || role != "grader" || taskRef != runExercise.String() || version != runVersion.String() || start != "immediate" || len(image) != 64 {
+	if runID != id || role != "grader" || taskRef != runExercise.String() || version != runVersion.String() || start != `{"immediate":{}}` || len(image) != 64 {
 		t.Fatalf("%s", r.brn.Started()[0])
 	}
-	if len(access) != 1 || !strings.Contains(access["vpn"].Entry, "PrivateKey = run-key") {
+	if len(access) != 1 || !strings.Contains(access["vpn"].Entry, "PrivateKey = run-key") || access["vpn"].Addr != "" {
 		t.Fatalf("the full config of the run's own client: %v", access)
 	}
 	if !strings.HasPrefix(r.runs.state(run.ID).AccessClient, "g-") {
@@ -750,7 +749,8 @@ func TestAGraderRunFromStartToTeardown(t *testing.T) {
 		t.Fatalf("%v", verdicts)
 	}
 	first, second := mustJSON(t, verdicts[0]), mustJSON(t, verdicts[1])
-	if string(first["correct"]) != "false" || string(second["correct"]) != "true" || string(first["subtask_ref"]) != `"login"` || len(first) != 3 {
+	if string(first["correct"]) != "false" || string(second["correct"]) != "true" || string(first["subtask_ref"]) != `"login"` || len(first) != 6 || string(first["state"]) != "false" ||
+		string(first["run_id"]) != `"`+id+`"` || string(first["answer_seq"]) != `"2"` || string(second["answer_seq"]) != `"3"` {
 		t.Fatalf("%s %s", verdicts[0], verdicts[1])
 	}
 	for _, v := range verdicts {
@@ -782,7 +782,7 @@ func TestAFinishedGraderRunSendsItsLabFactsAndRetriesThem(t *testing.T) {
 	r.labs.egress = true
 	run := r.start(t)
 	id := run.ID.String()
-	r.brn.FailLabFacts(2, http.StatusServiceUnavailable)
+	r.brn.FailLabFacts(2, codes.Unavailable)
 	r.drive(t)
 	r.waitState(t, run.ID, assistantModel.RunRunning)
 	r.brn.Emit(id, "run_finished", `{"type":"run_finished","run_id":"`+id+`","status":"done"}`)
@@ -797,8 +797,8 @@ func TestAFinishedGraderRunSendsItsLabFactsAndRetriesThem(t *testing.T) {
 		t.Fatalf("%s", sent[0])
 	}
 	for _, nullable := range []string{"egress_used", "vpn_bytes", "devices_touched", "console_minutes"} {
-		if v, has := got[nullable]; !has || string(v) != "null" {
-			t.Fatalf("%s is null while the laboratory does not report it: %s", nullable, sent[0])
+		if _, has := got[nullable]; has {
+			t.Fatalf("%s is unset (not measured) while the laboratory does not report it: %s", nullable, sent[0])
 		}
 	}
 	var ready float64
@@ -848,8 +848,8 @@ func TestTheLabFactsDeviceFiguresAreNullWithoutDeviceTouch(t *testing.T) {
 	got := mustJSON(t, r.brn.LabFacts(id)[0])
 	assert.Equal(t, "true", string(got["egress_used"]))
 	assert.Equal(t, "1", string(got["console_minutes"]))
-	assert.Equal(t, "null", string(got["vpn_bytes"]))
-	assert.Equal(t, "null", string(got["devices_touched"]))
+	assert.NotContains(t, got, "vpn_bytes")
+	assert.NotContains(t, got, "devices_touched")
 }
 
 // Reports that are off (or a lab the laboratory does not know) are null, never zero.
@@ -864,7 +864,7 @@ func TestTheLabFactsActivityIsNullWhenNothingIsReported(t *testing.T) {
 	r.waitState(t, run.ID, assistantModel.RunFinished)
 	got := mustJSON(t, r.brn.LabFacts(id)[0])
 	for _, key := range []string{"egress_used", "vpn_bytes", "devices_touched", "console_minutes"} {
-		assert.Equal(t, "null", string(got[key]), key)
+		assert.NotContains(t, got, key)
 	}
 }
 
@@ -879,7 +879,7 @@ func TestAFailingActivityReadIsRetriedThenLeftNull(t *testing.T) {
 	r.brn.Emit(id, "run_finished", `{"type":"run_finished","run_id":"`+id+`","status":"done"}`)
 	r.waitState(t, run.ID, assistantModel.RunFinished)
 	assert.Len(t, act.refreshed, 3, "three passes")
-	assert.Equal(t, "null", string(mustJSON(t, r.brn.LabFacts(id)[0])["vpn_bytes"]))
+	assert.NotContains(t, mustJSON(t, r.brn.LabFacts(id)[0]), "vpn_bytes")
 }
 
 // An answered 409 means the brain has the facts already: it counts as delivered and nothing is sent twice.
@@ -887,7 +887,7 @@ func TestLabFactsRefusedAsKnownAreNotSentAgain(t *testing.T) {
 	r := newRunRig(t, nil)
 	run := r.start(t)
 	id := run.ID.String()
-	r.brn.FailLabFacts(1, http.StatusConflict)
+	r.brn.FailLabFacts(1, codes.AlreadyExists)
 	r.drive(t)
 	r.waitState(t, run.ID, assistantModel.RunRunning)
 	r.brn.Emit(id, "run_finished", `{"type":"run_finished","run_id":"`+id+`","status":"done"}`)
@@ -895,27 +895,6 @@ func TestLabFactsRefusedAsKnownAreNotSentAgain(t *testing.T) {
 	if n := len(r.brn.LabFacts(id)); n != 0 {
 		t.Fatalf("a 409 is the end of it: %d", n)
 	}
-}
-
-type uploadedPart struct{ filename, contentType, body string }
-
-func parseUpload(t *testing.T, u brainfake.Upload) map[string]uploadedPart {
-	t.Helper()
-	_, params, err := mime.ParseMediaType(u.ContentType)
-	if err != nil {
-		t.Fatal(err)
-	}
-	out := map[string]uploadedPart{}
-	reader := multipart.NewReader(bytes.NewReader(u.Body), params["boundary"])
-	for {
-		part, err := reader.NextPart()
-		if err != nil {
-			break
-		}
-		body, _ := io.ReadAll(part)
-		out[part.FormName()] = uploadedPart{filename: part.FileName(), contentType: part.Header.Get("Content-Type"), body: string(body)}
-	}
-	return out
 }
 
 func indexOf(list []string, item string) int {
@@ -976,7 +955,7 @@ func TestAnUnreachableBrainFailsTheRunAfterTheGraceAndTearsDown(t *testing.T) {
 	r.drive(t)
 	r.waitState(t, run.ID, assistantModel.RunRunning)
 
-	r.brn.SetEventsStatus(503)
+	r.brn.SetEventsStatus(codes.Unavailable)
 	r.brn.DropStreams()
 	eventually(t, "the grace to start", func() bool { return !r.runs.state(run.ID).StreamDownSince.IsZero() })
 	if r.runs.state(run.ID).State != assistantModel.RunRunning {
@@ -1043,7 +1022,7 @@ func TestALabThatFailsOrIsRefusedEndsTheRunWithItsReason(t *testing.T) {
 	})
 	t.Run("the brain refuses the run", func(t *testing.T) {
 		r := newRunRig(t, nil)
-		r.brn.SetStartStatus(422)
+		r.brn.SetStartStatus(codes.InvalidArgument)
 		run := r.start(t)
 		r.drive(t)
 		got := r.waitState(t, run.ID, assistantModel.RunFailed)
@@ -1066,7 +1045,7 @@ func TestALabThatFailsOrIsRefusedEndsTheRunWithItsReason(t *testing.T) {
 	})
 	t.Run("an unreachable brain at the start fails after the grace", func(t *testing.T) {
 		r := newRunRig(t, nil)
-		r.brn.SetStartStatus(503)
+		r.brn.SetStartStatus(codes.Unavailable)
 		run := r.start(t)
 		r.drive(t)
 		eventually(t, "the grace to start", func() bool { return !r.runs.state(run.ID).StreamDownSince.IsZero() })
@@ -1103,7 +1082,7 @@ func TestANewLeaderResumesARunFromTheStoredState(t *testing.T) {
 func TestAVerdictThatFailsIsSentAgainWithTheSameBody(t *testing.T) {
 	r := newRunRig(t, nil)
 	r.labs.judged["login"] = "ICE{real}"
-	r.brn.FailVerdicts(4, 503) // more than one send's attempts: left for the next pass
+	r.brn.FailVerdicts(4, codes.Unavailable) // more than one send's attempts: left for the next pass
 	run := r.start(t)
 	id := run.ID.String()
 	r.drive(t)
@@ -1267,10 +1246,10 @@ func TestAnotherExercisesIdsAreNotFoundOnEveryMeasureRoute(t *testing.T) {
 	}
 }
 
-func TestTheMaterialsAreRetriedOnServerErrorsAndAFailureRefusesTheRun(t *testing.T) {
-	t.Run("a server error twice, then accepted", func(t *testing.T) {
+func TestTheMaterialsAreRetriedOnARateLimitAndAFailureRefusesTheRun(t *testing.T) {
+	t.Run("rate limited twice, then accepted", func(t *testing.T) {
 		r := newRunRig(t, nil)
-		r.brn.FailMaterials(503, 502)
+		r.brn.FailMaterials(codes.ResourceExhausted, codes.ResourceExhausted)
 		run := r.start(t)
 		r.drive(t)
 		r.waitState(t, run.ID, assistantModel.RunRunning)
@@ -1278,9 +1257,9 @@ func TestTheMaterialsAreRetriedOnServerErrorsAndAFailureRefusesTheRun(t *testing
 			t.Fatalf("%v", r.brn.Order())
 		}
 	})
-	t.Run("a server error that does not stop", func(t *testing.T) {
+	t.Run("a rate limit that does not stop", func(t *testing.T) {
 		r := newRunRig(t, nil)
-		r.brn.FailMaterials(503, 503, 503)
+		r.brn.FailMaterials(codes.ResourceExhausted, codes.ResourceExhausted, codes.ResourceExhausted)
 		run := r.start(t)
 		r.drive(t)
 		got := r.waitState(t, run.ID, assistantModel.RunFailed)
@@ -1294,7 +1273,7 @@ func TestTheMaterialsAreRetriedOnServerErrorsAndAFailureRefusesTheRun(t *testing
 	})
 	t.Run("a refusal that cannot change", func(t *testing.T) {
 		r := newRunRig(t, nil)
-		r.brn.FailMaterials(422)
+		r.brn.FailMaterials(codes.InvalidArgument)
 		run := r.start(t)
 		r.drive(t)
 		if got := r.waitState(t, run.ID, assistantModel.RunFailed); got.FailureReason != assistantModel.FailureStartRefused || len(r.brn.Started()) != 0 {
@@ -1366,7 +1345,7 @@ func TestOnlyTheMeasureEventIsTheMeasurement(t *testing.T) {
 func TestTeardownDoesNotWaitOnTheBrainOrOnARevocation(t *testing.T) {
 	t.Run("StopRun failing keeps nothing alive", func(t *testing.T) {
 		r := newRunRig(t, nil)
-		r.brn.SetStopStatus(503)
+		r.brn.SetStopStatus(codes.Unavailable)
 		run := r.start(t)
 		r.drive(t)
 		r.waitState(t, run.ID, assistantModel.RunRunning)
@@ -1383,8 +1362,8 @@ func TestTeardownDoesNotWaitOnTheBrainOrOnARevocation(t *testing.T) {
 		run := r.start(t)
 		r.drive(t)
 		r.waitState(t, run.ID, assistantModel.RunRunning)
-		r.brn.SetEventsStatus(503)
-		r.brn.SetStopStatus(503)
+		r.brn.SetEventsStatus(codes.Unavailable)
+		r.brn.SetStopStatus(codes.Unavailable)
 		r.brn.DropStreams()
 		r.clock.advance(11 * time.Minute)
 		got := r.waitState(t, run.ID, assistantModel.RunFailed)
@@ -1436,7 +1415,7 @@ func TestAStateSubtaskIsToldCorrectOnTheFirstPassAndOnlyOnce(t *testing.T) {
 	eventually(t, "the verdict of the passed subtask", func() bool { return len(r.brn.Verdicts(id)) == 1 })
 	time.Sleep(50 * time.Millisecond) // the state is looked at every pass, and the verdict goes once
 	got := verdictBodies(t, r, id)
-	if len(got) != 1 || string(got[0]["subtask_ref"]) != `"service"` || string(got[0]["correct"]) != "true" || len(got[0]) != 3 {
+	if len(got) != 1 || string(got[0]["subtask_ref"]) != `"service"` || string(got[0]["correct"]) != "true" || string(got[0]["state"]) != "true" || string(got[0]["answer_seq"]) != `"0"` || len(got[0]) != 6 {
 		t.Fatalf("%v", r.brn.Verdicts(id))
 	}
 	// a check that stops passing is not told again: only a change from nothing to a result is
@@ -1483,8 +1462,8 @@ func TestAStateSubtaskThatNeverPassedIsToldNotCorrectBeforeTheTeardown(t *testin
 func TestStateVerdictsNeverHoldTheTeardownWhenTheBrainIsDown(t *testing.T) {
 	r := newRunRig(t, nil)
 	r.labs.stateTasks = []exerciseUseCase.StateSubtask{{Key: "service"}}
-	r.brn.FailVerdicts(1000, 503)
-	r.brn.SetStopStatus(503)
+	r.brn.FailVerdicts(1000, codes.Unavailable)
+	r.brn.SetStopStatus(codes.Unavailable)
 	run := r.start(t)
 	r.drive(t)
 	r.waitState(t, run.ID, assistantModel.RunRunning)

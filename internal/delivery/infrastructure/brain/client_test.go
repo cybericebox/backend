@@ -32,7 +32,7 @@ func enrolled(t *testing.T, f *brainfake.Fake) (*brain.Client, agentcrypto.Clien
 
 func TestEnrollIssuesACertificateForOurKeyAndTheTokenIsOneTime(t *testing.T) {
 	f := brainfake.New()
-	defer f.Server.Close()
+	defer f.Close()
 	key, _ := agentcrypto.NewClientKey()
 
 	out, err := brain.Enroll(context.Background(), f.Endpoint(), f.CAPEM, brainfake.Token, key.CSRPEM)
@@ -55,7 +55,7 @@ func TestEnrollIssuesACertificateForOurKeyAndTheTokenIsOneTime(t *testing.T) {
 
 func TestEnrollWithAWrongTokenIsDeniedAndWithAnUntrustedServerIsUnreachable(t *testing.T) {
 	f := brainfake.New()
-	defer f.Server.Close()
+	defer f.Close()
 	key, _ := agentcrypto.NewClientKey()
 
 	if _, err := brain.Enroll(context.Background(), f.Endpoint(), f.CAPEM, "nope", key.CSRPEM); !errors.Is(err, brain.ErrEnrollmentDenied) {
@@ -69,7 +69,7 @@ func TestEnrollWithAWrongTokenIsDeniedAndWithAnUntrustedServerIsUnreachable(t *t
 
 func TestRenewGoesOverMutualTLSWithTheCurrentCertificate(t *testing.T) {
 	f := brainfake.New()
-	defer f.Server.Close()
+	defer f.Close()
 	c, _ := enrolled(t, f)
 
 	fresh, _ := agentcrypto.NewClientKey()
@@ -87,7 +87,7 @@ func TestRenewGoesOverMutualTLSWithTheCurrentCertificate(t *testing.T) {
 
 func TestDoMapsTheErrorEnvelopeAndKeepsTheBodyOfASuccess(t *testing.T) {
 	f := brainfake.New()
-	defer f.Server.Close()
+	defer f.Close()
 	f.Assistant = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/v1/assistant/ok":
@@ -123,12 +123,12 @@ func TestDoMapsTheErrorEnvelopeAndKeepsTheBodyOfASuccess(t *testing.T) {
 
 func TestDoWithoutAClientCertificateIsRefusedByTheBrain(t *testing.T) {
 	f := brainfake.New()
-	defer f.Server.Close()
+	defer f.Close()
 	f.Assistant = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("secret")) })
 	// A server-only client: the Enroll transport, used through renew's sibling path, cannot reach assistant routes.
 	key, _ := agentcrypto.NewClientKey()
 	other := brainfake.New()
-	defer other.Server.Close()
+	defer other.Close()
 	out, err := brain.Enroll(context.Background(), other.Endpoint(), other.CAPEM, brainfake.Token, key.CSRPEM)
 	if err != nil {
 		t.Fatal(err)
@@ -148,7 +148,7 @@ func TestDoWithoutAClientCertificateIsRefusedByTheBrain(t *testing.T) {
 
 func TestNewClientRejectsMismatchedMaterial(t *testing.T) {
 	f := brainfake.New()
-	defer f.Server.Close()
+	defer f.Close()
 	_, key := enrolled(t, f)
 	other, _ := agentcrypto.NewClientKey()
 	if _, err := brain.NewClient(f.Endpoint(), []byte("not a cert"), []byte(key.KeyPEM), nil); err == nil {

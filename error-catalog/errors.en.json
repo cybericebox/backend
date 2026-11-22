@@ -595,5 +595,7 @@
   "73614": "The variant already has an active run",
   "73615": "Too many active runs",
   "73617": "Opponents cannot be run in this lab",
-  "73621": "The task this edit belongs to is archived"
+  "73621": "The task this edit belongs to is archived",
+  "73622": "The opponent does not fit the device limits of the lab",
+  "73623": "The brain gave an opponent the platform cannot deploy"
 }

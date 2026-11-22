@@ -70,6 +70,18 @@ func (s *memStore) Create(_ context.Context, c assistantModel.Connection) (bool,
 	return true, nil
 }
 
+func (s *memStore) SetGRPCEndpoint(_ context.Context, endpoint, grpcEndpoint string, at time.Time) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c, ok := s.conns[endpoint]
+	if !ok || c.GRPCEndpoint == grpcEndpoint {
+		return false, nil
+	}
+	c.GRPCEndpoint, c.UpdatedAt = grpcEndpoint, at
+	s.conns[endpoint] = c
+	return true, nil
+}
+
 func (s *memStore) SetCertificate(_ context.Context, endpoint, tenant, certPEM, keyCT, caPEM string, notAfter, at time.Time) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -104,7 +116,7 @@ func (c *clock) advance(d time.Duration) {
 func newRig(t *testing.T, mutate func(*assistant.Dependencies)) *rig {
 	t.Helper()
 	f := brainfake.New()
-	t.Cleanup(f.Server.Close)
+	t.Cleanup(f.Close)
 	r := &rig{fake: f, store: newMemStore(), clock: &clock{t: time.Now()}}
 	caFile := filepath.Join(t.TempDir(), "brain-ca.crt")
 	if err := os.WriteFile(caFile, f.CAPEM, 0o600); err != nil {
@@ -113,7 +125,7 @@ func newRig(t *testing.T, mutate func(*assistant.Dependencies)) *rig {
 	d := assistant.Dependencies{
 		Store: r.store, Cipher: cipher(t, keyA), Subjects: newMemSubjects(),
 		// The fake's CA is not in the system roots: BRAIN_CA_FILE names it.
-		Config: assistant.Config{Endpoint: f.Endpoint(), EnrollmentToken: brainfake.Token, CAFile: caFile},
+		Config: assistant.Config{Endpoint: f.Endpoint(), GRPCEndpoint: f.GRPCEndpoint(), EnrollmentToken: brainfake.Token, CAFile: caFile},
 		Now:    r.clock.now,
 	}
 	if mutate != nil {
@@ -245,6 +257,26 @@ func TestBootstrapEnrollsOnceAndSealsTheKey(t *testing.T) {
 	again, err := r.uc.BootstrapBrain(context.Background())
 	if err != nil || again || r.fake.Enrolls() != 1 {
 		t.Fatalf("a stored connection is not enrolled again: again=%v err=%v enrolls=%d", again, err, r.fake.Enrolls())
+	}
+}
+
+func TestBootstrapStoresTheGRPCEndpointAndFollowsAChangeOfIt(t *testing.T) {
+	r := newRig(t, nil)
+	if _, err := r.uc.BootstrapBrain(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	conn, _, _ := r.store.Get(context.Background(), r.fake.Endpoint())
+	if conn.GRPCEndpoint != r.fake.GRPCEndpoint() {
+		t.Fatalf("the gRPC endpoint is stored next to the HTTP one: %+v", conn)
+	}
+	moved := newRig(t, func(d *assistant.Dependencies) {
+		d.Store, d.Config.Endpoint, d.Config.GRPCEndpoint = r.store, r.fake.Endpoint(), "brain.example.test:9443"
+	})
+	if enrolled, err := moved.uc.BootstrapBrain(context.Background()); err != nil || enrolled {
+		t.Fatalf("no second enrollment: %v %v", enrolled, err)
+	}
+	if conn, _, _ = r.store.Get(context.Background(), r.fake.Endpoint()); conn.GRPCEndpoint != "brain.example.test:9443" {
+		t.Fatalf("BRAIN_GRPC_ENDPOINT changed: the stored connection follows: %+v", conn)
 	}
 }
 
@@ -380,7 +412,7 @@ func TestEnrollmentPinsTheCAThatTheBrainReturned(t *testing.T) {
 
 func TestAServerOfAnotherCAIsRejectedAfterEnrollmentEvenWhenBRAINCAFileTrustsIt(t *testing.T) {
 	other := brainfake.New()
-	defer other.Server.Close()
+	defer other.Close()
 	r := newRig(t, func(d *assistant.Dependencies) {
 		// BRAIN_CA_FILE trusts both brains: it is only for the first enrollment.
 		both, err := os.ReadFile(d.Config.CAFile)
@@ -422,7 +454,7 @@ func TestAServerOfAnotherCAIsRejectedAfterEnrollmentEvenWhenBRAINCAFileTrustsIt(
 		t.Skipf("cannot take over the address: %v", err)
 	}
 	imposter := brainfake.NewOn(l)
-	defer imposter.Server.Close()
+	defer imposter.Close()
 	imposter.Assistant = other.Assistant
 	if err = call(); !errors.Is(err, assistantModel.ErrAssistantBrainUnreachable.Err()) {
 		t.Fatalf("a server of another CA must be refused, got %v", err)
@@ -455,7 +487,7 @@ func TestRenewalMayRotateTheCAAndThePinMovesWithIt(t *testing.T) {
 
 func TestRenewalWhoseCertificateDoesNotChainToTheReturnedCAIsRefused(t *testing.T) {
 	other := brainfake.New()
-	defer other.Server.Close()
+	defer other.Close()
 	r := newRig(t, nil)
 	r.fake.CertTTL = 30 * 24 * time.Hour
 	if _, err := r.uc.BootstrapBrain(context.Background()); err != nil {

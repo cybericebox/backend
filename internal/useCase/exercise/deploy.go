@@ -21,11 +21,13 @@ import (
 	"github.com/cybericebox/backend/internal/model"
 	"github.com/cybericebox/backend/internal/model/challengeAttempt"
 	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	imageRegistryModel "github.com/cybericebox/backend/internal/model/imageRegistry"
 	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
 	labAccessModel "github.com/cybericebox/backend/internal/model/labAccess"
 	labBindingModel "github.com/cybericebox/backend/internal/model/labBinding"
 	mediaModel "github.com/cybericebox/backend/internal/model/media"
 	calModel "github.com/cybericebox/backend/internal/model/resourceCalendar"
+	resourcesModel "github.com/cybericebox/backend/internal/model/resources"
 	vpnModel "github.com/cybericebox/backend/internal/model/vpn"
 	calendarUseCase "github.com/cybericebox/backend/internal/useCase/resourceCalendar"
 	"github.com/cybericebox/backend/pkg/labaccess"
@@ -264,6 +266,40 @@ func (u *ExerciseUseCase) DeployVariantTestWithTools(ctx context.Context, ownerI
 	return u.deployVariantTest(ctx, nil, ownerID, versionID, variantID, length, &place)
 }
 
+// sizeTools gives the tools device its preset from the size it was asked for: the hint clamped to the device limits of a lab
+// (the frame), refused with ErrToolsTooLarge when it does not fit at a workable size.
+func (u *ExerciseUseCase) sizeTools(place exerciseModel.ToolsPlacement) (exerciseModel.ToolsPlacement, error) {
+	if place.CPUMillis <= 0 && place.MemoryBytes <= 0 {
+		return place, nil
+	}
+	preset, ok := u.Policy().FitHint(resourcesModel.Amount{CPUMillicores: place.CPUMillis, MemoryBytes: place.MemoryBytes})
+	if !ok {
+		return exerciseModel.ToolsPlacement{}, exerciseModel.ErrToolsTooLarge
+	}
+	place.ResourcePreset = preset.ID
+	return place, nil
+}
+
+// withToolsPull adds the pull credential of the tools image to the lab's credentials (one per registry host). The same host
+// with another credential is refused: the agent takes one credential per host.
+func withToolsPull(creds []infraModel.RegistryCredential, pull *exerciseModel.ToolsPull) ([]infraModel.RegistryCredential, error) {
+	if pull == nil {
+		return creds, nil
+	}
+	registry := strings.TrimPrefix(strings.TrimPrefix(pull.Registry, "https://"), "http://")
+	host := imageRegistryModel.CredentialHost(registry)
+	c := infraModel.RegistryCredential{Registry: host, Username: pull.Username, Password: pull.Password}
+	for _, have := range creds {
+		if have.Registry == host {
+			if have == c {
+				return creds, nil
+			}
+			return nil, exerciseModel.ErrToolsPullConflict
+		}
+	}
+	return append(slices.Clone(creds), c), nil
+}
+
 // SetToolsImage wires the image of the platform tools device; empty: no tools device can be provided.
 func (u *ExerciseUseCase) SetToolsImage(image string) { u.toolsImage = image }
 func (u *ExerciseUseCase) DeployEventPreviewVariantTest(ctx context.Context, eventID, ownerID, versionID, variantID uuid.UUID, length time.Duration) (exerciseModel.DeployHandle, error) {
@@ -303,7 +339,7 @@ func (u *ExerciseUseCase) deployVariantTest(ctx context.Context, eventID *uuid.U
 	}
 	// A variant without devices has no laboratory to run: its test is a row with flags and a lease, which needs
 	// no agent. An event preview always needs a laboratory.
-	if tools != nil && u.toolsImage == "" {
+	if tools != nil && tools.Image == "" && u.toolsImage == "" {
 		return exerciseModel.DeployHandle{}, exerciseModel.ErrToolsNoImage
 	}
 	if eventID == nil && !variant.Topology.HasLab() && tools == nil {
@@ -356,15 +392,32 @@ func (u *ExerciseUseCase) deployVariantTest(ctx context.Context, eventID *uuid.U
 	if topo, err = topo.WithBootstrapFiles(u.readBootstrapFile(ctx)); err != nil {
 		return exerciseModel.DeployHandle{}, exerciseModel.InVariantIfScoped(err, number)
 	}
+	var place exerciseModel.ToolsPlacement
 	if tools != nil {
-		if topo, _, err = topo.WithToolsDevice(u.toolsImage, *tools); err != nil {
+		if place, err = u.sizeTools(*tools); err != nil {
 			return exerciseModel.DeployHandle{}, err
+		}
+		// The fallback tools image (BRAIN_TOOLS_IMAGE) is checked like every image of the lab.
+		if place.Image == "" {
+			if topo, _, err = topo.WithToolsDevice(u.toolsImage, place); err != nil {
+				return exerciseModel.DeployHandle{}, err
+			}
 		}
 	}
 	// Every image must be pullable before anything is created; the agent gets exactly the credentials they need.
 	topo, pullCredentials, err := u.prepareLabImages(ctx, eventID, exerciseID, topo)
 	if err != nil {
 		return exerciseModel.DeployHandle{}, err
+	}
+	// The brain's tools image is applied as it is, with the short-lived credential it came with: a pull secret of this lab only
+	// (it is in no row and no log).
+	if tools != nil && place.Image != "" {
+		if topo, _, err = topo.WithToolsDevice(place.Image, place); err != nil {
+			return exerciseModel.DeployHandle{}, err
+		}
+		if pullCredentials, err = withToolsPull(pullCredentials, place.Pull); err != nil {
+			return exerciseModel.DeployHandle{}, err
+		}
 	}
 	// The conditions of the state tasks become the checks of the lab, with this deploy's values in their expectations.
 	checks, err := variant.BuildLabChecks(topo, resolved.Conditions)

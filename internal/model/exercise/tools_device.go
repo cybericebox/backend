@@ -20,6 +20,10 @@ var (
 	// ErrToolsNoSegment: the segment the device is to sit on (the foothold, or the segment of an operated device) is not in the
 	// lab, or has no free port.
 	ErrToolsNoSegment = errors.New("the lab has no such segment for the tools device")
+	// ErrToolsTooLarge: the size the tools device was asked for does not fit the device limits of a lab at a workable size.
+	ErrToolsTooLarge = errors.New("the tools device does not fit the device limits of the lab")
+	// ErrToolsPullConflict: the lab pulls other images from the registry of the tools image with another credential.
+	ErrToolsPullConflict = errors.New("the tools image registry is already used by the lab with another credential")
 )
 
 // ToolsDeviceName is the logical name of the platform tools device in a lab; a taken name gets a number.
@@ -38,7 +42,30 @@ type ToolsPlacement struct {
 	Beside []string
 	// Env is what the device's service process is given (see EDAEnv).
 	Env []EnvVar
+	// Image is the image of the device as the brain specified it (GetOpponent), applied as it is; empty: the platform's
+	// configured tools image (the deprecated BRAIN_TOOLS_IMAGE fallback), checked like every other image.
+	Image string
+	// CPUMillis and MemoryBytes are the size the device is asked for (hints: clamped to the device limits of a lab); zero: the
+	// platform's default device size.
+	CPUMillis, MemoryBytes int64
+	// ResourcePreset is the preset the device gets (set by the deploy from the hints).
+	ResourcePreset string
+	// Pull is the short-lived credential Image is pulled with: handed to the laboratory as a pull secret of this lab only,
+	// never stored or logged. nil: the image is public or pullable already.
+	Pull *ToolsPull
 }
+
+// ToolsPull is a registry credential for the tools image. Its String and GoString never show the password.
+type ToolsPull struct {
+	Registry, Username, Password string
+}
+
+func (p ToolsPull) String() string {
+	return "{Registry:" + p.Registry + " Username:" + p.Username + " Password:[REDACTED]}"
+}
+
+// GoString is String: a %#v must not print the password either.
+func (p ToolsPull) GoString() string { return p.String() }
 
 // The values of Device.Internet.
 const (
@@ -156,7 +183,7 @@ func (t Topology) WithToolsDevice(image string, place ToolsPlacement) (Topology,
 		name = ToolsDeviceName + "-" + strconv.Itoa(n)
 	}
 	tools := Device{
-		ID: uuid.Must(uuid.NewV7()), Name: name, Type: DeviceTypeNode, Profile: NodeProfileContainer, Image: image,
+		ID: uuid.Must(uuid.NewV7()), Name: name, Type: DeviceTypeNode, Profile: NodeProfileContainer, Image: image, ResourcePreset: place.ResourcePreset,
 		// The extended preset: the tools scan and probe, which needs raw sockets.
 		SecurityPreset: SecurityPresetExtended,
 		Interfaces:     []Interface{{Name: "eth0", IP: IPConfig{Type: IPConfigTypeDHCPPreset}}},

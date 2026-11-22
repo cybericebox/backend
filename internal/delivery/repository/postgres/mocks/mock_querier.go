@@ -4504,21 +4504,6 @@ func (mr *MockQuerierMockRecorder) GetBrainConnection(ctx, endpoint any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBrainConnection", reflect.TypeOf((*MockQuerier)(nil).GetBrainConnection), ctx, endpoint)
 }
 
-// GetBrainOutboxSeq mocks base method.
-func (m *MockQuerier) GetBrainOutboxSeq(ctx context.Context, endpoint string) (int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetBrainOutboxSeq", ctx, endpoint)
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetBrainOutboxSeq indicates an expected call of GetBrainOutboxSeq.
-func (mr *MockQuerierMockRecorder) GetBrainOutboxSeq(ctx, endpoint any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBrainOutboxSeq", reflect.TypeOf((*MockQuerier)(nil).GetBrainOutboxSeq), ctx, endpoint)
-}
-
 // GetClusterReservation mocks base method.
 func (m *MockQuerier) GetClusterReservation(ctx context.Context, id uuid.UUID) (postgres.ClusterReservation, error) {
 	m.ctrl.T.Helper()
@@ -14895,19 +14880,19 @@ func (mr *MockQuerierMockRecorder) SetBrainConnectionCertificate(ctx, arg any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBrainConnectionCertificate", reflect.TypeOf((*MockQuerier)(nil).SetBrainConnectionCertificate), ctx, arg)
 }
 
-// SetBrainOutboxSeq mocks base method.
-func (m *MockQuerier) SetBrainOutboxSeq(ctx context.Context, arg postgres.SetBrainOutboxSeqParams) (int64, error) {
+// SetBrainConnectionGRPCEndpoint mocks base method.
+func (m *MockQuerier) SetBrainConnectionGRPCEndpoint(ctx context.Context, arg postgres.SetBrainConnectionGRPCEndpointParams) (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetBrainOutboxSeq", ctx, arg)
+	ret := m.ctrl.Call(m, "SetBrainConnectionGRPCEndpoint", ctx, arg)
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// SetBrainOutboxSeq indicates an expected call of SetBrainOutboxSeq.
-func (mr *MockQuerierMockRecorder) SetBrainOutboxSeq(ctx, arg any) *gomock.Call {
+// SetBrainConnectionGRPCEndpoint indicates an expected call of SetBrainConnectionGRPCEndpoint.
+func (mr *MockQuerierMockRecorder) SetBrainConnectionGRPCEndpoint(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBrainOutboxSeq", reflect.TypeOf((*MockQuerier)(nil).SetBrainOutboxSeq), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBrainConnectionGRPCEndpoint", reflect.TypeOf((*MockQuerier)(nil).SetBrainConnectionGRPCEndpoint), ctx, arg)
 }
 
 // SetDispatchStatus mocks base method.

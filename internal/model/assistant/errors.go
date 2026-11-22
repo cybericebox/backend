@@ -127,4 +127,17 @@ var (
 	ErrAssistantEditArchived = err.ErrConflict.WithObjectCode(model.AssistantObjectCode).
 					WithMessage("The task this edit belongs to is archived").
 					WithDetailCode(21)
+
+	// ErrAssistantOpponentTooLarge: the tools device the brain sized for the opponent does not fit the lab's device limits at a
+	// workable size, so the run is refused instead of running starved.
+	ErrAssistantOpponentTooLarge = err.ErrConflict.WithObjectCode(model.AssistantObjectCode).
+					WithMessage("The opponent does not fit the device limits of the lab").
+					WithDetailCode(22)
+
+	// ErrAssistantOpponentSpecInvalid: the brain answered GetOpponent with a spec the platform cannot deploy (no image, an
+	// input it cannot fill, an expired pull credential).
+	ErrAssistantOpponentSpecInvalid = err.ErrConflict.WithObjectCode(model.AssistantObjectCode).
+					WithMessage("The brain gave an opponent the platform cannot deploy").
+					WithDetailCode(23).
+					WithHTTPCode(http.StatusBadGateway)
 )
