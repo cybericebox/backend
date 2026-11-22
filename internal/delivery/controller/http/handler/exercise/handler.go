@@ -46,6 +46,7 @@ type (
 		InfrastructureAvailable() bool
 		MaxActiveTestDeploys() int
 		DevicePersistenceAllowed() bool
+		ConsoleCablesAvailable() bool
 		LabCapabilities(ctx context.Context) exerciseUseCase.LabCapabilitiesView
 		DraftDocument(ctx context.Context, exerciseID uuid.UUID, withFlags bool) ([]byte, error)
 		// Policy is the platform's device resources settings (presets, frame, ceiling).
@@ -421,10 +422,14 @@ func (h *Handler) capabilities(ctx *gin.Context) {
 		Resources resourceSettingsResponse `json:"Resources"`
 		// LabCapabilities is what the laboratories that are used can run, without naming any: see labCapabilitiesResponse.
 		LabCapabilities labCapabilitiesResponse `json:"LabCapabilities"`
+		// ConsoleCablesAvailable: a laboratory agent offers console ports and console cables, so a lab that uses them can be
+		// deployed. False until the laboratories report the feature; the editor may still show the ports (they save and
+		// publish), but a test lab with them is refused.
+		ConsoleCablesAvailable bool `json:"ConsoleCablesAvailable"`
 	}{
 		Laboratories: h.useCase.InfrastructureAvailable(), MaxActiveTestDeploys: h.useCase.MaxActiveTestDeploys(), MaxLabGateways: exerciseModel.MaxLabGateways,
 		DevicePersistence: h.useCase.DevicePersistenceAllowed(), Resources: toResourceSettings(h.useCase.Policy()),
-		LabCapabilities: toLabCapabilities(h.useCase.LabCapabilities(ctx)),
+		LabCapabilities: toLabCapabilities(h.useCase.LabCapabilities(ctx)), ConsoleCablesAvailable: h.useCase.ConsoleCablesAvailable(),
 	})
 }
 

@@ -21,6 +21,12 @@ const (
 	// InterfacesPerContainerDevice and PortsPerSwitch are the laboratory's wiring limits.
 	InterfacesPerContainerDevice = 16
 	PortsPerSwitch               = 48
+	// ConsolePortsPerDevice, SerialPortsPerDevice and ConsoleCablesPerLab are the laboratory's console-line limits. The
+	// topology rules that use them live in the exercise model (which this package imports), so the values are defined
+	// there and named here with the other limits.
+	ConsolePortsPerDevice = exerciseModel.MaxConsolePorts
+	SerialPortsPerDevice  = exerciseModel.MaxSerialPorts
+	ConsoleCablesPerLab   = exerciseModel.MaxConsoleCablesPerLab
 )
 
 // Amount is the CPU and memory of one device, or a sum of them.

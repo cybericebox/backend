@@ -214,7 +214,7 @@ func (v Variant) ValidateOpponents() error {
 }
 
 // validateSeats checks the seats of the opponents (console design, section 8.1): only a role that operates has one; it names a
-// node of the variant with serial ports, held by one opponent at most, that the opponent does not operate; it has a data NIC
+// node of the variant with serial ports, held by one opponent at most, that no opponent operates; it has a data NIC
 // with a network connection (where a bot run puts its tools device), and the first such NIC is on the foothold segment of
 // no opponent; and no lab check, address reference or route names it (a bot run does not deploy the seat).
 func (v Variant) validateSeats() error {
@@ -225,7 +225,11 @@ func (v Variant) validateSeats() error {
 		byID[device.ID] = device
 	}
 	var footholds []Device
+	operated := make(map[string]bool)
 	for _, opponent := range v.Opponents {
+		for _, name := range opponent.Operates {
+			operated[name] = true
+		}
 		if segment, ok := byName[opponent.Foothold]; ok && segment.Type.IsForwarding() {
 			footholds = append(footholds, segment)
 		}
@@ -246,7 +250,7 @@ func (v Variant) validateSeats() error {
 			return opponentInvalid(field, OpponentReasonSeatNoSerial)
 		case taken[opponent.Seat]:
 			return opponentInvalid(field, OpponentReasonSeatRepeated)
-		case slices.Contains(opponent.Operates, opponent.Seat):
+		case operated[opponent.Seat]: // by this opponent or another one: a seat is not a device a bot defends
 			return opponentInvalid(field, OpponentReasonSeatOperated)
 		}
 		taken[opponent.Seat] = true

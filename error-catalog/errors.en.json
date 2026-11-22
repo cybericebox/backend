@@ -308,6 +308,7 @@
   "23707": "A console cable joins one serial port and one console port of two devices",
   "23708": "The port already has a console cable",
   "23709": "The lab has too many console cables",
+  "23712": "A connection to a console or serial port must be a console cable",
   "30101": "Setting not found",
   "30201": "Notification dispatch not found",
   "30202": "Notification template not found",

@@ -282,6 +282,7 @@ func (f *fakeUC) AbortUpload(context.Context, uuid.UUID, uuid.UUID) error { retu
 func (f *fakeUC) InfrastructureAvailable() bool                           { return f.laboratoriesAvailable }
 func (f *fakeUC) MaxActiveTestDeploys() int                               { return 2 }
 func (f *fakeUC) DevicePersistenceAllowed() bool                          { return true }
+func (f *fakeUC) ConsoleCablesAvailable() bool                            { return false }
 func (f *fakeUC) DraftDocument(_ context.Context, _ uuid.UUID, withFlags bool) ([]byte, error) {
 	f.documentFlags = withFlags
 	return []byte("schema: cib-exercise/1.0\n"), f.err

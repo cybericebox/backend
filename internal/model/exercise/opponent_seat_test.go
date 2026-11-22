@@ -97,6 +97,7 @@ func TestOpponentSeat_Rules(t *testing.T) {
 		{"no serial port", []Opponent{defenseAt("plain", "db")}, nil, "opponents[1].seat", OpponentReasonSeatNoSerial},
 		{"one opponent per seat", []Opponent{defenseAt("pc2", "db"), defenseAt("pc2", "web")}, nil, "opponents[2].seat", OpponentReasonSeatRepeated},
 		{"the seat is operated", []Opponent{defenseAt("pc2", "db", "pc2")}, nil, "opponents[1].seat", OpponentReasonSeatOperated},
+		{"the seat is operated by another opponent", []Opponent{defenseAt("pc2", "db"), defenseAt("", "pc2")}, nil, "opponents[1].seat", OpponentReasonSeatOperated},
 		{"no network connection", []Opponent{defenseAt("idle", "db")}, nil, "opponents[1].seat", OpponentReasonSeatNoNetwork},
 		{"on its own foothold segment", []Opponent{{Role: OpponentAttackDefense, Band: 1, Goal: []string{"root"}, Operates: []string{"db"}, Foothold: "sw", Seat: "pc1"}}, nil, "opponents[1].seat", OpponentReasonSeatOnFoothold},
 		{"on the foothold segment of another opponent", []Opponent{

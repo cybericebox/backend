@@ -208,7 +208,7 @@ func TestConsoleCables_GraphRules(t *testing.T) {
 			cable(devEP(pc1, "serial0"), devEP(r1, "console0")),
 			cable(devEP(pc1, "serial0"), devEP(r2, "console0")),
 		}, exerciseModel.ErrConsolePortInUse.Err(), map[string]any{"device": "pc1", "port": "serial0"}},
-		{"a port on a network connection", []exerciseModel.Connection{conn(devEP(pc1, "serial0"), devEP(r1, "console0"))}, exerciseModel.ErrEndpointUnresolved.Err(), nil},
+		{"a port on a network connection", []exerciseModel.Connection{conn(devEP(pc1, "serial0"), devEP(r1, "console0"))}, exerciseModel.ErrConsolePortOnNetwork.Err(), map[string]any{"connection": 1, "device": "pc1", "port": "serial0", "field": "kind"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			err := publishOf(exerciseModel.Topology{Devices: devices, Connections: tc.conns})
@@ -298,11 +298,11 @@ func TestSerialPort_DevicePath(t *testing.T) {
 	assert.Equal(t, "/dev/ttyUSB0", exerciseModel.SerialPort{Name: "serial0", Path: "/dev/ttyUSB0"}.DevicePath())
 }
 
-func TestTopology_UsesConsole(t *testing.T) {
-	assert.False(t, exerciseModel.Topology{Devices: []exerciseModel.Device{dev("a", exerciseModel.DeviceTypeContainer, "eth0")}}.UsesConsole())
-	assert.True(t, exerciseModel.Topology{Devices: []exerciseModel.Device{router("r", exerciseModel.ConsolePort{Name: "console0"})}}.UsesConsole())
-	assert.True(t, exerciseModel.Topology{Devices: []exerciseModel.Device{pc("p", exerciseModel.SerialPort{Name: "serial0"})}}.UsesConsole())
-	assert.True(t, exerciseModel.Topology{Connections: []exerciseModel.Connection{{Kind: exerciseModel.ConnectionConsole}}}.UsesConsole())
+func TestTopology_UsesConsoleLines(t *testing.T) {
+	assert.False(t, exerciseModel.Topology{Devices: []exerciseModel.Device{dev("a", exerciseModel.DeviceTypeContainer, "eth0")}}.UsesConsoleLines())
+	assert.True(t, exerciseModel.Topology{Devices: []exerciseModel.Device{router("r", exerciseModel.ConsolePort{Name: "console0"})}}.UsesConsoleLines())
+	assert.True(t, exerciseModel.Topology{Devices: []exerciseModel.Device{pc("p", exerciseModel.SerialPort{Name: "serial0"})}}.UsesConsoleLines())
+	assert.True(t, exerciseModel.Topology{Connections: []exerciseModel.Connection{{Kind: exerciseModel.ConnectionConsole}}}.UsesConsoleLines())
 }
 
 // Stored topologies without the keys read and write as before; the new keys are omitted when empty.
@@ -327,3 +327,38 @@ func mustJSON(t *testing.T, value any) string {
 	return string(data)
 }
 
+
+// The guard of every save: a network connection on a name of a port that is no interface of the node (the editor dropped
+// the ports and the kind), an unknown kind; a NIC named like a port is a NIC.
+func TestValidateConsoleLines(t *testing.T) {
+	pcNoPorts := dev("pc1", exerciseModel.DeviceTypeContainer, "eth0")
+	r1 := dev("r1", exerciseModel.DeviceTypeContainer, "eth0")
+	lost := exerciseModel.Variant{Topology: exerciseModel.Topology{
+		Devices:     []exerciseModel.Device{pcNoPorts, r1},
+		Connections: []exerciseModel.Connection{conn(devEP(pcNoPorts, "eth0"), devEP(r1, "eth0")), conn(devEP(pcNoPorts, "serial0"), devEP(r1, "console0"))},
+	}}
+	err := exerciseModel.ValidateConsoleLines([]exerciseModel.Variant{{}, lost})
+	require.ErrorIs(t, err, exerciseModel.ErrConsolePortOnNetwork.Err())
+	got := consoleContext(t, err)
+	assert.Equal(t, 2, got["variant"])
+	assert.Equal(t, 2, got["connection"])
+	assert.Equal(t, "kind", got["field"])
+
+	unknown := exerciseModel.Variant{Topology: exerciseModel.Topology{Connections: []exerciseModel.Connection{{Kind: "foo"}}}}
+	require.ErrorIs(t, exerciseModel.ValidateConsoleLines([]exerciseModel.Variant{unknown}), exerciseModel.ErrConnectionKindInvalid.Err())
+
+	odd := dev("odd", exerciseModel.DeviceTypeContainer, "serial0")
+	nic := exerciseModel.Variant{Topology: exerciseModel.Topology{
+		Devices:     []exerciseModel.Device{odd, r1},
+		Connections: []exerciseModel.Connection{conn(devEP(odd, "serial0"), devEP(r1, "eth0"))},
+	}}
+	require.NoError(t, exerciseModel.ValidateConsoleLines([]exerciseModel.Variant{nic}))
+
+	pc1 := pc("pc1", exerciseModel.SerialPort{Name: "serial0"})
+	rc := router("rc", exerciseModel.ConsolePort{Name: "console0"})
+	fine := exerciseModel.Variant{Topology: exerciseModel.Topology{
+		Devices:     []exerciseModel.Device{pc1, rc},
+		Connections: []exerciseModel.Connection{cable(devEP(pc1, "serial0"), devEP(rc, "console0"))},
+	}}
+	require.NoError(t, exerciseModel.ValidateConsoleLines([]exerciseModel.Variant{fine}))
+}

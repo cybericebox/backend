@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
 	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
 )
@@ -25,4 +26,16 @@ func TestDeployLabRefusesConsoleBeforeAnyAgentWork(t *testing.T) {
 	topo.Devices[0].ConsolePorts = []exerciseModel.ConsolePort{{Name: "console0"}}
 	err := NewFleet(nil, nil).DeployLab(t.Context(), "g", "l", infraModel.LabMeta{}, topo)
 	require.ErrorIs(t, err, exerciseModel.ErrConsoleUnavailable.Err())
+}
+
+func TestConsoleLinesOfTheFleet(t *testing.T) {
+	f := NewFleet(nil, nil)
+	require.False(t, f.ConsoleCablesAvailable())
+	topo := nodeOf("")
+	require.NoError(t, f.RequireConsoleLines(topo))
+	topo.Devices[0].SerialPorts = []exerciseModel.SerialPort{{Name: "serial0"}}
+	require.ErrorIs(t, f.RequireConsoleLines(topo), exerciseModel.ErrConsoleUnavailable.Err())
+	for _, mode := range []string{"", "required"} {
+		require.ErrorIs(t, f.RequireLabLifecyclePreparation(t.Context(), "g", eventLabModel.Policy{SnapshotMode: mode}, topo), exerciseModel.ErrConsoleUnavailable.Err(), mode)
+	}
 }

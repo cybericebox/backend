@@ -43,4 +43,8 @@ var (
 	// ErrConsoleUnavailable: the lab uses console ports or cables and no laboratory agent offers them.
 	ErrConsoleUnavailable = err.ErrConflict.WithObjectCode(model.ConsoleObjectCode).
 				WithMessage("No connected laboratory agent offers console cables").WithDetailCode(10)
+	// ErrConsolePortOnNetwork: a network connection ends on a console or serial port (or a name of one that is no interface
+	// of the node); it must be a console cable (kind console). Context connection, device, port and field kind.
+	ErrConsolePortOnNetwork = err.ErrInvalidData.WithObjectCode(model.ConsoleObjectCode).
+				WithMessage("A connection to a console or serial port must be a console cable").WithDetailCode(12)
 )

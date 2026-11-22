@@ -59,6 +59,11 @@ func (u *ExerciseUseCase) SaveDraft(ctx context.Context, exerciseID uuid.UUID, i
 	if err = exerciseModel.ValidateDeviceNames(version.Variants); err != nil {
 		return VersionView{}, err
 	}
+	// The working copy skips the business validation, but never stores a console cable as a network connection or a
+	// connection kind it does not know.
+	if err = exerciseModel.ValidateConsoleLines(version.Variants); err != nil {
+		return VersionView{}, err
+	}
 	if err = u.requireInfrastructureAllowed(ctx, e, version.Variants); err != nil {
 		return VersionView{}, err
 	}

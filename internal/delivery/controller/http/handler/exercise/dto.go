@@ -706,6 +706,11 @@ type resourceSettingsResponse struct {
 	MaxDevicesPerLab       int `json:"MaxDevicesPerLab"`
 	MaxInterfacesPerDevice int `json:"MaxInterfacesPerDevice"`
 	MaxPortsPerSwitch      int `json:"MaxPortsPerSwitch"`
+	// MaxConsolePortsPerDevice, MaxSerialPortsPerDevice and MaxConsoleCablesPerLab are the console-line limits of the
+	// laboratory.
+	MaxConsolePortsPerDevice int `json:"MaxConsolePortsPerDevice"`
+	MaxSerialPortsPerDevice  int `json:"MaxSerialPortsPerDevice"`
+	MaxConsoleCablesPerLab   int `json:"MaxConsoleCablesPerLab"`
 	// VariantSpreadWarnPercent: the editor warns when the variants of one task differ by more than this.
 	VariantSpreadWarnPercent int `json:"VariantSpreadWarnPercent"`
 }
@@ -718,6 +723,8 @@ func toResourceSettings(p resourcesModel.Policy) resourceSettingsResponse {
 		Ceiling:          resourceAmountResponse{CPUMillicores: p.Ceiling.CPUMillicores, MemoryBytes: p.Ceiling.MemoryBytes},
 		MaxDevicesPerLab: resourcesModel.MaxDevicesPerLab, MaxInterfacesPerDevice: resourcesModel.InterfacesPerContainerDevice,
 		MaxPortsPerSwitch: resourcesModel.PortsPerSwitch, VariantSpreadWarnPercent: exerciseUseCase.SpreadWarnPercent,
+		MaxConsolePortsPerDevice: resourcesModel.ConsolePortsPerDevice, MaxSerialPortsPerDevice: resourcesModel.SerialPortsPerDevice,
+		MaxConsoleCablesPerLab: resourcesModel.ConsoleCablesPerLab,
 	}
 	for _, preset := range p.Presets {
 		out.Presets = append(out.Presets, resourcePresetResponse{ID: preset.ID, Blocks: preset.Blocks, CPUMillicores: preset.CPUMillicores, MemoryBytes: preset.MemoryBytes})

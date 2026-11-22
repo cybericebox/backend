@@ -120,16 +120,16 @@ func (d Device) PortOf(name string) PortKind {
 // IsConsole reports whether the connection is a console cable.
 func (c Connection) IsConsole() bool { return c.Kind == ConnectionConsole }
 
-// UsesConsole reports whether the topology declares a console or serial port or a console cable: the keys of the document
-// schema 1.1.
-func (t Topology) UsesConsole() bool {
+// UsesConsoleLines reports whether the topology declares a console or serial port or a console cable: the topology keys of
+// the document schema 1.1. (UsesConsole, of variants, is the browser terminal: another thing.)
+func (t Topology) UsesConsoleLines() bool {
 	for _, d := range t.Devices {
 		if len(d.ConsolePorts) > 0 || len(d.SerialPorts) > 0 {
 			return true
 		}
 	}
 	for _, c := range t.Connections {
-		if c.Kind != ConnectionNetwork {
+		if c.IsConsole() {
 			return true
 		}
 	}
@@ -305,6 +305,51 @@ func portNameTaken(d Device, field, port string) error {
 		WithPublicContext("field", field).
 		WithPublicContext("port", port).
 		Err()
+}
+
+// ValidateConsoleLines is the cheap guard of every save, the working copy included (which skips the business validation): a
+// connection kind is empty or console, and a network connection never ends on a console or serial port of a node, nor on a
+// name of a port (console0, aux0, serial0, ...) that is not an interface of the node. The second rule keeps a console cable
+// from becoming a network connection silently when a client drops the ports and the kind but keeps the ends. The variant is
+// named on the error.
+func ValidateConsoleLines(variants []Variant) error {
+	for vi, variant := range variants {
+		if err := variant.Topology.validateConsoleLines(); err != nil {
+			return InVariant(err, vi+1)
+		}
+	}
+	return nil
+}
+
+func (t Topology) validateConsoleLines() error {
+	byID := make(map[uuid.UUID]Device, len(t.Devices))
+	for _, d := range t.Devices {
+		byID[d.ID] = d
+	}
+	for ci, c := range t.Connections {
+		if err := validateConnectionKind(c, ci+1); err != nil {
+			return err
+		}
+		if c.IsConsole() {
+			continue
+		}
+		for _, ep := range c.Endpoints {
+			d, ok := byID[ep.DeviceID]
+			if !ok || !d.Type.IsNode() || hasInterface(d, ep.Interface) {
+				continue // resolved, or refused, by the graph rules
+			}
+			kind := d.PortOf(ep.Interface)
+			if kind == PortSerial || kind == PortConsole ||
+				consolePortNameRe.MatchString(ep.Interface) || serialPortNameRe.MatchString(ep.Interface) {
+				return ErrConsolePortOnNetwork.WithPublicContext("connection", ci+1).
+					WithPublicContext("device", d.Name).
+					WithPublicContext("port", ep.Interface).
+					WithPublicContext("field", "kind").
+					Err()
+			}
+		}
+	}
+	return nil
 }
 
 // validateConnectionKind is the shape rule of a connection kind (rule 7); connection is 1-based.

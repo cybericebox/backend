@@ -400,12 +400,9 @@ func (t Topology) validateStructure() error {
 			return err
 		}
 	}
-	for ci, c := range t.Connections {
+	for _, c := range t.Connections {
 		if len(c.Endpoints) != 2 {
 			return ErrConnectionArityInvalid.Err()
-		}
-		if err := validateConnectionKind(c, ci+1); err != nil {
-			return err
 		}
 		for _, ep := range c.Endpoints {
 			if !ep.Kind.Valid() || ep.DeviceID == uuid.Nil {
@@ -413,7 +410,7 @@ func (t Topology) validateStructure() error {
 			}
 		}
 	}
-	return nil
+	return t.validateConsoleLines()
 }
 
 // validateGraph enforces the cross-item publish rules (spec §8/§9): unique

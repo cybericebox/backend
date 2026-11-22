@@ -43,13 +43,22 @@ func keyInSchema(field reflect.StructField, schema string) bool {
 	return since == "" || schema != archiveSchema10
 }
 
-// archiveSchemaOf is the lowest version that holds the versions: 1.1 when a variant uses a console port, a console cable or an
-// opponent seat, else 1.0 (so an export of an old task still opens in an older reader).
-func archiveSchemaOf(versions []exerciseModel.ExerciseVersion) string {
+// archiveSchemaOf is the lowest version that holds what the document writes: 1.1 when a written variant has a console
+// port, a serial port, a console cable or an opponent seat, else 1.0 (so an export of an old task still opens in an older
+// reader). It reads the written form, so what a linked variant inherits and does not write (its topology, its opponents)
+// never counts.
+func archiveSchemaOf(versions []archiveVersionV2) string {
 	for _, version := range versions {
 		for _, variant := range version.Variants {
-			if variant.Topology.UsesConsole() {
-				return archiveSchema11
+			for _, device := range variant.Topology.Devices {
+				if len(device.ConsolePorts) > 0 || len(device.SerialPorts) > 0 {
+					return archiveSchema11
+				}
+			}
+			for _, connection := range variant.Topology.Connections {
+				if connection.Kind == exerciseModel.ConnectionConsole {
+					return archiveSchema11
+				}
 			}
 			for _, opponent := range variant.Opponents {
 				if opponent.Seat != "" {
@@ -1136,7 +1145,7 @@ func (e *archiveEditV2) base() EditBase {
 
 // buildV2DocumentWithEdit is buildV2DocumentWithImages for the export an edit starts from: it records the edit base.
 func buildV2DocumentWithEdit(e exerciseModel.Exercise, versions []exerciseModel.ExerciseVersion, paths map[uuid.UUID]string, imagePaths map[string]string, edit *archiveEditV2) ([]byte, error) {
-	doc := archiveDocV2{Schema: archiveSchemaOf(versions), Edit: edit, Exercise: archiveExerciseV2{ID: e.ID.String(), Name: e.Name, Description: e.Description, Tags: e.Tags}}
+	doc := archiveDocV2{Edit: edit, Exercise: archiveExerciseV2{ID: e.ID.String(), Name: e.Name, Description: e.Description, Tags: e.Tags}}
 	for _, version := range versions {
 		metadata := e.WithVersionMetadata(version)
 		out := archiveVersionV2{Status: version.Status, AdminNote: version.AdminNote, Label: version.Label, Variants: []archiveVariantV2{},
@@ -1153,6 +1162,7 @@ func buildV2DocumentWithEdit(e exerciseModel.Exercise, versions []exerciseModel.
 	if doc.Versions == nil {
 		doc.Versions = []archiveVersionV2{}
 	}
+	doc.Schema = archiveSchemaOf(doc.Versions)
 	var buffer bytes.Buffer
 	encoder := json.NewEncoder(&buffer)
 	encoder.SetEscapeHTML(false)
@@ -1210,7 +1220,10 @@ func exportVariantV2(variant exerciseModel.Variant, paths map[uuid.UUID]string, 
 		topology.Devices = append(topology.Devices, exported)
 	}
 	for _, connection := range variant.Topology.Connections {
-		out := archiveConnectionV2{Kind: connection.Kind, Endpoints: []archiveEndpointV2{}}
+		out := archiveConnectionV2{Endpoints: []archiveEndpointV2{}}
+		if connection.IsConsole() {
+			out.Kind = connection.Kind
+		}
 		for _, endpoint := range connection.Endpoints {
 			mapped := archiveEndpointV2{Kind: endpoint.Kind, Interface: endpoint.Interface}
 			mapped.Device, mapped.DeviceID = refs.ref(endpoint.DeviceID)

@@ -248,6 +248,9 @@ func (u *ExerciseUseCase) validateImportContent(
 		if err := exerciseModel.ValidateDeviceNames(parsed.Versions[i].Variants); err != nil {
 			return withImportedPath(err, i, parsed.Versions[i].Variants)
 		}
+		if err := exerciseModel.ValidateConsoleLines(parsed.Versions[i].Variants); err != nil {
+			return withImportedPath(err, i, parsed.Versions[i].Variants)
+		}
 	}
 	// Every version, drafts and history included, may carry only the profiles the platform supports.
 	for i := range parsed.Versions {

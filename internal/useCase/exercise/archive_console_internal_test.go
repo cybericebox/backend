@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -115,4 +116,24 @@ func TestArchive_UnsupportedSchemaNamesBoth(t *testing.T) {
 	assert.Equal(t, "cib-exercise/1.0, cib-exercise/1.1", publicContext(t, err)["expected"])
 	require.NoError(t, probeArchiveSchema([]byte(`{"schema":"cib-exercise/1.1"}`)))
 	require.NoError(t, probeArchiveSchema([]byte(`{"schema":"cib-exercise/1.0"}`)))
+}
+
+// A linked variant writes neither its topology nor its opponents (it inherits them), so its own seat never makes the export
+// 1.1.
+func TestArchive_LinkedVariantsOwnSeatDoesNotCount(t *testing.T) {
+	base := exerciseModel.Variant{ID: freshID(), Tasks: []exerciseModel.Task{{Key: "k", Name: "t"}}}
+	linked := exerciseModel.Variant{ID: freshID(), Tasks: []exerciseModel.Task{{Key: "k", Name: "t"}},
+		LinkedTo:  uuid.NullUUID{UUID: base.ID, Valid: true},
+		Opponents: []exerciseModel.Opponent{{Role: exerciseModel.OpponentDefense, Seat: "pc1"}}}
+	data, err := buildV2Document(exerciseModel.Exercise{Name: "x"}, []exerciseModel.ExerciseVersion{{Name: "x", Variants: []exerciseModel.Variant{base, linked}}}, nil)
+	require.NoError(t, err)
+	var head struct {
+		Schema   string `json:"schema"`
+		Versions []struct {
+			Variants []json.RawMessage `json:"variants"`
+		} `json:"versions"`
+	}
+	require.NoError(t, json.Unmarshal(data, &head))
+	require.Contains(t, string(head.Versions[0].Variants[1]), "linked_to", "the second variant is written as linked")
+	assert.Equal(t, archiveSchema10, head.Schema)
 }
