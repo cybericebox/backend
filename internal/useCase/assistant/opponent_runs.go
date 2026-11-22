@@ -160,7 +160,9 @@ func (u *UseCase) StartOpponentRun(ctx context.Context, actor exerciseUseCase.Ac
 // leader starts each run at the brain once the lab is ready (and, for an opponent that starts after a subtask, once that
 // subtask is solved in the lab); the lab is destroyed when the last of its runs ends, a run that ends earlier revokes only its
 // own client. The runs are returned in the order of indexes, still starting. An empty list, a repeated or unknown position and
-// more than MaxOpponents are refused; an opponent has at most one active run, a user a few (each run counts).
+// more than MaxOpponents are refused; an opponent has at most one active run, a user a few (each run counts; the cap holds against
+// requests made at the same moment). A task with its own device named like a control gateway is refused with
+// ErrAssistantOpponentControlName.
 func (u *UseCase) StartOpponentRuns(ctx context.Context, actor exerciseUseCase.Actor, exerciseID, versionID, variantID uuid.UUID, indexes []int) ([]assistantModel.Run, error) {
 	target, err := u.opponentTarget(ctx, actor, exerciseID, versionID, variantID)
 	if err != nil {
@@ -204,6 +206,11 @@ func (u *UseCase) StartOpponentRuns(ctx context.Context, actor exerciseUseCase.A
 	switch {
 	case errors.Is(err, exerciseModel.ErrToolsTooLarge):
 		return nil, assistantModel.ErrAssistantOpponentTooLarge.Err()
+	case errors.Is(err, exerciseModel.ErrToolsGatewayLimit):
+		return nil, assistantModel.ErrAssistantOpponentGatewayLimit.WithPublicContext("limit", exerciseModel.MaxLabGateways).Err()
+	case errors.Is(err, exerciseModel.ErrToolsNoControl):
+		// A device of the task is named like a control gateway of the platform (the deploy refuses to add the gateway).
+		return nil, assistantModel.ErrAssistantOpponentControlName.Err()
 	case errors.Is(err, exerciseModel.ErrToolsNoImage) || errors.Is(err, exerciseModel.ErrToolsNoVPN) || errors.Is(err, exerciseModel.ErrToolsNoSegment) ||
 		errors.Is(err, exerciseModel.ErrToolsPullConflict) || errors.Is(err, exerciseModel.ErrToolsTooMany):
 		return nil, assistantModel.ErrAssistantOpponentUnavailable.Err()
@@ -217,35 +224,31 @@ func (u *UseCase) StartOpponentRuns(ctx context.Context, actor exerciseUseCase.A
 	now := u.now().UTC()
 	runs := make([]assistantModel.Run, 0, len(indexes))
 	for i, index := range indexes {
-		run := assistantModel.Run{
+		runs = append(runs, assistantModel.Run{
 			ID: runIDs[i], ExerciseID: exerciseID, VersionID: versionID, VariantID: variantID, DeployID: deployID, Actor: actor.UserID,
 			Role: string(target.Opponents[index-1].Role), Opponent: index, ToolsIndex: i, SpecID: specIDs[i], State: assistantModel.RunStarting,
 			CreatedAt: now, UpdatedAt: now, ExpiresAt: now.Add(u.runMax),
+		})
+	}
+	// All the runs in one step, with the cap checked again under the user's lock: the check before the deploy only spares a lab
+	// that could not be used, this one holds against a request made at the same moment. The runs become visible together, so no
+	// driver can end one (and take the shared lab down) before the others exist.
+	if err = u.runs.CreateAll(ctx, runs, u.maxActive, now); err != nil {
+		// The lab was made for runs that cannot start: nothing was saved, the lab is taken down.
+		u.dropLab(ctx, actor.UserID, deployID)
+		switch {
+		case errors.Is(err, assistantRunRepo.ErrActive):
+			return nil, assistantModel.ErrAssistantRunActive.Err()
+		case errors.Is(err, assistantRunRepo.ErrLimit):
+			return nil, assistantModel.ErrAssistantRunLimit.Err()
 		}
-		if err = u.runs.Create(ctx, run, now); err != nil {
-			// The lab was made for runs that cannot all start: the ones saved already are ended, the lab is taken down.
-			u.abandonRuns(ctx, runs)
-			u.dropLab(ctx, actor.UserID, deployID)
-			if errors.Is(err, assistantRunRepo.ErrActive) {
-				return nil, assistantModel.ErrAssistantRunActive.Err()
-			}
-			return nil, model.ErrPlatform.WithError(err).WithMessage("Failed to save the run").Err()
-		}
-		runs = append(runs, run)
+		return nil, model.ErrPlatform.WithError(err).WithMessage("Failed to save the runs").Err()
 	}
 	return runs, nil
 }
 
-// abandonRuns ends runs that were saved for a lab that is taken down before they started; the leader finishes them.
-func (u *UseCase) abandonRuns(ctx context.Context, runs []assistantModel.Run) {
-	for _, run := range runs {
-		if _, err := u.runs.Close(context.WithoutCancel(ctx), run.ID, assistantModel.RunFailed, assistantModel.FailureStartRefused, u.now().UTC()); err != nil {
-			log.Warn().Err(err).Msg("A run of a lab that was taken down was not ended; its window will end it")
-		}
-	}
-}
-
-// requireOpponentRoom refuses runs the opponents or the user have no room for (the unique index is the real guard).
+// requireOpponentRoom refuses runs the opponents or the user have no room for before a lab is made for them (the unique index
+// and CreateAll are the real guards).
 func (u *UseCase) requireOpponentRoom(ctx context.Context, user, variant uuid.UUID, indexes []int) error {
 	of, err := u.runs.OpponentsOfVariant(ctx, variant, maxRunsListed)
 	if err != nil {

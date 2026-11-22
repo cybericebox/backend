@@ -4,6 +4,7 @@ import (
 	"errors"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/gofrs/uuid"
 )
@@ -16,7 +17,7 @@ var (
 	// participants' machines.
 	ErrToolsNoVPN = errors.New("the lab has no VPN network with DHCP for the tools device")
 	// ErrToolsNoControl: the lab has no control gateway with a /24 yet (or it is not a lab with a tools device), or the topology
-	// has a device named like the control gateway already (a task's own, or a control added by an earlier call).
+	// has a device named like one of the control gateways already (a task's own, or a control added by an earlier call).
 	ErrToolsNoControl = errors.New("the lab has no control address for the tools device")
 	// ErrToolsNoSegment: the segment the device is to sit on (the foothold, or the segment of an operated device) is not in the
 	// lab, or has no free port.
@@ -25,6 +26,9 @@ var (
 	ErrToolsTooLarge = errors.New("the tools device does not fit the device limits of the lab")
 	// ErrToolsTooMany: more tools devices were asked for than a lab may hold (MaxOpponents).
 	ErrToolsTooMany = errors.New("the lab cannot hold that many tools devices")
+	// ErrToolsGatewayLimit: the control gateways of the tools devices (one each) would take the lab over the gateways a lab may
+	// have (MaxLabGateways, the task's own gateways counted).
+	ErrToolsGatewayLimit = errors.New("the lab cannot hold a control gateway for every tools device")
 	// ErrToolsPullConflict: the lab pulls other images from the registry of the tools image with another credential.
 	ErrToolsPullConflict = errors.New("the tools image registry is already used by the lab with another credential")
 )
@@ -77,53 +81,78 @@ const (
 	InternetDeny  = "deny"
 )
 
-// The control gateway: a VPN gateway of its own that carries only the platform's control of a tools device. The brain's
-// run client reaches the device's second interface there, at one fixed address, and nowhere else.
+// The control gateways: VPN gateways of their own that carry only the platform's control of the tools devices. Every tools
+// device has its own: its own gateway with its own /24 and its own switch, on which there is nothing but that gateway and the
+// device's second interface. A tools device has raw sockets and NET_ADMIN, so on a shared control segment it could take the
+// address of another device (and answer the brain in its place); with a control L2 domain each, no device can reach the control
+// of another. The brain's run client reaches the device's second interface there, at one fixed address, and nowhere else.
 const (
-	// ControlGatewayName is the name of the control gateway in the lab spec.
+	// ControlGatewayName is the name of the control gateway of the first tools device (index 0) in the lab spec: a lab of one
+	// opponent is the lab it always was. The next devices have ControlGatewayOf(index).
 	ControlGatewayName = "ctl"
-	// ControlHostBase is the host of the first tools device in the /24 of the control gateway; the next one gets the next host.
+	// ControlHostBase is the host of a tools device in the /24 of its own control gateway: the same on every gateway, so the
+	// index of the device selects the gateway, never the host.
 	ControlHostBase = 10
 	// RunnerPort is the port the runner of a tools device listens on.
 	RunnerPort        = 9099
 	controlSwitchName = "ctl-switch"
 )
 
-// ControlHost is the host (the last octet) a tools device has in the /24 of the control gateway: fixed per device by its
-// index, so the access rule of its run client can name that one address.
-func ControlHost(index int) int32 { return int32(ControlHostBase + index) }
+// ControlGatewayOf is the name of the control gateway of the tools device of an index: "ctl" for the first, then "ctl-2",
+// "ctl-3", ... (the number counts the devices from one, as the names of the tools devices themselves do: tools, tools-2, ...).
+func ControlGatewayOf(index int) string {
+	if index <= 0 {
+		return ControlGatewayName
+	}
+	return ControlGatewayName + "-" + strconv.Itoa(index+1)
+}
 
-// control is the control gateway of a topology and its switch, added once for all the tools devices of a lab.
+// IsControlGatewayName says the name is one the platform gives a control gateway (any index up to MaxOpponents), compared as the
+// validation compares device names: trimmed, any case. Such a name is reserved for the platform.
+func IsControlGatewayName(name string) bool {
+	name = strings.ToLower(strings.TrimSpace(name))
+	if name == ControlGatewayName {
+		return true
+	}
+	rest, ok := strings.CutPrefix(name, ControlGatewayName+"-")
+	if !ok || rest == "" || rest[0] == '0' {
+		return false
+	}
+	n, err := strconv.Atoi(rest)
+	return err == nil && n >= 2 && n <= MaxOpponents
+}
+
+// control is the control gateway of one tools device and its switch.
 type control struct {
+	gateway  string
 	switchID uuid.UUID
 }
 
-// addControl gives the topology its control gateway: gateway - switch, the gateway on the first port. The gateway is an ordinary
-// VPN gateway device of the copy (no DHCP, no reverse connections); only the platform adds it, at deploy time, once for all the
-// tools devices of the lab (WithToolsDevices). A device named like the gateway is refused: it is a task's own (the name is
-// reserved at validation as well) or a control added before, and the gateway would not be the platform's.
-func (t *Topology) addControl() (control, error) {
-	taken := map[string]bool{}
+// addControl gives the topology the control gateway of the tools device of an index: gateway - switch, the gateway on the first
+// port. The gateway is an ordinary VPN gateway device of the copy (no DHCP, no reverse connections); only the platform adds it,
+// at deploy time, for its one device (WithToolsDevices). A device named like the gateway is refused: it is a task's own (the
+// name is reserved at validation as well) or a control added before, and the gateway would not be the platform's.
+func (t *Topology) addControl(index int) (control, error) {
+	name := ControlGatewayOf(index)
 	for _, d := range t.Devices {
-		taken[d.Name] = true
+		if strings.EqualFold(strings.TrimSpace(d.Name), name) {
+			return control{}, ErrToolsNoControl
+		}
 	}
-	if taken[ControlGatewayName] {
-		return control{}, ErrToolsNoControl
-	}
-	gateway := Device{ID: uuid.Must(uuid.NewV7()), Name: ControlGatewayName, Type: DeviceTypeVPNGateway}
+	gateway := Device{ID: uuid.Must(uuid.NewV7()), Name: name, Type: DeviceTypeVPNGateway}
 	sw := Device{ID: uuid.Must(uuid.NewV7()), Name: t.freeName(controlSwitchName), Type: DeviceTypeUnmanagedSwitch}
 	t.Devices = append(t.Devices, gateway, sw)
 	t.Connections = append(t.Connections, Connection{Endpoints: []Endpoint{{Kind: EndpointDevice, DeviceID: gateway.ID, Interface: GatewayPort}, switchPort(sw.ID, 1)}})
-	return control{switchID: sw.ID}, nil
+	return control{gateway: name, switchID: sw.ID}, nil
 }
 
-// attach gives the tools device of an index its second interface on the control: eth1 at the fixed host of the index in the
-// gateway's /24, on the port of the index (the gateway has the first one). The first interface is left where its placement put it.
-func (c control) attach(t *Topology, tools *Device, index int) {
+// attach gives the tools device its second interface on its control: eth1 at ControlHostBase of the gateway's /24, on the
+// second port of the switch (the gateway has the first one). The first interface is left where its placement put it.
+func (c control) attach(t *Topology, tools *Device) {
 	tools.Interfaces = append(tools.Interfaces, Interface{Name: "eth1", IP: IPConfig{
-		Type: IPConfigTypeStatic, AddressRef: &NetworkIPRef{Gateway: ControlGatewayName, Host: ControlHost(index)},
+		Type: IPConfigTypeStatic, AddressRef: &NetworkIPRef{Gateway: c.gateway, Host: ControlHostBase},
 	}})
-	t.Connections = append(t.Connections, Connection{Endpoints: []Endpoint{{Kind: EndpointDevice, DeviceID: tools.ID, Interface: "eth1"}, switchPort(c.switchID, index+2)}})
+	t.Connections = append(t.Connections, Connection{Endpoints: []Endpoint{{Kind: EndpointDevice, DeviceID: tools.ID, Interface: "eth1"}, switchPort(c.switchID, 2)}})
 }
 
 func switchPort(id uuid.UUID, n int) Endpoint {
@@ -186,9 +215,12 @@ func (t Topology) WithToolsDevice(image string, place ToolsPlacement) (Topology,
 // connection to the internet. Where one sits is its placement: a port of the foothold switch, the segment of an operated device,
 // or (by default) the segment of the VPN gateway. On a segment that is a switch or hub the device takes a free port; where the
 // anchor is cabled to a device an unmanaged switch is put between them (the same L2 segment), and a later device on that segment
-// takes a port of that switch. All of them share one control gateway and its switch: the device at position i has the control
-// host ControlHost(i), which is its index. At most MaxOpponents devices are added; every device of a lab is added in this one
-// call (a topology that has a control gateway already is refused). The copy is validated; the input is never changed.
+// takes a port of that switch: the data side of the devices is shared by design (they play against the same segments). The
+// control side is not: the device at position i (its index) gets a control gateway and switch of its own, ControlGatewayOf(i),
+// and the address ControlHostBase there. At most MaxOpponents devices are added, and only while the gateways of the task and
+// the control gateways stay within MaxLabGateways (ErrToolsGatewayLimit); a task device with any control name is refused
+// (ErrToolsNoControl); every device of a lab is added in this one call (a topology that has a
+// control gateway already is refused). The copy is validated; the input is never changed.
 func (t Topology) WithToolsDevices(places []ToolsPlacement) (Topology, []Device, error) {
 	if len(places) > MaxOpponents {
 		return Topology{}, nil, ErrToolsTooMany
@@ -205,6 +237,22 @@ func (t Topology) WithToolsDevices(places []ToolsPlacement) (Topology, []Device,
 	if !ok {
 		return Topology{}, nil, ErrToolsNoVPN
 	}
+	gateways := 0
+	for _, d := range t.Devices {
+		if d.Type.IsGateway() {
+			gateways++
+		}
+	}
+	if gateways+len(places) > MaxLabGateways {
+		return Topology{}, nil, ErrToolsGatewayLimit
+	}
+	// No device of the task may have any control name, not only the ones this lab gets: in a lab with the platform's ctl every
+	// ctl-N is the platform's (the participants' access relies on it), and a published task may predate the reservation.
+	for _, d := range t.Devices {
+		if IsControlGatewayName(d.Name) {
+			return Topology{}, nil, ErrToolsNoControl
+		}
+	}
 	out := t
 	out.Devices = append([]Device(nil), t.Devices...)
 	out.Connections = make([]Connection, len(t.Connections))
@@ -212,19 +260,17 @@ func (t Topology) WithToolsDevices(places []ToolsPlacement) (Topology, []Device,
 		out.Connections[i] = Connection{Endpoints: append([]Endpoint(nil), c.Endpoints...)}
 	}
 
-	var ctl control
 	devices := make([]Device, 0, len(places))
 	for index, place := range places {
 		tools, err := out.placeTools(vpn, place)
 		if err != nil {
 			return Topology{}, nil, err
 		}
-		if index == 0 {
-			if ctl, err = out.addControl(); err != nil {
-				return Topology{}, nil, err
-			}
+		ctl, err := out.addControl(index)
+		if err != nil {
+			return Topology{}, nil, err
 		}
-		ctl.attach(&out, &tools, index)
+		ctl.attach(&out, &tools)
 		out.Devices = append(out.Devices, tools)
 		devices = append(devices, tools)
 	}

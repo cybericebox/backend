@@ -55,6 +55,31 @@ FROM assistant_runs
 WHERE actor_id = sqlc.arg(actor_id)
   AND state IN ('starting', 'running', 'closing');
 
+-- name: LockAssistantRunsOfActor :exec
+-- Serializes the creation of the runs of one user until the end of the transaction, so the cap of active runs is checked and
+-- the runs are inserted as one step (two requests at once cannot both pass the cap).
+SELECT pg_advisory_xact_lock(hashtextextended('cybericebox.assistant-runs:' || sqlc.arg(actor_id)::uuid::text, 0));
+
+-- name: ListIdleOpponentLabs :many
+-- The live test labs of opponent runs in which no run is active any more: a teardown that was cut short (the destroy after the
+-- last run failed, or the leader stopped between finishing the run and destroying its lab). A lab handed to removal (its lease
+-- ended, which DestroyDeployTest does at once) is the expiry's and removal check's, never listed again. Read from the test deploys
+-- (few, live ones only), each probed by its runs; oldest lease first, so a lab is never starved by newer ones.
+SELECT d.id AS deploy_id, d.created_by AS actor_id
+FROM exercise_test_deployments d
+WHERE d.expires_at > sqlc.arg(now)::timestamptz
+  AND EXISTS (SELECT 1
+              FROM assistant_runs r
+              WHERE r.deploy_id = d.id
+                AND r.actor_id = d.created_by
+                AND r.opponent > 0)
+  AND NOT EXISTS (SELECT 1
+                  FROM assistant_runs a
+                  WHERE a.deploy_id = d.id
+                    AND a.state IN ('starting', 'running', 'closing'))
+ORDER BY d.expires_at, d.id
+LIMIT sqlc.arg(max_rows);
+
 -- name: CountOtherActiveAssistantRunsOnDeploy :one
 -- The active runs of a lab other than one of them (the runs of several opponents share one lab).
 SELECT count(*)::bigint

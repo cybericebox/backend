@@ -384,7 +384,7 @@ func TestMintLabClient_TheClientOfABotReachesTheControlGatewayAndOneAddressOfItO
 			bot = &infra.policies[i]
 		}
 	}
-	if bot == nil || len(bot.AllowedLabs) != 0 || bot.Control == nil || bot.Control.Host != 10 || bot.Control.Lab[:2] != "l-" {
+	if bot == nil || len(bot.AllowedLabs) != 0 || bot.Control == nil || bot.Control.Host != 10 || bot.Control.Gateway != "ctl" || bot.Control.Lab[:2] != "l-" {
 		t.Fatalf("a bot's client has the control address of its lab and no lab of its own: %+v", infra.policies)
 	}
 }

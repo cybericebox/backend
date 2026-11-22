@@ -2,6 +2,7 @@ package exerciseModel
 
 import (
 	"errors"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -212,7 +213,7 @@ func TestAToolsDeviceHasAControlGatewayWithAFixedAddress(t *testing.T) {
 		t.Fatalf("the first interface stays where its placement put it: %+v", tools.Interfaces)
 	}
 	second := tools.Interfaces[1]
-	if second.Name != "eth1" || second.IP.Type != IPConfigTypeStatic || second.IP.AddressRef == nil || second.IP.AddressRef.Gateway != ControlGatewayName || second.IP.AddressRef.Host != ControlHost(0) || ControlHost(0) != 10 {
+	if second.Name != "eth1" || second.IP.Type != IPConfigTypeStatic || second.IP.AddressRef == nil || second.IP.AddressRef.Gateway != ControlGatewayName || second.IP.AddressRef.Host != ControlHostBase || ControlHostBase != 10 {
 		t.Fatalf("the second interface has the fixed address on ctl: %+v", second)
 	}
 	// ctl - switch - eth1: the gateway's connection ends at a switch that the device's second interface is cabled to
@@ -245,13 +246,13 @@ func TestTheControlNamesAreReservedAtValidation(t *testing.T) {
 	for _, c := range []struct {
 		name string
 		kind DeviceType
-	}{{"ctl", DeviceTypeNode}, {"CTL", DeviceTypeNode}, {"ctl", DeviceTypeVPNGateway}, {"ctl", DeviceTypeInternetGateway}, {"ctl-switch", DeviceTypeUnmanagedSwitch}, {"ctl-switch", DeviceTypeHub}, {" ctl ", DeviceTypeNode}} {
+	}{{"ctl", DeviceTypeNode}, {"CTL", DeviceTypeNode}, {"ctl", DeviceTypeVPNGateway}, {"ctl", DeviceTypeInternetGateway}, {"ctl-switch", DeviceTypeUnmanagedSwitch}, {"ctl-switch", DeviceTypeHub}, {" ctl ", DeviceTypeNode}, {"ctl-2", DeviceTypeNode}, {"CTL-8", DeviceTypeVPNGateway}, {"ctl-5", DeviceTypeInternetGateway}} {
 		variant := Variant{Topology: Topology{Devices: []Device{{ID: uuid.Must(uuid.NewV7()), Name: c.name, Type: c.kind}}}}
 		if err := ValidateDeviceNames([]Variant{variant}); !errors.Is(err, ErrDeviceNameReserved.Err()) {
 			t.Errorf("%q (%s): %v", c.name, c.kind, err)
 		}
 	}
-	ok := Variant{Topology: Topology{Devices: []Device{{ID: uuid.Must(uuid.NewV7()), Name: "ctl2", Type: DeviceTypeNode}, {ID: uuid.Must(uuid.NewV7()), Name: "web", Type: DeviceTypeNode}}}}
+	ok := Variant{Topology: Topology{Devices: []Device{{ID: uuid.Must(uuid.NewV7()), Name: "ctl2", Type: DeviceTypeNode}, {ID: uuid.Must(uuid.NewV7()), Name: "ctl-9", Type: DeviceTypeNode}, {ID: uuid.Must(uuid.NewV7()), Name: "ctl-1", Type: DeviceTypeNode}, {ID: uuid.Must(uuid.NewV7()), Name: "web", Type: DeviceTypeNode}}}}
 	if err := ValidateDeviceNames([]Variant{ok}); err != nil {
 		t.Fatalf("other names are free: %v", err)
 	}
@@ -292,7 +293,10 @@ func peerOf(topo Topology, id uuid.UUID, iface string) Endpoint {
 	return Endpoint{}
 }
 
-func TestSeveralToolsDevicesShareOneControlGateway(t *testing.T) {
+// Every tools device has a control L2 domain of its own: its own control gateway (its own /24) and its own control switch, so
+// a device that claims another address on its control segment (it has raw sockets and NET_ADMIN) reaches no other device's
+// runner. The first is "ctl", as a lab of one opponent always had; the next are "ctl-2", "ctl-3", ...; the host is .10 on each.
+func TestEachToolsDeviceHasAControlGatewayAndSwitchOfItsOwn(t *testing.T) {
 	topo, _, _ := toolsBase(t, func(vpn, web Device) []Connection {
 		return []Connection{link(port(vpn, GatewayPort), port(web, "eth0"))}
 	})
@@ -303,30 +307,57 @@ func TestSeveralToolsDevicesShareOneControlGateway(t *testing.T) {
 	if len(tools) != 3 || tools[0].Name != "tools" || tools[1].Name != "tools-2" || tools[2].Name != "tools-3" || tools[1].Image != "b:1" {
 		t.Fatalf("the devices in the order of the placements: %+v", tools)
 	}
-	gateway, sw := controlOf(t, out)
-	switches := 0
+	byID := map[uuid.UUID]Device{}
 	for _, d := range out.Devices {
-		if d.Name == controlSwitchName {
-			switches++
-		}
+		byID[d.ID] = d
 	}
-	if switches != 1 {
-		t.Fatalf("one control switch: %d", switches)
-	}
-	ports := map[string]bool{}
+	switches, gateways := map[uuid.UUID]bool{}, map[string]bool{}
 	for i, d := range tools {
+		want := []string{"ctl", "ctl-2", "ctl-3"}[i]
+		if ControlGatewayOf(i) != want || !IsControlGatewayName(want) {
+			t.Fatalf("index %d: %q", i, ControlGatewayOf(i))
+		}
 		eth1 := d.Interfaces[1]
-		if eth1.Name != "eth1" || eth1.IP.AddressRef == nil || eth1.IP.AddressRef.Gateway != ControlGatewayName || eth1.IP.AddressRef.Host != ControlHost(i) {
-			t.Fatalf("device %d has the host of its index: %+v", i, eth1)
+		if eth1.Name != "eth1" || eth1.IP.AddressRef == nil || eth1.IP.AddressRef.Gateway != want || eth1.IP.AddressRef.Host != ControlHostBase {
+			t.Fatalf("device %d has .10 on its own gateway %s: %+v", i, want, eth1)
 		}
-		p := peerOf(out, d.ID, "eth1")
-		if p.DeviceID != sw || ports[p.Interface] {
-			t.Fatalf("device %d is on a port of its own of the control switch: %+v", i, p)
+		sw := peerOf(out, d.ID, "eth1").DeviceID
+		if byID[sw].Type != DeviceTypeUnmanagedSwitch || switches[sw] {
+			t.Fatalf("device %d is on a control switch of its own: %+v", i, byID[sw])
 		}
-		ports[p.Interface] = true
+		switches[sw] = true
+		// the switch holds exactly the gateway and this one device: nothing else shares the L2 domain
+		var ends []uuid.UUID
+		for _, c := range out.Connections {
+			for j, ep := range c.Endpoints {
+				if ep.DeviceID == sw {
+					ends = append(ends, c.Endpoints[1-j].DeviceID)
+				}
+			}
+		}
+		if len(ends) != 2 {
+			t.Fatalf("control switch of device %d has %d ends", i, len(ends))
+		}
+		gw := Device{}
+		for _, e := range ends {
+			if e != d.ID {
+				gw = byID[e]
+			}
+		}
+		if gw.Name != want || gw.Type != DeviceTypeVPNGateway || gw.DHCP || gw.ReverseConnections || gateways[gw.Name] {
+			t.Fatalf("control switch of device %d ends at its own gateway: %+v", i, gw)
+		}
+		gateways[gw.Name] = true
+		if p := peerOf(out, gw.ID, GatewayPort); p.DeviceID != sw || p.Interface != "GigabitEthernet0/1" {
+			t.Fatalf("the gateway is on the first port: %+v", p)
+		}
+		if p := peerOf(out, d.ID, "eth1"); p.Interface != "GigabitEthernet0/2" {
+			t.Fatalf("the device is on the second port: %+v", p)
+		}
 	}
-	if p := peerOf(out, gateway.ID, GatewayPort); p.DeviceID != sw || p.Interface != "GigabitEthernet0/1" {
-		t.Fatalf("the gateway is on the first port: %+v", p)
+	// The data side is by design shared: every device's eth0 is on the segment of the VPN gateway (one inserted switch).
+	if a, b := peerOf(out, tools[0].ID, "eth0").DeviceID, peerOf(out, tools[2].ID, "eth0").DeviceID; a != b || byID[a].Name != toolsSwitchName {
+		t.Fatalf("eth0 stays on the shared data segment: %v %v", byID[a].Name, byID[b].Name)
 	}
 }
 
@@ -344,6 +375,14 @@ func TestOneToolsDeviceLooksAsBefore(t *testing.T) {
 	}
 	if deviceNameList(one) != deviceNameList(many) || len(one.Connections) != len(many.Connections) || single.Name != list[0].Name {
 		t.Fatalf("%s vs %s", deviceNameList(one), deviceNameList(many))
+	}
+	// A lab of one opponent is what it always was: ctl, ctl-switch, eth1 at .10 of ctl on the second port.
+	if got := deviceNameList(one); !strings.HasSuffix(got, "tools-switch,ctl,ctl-switch,tools,") {
+		t.Fatalf("%s", got)
+	}
+	eth1 := single.Interfaces[1]
+	if eth1.IP.AddressRef.Gateway != "ctl" || eth1.IP.AddressRef.Host != 10 || peerOf(one, single.ID, "eth1").Interface != "GigabitEthernet0/2" {
+		t.Fatalf("%+v", eth1)
 	}
 }
 
@@ -382,7 +421,7 @@ func TestTwoDefendersBesideOneDeviceShareTheInsertedSwitch(t *testing.T) {
 	}
 	var inserted []Device
 	for _, d := range out.Devices {
-		if d.Type == DeviceTypeUnmanagedSwitch && d.Name != controlSwitchName {
+		if d.Type == DeviceTypeUnmanagedSwitch && !strings.HasPrefix(d.Name, controlSwitchName) {
 			inserted = append(inserted, d)
 		}
 	}
@@ -426,10 +465,31 @@ func TestTheToolsDevicesAreCappedAndATasksControlGatewayIsRefused(t *testing.T) 
 		t.Fatalf("more than MaxOpponents: %v", err)
 	}
 	out, tools, err := topo.WithToolsDevices(places[:MaxOpponents])
-	if err != nil || len(tools) != MaxOpponents || tools[MaxOpponents-1].Interfaces[1].IP.AddressRef.Host != ControlHost(MaxOpponents-1) {
+	if err != nil || len(tools) != MaxOpponents || tools[MaxOpponents-1].Interfaces[1].IP.AddressRef.Gateway != "ctl-8" || tools[MaxOpponents-1].Interfaces[1].IP.AddressRef.Host != ControlHostBase {
 		t.Fatalf("MaxOpponents fit: %v", err)
 	}
 	controlOf(t, out)
+	// A control gateway each: the gateways of the task and of the devices together stay within the laboratory's limit.
+	crowded := topo
+	crowded.Devices = append([]Device(nil), topo.Devices...)
+	for i := range MaxLabGateways - MaxOpponents {
+		crowded.Devices = append(crowded.Devices, Device{ID: uuid.Must(uuid.NewV7()), Name: "inet" + strconv.Itoa(i), Type: DeviceTypeInternetGateway})
+	}
+	if _, _, err := crowded.WithToolsDevices(places[:MaxOpponents]); !errors.Is(err, ErrToolsGatewayLimit) {
+		t.Fatalf("more gateways than a lab may have: %v", err)
+	}
+	if _, _, err := crowded.WithToolsDevices(places[:MaxOpponents-1]); err != nil {
+		t.Fatalf("exactly the limit: %v", err)
+	}
+	// Any control name of the task is refused, even one no device of this lab would get (one device gets only ctl): in a lab with
+	// the platform's ctl every ctl-N is the platform's, which is how the participants' access tells them apart.
+	for _, name := range []string{"ctl-2", "ctl-3", "CTL-8"} {
+		taken := topo
+		taken.Devices = []Device{topo.Devices[0], node(name)}
+		if _, _, err := taken.WithToolsDevices([]ToolsPlacement{{Image: "a:1"}}); !errors.Is(err, ErrToolsNoControl) {
+			t.Fatalf("a task's own %s: %v", name, err)
+		}
+	}
 	if _, _, err := topo.WithToolsDevices([]ToolsPlacement{{Image: "a:1"}, {}}); !errors.Is(err, ErrToolsNoImage) {
 		t.Fatalf("every device has an image: %v", err)
 	}

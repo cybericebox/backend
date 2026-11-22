@@ -30,7 +30,8 @@ type LabClient struct {
 	DeployID uuid.UUID
 	// Control says the client is a bot's: it may reach the one control address of its own tools device of its lab, nothing else.
 	Control bool
-	// ToolsIndex is the index of that tools device in its lab (its control host is ControlHost(ToolsIndex)).
+	// ToolsIndex is the index of that tools device in its lab: its control gateway is ControlGatewayOf(ToolsIndex), its host there
+	// ControlHostBase.
 	ToolsIndex int
 }
 
@@ -57,7 +58,9 @@ func (u *ExerciseUseCase) groupPolicies(ctx context.Context, owner, skipLab uuid
 			continue
 		}
 		if c.Control {
-			policies = append(policies, labAccessModel.ClientPolicy{Name: c.Name, Control: &labAccessModel.ControlAccess{Lab: testLabName(c.DeployID), Host: exerciseModel.ControlHost(c.ToolsIndex)}})
+			policies = append(policies, labAccessModel.ClientPolicy{Name: c.Name, Control: &labAccessModel.ControlAccess{
+				Lab: testLabName(c.DeployID), Gateway: exerciseModel.ControlGatewayOf(c.ToolsIndex), Host: exerciseModel.ControlHostBase,
+			}})
 			continue
 		}
 		policies = append(policies, labAccessModel.ClientPolicy{Name: c.Name, AllowedLabs: []string{testLabName(c.DeployID)}})
@@ -375,8 +378,8 @@ func (u *ExerciseUseCase) RunStateTasks(ctx context.Context, owner, deployID uui
 	return out, nil
 }
 
-// ControlAddress is the address of the tools device of an index of the owner's test lab on its control gateway (the /24 the
-// laboratory gave the gateway, plus the device's fixed host), the one address the run client of that device's bot may reach.
+// ControlAddress is the address of the tools device of an index of the owner's test lab on its own control gateway (the /24 the
+// laboratory gave ControlGatewayOf(index), plus ControlHostBase), the one address the run client of that device's bot may reach.
 func (u *ExerciseUseCase) ControlAddress(ctx context.Context, owner, deployID uuid.UUID, index int) (string, error) {
 	deploy, err := u.ownedLab(ctx, owner, deployID)
 	if err != nil {
@@ -389,7 +392,7 @@ func (u *ExerciseUseCase) ControlAddress(ctx context.Context, owner, deployID uu
 	if index < 0 || index >= exerciseModel.MaxOpponents {
 		return "", exerciseModel.ErrToolsNoControl
 	}
-	return controlAddress(gatewayCIDR(status, exerciseModel.ControlGatewayName), exerciseModel.ControlHost(index))
+	return controlAddress(gatewayCIDR(status, exerciseModel.ControlGatewayOf(index)), exerciseModel.ControlHostBase)
 }
 
 // controlAddress is the host-th address of a /24 (IPv4).

@@ -70,7 +70,7 @@ type DeployHandle struct {
 	// Static is true for a test without devices: there is no lab behind the handle.
 	Static bool
 	// Tools are the names of the platform tools devices of a lab deployed with them, in the order of their placements: the one
-	// at position i has the index i (its control host is ControlHost(i)).
+	// at position i has the index i (its control gateway is ControlGatewayOf(i)).
 	Tools []string
 }
 

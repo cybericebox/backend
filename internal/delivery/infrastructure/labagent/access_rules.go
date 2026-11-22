@@ -61,10 +61,19 @@ func vpnGatewaysOfSpec(specJSON []byte) []string {
 	if json.Unmarshal(specJSON, &spec) != nil {
 		return nil
 	}
+	// The platform adds "ctl" to every lab with a tools device, and a task can never have a device of that name (reserved since the
+	// first tools device, refused at deploy). So only in a lab with ctl are the other control names (ctl-2 ... ctl-8) the platform's:
+	// a deploy with tools devices refuses a task device of any control name. In a lab without ctl a gateway named ctl-3 is the
+	// task's own (published before the name was reserved) and stays a participant's.
+	platformControl := false
+	for _, g := range spec.Gateways {
+		platformControl = platformControl || g.Kind == "vpn" && g.Name == exerciseModel.ControlGatewayName
+	}
 	var out []string
 	for _, g := range spec.Gateways {
-		// The control gateway of a tools device is never a participant's: only the run client of that bot gets a rule for it.
-		if g.Kind == "vpn" && g.Name != exerciseModel.ControlGatewayName {
+		// A control gateway of a tools device is never a participant's: only the run client of that bot gets a rule for it.
+		control := g.Name == exerciseModel.ControlGatewayName || platformControl && exerciseModel.IsControlGatewayName(g.Name)
+		if g.Kind == "vpn" && !control {
 			out = append(out, g.Name)
 		}
 	}
@@ -75,18 +84,22 @@ func vpnGatewaysOfSpec(specJSON []byte) []string {
 // accessRules turns the desired access of the clients into the rules of the group policy (contract 2.4): an allow rule names
 // the client, the laboratories and the VPN gateways of those laboratories, so a client gets exactly the connectors of the labs it
 // is allowed. The labs of one client that have the same gateways share one rule; the include list stays empty (the whole
-// segment) except for the client of a bot, which gets one /32 of the control gateway. A lab whose spec has no VPN gateway gets no rule (it has no VPN access to give); a lab the agent does not list gets
+// segment) except for the client of a bot, which gets one /32 of the control gateway of its own tools device. A lab whose spec has no VPN gateway gets no rule (it has no VPN access to give); a lab the agent does not list gets
 // the default gateway name, so the agent still answers that it is not in the group. The rules come in a fixed order.
 func accessRules(policies []labAccessModel.ClientPolicy, gateways map[string][]string) []*labpb.LabGroupAccessRule {
 	rules := make([]*labpb.LabGroupAccessRule, 0, len(policies))
 	for _, policy := range policies {
 		if c := policy.Control; c != nil {
-			// The client of a bot: one address of the control gateway of one lab, nothing else.
+			// The client of a bot: one address of the control gateway of its own tools device in one lab, nothing else.
+			gateway := c.Gateway
+			if gateway == "" {
+				gateway = exerciseModel.ControlGatewayName
+			}
 			rules = append(rules, &labpb.LabGroupAccessRule{
 				Action:       labpb.LabGroupAccessAction_LAB_GROUP_ACCESS_ACTION_ALLOW,
 				ClientNames:  []string{policy.Name},
 				LabNames:     []string{c.Lab},
-				GatewayNames: []string{exerciseModel.ControlGatewayName},
+				GatewayNames: []string{gateway},
 				Include:      []*labpb.AccessInclude{{Host: c.Host, Prefix: 32}},
 			})
 		}

@@ -41,6 +41,10 @@ const (
 	stopAttempts = 3
 	// verdictAttempts is how often a verdict is sent before it is left for the next pass.
 	verdictAttempts = 3
+	// defaultLabSweep is how often the leader looks for the labs of opponent runs that outlived all their runs.
+	defaultLabSweep = time.Minute
+	// maxLabsSwept is how many such labs one sweep destroys.
+	maxLabsSwept = 20
 )
 
 // Run event types the platform acts on; every other type is stored and shown as it is.
@@ -55,7 +59,8 @@ var measurementEvents = map[string]bool{"measure": true}
 
 // DriveRuns follows every active run until ctx ends (the leadership is lost, or the process stops): it starts the run at
 // the brain once its lab is ready, reads the brain's events and stores them, judges the answers, and tears the lab down
-// when the run ends. All of it resumes from the stored state, so a new leader carries on where the last one stopped.
+// when the run ends. All of it resumes from the stored state, so a new leader carries on where the last one stopped; and every
+// labSweep it destroys the labs of opponent runs that are still there after all their runs ended (sweepIdleLabs).
 // Only the leader replica runs it.
 func (u *UseCase) DriveRuns(ctx context.Context) {
 	if u.runsReady() != nil {
@@ -92,9 +97,24 @@ func (u *UseCase) DriveRuns(ctx context.Context) {
 			}(r.ID)
 		}
 	}
+	var sweeping sync.Mutex
+	sweep := func() {
+		if !sweeping.TryLock() {
+			return // the last sweep is still destroying
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer sweeping.Unlock()
+			u.sweepIdleLabs(ctx)
+		}()
+	}
 	scan()
+	sweep()
 	t := time.NewTicker(u.runPoll)
 	defer t.Stop()
+	s := time.NewTicker(u.labSweep)
+	defer s.Stop()
 	for {
 		select {
 		case <-ctx.Done():
@@ -102,6 +122,30 @@ func (u *UseCase) DriveRuns(ctx context.Context) {
 			return
 		case <-t.C:
 			scan()
+		case <-s.C:
+			sweep()
+		}
+	}
+}
+
+// sweepIdleLabs destroys the test labs of opponent runs that still exist although none of their runs is active. The last run of
+// a lab destroys it in its teardown; this is what makes that durable: a destroy that failed after the run was finished, or a
+// leader that stopped between finishing the run and destroying its lab, leaves the lab to the next sweep (of this leader or the
+// next), not to its lease. A lab whose runs are being stored is never seen without an active run (they are stored together). A
+// destroy hands the lab to removal (its lease ends), after which the sweep never lists it again (the expiry and the removal
+// check finish it); a destroy that fails before that is tried again on the next sweep.
+func (u *UseCase) sweepIdleLabs(ctx context.Context) {
+	labs, err := u.runs.IdleOpponentLabs(ctx, u.now().UTC(), maxLabsSwept)
+	if err != nil {
+		log.Warn().Err(err).Msg("Listing the labs of ended opponent runs failed; trying again")
+		return
+	}
+	for _, lab := range labs {
+		if ctx.Err() != nil {
+			return
+		}
+		if err = u.labs.DestroyDeployTest(ctx, lab.Owner, lab.DeployID); err != nil && !errors.Is(err, exerciseModel.ErrTestDeployNotFound.Err()) {
+			log.Warn().Err(err).Msg("Destroying the lab of ended opponent runs failed; trying again")
 		}
 	}
 }
@@ -938,7 +982,8 @@ func (d *runDriver) closing(ctx context.Context, run assistantModel.Run) time.Du
 
 // destroyIfLast destroys the lab of a run that has just finished when no other run works in it any more. The runs of one lab
 // that end together may each see the other still active before they finish; the one that finishes last then sees none here,
-// so the lab is never left behind (a failure is only logged: the lab's own lease ends it).
+// so the lab is not left behind. A failure here (or a leader that stops before it) is left to the leader's sweep
+// (sweepIdleLabs), which finds the lab again.
 func (d *runDriver) destroyIfLast(ctx context.Context, run assistantModel.Run) {
 	u := d.u
 	others, err := u.runs.OthersActiveOnLab(ctx, run.DeployID, run.ID)
@@ -946,7 +991,7 @@ func (d *runDriver) destroyIfLast(ctx context.Context, run assistantModel.Run) {
 		return
 	}
 	if err = u.labs.DestroyDeployTest(ctx, run.Actor, run.DeployID); err != nil && !errors.Is(err, exerciseModel.ErrTestDeployNotFound.Err()) {
-		log.Warn().Err(err).Msg("Destroying the lab of the last run failed; its lease will end it")
+		log.Warn().Err(err).Msg("Destroying the lab of the last run failed; the sweep will try again")
 	}
 }
 

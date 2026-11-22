@@ -1401,6 +1401,11 @@ type Querier interface {
 	ListFileOwners(ctx context.Context, ids []uuid.UUID) ([]ListFileOwnersRow, error)
 	// Batch size lookup for board attachments; missing files are simply absent.
 	ListFileSizes(ctx context.Context, ids []uuid.UUID) ([]ListFileSizesRow, error)
+	// The live test labs of opponent runs in which no run is active any more: a teardown that was cut short (the destroy after the
+	// last run failed, or the leader stopped between finishing the run and destroying its lab). A lab handed to removal (its lease
+	// ended, which DestroyDeployTest does at once) is the expiry's and removal check's, never listed again. Read from the test deploys
+	// (few, live ones only), each probed by its runs; oldest lease first, so a lab is never starved by newer ones.
+	ListIdleOpponentLabs(ctx context.Context, arg ListIdleOpponentLabsParams) ([]ListIdleOpponentLabsRow, error)
 	// An empty event_filter lists everything; an Event id lists that Event's items and
 	// items without an Event (account/system), as on the Event site (M5). The nil
 	// uuid matches no Event, so it lists only items without an Event (platform sites).
@@ -1828,6 +1833,9 @@ type Querier interface {
 	// only once the event is withdrawn. A destroyed binding never re-enters this
 	// queue; a failed agent call leaves it eligible for River's next retry.
 	ListWithdrawnLabBindings(ctx context.Context, now pgtype.Timestamptz) ([]LabBinding, error)
+	// Serializes the creation of the runs of one user until the end of the transaction, so the cap of active runs is checked and
+	// the runs are inserted as one step (two requests at once cannot both pass the cap).
+	LockAssistantRunsOfActor(ctx context.Context, actorID uuid.UUID) error
 	LockErrorNotification(ctx context.Context, id uuid.UUID) (ErrorNotificationDelivery, error)
 	// Configured maxima cannot change while an admission validates immutable group sizes.
 	LockEventConfigForLabSizing(ctx context.Context, eventID uuid.UUID) (uuid.UUID, error)

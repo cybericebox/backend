@@ -25,8 +25,9 @@ keepalive, sizes, stream semantics). The samples are in [`testdata/brain`](READM
 - **The brain dials the lab**: `access.vpn.entry` of StartRun is the full WireGuard config of a client the daemon made for that run
   (its own key, revoked at teardown). The brain brings the tunnel up and speaks to the lab as a participant. For an opponent,
   `access.vpn.addr` is `ip:port` of the runner agent on the run's own tools device, on the hidden control gateway `ctl`; the run's
-  tunnel is restricted to exactly that one address. Several opponents in one lab share `ctl`: the tools device of index i has the
-  host `.10+i` of its /24, and each run's client reaches only its own device's address. The runner authenticates the brain's per-run credential (`EDA_RUN_ID` and `EDA_TRUST_CA`
+  tunnel is restricted to exactly that one address. Several opponents in one lab never share a control segment: the tools device
+  of index i has a control gateway and switch of its own (`ctl` for index 0, then `ctl-2`, `ctl-3`, ...) and the host `.10` of
+  that gateway's /24, and each run's client reaches only its own device's address on its own gateway. The runner authenticates the brain's per-run credential (`EDA_RUN_ID` and `EDA_TRUST_CA`
   come in the `deploy.env` of the brain's `GetOpponent` spec; with the fallback image the daemon sets them). So the machine that runs the brain must reach the **laboratory's VPN endpoint** (the
   UDP address the agent publishes), and WireGuard must be usable there (root or CAP_NET_ADMIN; a rootless run is not verified).
 - The daemon talks to the laboratory agent over gRPC mTLS as for any lab; the brain never touches infrastructure.
@@ -151,9 +152,9 @@ installation the Privacy Policy wording gets its legal review.
    (`POST /api/exercises/{id}/versions/{versionID}/variants/{variantID}/opponents/try` with `{"indexes":[1,2]}`, at most 8): every
    opponent gets a run of its own (its own `run_id`, `GetOpponent` call, spec, VPN client and `StartRun` with its own
    `access.vpn.addr`), the lab gets one tools device per opponent (`tools`, `tools-2`, ...; the device of the opponent at
-   position i of the list has index i) and one control gateway; `tasks/opponent-lab/deployed-topology-both.json` is that lab. Each
+   position i of the list has index i) and a control gateway per device; `tasks/opponent-lab/deployed-topology-both.json` is that lab. Each
    run is read and stopped under its own `.../opponents/{index}/try/{runID}`. A run that ends early revokes only its own client;
-   the lab is destroyed when the last of its runs ends.
+   the lab is destroyed when the last of its runs ends (a destroy that fails or is cut short is done by the leader's sweep).
 4. A run the brain does not reach, or that outlives `BRAIN_RUN_MAX_DURATION`, ends as failed; the daemon always revokes the run's
    client and destroys the lab (a shared lab once its last run has ended), and never waits on the brain to do it.
 

@@ -62,7 +62,7 @@ func TestSeveralOpponentsOfAVariantPlayInOneLabEachWithItsOwnRunAndDevice(t *tes
 		addrs[start.GetRunId()] = start.GetAccess().GetVpn().GetAddr()
 		entries[start.GetAccess().GetVpn().GetEntry()] = true
 	}
-	if addrs[runs[0].ID.String()] != "10.8.4.10:9099" || addrs[runs[1].ID.String()] != "10.8.4.11:9099" {
+	if addrs[runs[0].ID.String()] != "10.8.4.10:9099" || addrs[runs[1].ID.String()] != "10.8.5.10:9099" {
 		t.Fatalf("each run reaches the runner of its own device: %v", addrs)
 	}
 	a, b := r.runs.state(runs[0].ID), r.runs.state(runs[1].ID)

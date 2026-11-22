@@ -597,5 +597,7 @@
   "73617": "Opponents cannot be run in this lab",
   "73621": "The task this edit belongs to is archived",
   "73622": "The opponent does not fit the device limits of the lab",
-  "73623": "The brain gave an opponent the platform cannot deploy"
+  "73623": "The brain gave an opponent the platform cannot deploy",
+  "73624": "The task has a device named like a control gateway the platform adds for opponents",
+  "73625": "The lab cannot hold a control gateway for every opponent: a lab has a limit of gateways"
 }

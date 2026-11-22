@@ -28,6 +28,8 @@ type Queries interface {
 	ListActiveAssistantRuns(context.Context, int32) ([]postgres.AssistantRun, error)
 	CountActiveAssistantRunsOfActor(context.Context, uuid.UUID) (int64, error)
 	CountOtherActiveAssistantRunsOnDeploy(context.Context, postgres.CountOtherActiveAssistantRunsOnDeployParams) (int64, error)
+	LockAssistantRunsOfActor(context.Context, uuid.UUID) error
+	ListIdleOpponentLabs(context.Context, postgres.ListIdleOpponentLabsParams) ([]postgres.ListIdleOpponentLabsRow, error)
 	SetAssistantRunAccessClient(context.Context, postgres.SetAssistantRunAccessClientParams) (int64, error)
 	SetAssistantRunRunning(context.Context, postgres.SetAssistantRunRunningParams) (int64, error)
 	CloseAssistantRun(context.Context, postgres.CloseAssistantRunParams) (int64, error)
@@ -48,12 +50,26 @@ type Queries interface {
 	GetAssistantSubjectUser(context.Context, uuid.UUID) (uuid.UUID, error)
 }
 
-type Repository struct{ q Queries }
+type Repository struct {
+	q Queries
+	// uow opens the transaction CreateAll inserts in; nil (a repository over fakes): CreateAll runs its steps without one.
+	uow postgres.IUnitOfWorker[Queries]
+}
 
 func New(q Queries) *Repository { return &Repository{q: q} }
 
-// ErrActive: the variant already has an active run (the partial unique index).
-var ErrActive = errors.New("the variant already has an active run")
+// WithUnitOfWork gives the repository the transactions CreateAll needs to be atomic.
+func (r *Repository) WithUnitOfWork(uow postgres.IUnitOfWorker[Queries]) *Repository {
+	r.uow = uow
+	return r
+}
+
+var (
+	// ErrActive: the variant already has an active run (the partial unique index).
+	ErrActive = errors.New("the variant already has an active run")
+	// ErrLimit: the user would have more active runs than the cap.
+	ErrLimit = errors.New("the user has the most active runs they may have")
+)
 
 func timeOf(t pgtype.Timestamptz) time.Time {
 	if !t.Valid {
@@ -81,7 +97,55 @@ func toRuns(rows []postgres.AssistantRun) []assistantModel.Run {
 
 // Create stores a run that is starting. ErrActive when the variant already has an active one.
 func (r *Repository) Create(ctx context.Context, run assistantModel.Run, now time.Time) error {
-	err := r.q.CreateAssistantRun(ctx, postgres.CreateAssistantRunParams{
+	return create(ctx, r.q, run, now)
+}
+
+// CreateAll stores the runs of one request (all of one actor), starting, as one step: under a lock of the actor the count of
+// their active runs is checked against maxActive (ErrLimit when the runs do not fit; maxActive <= 0: no cap) and every run is
+// inserted, in one transaction. So two requests at once cannot both pass the cap, and the runs of a request become visible
+// together (no driver sees one of them before the others exist). ErrActive when one of them loses the race for its variant or
+// opponent; then none is stored.
+func (r *Repository) CreateAll(ctx context.Context, runs []assistantModel.Run, maxActive int, now time.Time) error {
+	if len(runs) == 0 {
+		return nil
+	}
+	actor := runs[0].Actor
+	for _, run := range runs[1:] {
+		if run.Actor != actor {
+			return errors.New("the runs of one request belong to one actor")
+		}
+	}
+	q, save := r.q, func() error { return nil }
+	if r.uow != nil {
+		txCtx, txQ, unit, err := r.uow.UnitOfWork(ctx)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = unit.Restore() }()
+		ctx, q, save = txCtx, txQ, unit.Save
+	}
+	if err := q.LockAssistantRunsOfActor(ctx, actor); err != nil {
+		return err
+	}
+	if maxActive > 0 {
+		n, err := q.CountActiveAssistantRunsOfActor(ctx, actor)
+		if err != nil {
+			return err
+		}
+		if int(n)+len(runs) > maxActive {
+			return ErrLimit
+		}
+	}
+	for _, run := range runs {
+		if err := create(ctx, q, run, now); err != nil {
+			return err
+		}
+	}
+	return save()
+}
+
+func create(ctx context.Context, q Queries, run assistantModel.Run, now time.Time) error {
+	err := q.CreateAssistantRun(ctx, postgres.CreateAssistantRunParams{
 		ID: run.ID, ExerciseID: run.ExerciseID, VersionID: run.VersionID, VariantID: run.VariantID, DeployID: run.DeployID,
 		ActorID: run.Actor, Role: run.Role, Opponent: safeconv.Int32(run.Opponent), ToolsIndex: safeconv.Int32(run.ToolsIndex), RequestID: run.RequestID, SpecID: run.SpecID, Now: now, ExpiresAt: run.ExpiresAt,
 	})
@@ -89,6 +153,20 @@ func (r *Repository) Create(ctx context.Context, run assistantModel.Run, now tim
 		return ErrActive
 	}
 	return err
+}
+
+// IdleOpponentLabs are the live test labs (lease after now, so not handed to removal) of opponent runs in which none of their
+// runs is active (a teardown that was cut short), oldest lease first, at most limit of them.
+func (r *Repository) IdleOpponentLabs(ctx context.Context, now time.Time, limit int) ([]assistantModel.RunLab, error) {
+	rows, err := r.q.ListIdleOpponentLabs(ctx, postgres.ListIdleOpponentLabsParams{Now: now, MaxRows: safeconv.Int32(limit)})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]assistantModel.RunLab, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, assistantModel.RunLab{DeployID: row.DeployID, Owner: row.ActorID})
+	}
+	return out, nil
 }
 
 // Get reads a run; found is false when there is none.
