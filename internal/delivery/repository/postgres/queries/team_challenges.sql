@@ -198,7 +198,9 @@ WHERE tc.event_id = sqlc.arg(event_id)
     AND l.agent_uid<>'' AND l.agent_generation>0 AND l.observed_revision=l.desired_revision
     AND (cfg.task_reveal_mode='as_ready'
      OR (cfg.task_reveal_mode='all_ready' AND (
-        (barrier.mode='all_ready' AND barrier.opened_at IS NOT NULL)
+        -- Behind an opened barrier (all were Ready, or the reveal timeout opened it) a team gets the tasks only when
+        -- its lab passes the barrier's own Ready test, the one the timeout alarm's stuck list uses too.
+        (barrier.mode='all_ready' AND barrier.opened_at IS NOT NULL AND event_team_lab_reveal_ready(tc.event_team_id, ee.id))
         -- A team outside the cohort (admitted after the cohort was fixed at the start) never waits for the others:
         -- it gets each task as soon as its own Lab is ready. The moderators team is not a participant and waits.
         OR (barrier.event_exercise_id IS NOT NULL AND NOT tc.event_team_id = ANY(barrier.eligible_team_ids)

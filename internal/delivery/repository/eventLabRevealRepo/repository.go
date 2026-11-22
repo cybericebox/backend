@@ -17,7 +17,9 @@ type Queries interface {
 	FreezeEventLabRevealBarrier(context.Context, postgres.FreezeEventLabRevealBarrierParams) ([]uuid.UUID, error)
 	ListRetryableEmptyEventLabRevealBarriers(context.Context, uuid.UUID) ([]uuid.UUID, error)
 	OpenReadyEventLabRevealBarriers(context.Context, postgres.OpenReadyEventLabRevealBarriersParams) (int64, error)
-	OpenTimedOutEventLabRevealBarriers(context.Context, postgres.OpenTimedOutEventLabRevealBarriersParams) ([]postgres.OpenTimedOutEventLabRevealBarriersRow, error)
+	OpenTimedOutEventLabRevealBarriers(context.Context, postgres.OpenTimedOutEventLabRevealBarriersParams) (int64, error)
+	ListPendingEventLabRevealTimeoutAlarms(context.Context, uuid.UUID) ([]postgres.ListPendingEventLabRevealTimeoutAlarmsRow, error)
+	MarkEventLabRevealTimeoutAlarmSent(context.Context, postgres.MarkEventLabRevealTimeoutAlarmSentParams) error
 	IsEventLabManualReachable(context.Context, postgres.IsEventLabManualReachableParams) (bool, error)
 }
 type Repository struct{ q Queries }
@@ -35,7 +37,8 @@ func (r *Repository) OpenReady(ctx context.Context, eventID uuid.UUID, now time.
 	return err
 }
 
-// TimedOut is a barrier the reveal timeout opened: its task and the teams of its cohort whose labs were not Ready.
+// TimedOut is a barrier the reveal timeout opened whose alarm is due: its task and the teams of its cohort that have
+// not got the tasks yet.
 type TimedOut struct {
 	EventExerciseID uuid.UUID
 	Revision        int64
@@ -44,12 +47,17 @@ type TimedOut struct {
 	StuckTeamNames  []string
 }
 
-// OpenTimedOut opens the all_ready barriers of the event that still wait timeout after they would have opened, and
-// returns each of them once (see OpenTimedOutEventLabRevealBarriers).
-func (r *Repository) OpenTimedOut(ctx context.Context, eventID uuid.UUID, now time.Time, timeout time.Duration) ([]TimedOut, error) {
-	rows, err := r.q.OpenTimedOutEventLabRevealBarriers(ctx, postgres.OpenTimedOutEventLabRevealBarriersParams{
+// OpenTimedOut opens the all_ready barriers of the event that still wait timeout after they would have opened and
+// marks their alarm due in the same statement; it returns how many it opened.
+func (r *Repository) OpenTimedOut(ctx context.Context, eventID uuid.UUID, now time.Time, timeout time.Duration) (int64, error) {
+	return r.q.OpenTimedOutEventLabRevealBarriers(ctx, postgres.OpenTimedOutEventLabRevealBarriersParams{
 		EventID: eventID, TimeoutSeconds: timeout.Seconds(), Now: now,
 	})
+}
+
+// PendingTimeoutAlarms lists the barriers of the event the timeout opened whose alarm is not sent yet.
+func (r *Repository) PendingTimeoutAlarms(ctx context.Context, eventID uuid.UUID) ([]TimedOut, error) {
+	rows, err := r.q.ListPendingEventLabRevealTimeoutAlarms(ctx, eventID)
 	if err != nil {
 		return nil, err
 	}
@@ -61,6 +69,13 @@ func (r *Repository) OpenTimedOut(ctx context.Context, eventID uuid.UUID, now ti
 		})
 	}
 	return out, nil
+}
+
+// MarkTimeoutAlarmSent records that the alarm of the barrier (set and revision) went out, or had nothing to tell.
+func (r *Repository) MarkTimeoutAlarmSent(ctx context.Context, setID uuid.UUID, revision int64, now time.Time) error {
+	return r.q.MarkEventLabRevealTimeoutAlarmSent(ctx, postgres.MarkEventLabRevealTimeoutAlarmSentParams{
+		EventExerciseID: setID, Revision: revision, Now: now,
+	})
 }
 
 func (r *Repository) Reachable(ctx context.Context, labID uuid.UUID, now time.Time) (bool, error) {

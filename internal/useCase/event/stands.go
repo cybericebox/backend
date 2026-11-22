@@ -189,6 +189,11 @@ func (u *EventUseCase) reconcileEventStands(ctx context.Context, eventID uuid.UU
 	for _, teamID := range published {
 		readyTeams[teamID] = struct{}{}
 	}
+	if u.lifecycleControls {
+		if err = u.raisePendingRevealAlarms(ctx, e, now); err != nil {
+			errs = append(errs, err)
+		}
+	}
 	if u.supportsLabAccessPolicy() {
 		for teamID := range readyTeams {
 			if err = u.RequestLabAccessSync(ctx, teamID); err != nil {
