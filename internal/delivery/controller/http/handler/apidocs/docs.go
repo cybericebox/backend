@@ -21830,6 +21830,7 @@ const docTemplate = `{
         },
         "/exercises/{id}/publish": {
             "post": {
+                "description": "The published version with Warnings: content warnings that never stop a publish (attachments_in_some_variants).",
                 "produces": [
                     "application/json"
                 ],
@@ -21858,7 +21859,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/exercise.versionResponse"
+                                            "$ref": "#/definitions/exercise.publishResponse"
                                         }
                                     }
                                 }
@@ -41929,6 +41930,42 @@ const docTemplate = `{
                 },
                 "Updated": {
                     "type": "integer"
+                },
+                "Warnings": {
+                    "description": "Warnings are the content warnings of the imported items (also in each item's Report.Warnings), with the\nexercise and the item they belong to. They never stop an import. Never null.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/exercise.importContentWarning"
+                    }
+                }
+            }
+        },
+        "exercise.importContentWarning": {
+            "type": "object",
+            "properties": {
+                "Code": {
+                    "type": "string"
+                },
+                "ExerciseID": {
+                    "type": "string"
+                },
+                "ItemKey": {
+                    "type": "string"
+                },
+                "Task": {
+                    "type": "string"
+                },
+                "WithFiles": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "WithoutFiles": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
                 }
             }
         },
@@ -42008,6 +42045,13 @@ const docTemplate = `{
                 },
                 "Updated": {
                     "type": "integer"
+                },
+                "Warnings": {
+                    "description": "Warnings are the content warnings of the imported items, as importCommitResponse has them (empty until done).",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/exercise.importContentWarning"
+                    }
                 }
             }
         },
@@ -42422,6 +42466,101 @@ const docTemplate = `{
             "properties": {
                 "Note": {
                     "type": "string"
+                }
+            }
+        },
+        "exercise.publishResponse": {
+            "type": "object",
+            "properties": {
+                "AdminNote": {
+                    "type": "string"
+                },
+                "AuthorName": {
+                    "type": "string"
+                },
+                "CreatedAt": {
+                    "type": "string"
+                },
+                "CreatedBy": {
+                    "type": "string"
+                },
+                "Description": {
+                    "type": "string"
+                },
+                "Elevation": {
+                    "description": "Elevation is the exercise's open resource elevation request, else its latest decided one; null when it\nnever had one.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/exercise.elevationResponse"
+                        }
+                    ]
+                },
+                "ExerciseID": {
+                    "type": "string"
+                },
+                "HasMissingSecrets": {
+                    "type": "boolean"
+                },
+                "ID": {
+                    "type": "string"
+                },
+                "Label": {
+                    "type": "string"
+                },
+                "MissingSecrets": {
+                    "description": "MissingSecrets lists the secret variables that have no value yet (variant 1-based, device, key); HasMissingSecrets is\nwhether there are any. The version cannot be published while there are; entering the value in the editor clears the entry.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/exercise.missingSecretResponse"
+                    }
+                },
+                "Name": {
+                    "type": "string"
+                },
+                "PublishedAt": {
+                    "type": "string"
+                },
+                "Resources": {
+                    "description": "Resources: the totals of the version (min and max over its variants, per variant), the devices outside\nthe platform frame and whether the task is resource-heavy.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/exercise.versionResourcesResponse"
+                        }
+                    ]
+                },
+                "Revision": {
+                    "description": "Revision is the opaque revision of the version: for the working copy, send it back unchanged (never parse it)\nwith the next save. UpdatedAt/UpdatedBy(Name) are when and by whom it was last saved.",
+                    "type": "string"
+                },
+                "Status": {
+                    "type": "string"
+                },
+                "Tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "UpdatedAt": {
+                    "type": "string"
+                },
+                "UpdatedBy": {
+                    "type": "string"
+                },
+                "UpdatedByName": {
+                    "type": "string"
+                },
+                "Variants": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/exercise.variantDTO"
+                    }
+                },
+                "Warnings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/exerciseModel.ContentWarning"
+                    }
                 }
             }
         },
@@ -43182,6 +43321,29 @@ const docTemplate = `{
                 }
             }
         },
+        "exerciseModel.ContentWarning": {
+            "type": "object",
+            "properties": {
+                "Code": {
+                    "type": "string"
+                },
+                "Task": {
+                    "type": "string"
+                },
+                "WithFiles": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "WithoutFiles": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
         "exerciseModel.DeviceBootstrapStatus": {
             "type": "object",
             "properties": {
@@ -43481,6 +43643,21 @@ const docTemplate = `{
                 "Context": {
                     "type": "object",
                     "additionalProperties": {}
+                },
+                "Task": {
+                    "type": "string"
+                },
+                "WithFiles": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "WithoutFiles": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
                 }
             }
         },

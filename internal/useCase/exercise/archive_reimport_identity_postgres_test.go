@@ -325,6 +325,49 @@ func TestReimportDocumentWithoutExerciseIDIsNewWithWarning(t *testing.T) {
 	require.NotEqual(t, entity.ID, result.Results[0].ExerciseID)
 }
 
+// Independent variants whose same subtask has files in some variants and none in others are a warning (never an
+// issue): the preview and the apply both report it with the subtask and the variant numbers on each side.
+func TestImportWarnsAboutFilesInSomeIndependentVariants(t *testing.T) {
+	db := testhelpers.SetupTestDB(t)
+	ctx := context.Background()
+	user := userModel.NewIncompleteUser(uuid.Must(uuid.NewV7()), "files-warning-import@test.test", importJobT0)
+	user.Role = rbac.RoleSuperAdmin
+	_, err := userRepo.New(db.Queries).Create(ctx, user)
+	require.NoError(t, err)
+	archive, err := exercise.BuildArchiveV1(map[string][]byte{
+		"exercise.json": []byte(`{"schema":"cib-exercise/1.0","exercise":{"name":"Files in one variant"},"versions":[{"status":"draft","variants":[` +
+			`{"tasks":[{"name":"Read the file","key":"file","attachments":[{"file":"files/a.txt"}]}]},` +
+			`{"tasks":[{"name":"Read the file","key":"file"}]}]}]}`),
+		"files/a.txt": []byte("only the first variant has it"),
+	})
+	require.NoError(t, err)
+	sources := newPostgresSources(t, db)
+	archiveUpID := uuid.Must(uuid.NewV7())
+	sources.stage(archiveUpID, user.ID, archive, mediaModel.UploadPurposeExerciseArchive)
+	uc := exercise.NewExerciseUseCase(exercise.Dependencies{
+		Repo:       db.Queries,
+		Media:      postgresArchiveMedia{newFakeMedia(), db.Queries},
+		CatalogUoW: postgres.NewUnitOfWorker[exercise.CatalogRepository](postgres.NewUoWFactory(db.Pool)),
+	})
+	uc.SetArchiveImport(exercise.ArchiveImportDependencies{Sources: sources})
+	actor := exercise.Actor{UserID: user.ID, Role: rbac.RoleSuperAdmin}
+	in := exercise.PreviewArchiveInput{UploadID: archiveUpID}
+	want := exerciseModel.ImportWarning{
+		Code: exerciseModel.WarnAttachmentsInSomeVariants, Task: "file", WithFiles: []int{1}, WithoutFiles: []int{2},
+	}
+
+	preview, err := uc.PreviewArchiveImport(ctx, actor, in)
+	require.NoError(t, err)
+	require.Contains(t, preview.Items[0].Report.Warnings, want)
+	for _, issue := range preview.Items[0].Report.Issues {
+		require.NotEqual(t, exerciseModel.WarnAttachmentsInSomeVariants, issue.Message, "a warning is never an issue")
+	}
+
+	result, err := uc.CommitArchiveImport(ctx, actor, exercise.CommitArchiveInput{PreviewArchiveInput: in})
+	require.NoError(t, err)
+	require.Contains(t, result.Results[0].Report.Warnings, want)
+}
+
 func warningCodes(warnings []exerciseModel.ImportWarning) []string {
 	out := []string{}
 	for _, warning := range warnings {

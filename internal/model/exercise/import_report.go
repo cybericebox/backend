@@ -84,12 +84,17 @@ const (
 	ImportWarnRemovedHasAttempts = "removed_task_has_attempts"
 	// ImportWarnRunningLabs: laboratories of the exercise are running.
 	ImportWarnRunningLabs = "running_labs"
+	// WarnAttachmentsInSomeVariants (content_warnings.go) is reported here too, one per subtask.
 )
 
-// ImportWarning is something to know before applying. A warning never forbids.
+// ImportWarning is something to know before applying. A warning never forbids. A content warning of the result
+// (WarnAttachmentsInSomeVariants, see ContentWarning) carries Task, WithFiles and WithoutFiles instead of Context.
 type ImportWarning struct {
-	Code    string         `json:"Code"`
-	Context map[string]any `json:"Context,omitempty"`
+	Code         string         `json:"Code"`
+	Context      map[string]any `json:"Context,omitempty"`
+	Task         string         `json:"Task,omitempty"`
+	WithFiles    []int          `json:"WithFiles,omitempty"`
+	WithoutFiles []int          `json:"WithoutFiles,omitempty"`
 }
 
 // ImportUsageTask is a task that appears or disappears for an event once the draft is published and the event

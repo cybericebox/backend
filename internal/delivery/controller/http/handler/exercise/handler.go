@@ -933,7 +933,8 @@ func (h *Handler) discardDraft(ctx *gin.Context) {
 // @Tags     exercises
 // @Produce  json
 // @Param    id  path  string  true  "exercise ID"
-// @Success  200  {object}  response.Response{data=versionResponse}
+// @Description  The published version with Warnings: content warnings that never stop a publish (attachments_in_some_variants).
+// @Success  200  {object}  response.Response{data=publishResponse}
 // @Failure  400  {object}  response.Response
 // @Router   /exercises/{id}/publish [post]
 func (h *Handler) publish(ctx *gin.Context) {
@@ -946,7 +947,7 @@ func (h *Handler) publish(ctx *gin.Context) {
 		response.AbortWithError(ctx, err)
 		return
 	}
-	response.AbortWithData(ctx, versionToResponse(v))
+	response.AbortWithData(ctx, publishToResponse(v))
 }
 
 // rollback godoc

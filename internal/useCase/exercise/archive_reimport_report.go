@@ -81,6 +81,11 @@ func (u *ExerciseUseCase) importReport(
 	}
 	report.Issues = u.publishIssues(ctx, scope, version)
 	report.Publishable = len(report.Issues) == 0
+	for _, warning := range exerciseModel.ContentWarnings(version.Variants) {
+		report.Warnings = append(report.Warnings, exerciseModel.ImportWarning{
+			Code: warning.Code, Task: warning.Task, WithFiles: warning.WithFiles, WithoutFiles: warning.WithoutFiles,
+		})
+	}
 	if noExerciseID {
 		report.Warnings = append(
 			report.Warnings,
