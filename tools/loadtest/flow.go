@@ -350,6 +350,13 @@ func (p *participant) vpn(ctx context.Context, base time.Time) {
 	}
 }
 
+// resultsHiddenCode is the platform code of eventConfig.ErrResultsHidden (a test keeps them equal): an event whose
+// scoreboard is hidden answers the results endpoints with it (403) by design, so the scoreboard polls do not count it
+// as a failure. Any other 403 there (participants only, live screen for managers only) stays an error.
+const resultsHiddenCode = 61213
+
+var resultsHidden = []int{resultsHiddenCode}
+
 // pollResults is the scoreboard page: one full snapshot, then cheap change polls.
 func (p *participant) pollResults(ctx context.Context, view string) {
 	path := "/api/events/" + p.eventID + "/results"
@@ -362,7 +369,7 @@ func (p *participant) pollResults(ctx context.Context, view string) {
 			if view != "" {
 				q = "?view=" + url.QueryEscape(view)
 			}
-			res := p.r.api.do(ctx, request{Method: "GET", Path: path + q, Label: "/api/events/{id}/results", Origin: p.r.cfg.eventOrigin(), Cookie: p.cookie})
+			res := p.r.api.do(ctx, request{Method: "GET", Path: path + q, Label: "/api/events/{id}/results", Origin: p.r.cfg.eventOrigin(), Cookie: p.cookie, ExpectCode: resultsHidden})
 			if res.ok() {
 				var snap struct{ Revision int64 }
 				if json.Unmarshal(res.Data, &snap) == nil {
@@ -371,7 +378,7 @@ func (p *participant) pollResults(ctx context.Context, view string) {
 			}
 		} else {
 			q := fmt.Sprintf("?since=%d&freeze=%s", revision, url.QueryEscape(freeze))
-			res := p.r.api.do(ctx, request{Method: "GET", Path: path + "/changes" + q, Label: "/api/events/{id}/results/changes", Origin: p.r.cfg.eventOrigin(), Cookie: p.cookie, Expect: []int{304}})
+			res := p.r.api.do(ctx, request{Method: "GET", Path: path + "/changes" + q, Label: "/api/events/{id}/results/changes", Origin: p.r.cfg.eventOrigin(), Cookie: p.cookie, Expect: []int{304}, ExpectCode: resultsHidden})
 			if res.ok() {
 				var ch struct {
 					Revision         int64
@@ -394,7 +401,7 @@ func (p *participant) viewScreen(ctx context.Context, token string) {
 	for {
 		p.r.api.do(ctx, request{Method: "GET", Path: "/api/events/self/live-screen?token=" + url.QueryEscape(token), Label: "/api/events/self/live-screen", Origin: p.r.cfg.eventOrigin()})
 		if p.eventID != "" {
-			p.r.api.do(ctx, request{Method: "GET", Path: "/api/events/" + p.eventID + "/results?view=live", Label: "/api/events/{id}/results", Origin: p.r.cfg.eventOrigin()})
+			p.r.api.do(ctx, request{Method: "GET", Path: "/api/events/" + p.eventID + "/results?view=live", Label: "/api/events/{id}/results", Origin: p.r.cfg.eventOrigin(), ExpectCode: resultsHidden})
 		}
 		if !sleep(ctx, p.jitter(p.r.cfg.resultsPoll)) {
 			return
@@ -406,7 +413,7 @@ func (p *participant) viewScreen(ctx context.Context, token string) {
 func (p *participant) warm(ctx context.Context, until time.Time) {
 	for time.Now().Before(until) {
 		p.r.api.do(ctx, p.eventCall("GET", "/api/events/self/info", "/api/events/self/info", nil))
-		p.r.api.do(ctx, request{Method: "GET", Path: "/api/events/" + p.eventID + "/results", Label: "/api/events/{id}/results", Origin: p.r.cfg.eventOrigin(), Cookie: p.cookie})
+		p.r.api.do(ctx, request{Method: "GET", Path: "/api/events/" + p.eventID + "/results", Label: "/api/events/{id}/results", Origin: p.r.cfg.eventOrigin(), Cookie: p.cookie, ExpectCode: resultsHidden})
 		if !sleep(ctx, p.jitter(p.r.cfg.warmPoll)) {
 			return
 		}
