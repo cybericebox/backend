@@ -1,0 +1,273 @@
+// Package cybericebox.brain.v1 is the Brain service contract: the gRPC protocol a client (the platform
+// backend today, any client tomorrow) uses to drive the closed Brain project. Brain is the SERVER; the
+// client calls in. Method names read as the ACTION the CLIENT performs. This is the MACHINE control
+// plane only.
+//
+// HOME: the generated Go is committed in the PUBLIC platform backend repo as package
+// github.com/cybericebox/backend/pkg/brainapi/v1 (the backend repo is public and its CI cannot fetch a
+// private module). The private Brain imports the SAME package, so it gets no backend internals — only
+// this generated contract compiles into it. The .proto is AUTHORED by the Brain side and landed into
+// that package by the backend; both generate from one source of truth.
+//
+// TWO TRANSPORTS, by fit:
+//   - gRPC (this file): the typed machine control plane — enrollment, runs (grader + opponents),
+//     capability ("give me an opponent"), statistics ingest, the outbox (one bidi stream) and the
+//     task-archive upload.
+//   - A SEPARATE HTTP/SSE chat handle (NOT here): the authoring CONVERSATION and its session lifecycle
+//     (open/message/start/stop/save/attachments/events/archive) are browser-driven through the client's
+//     /v1/assistant proxy. The client proxies it; it is intentionally absent from this proto.
+//
+// TWO ENDPOINTS: the gRPC control endpoint and the HTTP/SSE chat endpoint are separate ports in the
+// stored connection (grpc_endpoint + the http endpoint) — no single-port ALPN mux.
+//
+// The brain<->pad (runner) link is a DIFFERENT gRPC service (internal to Brain + the lab).
+//
+// SUBJECT: the control calls are tenant-scoped (the mTLS client certificate CN) and carry no user subject. User
+// authority travels in-message on the outbox provide_* requests, which the brain originates (provide_lab.subject,
+// provide_device.subject, provide_task.subject); the client authorizes them against that subject.
+//
+// ERROR MODEL (RPC status): InvalidArgument (bad/oversized/unsupported-media input); Unauthenticated
+// (missing/invalid client cert); PermissionDenied; NotFound (unknown run/session/task; reason="gone"
+// for a hard-deleted/expired one); AlreadyExists = idempotent SUCCESS (a repeat of StartRun,
+// UploadMaterials, PostLabFacts, a verdict, an answer, an archive upload); FailedPrecondition (e.g. a
+// session/archive not ready); ResourceExhausted (+ RetryInfo) for rate limits; Unavailable for
+// transient. Clients retry ONLY Unavailable/ResourceExhausted/network. A stable machine reason rides in
+// google.rpc.ErrorInfo. Deadlines: unary 30 s; best-effort StopRun/PostLabFacts 5 s; streams have no
+// deadline and are never closed by age. Keepalive: client ping 30 s; server MinTime <= 20 s; no
+// server-level heartbeats. Message sizes: unary up to 16 MiB (PushData batches split by size); stream
+// chunks <= 1 MiB; archives up to 512 MiB with an early size refusal.
+
+syntax = "proto3";
+
+package cybericebox.brain.v1;
+
+option go_package = "github.com/cybericebox/backend/pkg/brainapi/v1;brainapiv1";
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+// Brain is the one service a client calls. Every method but Enroll requires mTLS with an enrolled client
+// certificate (CN = tenant); Enroll bootstraps that certificate over server-TLS only.
+service Brain {
+  // --- Enrollment (the brain runs its own CA) ---
+  rpc Enroll(EnrollRequest) returns (EnrollResponse);  // server-TLS; one-time token + CSR -> cert + CA
+  rpc Renew(RenewRequest) returns (EnrollResponse);    // mTLS; reuses the presented cert's key
+
+  // --- Runs (grader + opponents). The brain drives; the client provisions the lab, follows the event
+  // stream, answers verdicts. Idempotency: StartRun/UploadMaterials/PostLabFacts keyed by run_id;
+  // a verdict by (run_id, answer_seq); StopRun idempotent (NOT_FOUND = success). ---
+  // UploadMaterials: meta first (with task.json inline + size + sha256), then the binary files. A repeat
+  // for the same run_id => AlreadyExists (success).
+  rpc UploadMaterials(stream MaterialsChunk) returns (google.protobuf.Empty);
+  rpc StartRun(StartRunRequest) returns (RunRef);                  // AlreadyExists on a repeat = success
+  // RunEvents: a server stream. Stream close is NOT run end — the client reopens with after_seq and
+  // dedupes seq <= last; the run ends only with a `run_finished` event. An unknown run => NotFound (the
+  // client then closes the run as brain_failed). gRPC keepalive, no server heartbeats.
+  rpc RunEvents(RunEventsRequest) returns (stream RunEvent);
+  rpc PostVerdict(VerdictRequest) returns (google.protobuf.Empty); // idempotent by (run_id, answer_seq)
+  rpc PostLabFacts(LabFactsRequest) returns (google.protobuf.Empty);
+  rpc StopRun(RunRef) returns (google.protobuf.Empty);             // best-effort; NotFound = success
+
+  // --- "Give me an opponent." role+band+task -> a ready-to-deploy spec plus the lab-side inputs the
+  // client must fill and pass back on StartRun (spec_id + the filled inputs). The brain owns the
+  // harness; the client owns the lab, so each fills only what it knows. ---
+  rpc GetOpponent(GetOpponentRequest) returns (OpponentSpec);
+
+  // --- Statistics ingest: per-task aggregates (+ full per-team records) the brain calibrates on. A hard
+  // dependency — the brain cannot learn without it. Upsert by (task_ref, version, as_of); the ack lists
+  // per-item rejections. ---
+  rpc PushData(PushDataRequest) returns (PushDataAck);
+
+  // --- Task archive for editing (resolves a provide_task outbox request). Client-streamed: first chunk
+  // carries {request_id, size, sha256}, then bytes. AlreadyExists = already delivered (success). On
+  // success the brain also closes the outbox request (task_uploaded); refusals come as a RequestError on
+  // the outbox, not here. ---
+  rpc UploadTaskArchive(stream ArchiveChunk) returns (UploadAck);
+
+  // --- Outbox: the brain's needs travel UP over ONE bidi stream. The client opens it; the FIRST server
+  // message is a StreamHello (advertises max_inflight, suggest 16); then BrainRequests flow down and
+  // RequestAnswers up. No seq: every UNANSWERED request is re-sent after a reconnect; an answer is
+  // accepted by request_id on ANY stream and duplicates are ignored. The stream is long-lived (a
+  // provide_lab answer can come minutes later) and requests are never dropped on stream end. The client
+  // runs it on its LEADER only; on a leader change the new stream SUPERSEDES the old. ---
+  rpc Requests(stream RequestAnswer) returns (stream ServerFrame);
+}
+
+// ---------------- Enrollment ----------------
+
+message EnrollRequest { string token = 1; string csr_pem = 2; }  // CSR CN ignored; forced to tenant
+message RenewRequest  { string csr_pem = 1; }
+message EnrollResponse { string cert_pem = 1; string ca_pem = 2; }
+
+// ---------------- Access ----------------
+
+// How a run reaches its target: vpn (join a network; addr present => drive a tools-device runner at that
+// one /32-locked address) | none (static, graded from materials). {http} is reserved (no client flow
+// emits it; lab services are reached over vpn) and omitted.
+message Access {
+  message Vpn {
+    string entry = 1;  // the FULL WireGuard config text of the run's tunnel (client-filled: VPN_ENTRY)
+    string addr  = 2;  // "ip:port" of the tools-device runner (client-filled: CONTROL_ADDR); empty = a
+                       //   plain participant vantage (grader-as-student)
+  }
+  message None {}
+  oneof kind { Vpn vpn = 1; None none = 2; }
+}
+
+// ---------------- Runs ----------------
+
+message MaterialsChunk {
+  oneof part { MaterialsMeta meta = 1; FileChunk file = 2; }
+}
+message MaterialsMeta {
+  string run_id = 1;
+  bytes  task_json = 2;    // the participant-facing task.json (title/description/subtasks[answer_kind])
+  uint64 total_size = 3;   // total bytes of the files that follow (early size refusal)
+  string sha256 = 4;       // of the files payload
+}
+message FileChunk { string name = 1; string content_type = 2; bytes data = 3; bool last = 4; }
+
+message StartRunRequest {
+  string run_id   = 1;     // client-assigned; also baked as EDA_RUN_ID on an opponent device
+  string task_ref = 2;
+  string version  = 3;
+  string image    = 4;
+  string role     = 5;     // opaque to the client; the brain interprets ("grader" | attack | defense | ...)
+  repeated string goal = 6; // this variant's subtask keys (e.g. recon, root)
+  Access access   = 7;     // built from the filled required_inputs (vpn.entry, vpn.addr)
+  uint32 band     = 8;     // opponent ability 1..6; 0/unset for a grader
+  Budget budget   = 9;     // omitted for a grader
+  Start  start    = 10;
+  // opponent fields (the client forwards them from the manifest):
+  repeated string operates = 11; // device names a defender operates (required for defense/attack-defense)
+  string foothold = 12;          // the attacker's starting segment (required for attack/attack-defense)
+  string brief    = 13;          // the opponent's own text
+  string spec_id  = 14;          // ties an opponent run back to its GetOpponent spec; empty for a grader
+}
+message Budget { uint32 actions = 1; uint64 tokens = 2; uint32 seconds = 3; }
+message Start { oneof when { google.protobuf.Empty immediate = 1; string after = 2; } }
+message RunRef { string run_id = 1; }
+
+message RunEventsRequest { string run_id = 1; uint64 after_seq = 2; }
+message RunEvent { uint64 seq = 1; string type = 2; bytes data = 3; } // data = JSON for the type
+
+message VerdictRequest {
+  string run_id = 1;
+  uint64 answer_seq = 2;   // the seq of the `answer` event this verdicts; idempotency = (run_id, answer_seq)
+  string subtask_ref = 3;  // informational (the brain already knows it from the answer event)
+  bool   correct = 4;      // the brain learns ONLY this + the time, never the expected value
+  google.protobuf.Timestamp at = 5;
+}
+
+message LabFactsRequest {
+  string run_id = 1;
+  double ready_time_s = 2;
+  uint32 restarts = 3;
+  bool   egress_enabled = 4;
+  // not-measured is expressed by leaving the optional fields unset (proto3 optional):
+  optional bool   egress_used = 5;
+  optional double vpn_bytes = 6;
+  optional double devices_touched = 7;
+  optional double console_minutes = 8;
+}
+
+// ---------------- Give me an opponent ----------------
+
+message GetOpponentRequest {
+  string run_id = 1;       // the run this opponent is for; the brain bakes EDA_RUN_ID = run_id into env
+  string role = 2;         // attack | defense | attack-defense
+  uint32 band = 3;         // 1..6
+  string task_ref = 4;
+  string version = 5;
+}
+message OpponentSpec {
+  string spec_id = 1;                       // referenced back on StartRun
+  Deploy deploy = 2;                        // ready to apply as-is
+  repeated RequiredInput required_inputs = 3; // the client fills these, then passes them on StartRun
+}
+message Deploy {
+  string image = 1;                         // the platform-chosen tools/runner image for the role
+  map<string, string> env = 2;              // run-scoped env the brain bakes (EDA_TRUST_CA, EDA_RUN_ID=run_id)
+  Resources resources = 3;                  // sizing HINTS: the client may clamp them to its device limits; when
+                                            //   the opponent cannot fit at a workable size the client refuses the run
+                                            //   with a clear error instead of running it starved
+  ImagePull pull = 4;                       // short-lived, read-only pull credential for image; the brain holds the
+                                            //   standing registry creds and mints this per request; the client hands
+                                            //   it to the lab as a per-lab pull secret and NEVER stores it; absent =>
+                                            //   image public / already pullable
+}
+message ImagePull {
+  string registry = 1;
+  string username = 2;
+  string password = 3;                       // short-lived token; drop after expires_at
+  google.protobuf.Timestamp expires_at = 4;  // after this, re-fetch via GetOpponent for a fresh pull
+}
+message Resources { uint32 cpu_millis = 1; uint64 mem_bytes = 2; }
+enum InputKind {
+  INPUT_KIND_UNSPECIFIED = 0;
+  VPN_ENTRY   = 1;   // -> Access.Vpn.entry
+  CONTROL_ADDR = 2;  // -> Access.Vpn.addr (the client supplies the device ip; the brain hinted the port)
+  FOOTHOLD    = 3;   // -> StartRun.foothold (the attacker's starting segment)
+}
+message RequiredInput { string key = 1; InputKind kind = 2; string description = 3; }
+
+// ---------------- Statistics ----------------
+
+message PushDataRequest { repeated TaskAggregate aggregates = 1; }
+// TaskAggregate mirrors the per-task aggregate (percentiles + full team_records with per-event team_ref).
+// Kept opaque JSON in v1 to avoid duplicating the large, still-evolving shape; promoted to typed fields
+// once it is frozen. The JSON bytes follow the backend's internal/model/assistant aggregate structs.
+message TaskAggregate { bytes json = 1; }
+message PushDataAck { repeated ItemRejection rejected = 1; } // empty = all accepted
+message ItemRejection { string task_ref = 1; string version = 2; string reason = 3; }
+
+// ---------------- Task archive upload (for provide_task) ----------------
+
+message ArchiveChunk {
+  oneof part { ArchiveMeta meta = 1; bytes data = 2; }
+}
+message ArchiveMeta { string request_id = 1; uint64 size = 2; string sha256 = 3; }
+message UploadAck { bool stored = 1; } // AlreadyExists (gRPC status) on a repeat = delivered = success
+
+// ---------------- Outbox (brain -> client) ----------------
+
+// The server->client stream frames: a one-time hello, then requests.
+message ServerFrame {
+  oneof frame {
+    StreamHello hello = 1;     // FIRST message only
+    BrainRequest request = 2;
+  }
+}
+message StreamHello { uint32 max_inflight = 1; } // suggest 16
+
+message BrainRequest {
+  string request_id = 1;
+  oneof kind {
+    ProvideLab provide_lab = 2;
+    ProvideDevice provide_device = 3;
+    ProvideData provide_data = 4;
+    ProvideTask provide_task = 5;
+  }
+}
+message ProvideLab    { string subject = 1; Source source = 2; }
+message ProvideDevice { string subject = 1; string device_type = 2; Source source = 3; }
+message ProvideData   { repeated TaskKey tasks = 1; }
+message ProvideTask   { string subject = 1; string task_ref = 2; string version = 3; } // subject: editor auth
+message Source { oneof from { string draft = 1; TaskKey task = 2; } }                   // draft = opaque JSON ref
+message TaskKey { string task_ref = 1; string version = 2; string image = 3; }
+
+message RequestAnswer {
+  string request_id = 1;
+  oneof result {
+    DeviceResult device = 2;     // provide_lab / provide_device
+    bytes data_json = 3;         // provide_data (aggregates JSON)
+    bool task_uploaded = 4;      // provide_task: true once UploadTaskArchive completed
+    RequestError error = 5;
+  }
+}
+message DeviceResult { string device_ref = 1; Access access = 2; }
+message RequestError {
+  string code = 1;   // unsupported_request | not_supported_yet | collection_disabled | invalid_request |
+                     //   internal | forbidden | not_found | unknown_subject | unavailable | upload_failed
+  string message = 2;
+}

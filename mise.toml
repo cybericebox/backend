@@ -10,6 +10,9 @@ shellcheck = "0.11.0"   # actionlint checks the run: scripts with it; lint:ci ch
 python = "3.14.10"   # the release helpers of .github/scripts (standard library only; mise run test-scripts)
 go = "1.27.4"      # the same as the toolchain line of go.mod and the builder image of the Dockerfile
 sqlc = "1.31.1"
+protoc = "35.0"                # gen-brainapi: the same versions as laboratory; the well-known types (empty, timestamp) come from its include/
+protoc-gen-go = "1.36.12"
+protoc-gen-go-grpc = "1.6.2"
 gh = "2.104.0"     # dev-push
 "github:mokevnin/heavy" = "0.1.2"   # a machine-wide semaphore: heavy commands of every checkout and agent take turns (heavy --status)
 
@@ -33,7 +36,7 @@ run = ["gitleaks git --redact --no-banner --log-level warn", "actionlint"]
 
 [tasks.lint]
 description = "go vet plus the project lints (error codes, layer imports, route gates, secret contexts, Cyrillic outside the text modules)"
-depends = ["lint:leaks", "lint:ci", "cache-guard"]
+depends = ["lint:leaks", "lint:ci", "lint:brainapi", "cache-guard"]
 run = [
   "heavy -- go vet ./...",
   "go run ./tools/checkerrorcodes internal pkg",
@@ -42,6 +45,24 @@ run = [
   "go run ./tools/checksecretctx",
   "go run ./tools/checkcyrillic",
 ]
+
+[tasks.gen-brainapi]
+description = "Regenerate the Go code of the Brain gRPC contract (pkg/brainapi/v1/brain.proto)"
+run = "protoc --proto_path=pkg/brainapi/v1 --go_out=pkg/brainapi/v1 --go_opt=paths=source_relative --go-grpc_out=pkg/brainapi/v1 --go-grpc_opt=paths=source_relative brain.proto"
+
+[tasks."lint:brainapi"]
+description = "Fail when the committed Go code of pkg/brainapi/v1 differs from a fresh generation (fix: mise run gen-brainapi)"
+run = '''
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+protoc --proto_path=pkg/brainapi/v1 --go_out="$tmp" --go_opt=paths=source_relative --go-grpc_out="$tmp" --go-grpc_opt=paths=source_relative brain.proto
+for f in brain.pb.go brain_grpc.pb.go; do
+  if ! diff -u "pkg/brainapi/v1/$f" "$tmp/$f"; then
+    echo "pkg/brainapi/v1/$f is stale: run 'mise run gen-brainapi' and commit the result" >&2
+    exit 1
+  fi
+done
+'''
 
 [tasks."lint:errors"]
 description = "Fail on duplicate error DetailCodes within one object code"
