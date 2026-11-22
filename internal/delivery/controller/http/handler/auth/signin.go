@@ -140,6 +140,11 @@ func (h *Handler) revokeOtherSessions(ctx *gin.Context) {
 		response.AbortWithError(ctx, err)
 		return
 	}
+	// The other browsers are signed out: their draft keys go with them, this browser keeps its own.
+	if err := h.useCase.ForgetOtherDraftKeys(ctx.Request.Context(), userID, getDraftCookie(ctx)); err != nil {
+		response.AbortWithError(ctx, err)
+		return
+	}
 	response.AbortWithSuccess(ctx)
 }
 

@@ -45,6 +45,12 @@ func (r *Repository) QueuedJobKeys(ctx context.Context, visit func(keyID string)
 	return r.eachID(ctx, `SELECT args::text FROM river_job WHERE state IN ('available', 'pending', 'running', 'retryable', 'scheduled')`, visit)
 }
 
+// DraftKeys visits the key id of every sealed draft key that is not stale (used within the last two days): a stale key
+// is deleted and nothing will open it again.
+func (r *Repository) DraftKeys(ctx context.Context, visit func(keyID string) error) error {
+	return r.eachID(ctx, `SELECT key_ciphertext FROM user_draft_keys WHERE last_used_at > now() - interval '48 hours'`, visit)
+}
+
 func (r *Repository) eachID(ctx context.Context, query string, visit func(keyID string) error) error {
 	return r.each(ctx, query, func(row interface{ Scan(...any) error }) error {
 		var doc string

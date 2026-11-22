@@ -45,6 +45,7 @@ type Store interface {
 type ShortLivedStore interface {
 	TemporalCodeKeys(ctx context.Context, visit func(keyID string) error) error
 	QueuedJobKeys(ctx context.Context, visit func(keyID string) error) error
+	DraftKeys(ctx context.Context, visit func(keyID string) error) error
 }
 
 // Ciphers are the loaded keyrings; a nil one means the family has no key configured.
@@ -316,6 +317,7 @@ func (u *UseCase) Check(ctx context.Context, open bool) (Report, error) {
 		}{
 			{"temporal_codes.data (not expired)", sl.TemporalCodeKeys},
 			{"river_job.args (not finished)", sl.QueuedJobKeys},
+			{"user_draft_keys.key_ciphertext (not stale)", sl.DraftKeys},
 		} {
 			entry := ShortLived{Family: FamilyPlatform, Name: place.name, ByKey: map[string]int{}}
 			if err := place.count(ctx, func(id string) error { entry.ByKey[secret.SafeKeyID(id)]++; return nil }); err != nil {

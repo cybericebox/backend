@@ -337,6 +337,7 @@ type Querier interface {
 	// Keeps a team out of a task's cohort for lack of room: recorded for the task's current revision and reveal mode, and
 	// removed from the unopened barrier at once.
 	DeclineEventLabRevealTeam(ctx context.Context, arg DeclineEventLabRevealTeamParams) error
+	DeleteAllUserDraftKeys(ctx context.Context, userID uuid.UUID) (int64, error)
 	DeleteAllUserTablePrefs(ctx context.Context, userID uuid.UUID) (int64, error)
 	// Guarded delete: refuses when the blob got re-referenced between the S3
 	// removal decision and this call.
@@ -413,10 +414,12 @@ type Querier interface {
 	DeleteResourceTestLabHold(ctx context.Context, id uuid.UUID) error
 	DeleteSiteBanner(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteSolveIntegrityReview(ctx context.Context, arg DeleteSolveIntegrityReviewParams) (int64, error)
+	DeleteStaleDraftKeys(ctx context.Context, staleBefore time.Time) (int64, error)
 	// Push states nobody came back to: failed ones, and pushing ones whose job is long gone.
 	DeleteStaleImageBlobPushes(ctx context.Context, updatedAt time.Time) (int64, error)
 	// A snapshot is the agent's full picture: groups it no longer reports are gone.
 	DeleteStaleLabMonitoringCurrent(ctx context.Context, arg DeleteStaleLabMonitoringCurrentParams) error
+	DeleteStaleUserDraftKeys(ctx context.Context, arg DeleteStaleUserDraftKeysParams) (int64, error)
 	DeleteTeamChallengeSolve(ctx context.Context, teamChallengeID uuid.UUID) error
 	DeleteTeamChallengesForChallenges(ctx context.Context, ids []uuid.UUID) error
 	DeleteTemporalCode(ctx context.Context, id uuid.UUID) (int64, error)
@@ -428,6 +431,8 @@ type Querier interface {
 	DeleteUnbornEventTeamLab(ctx context.Context, id uuid.UUID) (int64, error)
 	// GC step 1: drop grace-expired unreferenced files, decrement their blobs.
 	DeleteUnreferencedFiles(ctx context.Context, createdBefore time.Time) ([]DeleteUnreferencedFilesRow, error)
+	DeleteUserDraftKey(ctx context.Context, arg DeleteUserDraftKeyParams) (int64, error)
+	DeleteUserDraftKeysExcept(ctx context.Context, arg DeleteUserDraftKeysExceptParams) (int64, error)
 	DeleteUserPasskey(ctx context.Context, arg DeleteUserPasskeyParams) (int64, error)
 	DeleteUserPasskeys(ctx context.Context, userID uuid.UUID) (int64, error)
 	DeleteUserProvider(ctx context.Context, arg DeleteUserProviderParams) (int64, error)
@@ -872,6 +877,7 @@ type Querier interface {
 	InsertExerciseEventAccess(ctx context.Context, arg InsertExerciseEventAccessParams) error
 	InsertImportedExerciseVersion(ctx context.Context, arg InsertImportedExerciseVersionParams) (ExerciseVersion, error)
 	InsertPlatformSMTPProvider(ctx context.Context, arg InsertPlatformSMTPProviderParams) (MailSmtpConfig, error)
+	InsertUserDraftKey(ctx context.Context, arg InsertUserDraftKeyParams) error
 	// Authorized edits invalidate a different preparation tuple atomically (and the declines made in the old one). They
 	// never insert/freeze a cohort before the assignment preparation boundary.
 	InvalidateEventLabRevealBarrier(ctx context.Context, arg InvalidateEventLabRevealBarrierParams) error
@@ -2292,7 +2298,12 @@ type Querier interface {
 	// last_seen is written at most once per 30 s window per session by the replica that serves it; GREATEST keeps a
 	// late write from moving it back. The idle deadline follows it.
 	TouchSession(ctx context.Context, arg TouchSessionParams) (int64, error)
+	// The live key of this person named by the browser; its last use moves to now. No row: the id is unknown, of
+	// another person, or stale.
+	TouchUserDraftKey(ctx context.Context, arg TouchUserDraftKeyParams) (string, error)
 	TrimErrorSamples(ctx context.Context, arg TrimErrorSamplesParams) error
+	// Keeps the keep most recently used keys of the person and deletes the rest.
+	TrimUserDraftKeys(ctx context.Context, arg TrimUserDraftKeysParams) (int64, error)
 	// max_team_size is supplied by the event config inside the same transaction.
 	TryAddEventTeamMember(ctx context.Context, arg TryAddEventTeamMemberParams) (int64, error)
 	// Timestamps come from the domain factory, not DB defaults.

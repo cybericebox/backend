@@ -263,6 +263,7 @@ var publicRoutes = map[string]string{
 // per-exercise policy lives in the exercise use case (actor-scoped).
 var selfWithoutLayerPrefixes = map[string]string{
 	"/api/auth/":                            "the caller's own account and sessions",
+	"/api/me/":                              "the caller's own data: every query is keyed on the caller in the use case",
 	"/api/exercises":                        "per-exercise policy in the exercise use case",
 	"/api/events/:id/teams":                 "participant routes: every query is keyed (event, caller) in the event use case",
 	"/api/events/:id/forms":                 "participant routes: every query is keyed (event, caller) in the event use case",

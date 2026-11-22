@@ -12,6 +12,7 @@ import (
 	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
 	"github.com/cybericebox/backend/internal/limits"
 	authModel "github.com/cybericebox/backend/internal/model/auth"
+	draftKeyModel "github.com/cybericebox/backend/internal/model/draftKey"
 	passkeyModel "github.com/cybericebox/backend/internal/model/passkey"
 	"github.com/cybericebox/backend/internal/model/rbac"
 	tablePrefsModel "github.com/cybericebox/backend/internal/model/tablePrefs"
@@ -91,6 +92,9 @@ type (
 		GetTablePrefs(ctx context.Context, userID uuid.UUID, key string) (*tablePrefsModel.Prefs, error)
 		SaveTablePrefs(ctx context.Context, userID uuid.UUID, key string, prefs tablePrefsModel.Prefs) (tablePrefsModel.Prefs, error)
 		ResetTablePrefs(ctx context.Context, userID uuid.UUID, key string) error
+		DraftKey(ctx context.Context, userID uuid.UUID, cookieID string) (draftKeyModel.Key, error)
+		ForgetDraftKey(ctx context.Context, userID uuid.UUID, cookieID string) error
+		ForgetOtherDraftKeys(ctx context.Context, userID uuid.UUID, cookieID string) error
 		ExportMyData(ctx context.Context, userID uuid.UUID) (*userModel.DataExport, error)
 		UpdateAccountProfile(
 			ctx context.Context,
@@ -204,7 +208,7 @@ func (h *Handler) Init(public, secured *gin.RouterGroup) {
 
 	sec := secured.Group("auth")
 	self := h.prot.RequirePermission(rbac.PermSelf)
-	sec.POST("sign-out", self, h.prot.DeAuthenticate)
+	sec.POST("sign-out", self, h.forgetDraftKey, h.prot.DeAuthenticate)
 	sec.GET("sessions", self, h.listSessions)
 	sec.DELETE("sessions/:id", self, h.revokeSession)
 	sec.DELETE("sessions", self, h.revokeOtherSessions)
@@ -233,6 +237,9 @@ func (h *Handler) Init(public, secured *gin.RouterGroup) {
 	sec.DELETE("passkeys/:id", self, h.removePasskey)
 	sec.POST("google/link", self, h.googleLink)
 	sec.DELETE("google/link", self, h.unlinkGoogle)
+
+	// The key the catalog editor seals its local drafts with: one per person and browser.
+	secured.Group("me").POST("draft-key", self, h.draftKey)
 
 	pub.POST("account/email/confirm", h.confirmEmailChange)
 	// Public avatar proxy: streams the stored image so the bucket stays private.
