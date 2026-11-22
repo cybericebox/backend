@@ -39873,6 +39873,13 @@ const docTemplate = `{
                     "description": "ConfirmationRevision binds immutable source/item/snapshot and selected\ntarget/current content. No password, flags or secret values are returned.",
                     "type": "string"
                 },
+                "DraftRevision": {
+                    "type": "string"
+                },
+                "DraftVersionID": {
+                    "description": "DraftVersionID and DraftRevision are the target's working copy this preview was made against (nil and \"\" when it has\nnone): the revision is what a write of the working copy must still find.",
+                    "type": "string"
+                },
                 "ItemKey": {
                     "type": "string"
                 },

@@ -1,6 +1,6 @@
 {
   "exercise": {
-    "description": "опис",
+    "description": "description",
     "name": "Експорт",
     "tags": [
       "web"
@@ -9,9 +9,9 @@
   "schema": "cib-exercise/1.0",
   "versions": [
     {
-      "admin_note": "нотатка",
+      "admin_note": "note",
       "exercise": {
-        "description": "опис",
+        "description": "description",
         "name": "Експорт",
         "tags": [
           "web"
@@ -21,7 +21,7 @@
       "variants": [
         {
           "index": 1,
-          "note": "перший",
+          "note": "first",
           "tasks": [
             {
               "attachments": [
@@ -39,7 +39,7 @@
               },
               "description": {
                 "root": {
-                  "text": "Опис",
+                  "text": "Description",
                   "type": "text"
                 }
               },
@@ -47,7 +47,7 @@
               "hints": [
                 {
                   "level": "steps",
-                  "text": "підказка"
+                  "text": "hint"
                 }
               ],
               "key": "one",
@@ -69,7 +69,7 @@
               },
               "description": {
                 "root": {
-                  "text": "Опис",
+                  "text": "Description",
                   "type": "text"
                 }
               },
@@ -77,7 +77,7 @@
               "hints": [
                 {
                   "level": "steps",
-                  "text": "підказка"
+                  "text": "hint"
                 }
               ],
               "key": "two",
@@ -170,7 +170,7 @@
               },
               "description": {
                 "root": {
-                  "text": "Опис",
+                  "text": "Description",
                   "type": "text"
                 }
               },
@@ -178,7 +178,7 @@
               "hints": [
                 {
                   "level": "steps",
-                  "text": "підказка"
+                  "text": "hint"
                 }
               ],
               "key": "one",
@@ -201,7 +201,7 @@
               },
               "description": {
                 "root": {
-                  "text": "Опис",
+                  "text": "Description",
                   "type": "text"
                 }
               },
@@ -209,7 +209,7 @@
               "hints": [
                 {
                   "level": "steps",
-                  "text": "підказка"
+                  "text": "hint"
                 }
               ],
               "key": "two",

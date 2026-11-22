@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gofrs/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
@@ -22,6 +23,8 @@ func exportForEdit(t *testing.T, actor exercise.Actor, id, version uuid.UUID, ar
 	t.Helper()
 	ctrl := gomock.NewController(t)
 	q := postgresMocks.NewMockQuerier(ctrl)
+	// no working copy: the version asked for is exported as it is
+	q.EXPECT().GetDraftRevision(gomock.Any(), id).Return(postgres.GetDraftRevisionRow{}, pgx.ErrNoRows).AnyTimes()
 	arrange(q)
 	uc := exercise.NewExerciseUseCase(exercise.Dependencies{Repo: q, Media: exportFixtureMedia()})
 	return uc.ExportTaskVersionForEdit(context.Background(), actor, id, version)
@@ -44,8 +47,8 @@ func TestExportTaskVersionForEdit_OneVersionOfTheTask(t *testing.T) {
 	require.NoError(t, json.Unmarshal(doc, &top))
 	require.Equal(t, "cib-exercise/1.0", top.Schema)
 	require.Len(t, top.Versions, 1)
-	require.Equal(t, "Знімок", top.Versions[0].Label)
-	require.False(t, bytes.Contains(doc, []byte("нотатка")), "the other version is not in the archive")
+	require.Equal(t, "Snapshot", top.Versions[0].Label)
+	require.False(t, bytes.Contains(doc, []byte("note")), "the other version is not in the archive")
 	_, err = exercise.ParseExerciseArchive(data, "", exercise.DefaultLimits())
 	require.NoError(t, err, "it is an import archive")
 }
