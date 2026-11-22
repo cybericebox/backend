@@ -78,9 +78,9 @@ func (q *Queries) CountActiveAssistantRunsOfActor(ctx context.Context, actorID u
 }
 
 const createAssistantRun = `-- name: CreateAssistantRun :exec
-INSERT INTO assistant_runs (id, exercise_id, version_id, variant_id, deploy_id, actor_id, role, opponent, request_id, state, created_at, updated_at, expires_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9,
-        'starting', $10::timestamptz, $10::timestamptz, $11::timestamptz)
+INSERT INTO assistant_runs (id, exercise_id, version_id, variant_id, deploy_id, actor_id, role, opponent, request_id, spec_id, state, created_at, updated_at, expires_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+        'starting', $11::timestamptz, $11::timestamptz, $12::timestamptz)
 `
 
 type CreateAssistantRunParams struct {
@@ -93,6 +93,7 @@ type CreateAssistantRunParams struct {
 	Role       string    `json:"role"`
 	Opponent   int32     `json:"opponent"`
 	RequestID  string    `json:"request_id"`
+	SpecID     string    `json:"spec_id"`
 	Now        time.Time `json:"now"`
 	ExpiresAt  time.Time `json:"expires_at"`
 }
@@ -109,6 +110,7 @@ func (q *Queries) CreateAssistantRun(ctx context.Context, arg CreateAssistantRun
 		arg.Role,
 		arg.Opponent,
 		arg.RequestID,
+		arg.SpecID,
 		arg.Now,
 		arg.ExpiresAt,
 	)
@@ -139,7 +141,7 @@ func (q *Queries) FinishAssistantRun(ctx context.Context, arg FinishAssistantRun
 }
 
 const getAssistantLabByRequest = `-- name: GetAssistantLabByRequest :one
-SELECT id, exercise_id, version_id, variant_id, deploy_id, actor_id, role, state, end_state, failure_reason, access_client, request_id, answered, last_seq, stream_down_since, measurement, created_at, updated_at, started_at, finished_at, expires_at, opponent, lab_ready_at, lab_activity
+SELECT id, exercise_id, version_id, variant_id, deploy_id, actor_id, role, state, end_state, failure_reason, access_client, request_id, answered, last_seq, stream_down_since, measurement, created_at, updated_at, started_at, finished_at, expires_at, opponent, lab_ready_at, lab_activity, spec_id
 FROM assistant_runs
 WHERE request_id = $1
   AND role IN ('lab', 'tools')
@@ -174,12 +176,13 @@ func (q *Queries) GetAssistantLabByRequest(ctx context.Context, requestID string
 		&i.Opponent,
 		&i.LabReadyAt,
 		&i.LabActivity,
+		&i.SpecID,
 	)
 	return i, err
 }
 
 const getAssistantRun = `-- name: GetAssistantRun :one
-SELECT id, exercise_id, version_id, variant_id, deploy_id, actor_id, role, state, end_state, failure_reason, access_client, request_id, answered, last_seq, stream_down_since, measurement, created_at, updated_at, started_at, finished_at, expires_at, opponent, lab_ready_at, lab_activity
+SELECT id, exercise_id, version_id, variant_id, deploy_id, actor_id, role, state, end_state, failure_reason, access_client, request_id, answered, last_seq, stream_down_since, measurement, created_at, updated_at, started_at, finished_at, expires_at, opponent, lab_ready_at, lab_activity, spec_id
 FROM assistant_runs
 WHERE id = $1
 `
@@ -212,6 +215,7 @@ func (q *Queries) GetAssistantRun(ctx context.Context, id uuid.UUID) (AssistantR
 		&i.Opponent,
 		&i.LabReadyAt,
 		&i.LabActivity,
+		&i.SpecID,
 	)
 	return i, err
 }
@@ -308,7 +312,7 @@ func (q *Queries) InsertAssistantRunEvent(ctx context.Context, arg InsertAssista
 }
 
 const listActiveAssistantRuns = `-- name: ListActiveAssistantRuns :many
-SELECT id, exercise_id, version_id, variant_id, deploy_id, actor_id, role, state, end_state, failure_reason, access_client, request_id, answered, last_seq, stream_down_since, measurement, created_at, updated_at, started_at, finished_at, expires_at, opponent, lab_ready_at, lab_activity
+SELECT id, exercise_id, version_id, variant_id, deploy_id, actor_id, role, state, end_state, failure_reason, access_client, request_id, answered, last_seq, stream_down_since, measurement, created_at, updated_at, started_at, finished_at, expires_at, opponent, lab_ready_at, lab_activity, spec_id
 FROM assistant_runs
 WHERE state IN ('starting', 'running', 'closing')
 ORDER BY created_at
@@ -350,6 +354,7 @@ func (q *Queries) ListActiveAssistantRuns(ctx context.Context, maxRows int32) ([
 			&i.Opponent,
 			&i.LabReadyAt,
 			&i.LabActivity,
+			&i.SpecID,
 		); err != nil {
 			return nil, err
 		}
@@ -362,7 +367,7 @@ func (q *Queries) ListActiveAssistantRuns(ctx context.Context, maxRows int32) ([
 }
 
 const listAssistantOpponentRunsOfVariant = `-- name: ListAssistantOpponentRunsOfVariant :many
-SELECT id, exercise_id, version_id, variant_id, deploy_id, actor_id, role, state, end_state, failure_reason, access_client, request_id, answered, last_seq, stream_down_since, measurement, created_at, updated_at, started_at, finished_at, expires_at, opponent, lab_ready_at, lab_activity
+SELECT id, exercise_id, version_id, variant_id, deploy_id, actor_id, role, state, end_state, failure_reason, access_client, request_id, answered, last_seq, stream_down_since, measurement, created_at, updated_at, started_at, finished_at, expires_at, opponent, lab_ready_at, lab_activity, spec_id
 FROM assistant_runs
 WHERE variant_id = $1
   AND opponent > 0
@@ -410,6 +415,7 @@ func (q *Queries) ListAssistantOpponentRunsOfVariant(ctx context.Context, arg Li
 			&i.Opponent,
 			&i.LabReadyAt,
 			&i.LabActivity,
+			&i.SpecID,
 		); err != nil {
 			return nil, err
 		}
@@ -510,7 +516,7 @@ func (q *Queries) ListAssistantRunEvents(ctx context.Context, arg ListAssistantR
 }
 
 const listAssistantRunsOfVariant = `-- name: ListAssistantRunsOfVariant :many
-SELECT id, exercise_id, version_id, variant_id, deploy_id, actor_id, role, state, end_state, failure_reason, access_client, request_id, answered, last_seq, stream_down_since, measurement, created_at, updated_at, started_at, finished_at, expires_at, opponent, lab_ready_at, lab_activity
+SELECT id, exercise_id, version_id, variant_id, deploy_id, actor_id, role, state, end_state, failure_reason, access_client, request_id, answered, last_seq, stream_down_since, measurement, created_at, updated_at, started_at, finished_at, expires_at, opponent, lab_ready_at, lab_activity, spec_id
 FROM assistant_runs
 WHERE variant_id = $1
   AND role = 'grader'
@@ -558,6 +564,7 @@ func (q *Queries) ListAssistantRunsOfVariant(ctx context.Context, arg ListAssist
 			&i.Opponent,
 			&i.LabReadyAt,
 			&i.LabActivity,
+			&i.SpecID,
 		); err != nil {
 			return nil, err
 		}

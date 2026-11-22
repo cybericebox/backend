@@ -2,8 +2,9 @@
 
 How to run the daemon against a brain on one machine (env, enrollment token, certificate exchange, who dials whom): [LOCAL-E2E.md](LOCAL-E2E.md).
 
-Samples of everything the daemon sends to cyber-brain, and two tasks to run against. The wire files are **made by the daemon's own
-code** from tests (never written by hand), so they cannot drift from what the daemon really sends. The task documents are
+Samples of what the daemon sends to cyber-brain over the gRPC control plane (`pkg/brainapi/v1`), and two tasks to run against. The
+wire files are the **proto-JSON** (protojson, proto field names, only the fields that are set) of the messages, **made by the
+daemon's own code** from tests (never written by hand), so they cannot drift from what the daemon really sends. The task documents are
 written by hand, and the daemon's tests import and validate them.
 
 Regenerate after a change to the wire or to the task format (a test fails with this command when a file is out of date):
@@ -15,19 +16,23 @@ go test ./internal/useCase/exercise  -run TestBrainFixtures -update-brain-fixtur
 
 Generated ids (run, task, version) are replaced by fixed ones (`00000000-0000-4000-8000-0000000000NN`, in order of appearance);
 `team_ref` values are random hex in the daemon and fixed here. Nothing here is a secret: the WireGuard config in the StartRun samples is
-a stub.
+a stub, and no sample carries a pull credential (`GetOpponent` answers are received, not sent).
 
 ## `wire/`: what the daemon sends
 
-| File | Call | What it shows |
+| File | Message | What it shows |
 |---|---|---|
-| `push_data_web_dynamic.json` | `POST /v1/data` (PushData) | A dynamic task from two events, 5 teams. Every figure measured: `teams_engaged`, `wrong_submissions_per_team` (solvers, before the solve) and `_per_nonsolver`, `lab_health`, `egress_enabled`, `egress_share`, `vpn_bytes_per_team`, `devices_touched_per_team`, `console_minutes_per_team`, and `team_records[]` with a per-event random `team_ref` (the same team has another ref in another event; the same ref across the tasks of one event). Two teams have no activity record: their effort fields are absent. The records are shuffled. |
-| `push_data_static_answers.json` | `POST /v1/data` | Two static tasks in one batch: no lab, so no `lab_health`, `egress_enabled` false; the laboratory reports nothing, so `egress_share` and the three effort distributions are `null` (not reported, never zero); the second task nobody solved (no solve-time and no per-solver wrong figures). |
-| `push_data_state_checks.json` | `POST /v1/data` | A task with state-checked subtasks: `state_checks[]` with the time from lab-ready to each pass; no `wrong_submissions_per_team` (no answer is submitted). Events refuse state tasks today, so this is the shape the Academy source will send (`source: "academy"`). |
-| `lab_facts.json` | `POST /v1/runs/{run_id}/lab_facts` | The lab facts of a grader run, all reported. |
-| `lab_facts_not_reported.json` | same | The same call when the laboratory keeps no activity reports (or no device_touch events): `null` for the four activity fields. |
-| `start_run_grader.json` | `POST /v1/runs` | A grader: `access: {vpn}` of the run's own client, no `addr`, no `band`, no `budget`. |
-| `start_run_opponent.json` | `POST /v1/runs` | The attacker of `tasks/opponent-lab`: `access: {vpn, addr}` (the runner of the tools device on the control gateway; the tunnel reaches exactly that address), `band`, `goal`, `foothold`, `brief`, `budget`. |
+| `push_data_web_dynamic.json` | `PushDataRequest` | A dynamic task from two events, 5 teams. Every figure measured: `teams_engaged`, `wrong_submissions_per_team` (solvers, before the solve) and `_per_nonsolver`, `lab_health`, `egress_enabled`, `egress_share`, `vpn_bytes_per_team`, `devices_touched_per_team`, `console_minutes_per_team`, and `team_records[]` with a per-event random `team_ref` (the same team has another ref in another event; the same ref across the tasks of one event). Two teams have no activity record: their effort fields are absent. The records are shuffled. |
+| `push_data_static_answers.json` | `PushDataRequest` | Two static tasks in one batch: no lab, so no `lab_health`, `egress_enabled` false; the laboratory reports nothing, so `egress_share` and the three effort distributions are `null` (not reported, never zero); the second task nobody solved (no solve-time and no per-solver wrong figures). |
+| `push_data_state_checks.json` | `PushDataRequest` | A task with state-checked subtasks: `state_checks[]` with the time from lab-ready to each pass; no `wrong_submissions_per_team` (no answer is submitted). Events refuse state tasks today, so this is the shape the Academy source will send (`source: "academy"`). |
+| `lab_facts.json` | `LabFactsRequest` | The lab facts of a grader run, all reported. |
+| `lab_facts_not_reported.json` | `LabFactsRequest` | The same call when the laboratory keeps no activity reports (or no device_touch events): the four optional activity fields are unset (not measured). |
+| `start_run_grader.json` | `StartRunRequest` | A grader: `access.vpn.entry` of the run's own client, no `addr`, no `band`, no `budget`, no `spec_id`. |
+| `start_run_opponent.json` | `StartRunRequest` | The attacker of `tasks/opponent-lab` deployed from a `GetOpponent` spec: `spec_id`, `access.vpn{entry, addr}` (the runner of the tools device on the control gateway; the tunnel reaches exactly that address), `band`, `goal`, `foothold`, `brief`, `budget`. |
+
+Each item of a `PushDataRequest` is one `TaskAggregate{json}`: the backend's `Aggregate` as JSON bytes, which proto-JSON writes as
+base64 (`jq -r '.aggregates[0].json | @base64d' testdata/brain/wire/push_data_web_dynamic.json` shows it); the field notes above
+are of that JSON. 64-bit integers (`budget.tokens`) are strings in proto-JSON.
 
 Notes: the aggregates are the **cumulative** figures as of `as_of`; a later push for the same `(source, task_ref, version, image)`
 replaces the earlier one. A task with several versions or images gives several entries. The `image` is a sha256 fingerprint of the

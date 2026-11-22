@@ -1,13 +1,15 @@
 {
   "run_id": "00000000-0000-4000-8000-000000000001",
-  "role": "grader",
   "task_ref": "00000000-0000-4000-8000-000000000002",
   "version": "00000000-0000-4000-8000-000000000003",
   "image": "04fbb135893bf47e34effdfd96e5a25d5626daef03e26eed52bf99099c640213",
+  "role": "grader",
   "access": {
     "vpn": {
       "entry": "[Interface]\nPrivateKey = run-key\n"
     }
   },
-  "start": "immediate"
+  "start": {
+    "immediate": {}
+  }
 }

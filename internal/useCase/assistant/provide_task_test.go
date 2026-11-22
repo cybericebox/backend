@@ -2,9 +2,10 @@ package assistant_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
-	"net/http"
 	"sync"
 	"testing"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
 
 	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 	"github.com/cybericebox/backend/internal/model/rbac"
@@ -65,16 +67,18 @@ func TestProvideTaskDeliversTheArchiveOfAnEditorAsAnUploadAndAnswers(t *testing.
 	p.brain.frames = []outboxFrame{p.ask("t1")}
 	p.serve(t)
 	answer := p.answeredOnce(t, "t1")
-	require.Contains(t, answer, `"uploaded":true`)
+	require.Contains(t, answer, `"task_uploaded":true`)
 	require.NotContains(t, answer, "error")
 
+	// UploadTaskArchive: the meta {request_id, size, sha256} first, then the bytes
 	uploads := p.brain.uploaded("t1")
 	require.Len(t, uploads, 1)
-	assert.Equal(t, "archive", uploads[0].Field)
-	assert.Equal(t, runExercise.String()+".cybericebox.zip", uploads[0].Filename)
-	assert.Equal(t, "application/zip", uploads[0].ContentType)
+	sum := sha256.Sum256([]byte("PK-the-archive"))
+	assert.Equal(t, "t1", uploads[0].Meta.GetRequestId())
+	assert.Equal(t, uint64(len("PK-the-archive")), uploads[0].Meta.GetSize())
+	assert.Equal(t, hex.EncodeToString(sum[:]), uploads[0].Meta.GetSha256())
 	assert.Equal(t, []byte("PK-the-archive"), uploads[0].Data)
-	assert.NotEmpty(t, uploads[0].RequestedWith, "the upload carries the CSRF guard header, as the materials do")
+	assert.Empty(t, p.brain.fake.Outbox.Pending(), "a stored archive also closes the request at the brain")
 
 	// it is authorized as the user the subject belongs to, for that task and version
 	require.Len(t, tasks.asked, 1)
@@ -148,27 +152,29 @@ func TestProvideTaskWithoutATaskSourceIsUnavailable(t *testing.T) {
 	assert.Equal(t, "unavailable", refusalCode(t, p.answeredOnce(t, "t1")))
 }
 
-// A server error of the brain is retried; 409 (the brain has the archive already, a request seen again after a restart) counts as
+// Unavailable is retried; AlreadyExists (the brain has the archive already, a request seen again after a restart) counts as
 // delivered; any other refusal ends in upload_failed and nothing else is claimed.
 func TestProvideTaskUploadOutcomes(t *testing.T) {
 	for name, c := range map[string]struct {
-		codes    []int
+		codes    []codes.Code
 		uploaded int
 		code     string // empty: answered with the result
 	}{
-		"a server error then success": {[]int{http.StatusBadGateway}, 1, ""},
-		"the brain has it already":    {[]int{http.StatusConflict}, 0, ""},
-		"a final refusal":             {[]int{http.StatusUnprocessableEntity}, 0, "upload_failed"},
-		"server errors for good":      {[]int{500, 500, 500}, 0, "upload_failed"},
+		"unavailable then success":  {[]codes.Code{codes.Unavailable}, 1, ""},
+		"rate limited then success": {[]codes.Code{codes.ResourceExhausted}, 1, ""},
+		"the brain has it already":  {[]codes.Code{codes.AlreadyExists}, 0, ""},
+		"a final refusal":           {[]codes.Code{codes.InvalidArgument}, 0, "upload_failed"},
+		"an internal error":         {[]codes.Code{codes.Internal}, 0, "upload_failed"},
+		"unavailable for good":      {[]codes.Code{codes.Unavailable, codes.Unavailable, codes.Unavailable}, 0, "upload_failed"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			p := newTaskRig(t, &fakeTasks{archive: []byte("zip")})
-			p.brain.archiveCodes = c.codes
+			p.brain.fake.Archives.FailNext(c.codes...)
 			p.brain.frames = []outboxFrame{p.ask("t1")}
 			p.serve(t)
 			answer := p.answeredOnce(t, "t1")
 			if c.code == "" {
-				assert.Contains(t, answer, `"uploaded":true`)
+				assert.Contains(t, answer, `"task_uploaded":true`)
 			} else {
 				assert.Equal(t, c.code, refusalCode(t, answer))
 			}

@@ -107,18 +107,6 @@ type Aggregate struct {
 	TeamRecords []TeamRecord `json:"team_records"`
 }
 
-// LabFacts are the lab-side facts of one grader run (a single run, not a distribution), sent once the run finishes
-// (POST /v1/runs/{run_id}/lab_facts). The pointer figures are null while the laboratory does not report them.
-type LabFacts struct {
-	ReadyTimeS     float64  `json:"ready_time_s"`
-	Restarts       int64    `json:"restarts"`
-	EgressEnabled  bool     `json:"egress_enabled"`
-	EgressUsed     *bool    `json:"egress_used"`
-	VPNBytes       *float64 `json:"vpn_bytes"`
-	DevicesTouched *float64 `json:"devices_touched"`
-	ConsoleMinutes *float64 `json:"console_minutes"`
-}
-
 // Unavailable stands in the answer of a pull request for a task whose statistics are not collected: the code says so, so
 // that "off" is not mistaken for "no data yet".
 type Unavailable struct {

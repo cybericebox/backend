@@ -1,27 +1,22 @@
 package assistant_test
 
 import (
-	"context"
 	"encoding/json"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"net/http/httputil"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
-
-	assistantModel "github.com/cybericebox/backend/internal/model/assistant"
-	exerciseUseCase "github.com/cybericebox/backend/internal/useCase/exercise"
 )
 
-// The contract test runs the REAL cyber-brain (built from the sibling checkout, no Docker, no NATS) behind the fake's TLS and
-// mTLS, with a fake OpenAI-compatible model that submits one answer. It is skipped when the checkout is absent (the brain is
+// The contract test runs the REAL cyber-brain (built from the sibling checkout, no Docker, no NATS) with a fake
+// OpenAI-compatible model. It checks what still goes over HTTP: the enrollment and the renewal. The control plane is gRPC
+// (pkg/brainapi/v1) and is tested against the gRPC fake until the brain serves it. It is skipped when the checkout is absent (the brain is
 // a private repository), or with -short. Set BRAIN_CONTRACT_DIR to point at another checkout.
 func brainCheckout(t *testing.T) string {
 	t.Helper()
@@ -69,14 +64,8 @@ func modelServer(t *testing.T, step string) *httptest.Server {
 	return srv
 }
 
-// startBrain builds and starts the real brain on loopback with the measuring seat on the fake model.
-func startBrain(t *testing.T, dir, modelURL string) *url.URL {
-	t.Helper()
-	u, _ := url.Parse("http://" + startBrainArgs(t, dir, modelURL))
-	return u
-}
-
-// startBrainArgs is startBrain with more flags of the brain; it returns the address the brain listens on.
+// startBrainArgs builds and starts the real brain on loopback with the measuring seat on the fake model and more flags of the
+// brain; it returns the address the brain listens on.
 func startBrainArgs(t *testing.T, dir, modelURL string, extra ...string) string {
 	t.Helper()
 	bin := filepath.Join(t.TempDir(), "brain")
@@ -112,59 +101,4 @@ func startBrainArgs(t *testing.T, dir, modelURL string, extra ...string) string 
 		time.Sleep(50 * time.Millisecond)
 	}
 	return addr
-}
-
-func TestAGraderRunAgainstTheRealBrain(t *testing.T) {
-	dir := brainCheckout(t)
-	model := modelServer(t, `{"thought":"the file says it","submit":"ICE{real}"}`)
-	brainURL := startBrain(t, dir, model.URL)
-
-	r := newRunRig(t, nil)
-	proxy := httputil.NewSingleHostReverseProxy(brainURL)
-	proxy.FlushInterval = -1
-	r.fake.RunsBackend = proxy
-	staticMaterials(r)
-	staticGraderRun(t, r)
-}
-
-// staticMaterials makes the rig's lab a static task with one flag subtask the fake model solves.
-func staticMaterials(r *runRig) {
-	r.labs.hasLab = false // a static task: access none, only materials
-	r.labs.judged["login"] = "ICE{real}"
-	r.labs.materials = &exerciseUseCase.Materials{
-		Task:  []byte(`{"title":"Find it","description":"","subtasks":[{"key":"login","title":"Find it","prompt":"The flag is in notes.txt.","answer_kind":"flag"}]}`),
-		Files: []exerciseUseCase.MaterialFile{{Name: "notes.txt", ContentType: "text/plain", Data: []byte("the flag is ICE{real}")}},
-	}
-}
-
-// staticGraderRun runs one grader run of the static task to its end and checks it as the platform sees it.
-func staticGraderRun(t *testing.T, r *runRig) {
-	t.Helper()
-	run := r.start(t)
-	r.drive(t)
-
-	deadline := time.Now().Add(20 * time.Second)
-	for time.Now().Before(deadline) && r.runs.state(run.ID).State.Active() {
-		time.Sleep(50 * time.Millisecond)
-	}
-	got := r.runs.state(run.ID)
-	events, _ := r.runs.Events(context.Background(), run.ID, 0, 100)
-	var types []string
-	for _, e := range events {
-		types = append(types, e.Type+":"+e.Data)
-	}
-	if got.State != assistantModel.RunFinished {
-		t.Fatalf("the run ended %s (%s) with events %v", got.State, got.FailureReason, types)
-	}
-	answers, _ := r.runs.Answers(context.Background(), run.ID)
-	if len(answers) != 1 || !answers[0].Correct || answers[0].SubtaskRef != "login" {
-		t.Fatalf("the answer is judged by the platform: %+v events %v", answers, types)
-	}
-	var measure map[string]any
-	if err := json.Unmarshal(got.Measurement, &measure); err != nil || measure["type"] != "measure" || measure["runs"] == nil || measure["solved"] == nil {
-		t.Fatalf("the measurement is the measure event: %s %v", got.Measurement, err)
-	}
-	if last := events[len(events)-1]; last.Type != "run_finished" {
-		t.Fatalf("run_finished is the last event: %v", types)
-	}
 }

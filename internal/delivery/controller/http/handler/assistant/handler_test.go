@@ -62,6 +62,10 @@ func (s *memStore) Create(_ context.Context, c assistantModel.Connection) (bool,
 	return true, nil
 }
 
+func (s *memStore) SetGRPCEndpoint(context.Context, string, string, time.Time) (bool, error) {
+	return false, nil
+}
+
 func (s *memStore) SetCertificate(context.Context, string, string, string, string, string, time.Time, time.Time) (bool, error) {
 	return false, nil
 }
@@ -250,7 +254,7 @@ func newRig(t *testing.T) *rig {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	f := brainfake.New()
-	t.Cleanup(f.Server.Close)
+	t.Cleanup(f.Close)
 	caFile := filepath.Join(t.TempDir(), "brain-ca.crt")
 	if err := os.WriteFile(caFile, f.CAPEM, 0o600); err != nil {
 		t.Fatal(err)
@@ -265,7 +269,7 @@ func newRig(t *testing.T) *rig {
 		NamesImages: func(a []byte, _ exerciseModel.ArchiveLimits) bool { return bytes.Equal(a, []byte("PK-with-images")) },
 		Saves:       &saves{rows: map[string]assistantModel.Save{}},
 		Subjects:    &subjects{rows: map[uuid.UUID]uuid.UUID{}},
-		Config:      assistantUseCase.Config{Endpoint: f.Endpoint(), EnrollmentToken: brainfake.Token, CAFile: caFile},
+		Config:      assistantUseCase.Config{Endpoint: f.Endpoint(), GRPCEndpoint: f.GRPCEndpoint(), EnrollmentToken: brainfake.Token, CAFile: caFile},
 	})
 	if _, err = uc.BootstrapBrain(context.Background()); err != nil {
 		t.Fatal(err)

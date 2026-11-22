@@ -2,7 +2,6 @@ package assistant
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"time"
@@ -15,6 +14,7 @@ import (
 	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 	userModel "github.com/cybericebox/backend/internal/model/user"
 	exerciseUseCase "github.com/cybericebox/backend/internal/useCase/exercise"
+	brainapiv1 "github.com/cybericebox/backend/pkg/brainapi/v1"
 	pkgerr "github.com/cybericebox/backend/pkg/err"
 )
 
@@ -33,52 +33,42 @@ const (
 // labLeaseCap bounds how long a lab the brain asked for is followed; the lab's own lease ends it much sooner.
 const labLeaseCap = 24 * time.Hour
 
-type provideLabRequest struct {
-	Subject string `json:"subject"`
-	Source  struct {
-		Draft json.RawMessage `json:"draft"`
-		Task  *struct {
-			TaskRef string `json:"task_ref"`
-			Version string `json:"version"`
-			Image   string `json:"image"`
-		} `json:"task"`
-	} `json:"source"`
-}
-
 // UserLookup reads a user, with the role the authorization needs.
 type UserLookup interface {
 	GetByID(ctx context.Context, id uuid.UUID) (userModel.User, error)
 }
 
 // answerLater is what a handler returns when it keeps the request and answers it itself later: the request is persisted as
-// claimed, so the cursor moves on and the stream goes on reading.
+// claimed, its slot is freed and the stream goes on reading.
 var answerLater = &AnswerError{Code: "answer_later"}
 
 // provideLab claims provide_lab: a test lab of a task pinned to a version and an image, deployed as the user the subject
 // belongs to, after the same authorization as that user's own test deploy and under their limits and lease. It only starts
 // the lab and keeps the request as a lab row; the leader's driver waits for the lab, makes the WireGuard client the brain
-// joins it with and answers {device_ref, access:{vpn:{entry}}} (or the refusal if the lab fails). The outbox is never held:
-// a request seen again after a restart finds its row and goes on waiting. A lab from a draft is not provided yet.
-func (u *UseCase) provideLab(ctx context.Context, req OutboxRequest) (any, *AnswerError) {
-	return u.provideTaskLab(ctx, req, false)
+// joins it with and answers DeviceResult{device_ref, access: vpn{entry}} (or the refusal if the lab fails). The outbox is never
+// held: a request seen again after a restart finds its row and goes on waiting, and one seen again after its answer was sent is
+// answered again (the brain re-sends only what it did not get). A lab from a draft is not provided yet.
+func (u *UseCase) provideLab(ctx context.Context, req OutboxRequest) (*brainapiv1.RequestAnswer, *AnswerError) {
+	in := req.Req.GetProvideLab()
+	return u.provideTaskLab(ctx, req.ID, in.GetSubject(), in.GetSource(), false)
 }
 
 // provideTaskLab is provideLab, and with tools the lab of provide_device for the tools device: the task's lab with the
 // platform tools device in it (role tools; the answer carries the eda access of that device instead of the VPN one).
-func (u *UseCase) provideTaskLab(ctx context.Context, req OutboxRequest, tools bool) (any, *AnswerError) {
-	var in provideLabRequest
-	if err := json.Unmarshal(req.Raw, &in); err != nil {
-		return nil, &AnswerError{Code: codeInvalidRequest, Message: "the request could not be read"}
-	}
-	if len(in.Source.Draft) > 0 && string(in.Source.Draft) != "null" {
+func (u *UseCase) provideTaskLab(ctx context.Context, requestID, subjectRef string, source *brainapiv1.Source, tools bool) (*brainapiv1.RequestAnswer, *AnswerError) {
+	// Requests of the outbox are handled side by side (max_inflight): the claims of labs take turns in the order they came
+	// (claimTurns, taken when the request is read), so the user's cap and the claim of one request id are checked against every
+	// lab claimed before.
+	if _, isDraft := source.GetFrom().(*brainapiv1.Source_Draft); isDraft {
 		return nil, &AnswerError{Code: codeNotSupportedYet, Message: "a lab from a draft is not supported yet"}
 	}
-	if in.Source.Task == nil {
+	task := source.GetTask()
+	if task == nil {
 		return nil, &AnswerError{Code: codeInvalidRequest, Message: "the request names no task"}
 	}
-	version, versionErr := uuid.FromString(in.Source.Task.Version)
-	exercise, exerciseErr := uuid.FromString(in.Source.Task.TaskRef)
-	subject, subjectErr := uuid.FromString(in.Subject)
+	version, versionErr := uuid.FromString(task.GetVersion())
+	exercise, exerciseErr := uuid.FromString(task.GetTaskRef())
+	subject, subjectErr := uuid.FromString(subjectRef)
 	if versionErr != nil || exerciseErr != nil || subjectErr != nil {
 		return nil, &AnswerError{Code: codeInvalidRequest, Message: "task_ref, version and subject must be ids"}
 	}
@@ -86,11 +76,16 @@ func (u *UseCase) provideTaskLab(ctx context.Context, req OutboxRequest, tools b
 		return nil, &AnswerError{Code: codeUnavailable, Message: "labs are not available"}
 	}
 	internal := &AnswerError{Code: codeInternal, Message: "the platform could not handle the request"}
-	if _, claimed, err := u.runs.LabOfRequest(ctx, req.ID); err != nil {
+	if lab, claimed, err := u.runs.LabOfRequest(ctx, requestID); err != nil {
 		log.Error().Err(err).Msg("Reading the lab of a request failed")
 		return nil, internal
 	} else if claimed {
-		return nil, answerLater // seen again: its lab is already being waited for
+		if lab.Answered && lab.State == assistantModel.RunRunning {
+			// The brain sends again only a request it has no answer for: the answer was lost with a stream. The driver
+			// answers it once more.
+			u.reanswer.Store(lab.ID, true)
+		}
+		return nil, answerLater // seen again: its lab is already being waited for (or answered again)
 	}
 	user, found, err := u.runs.UserOfSubject(ctx, subject)
 	if err != nil {
@@ -107,7 +102,7 @@ func (u *UseCase) provideTaskLab(ctx context.Context, req OutboxRequest, tools b
 	if refusal := u.authorizeLab(ctx, user, exercise, version, target.VariantID); refusal != nil {
 		return nil, refusal
 	}
-	if image, _ := imageAndKind(target.VariantsJS); image != in.Source.Task.Image {
+	if image, _ := imageAndKind(target.VariantsJS); image != task.GetImage() {
 		return nil, &AnswerError{Code: codeImageMismatch, Message: "the task version has other images than the request names"}
 	}
 	if !target.HasLab {
@@ -144,11 +139,11 @@ func (u *UseCase) provideTaskLab(ctx context.Context, req OutboxRequest, tools b
 	now := u.now().UTC()
 	lab := assistantModel.Run{
 		ID: rowID, ExerciseID: exercise, VersionID: version, VariantID: target.VariantID, DeployID: deployID, Actor: user,
-		Role: role, RequestID: req.ID, State: assistantModel.RunStarting, CreatedAt: now, UpdatedAt: now, ExpiresAt: now.Add(labLeaseCap),
+		Role: role, RequestID: requestID, State: assistantModel.RunStarting, CreatedAt: now, UpdatedAt: now, ExpiresAt: now.Add(labLeaseCap),
 	}
 	if err = u.runs.Create(ctx, lab, now); err != nil {
 		u.dropLab(ctx, user, deployID)
-		if _, claimed, readErr := u.runs.LabOfRequest(ctx, req.ID); readErr == nil && claimed {
+		if _, claimed, readErr := u.runs.LabOfRequest(ctx, requestID); readErr == nil && claimed {
 			return nil, answerLater // another delivery of the same request claimed it first
 		}
 		return nil, internal

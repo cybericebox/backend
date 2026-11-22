@@ -23,6 +23,9 @@ func bootstrapBrain(ctx context.Context, cfg config.BrainConfig, brain brainBoot
 	if cfg.Endpoint == "" {
 		return
 	}
+	if strings.TrimSpace(cfg.GRPCEndpoint) == "" {
+		log.Warn().Msg("BRAIN_GRPC_ENDPOINT is empty and no gRPC endpoint is stored with the connection: the assistant chat works, the runs, the outbox and the statistics stay off")
+	}
 	enrolled, err := brain.BootstrapBrain(ctx)
 	switch {
 	case errors.Is(err, assistantModel.ErrAssistantUnavailable.Err()):

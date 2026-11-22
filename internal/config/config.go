@@ -60,8 +60,13 @@ type (
 	// connection for that endpoint, the daemon enrolls once at start-up. The token is ignored afterwards. Without an
 	// Endpoint the assistant is off and its routes answer 503.
 	BrainConfig struct {
-		// Endpoint is host:port of cyber-brain (HTTPS). Empty switches the feature off.
+		// Endpoint is host:port of cyber-brain's HTTPS endpoint: the authoring chat (/v1/assistant/*), the enrollment and the
+		// renewal. Empty switches the feature off.
 		Endpoint string `env:"ENDPOINT"`
+		// GRPCEndpoint is host:port of cyber-brain's gRPC control plane (pkg/brainapi/v1): the runs, the outbox, the statistics,
+		// the task archives and the opponents, over mutual TLS with the same certificate. It is stored with the connection.
+		// Empty: the chat works, the machine control plane is off.
+		GRPCEndpoint string `env:"GRPC_ENDPOINT"`
 		// EnrollmentToken is the one-time enrollment token of the platform's tenant at the brain.
 		EnrollmentToken string `env:"ENROLLMENT_TOKEN"`
 		// CAFile verifies the brain's server certificate for the first enrollment only; empty means the system roots. The
@@ -76,8 +81,9 @@ type (
 		// RunMaxDuration is the longest a run may last, the start of its lab included; then it is torn down as failed.
 		RunMaxDuration time.Duration `env:"RUN_MAX_DURATION" envDefault:"30m"`
 		// ToolsImage is the image of the platform tools device an automated actor works from (a container with the tools and
-		// the runner, reached over the lab network). It has no default: unset, provide_device for tools and the opponent runs
-		// answer not_supported_yet.
+		// the runner, reached over the lab network). Deprecated: an opponent run deploys the image the brain gives (GetOpponent);
+		// this one is only the fallback while the brain answers GetOpponent with Unimplemented, and the image of a provide_device
+		// tools lab. It has no default: unset, those answer not_supported_yet.
 		ToolsImage string `env:"TOOLS_IMAGE"`
 		// OpponentActions, OpponentTokens and OpponentSeconds are the budget every opponent run gets (the author never sets
 		// one): how many actions and tokens it may spend and for how long (seconds).
@@ -769,6 +775,11 @@ func (c BrainConfig) Validate() error {
 	host, port, err := net.SplitHostPort(strings.TrimSpace(c.Endpoint))
 	if err != nil || host == "" || port == "" {
 		return errors.New("cyber-brain: BRAIN_ENDPOINT must be host:port")
+	}
+	if grpc := strings.TrimSpace(c.GRPCEndpoint); grpc != "" {
+		if host, port, err = net.SplitHostPort(grpc); err != nil || host == "" || port == "" {
+			return errors.New("cyber-brain: BRAIN_GRPC_ENDPOINT must be host:port")
+		}
 	}
 	if c.OpponentActions < 0 || c.OpponentTokens < 0 || c.OpponentSeconds < 0 {
 		return errors.New("cyber-brain: BRAIN_OPPONENT_ACTIONS, BRAIN_OPPONENT_TOKENS and BRAIN_OPPONENT_SECONDS must not be negative")

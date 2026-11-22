@@ -15,15 +15,18 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/cybericebox/backend/internal/delivery/infrastructure/brain/brainfake"
 	"github.com/cybericebox/backend/internal/delivery/repository/assistantStatsRepo"
 	assistantModel "github.com/cybericebox/backend/internal/model/assistant"
 	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 	"github.com/cybericebox/backend/internal/useCase/assistant"
+	brainapiv1 "github.com/cybericebox/backend/pkg/brainapi/v1"
 )
 
-// The wire samples of the brain's local end-to-end runs live in <repo>/testdata/brain/wire (see its README). Every file is made
-// here by the daemon's own code (the aggregate builder, the PushStatistics marshalling, the run driver), so a sample cannot drift
-// from what the daemon really sends. Regenerate with:
+// The wire samples of the brain's local end-to-end runs live in <repo>/testdata/brain/wire (see its README). Every file is the
+// proto-JSON (protojson, proto field names, the fields that are set) of a gRPC message of pkg/brainapi/v1 the daemon sends, made
+// here by the daemon's own code (the aggregate builder, PushStatistics, the run driver, the lab facts builder), so a sample cannot
+// drift from what the daemon really sends. Regenerate with:
 //
 //	go test ./internal/useCase/assistant -run TestBrainFixtures -update-brain-fixtures
 var updateBrainFixtures = flag.Bool("update-brain-fixtures", false, "rewrite the generated files of testdata/brain")
@@ -121,8 +124,9 @@ func pushBody(t *testing.T, aggregates []assistantModel.Aggregate) []byte {
 	t.Helper()
 	r, b := newPushRig(t, &fakeStats{all: aggregates})
 	require.NoError(t, r.uc.PushStatistics(context.Background()))
-	require.Len(t, b.bodies, 1)
-	return []byte(b.bodies[0])
+	sent := b.fake.Data.Requests()
+	require.Len(t, sent, 1)
+	return brainfake.WireJSON(sent[0])
 }
 
 func buildAggregates(t *testing.T, facts []assistantStatsRepo.Fact, variants map[uuid.UUID][]byte, activity assistant.LabActivitySource) []assistantModel.Aggregate {
@@ -235,13 +239,15 @@ func TestBrainFixturesPushDataStateChecks(t *testing.T) {
 // ── lab_facts ──────────────────────────────────────────────────────────────
 
 func TestBrainFixturesLabFacts(t *testing.T) {
-	reported, err := json.Marshal(assistantModel.LabFacts{ReadyTimeS: 41.7, Restarts: 0, EgressEnabled: true, EgressUsed: no(), VPNBytes: f64(1500000), DevicesTouched: f64(2), ConsoleMinutes: f64(0)})
+	created := time.Date(2026, 11, 16, 18, 0, 0, 0, time.UTC)
+	run := assistantModel.Run{ID: uuid.FromStringOrNil("c0000000-0000-4000-8000-000000000001"), CreatedAt: created, LabReadyAt: created.Add(41700 * time.Millisecond)}
+	activity, err := json.Marshal(assistantModel.RunLabActivity{Reported: true, EgressUsed: false, VPNBytes: f64(1500000), DevicesTouched: f64(2), ConsoleMinutes: 0})
 	require.NoError(t, err)
-	checkGolden(t, "wire/lab_facts.json", reported)
-	// A laboratory that keeps no activity reports (or no device_touch events): null, never zero.
-	notReported, err := json.Marshal(assistantModel.LabFacts{ReadyTimeS: 41.7, Restarts: 0, EgressEnabled: true})
-	require.NoError(t, err)
-	checkGolden(t, "wire/lab_facts_not_reported.json", notReported)
+	run.LabActivity = activity
+	checkGolden(t, "wire/lab_facts.json", brainfake.WireJSON(assistant.LabFactsRequest(run, true)))
+	// A laboratory that keeps no activity reports (or no device_touch events): the optional fields are unset, never zero.
+	run.LabActivity = nil
+	checkGolden(t, "wire/lab_facts_not_reported.json", brainfake.WireJSON(assistant.LabFactsRequest(run, true)))
 }
 
 // ── StartRun ───────────────────────────────────────────────────────────────
@@ -251,17 +257,12 @@ func TestBrainFixturesStartRunGrader(t *testing.T) {
 	r := newRunRig(t, nil)
 	r.start(t)
 	r.drive(t)
-	eventually(t, "StartRun", func() bool { return len(r.brn.Started()) == 1 })
-	body := []byte(r.brn.Started()[0])
-	var got struct {
-		Role   string                     `json:"role"`
-		Access map[string]json.RawMessage `json:"access"`
-	}
-	require.NoError(t, json.Unmarshal(body, &got))
-	assert.Equal(t, "grader", got.Role)
-	assert.Contains(t, got.Access, "vpn")
-	assert.NotContains(t, got.Access, "addr")
-	checkGolden(t, "wire/start_run_grader.json", body)
+	eventually(t, "StartRun", func() bool { return len(r.brn.StartedRequests()) == 1 })
+	sent := r.brn.StartedRequests()[0]
+	assert.Equal(t, "grader", sent.GetRole())
+	assert.NotEmpty(t, sent.GetAccess().GetVpn().GetEntry())
+	assert.Empty(t, sent.GetAccess().GetVpn().GetAddr())
+	checkGolden(t, "wire/start_run_grader.json", brainfake.WireJSON(sent))
 }
 
 // An opponent: the attacker of the opponent-lab task. Its tools device is on the control gateway, reached over the run's VPN at
@@ -273,20 +274,20 @@ func TestBrainFixturesStartRunOpponent(t *testing.T) {
 	require.NoError(t, json.Unmarshal(raw, &manifest))
 	require.Len(t, manifest, 2)
 	r := opponentRig(t, manifest...)
+	r.fake.Opponents.Answer(func(*brainapiv1.GetOpponentRequest) (*brainapiv1.OpponentSpec, error) {
+		return &brainapiv1.OpponentSpec{SpecId: "spec-attack-3", Deploy: &brainapiv1.Deploy{Image: "registry.brain.test/eda/runner:1"}, RequiredInputs: []*brainapiv1.RequiredInput{
+			{Key: "vpn", Kind: brainapiv1.InputKind_VPN_ENTRY}, {Key: "runner", Kind: brainapiv1.InputKind_CONTROL_ADDR}, {Key: "segment", Kind: brainapiv1.InputKind_FOOTHOLD},
+		}}, nil
+	})
 	run := r.tryOpponent(t, 1)
 	assert.Equal(t, "attack", run.Role)
 	r.drive(t)
-	eventually(t, "StartRun", func() bool { return len(r.brn.Started()) == 1 })
-	body := []byte(r.brn.Started()[0])
-	var got struct {
-		Foothold string                     `json:"foothold"`
-		Budget   assistantModel.RunBudget   `json:"budget"`
-		Access   map[string]json.RawMessage `json:"access"`
-	}
-	require.NoError(t, json.Unmarshal(body, &got))
-	assert.Equal(t, "sw1", got.Foothold)
-	assert.Contains(t, got.Access, "vpn")
-	assert.Contains(t, got.Access, "addr")
-	assert.NotZero(t, got.Budget.Actions)
-	checkGolden(t, "wire/start_run_opponent.json", body)
+	eventually(t, "StartRun", func() bool { return len(r.brn.StartedRequests()) == 1 })
+	sent := r.brn.StartedRequests()[0]
+	assert.Equal(t, "sw1", sent.GetFoothold())
+	assert.Equal(t, "spec-attack-3", sent.GetSpecId())
+	assert.NotEmpty(t, sent.GetAccess().GetVpn().GetEntry())
+	assert.NotEmpty(t, sent.GetAccess().GetVpn().GetAddr())
+	assert.NotZero(t, sent.GetBudget().GetActions())
+	checkGolden(t, "wire/start_run_opponent.json", brainfake.WireJSON(sent))
 }

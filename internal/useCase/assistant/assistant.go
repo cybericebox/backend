@@ -1,7 +1,8 @@
 // Package assistant is the platform's side of the authoring assistant: the client connection to cyber-brain (one-time
-// enrollment, renewal of the client certificate, the mutual-TLS client), the opaque per-user subject the brain binds
-// its sessions to, the pass-through of the chat routes and the save of a finished task into the catalog. The brain
-// itself is an external service; nothing here interprets what the chat says.
+// enrollment and renewal of the client certificate over HTTP, the mutual-TLS clients), the opaque per-user subject the brain
+// binds its sessions to, the pass-through of the chat routes (HTTP/SSE), the save of a finished task into the catalog, and the
+// machine control plane over gRPC (pkg/brainapi/v1): the runs, the outbox, the statistics and the opponents. The brain itself
+// is an external service; nothing here interprets what the chat says.
 package assistant
 
 import (
@@ -44,6 +45,8 @@ type (
 	Store interface {
 		Get(ctx context.Context, endpoint string) (assistantModel.Connection, bool, error)
 		Create(ctx context.Context, c assistantModel.Connection) (bool, error)
+		// SetGRPCEndpoint stores the gRPC endpoint of a connection (false: no such connection, or it is that one already).
+		SetGRPCEndpoint(ctx context.Context, endpoint, grpcEndpoint string, at time.Time) (bool, error)
 		SetCertificate(ctx context.Context, endpoint, tenant, certPEM, keyCiphertext, caPEM string, notAfter, at time.Time) (bool, error)
 	}
 
@@ -55,8 +58,12 @@ type (
 
 	// Config is what the deployment says about the brain.
 	Config struct {
-		// Endpoint is host:port; empty switches the assistant off.
-		Endpoint        string
+		// Endpoint is host:port of the brain's HTTP endpoint (the chat, the enrollment, the renewal); empty switches the
+		// assistant off.
+		Endpoint string
+		// GRPCEndpoint is host:port of the brain's gRPC control plane (BRAIN_GRPC_ENDPOINT); it is stored with the connection.
+		// Empty: the runs, the outbox and the statistics are off while the chat works.
+		GRPCEndpoint    string
 		EnrollmentToken string
 		// CAFile verifies the brain's server certificate; empty means the system roots.
 		CAFile string
@@ -75,10 +82,8 @@ type (
 		// Importer saves a finished task into the catalog; nil without exercises (tests).
 		Importer Importer
 		Files    FileStore
-		// Cursor keeps the last answered outbox request of the brain; Stats gives the statistics aggregates (nil: collection
-		// is off everywhere).
-		Cursor OutboxCursor
-		Stats  StatsSource
+		// Stats gives the statistics aggregates (nil: collection is off everywhere).
+		Stats StatsSource
 		// StatsAdmin keeps the statistics collection modes (the platform defaults and the events').
 		StatsAdmin StatsAdminStore
 		// WatchMin and WatchMax bound the reconnect backoff of the outbox stream; AnswerPause is the first pause between
@@ -125,7 +130,6 @@ type (
 		importer   Importer
 		files      FileStore
 		saves      SaveStore
-		cursor     OutboxCursor
 		stats      StatsSource
 		statsAdmin StatsAdminStore
 
@@ -147,17 +151,31 @@ type (
 		subjects     SubjectStore
 		subjectCache sync.Map // user id -> subject: a pseudonym never changes while the account lives
 
+		// outbox is the open outbox stream of this replica (the leader's), the one every answer goes up on.
+		outbox outboxStream
+		// reanswer holds the labs (run ids) whose answer the brain asked for again: it never got the first one.
+		reanswer sync.Map
+		// claims orders the claims of labs the brain asks for.
+		claims claimTurns
+
 		mu       sync.Mutex
-		cached   *brain.Client
+		cached   *clients
 		loadedAt time.Time
-		cachedAt time.Time // UpdatedAt of the connection the cached client was built from
+		cachedAt time.Time // UpdatedAt of the connection the cached clients were built from
+	}
+
+	// clients are the two clients of one stored connection: HTTP for the chat and the renewal, gRPC for the control plane (nil
+	// while no gRPC endpoint is known).
+	clients struct {
+		http    *brain.Client
+		control *brain.Control
 	}
 )
 
 // New builds the use case. It reads nothing and dials nothing.
 func New(d Dependencies) *UseCase {
 	u := &UseCase{
-		store: d.Store, cipher: d.Cipher, cfg: d.Config, enroll: d.Enroll, now: d.Now, importer: d.Importer, files: d.Files, saves: d.Saves, subjects: d.Subjects, audit: d.Audit, cursor: d.Cursor, stats: d.Stats, statsAdmin: d.StatsAdmin,
+		store: d.Store, cipher: d.Cipher, cfg: d.Config, enroll: d.Enroll, now: d.Now, importer: d.Importer, files: d.Files, saves: d.Saves, subjects: d.Subjects, audit: d.Audit, stats: d.Stats, statsAdmin: d.StatsAdmin,
 		watchMin: orDefault(d.WatchMin, watchBackoffMin), watchMax: orDefault(d.WatchMax, watchBackoffMax), answerPause: orDefault(d.AnswerPause, 200*time.Millisecond),
 		namesImages: d.NamesImages,
 		runs:        d.Runs, users: d.Users, labs: d.Labs, activity: d.LabActivity, tasks: d.Tasks, maxActive: d.MaxActiveRuns,
@@ -218,6 +236,8 @@ func (u *UseCase) Enabled() bool {
 
 func (u *UseCase) endpoint() string { return strings.TrimSpace(u.cfg.Endpoint) }
 
+func (u *UseCase) grpcEndpoint() string { return strings.TrimSpace(u.cfg.GRPCEndpoint) }
+
 // BootstrapBrain enrolls the platform at the brain named by BRAIN_ENDPOINT with the one-time token when no connection
 // for that endpoint is stored yet. It reports whether it enrolled. Without the platform secrets key it returns
 // ErrAssistantUnavailable and the assistant stays off; any other failure is returned for the caller to log, the daemon
@@ -230,9 +250,15 @@ func (u *UseCase) BootstrapBrain(ctx context.Context) (bool, error) {
 	if u.cipher == nil {
 		return false, assistantModel.ErrAssistantUnavailable.Err()
 	}
-	if _, found, err := u.store.Get(ctx, endpoint); err != nil {
+	if conn, found, err := u.store.Get(ctx, endpoint); err != nil {
 		return false, model.ErrPlatform.WithError(err).WithMessage("Failed to read the cyber-brain connection").Err()
 	} else if found {
+		// BRAIN_GRPC_ENDPOINT changed (or was added after the enrollment): the stored connection follows it.
+		if grpc := u.grpcEndpoint(); grpc != "" && grpc != conn.GRPCEndpoint {
+			if _, err = u.store.SetGRPCEndpoint(ctx, endpoint, grpc, u.now().UTC()); err != nil {
+				return false, model.ErrPlatform.WithError(err).WithMessage("Failed to save the cyber-brain gRPC endpoint").Err()
+			}
+		}
 		return false, nil
 	}
 	if strings.TrimSpace(u.cfg.EnrollmentToken) == "" {
@@ -268,7 +294,7 @@ func (u *UseCase) BootstrapBrain(ctx context.Context) (bool, error) {
 	}
 	now := u.now().UTC()
 	stored, err := u.store.Create(ctx, assistantModel.Connection{
-		Endpoint: endpoint, Tenant: cert.Tenant, CertPEM: out.CertPEM, KeyCiphertext: sealed, CAPEM: out.CAPEM,
+		Endpoint: endpoint, GRPCEndpoint: u.grpcEndpoint(), Tenant: cert.Tenant, CertPEM: out.CertPEM, KeyCiphertext: sealed, CAPEM: out.CAPEM,
 		CertNotAfter: cert.NotAfter, CreatedAt: now, UpdatedAt: now,
 	})
 	if err != nil {
@@ -361,9 +387,31 @@ func (u *UseCase) brainCA(ctx context.Context) (string, error) {
 	return conn.CAPEM, nil
 }
 
-// client returns the mutual-TLS client of the stored connection. It is rebuilt when the stored certificate changed
-// (a renewal by the leader), and the stored connection is re-read at most once per connectionTTL.
+// client returns the mutual-TLS HTTP client of the stored connection: the chat and the renewal.
 func (u *UseCase) client(ctx context.Context) (*brain.Client, error) {
+	c, err := u.connection(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return c.http, nil
+}
+
+// control returns the mutual-TLS gRPC client of the brain's control plane. Without a gRPC endpoint (none stored and none
+// configured) the control plane is unavailable.
+func (u *UseCase) control(ctx context.Context) (*brain.Control, error) {
+	c, err := u.connection(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if c.control == nil {
+		return nil, assistantModel.ErrAssistantUnavailable.Err()
+	}
+	return c.control, nil
+}
+
+// connection returns the clients of the stored connection. They are rebuilt when the stored connection changed (a renewal by
+// the leader, a new gRPC endpoint), and the stored connection is re-read at most once per connectionTTL.
+func (u *UseCase) connection(ctx context.Context) (*clients, error) {
 	if !u.Enabled() {
 		return nil, assistantModel.ErrAssistantUnavailable.Err()
 	}
@@ -383,18 +431,23 @@ func (u *UseCase) client(ctx context.Context) (*brain.Client, error) {
 	if u.cached != nil && conn.UpdatedAt.Equal(u.cachedAt) {
 		return u.cached, nil
 	}
-	c, err := u.buildClient(conn)
+	c, err := u.buildClients(conn)
 	if err != nil {
 		return nil, err
 	}
-	if u.cached != nil {
-		u.cached.Close()
+	if old := u.cached; old != nil {
+		old.http.Close()
+		if old.control != nil {
+			// The streams open on the old connection (run events, the outbox) are not cut at once: they end with it a little
+			// later and reopen on the new one.
+			time.AfterFunc(connectionTTL, func() { _ = old.control.Close() })
+		}
 	}
 	u.cached, u.cachedAt = c, conn.UpdatedAt
 	return c, nil
 }
 
-func (u *UseCase) buildClient(conn assistantModel.Connection) (*brain.Client, error) {
+func (u *UseCase) buildClients(conn assistantModel.Connection) (*clients, error) {
 	key, err := u.cipher.DecryptWithContext(conn.KeyCiphertext, assistantModel.SecretContext(conn.Endpoint, "key"))
 	if err != nil {
 		return nil, model.ErrPlatform.WithError(err).WithMessage("Failed to open the cyber-brain client key").Err()
@@ -402,11 +455,22 @@ func (u *UseCase) buildClient(conn assistantModel.Connection) (*brain.Client, er
 	if strings.TrimSpace(conn.CAPEM) == "" {
 		return nil, model.ErrPlatform.WithMessage("The stored cyber-brain connection has no pinned CA").Err()
 	}
-	c, err := brain.NewClient(conn.Endpoint, []byte(conn.CertPEM), key, []byte(conn.CAPEM))
+	h, err := brain.NewClient(conn.Endpoint, []byte(conn.CertPEM), key, []byte(conn.CAPEM))
 	if err != nil {
 		return nil, model.ErrPlatform.WithError(err).WithMessage("The stored cyber-brain connection is unusable").Err()
 	}
-	return c, nil
+	out := &clients{http: h}
+	grpcEndpoint := conn.GRPCEndpoint
+	if grpcEndpoint == "" {
+		grpcEndpoint = u.grpcEndpoint()
+	}
+	if grpcEndpoint != "" {
+		if out.control, err = brain.NewControl(grpcEndpoint, []byte(conn.CertPEM), key, []byte(conn.CAPEM)); err != nil {
+			h.Close()
+			return nil, model.ErrPlatform.WithError(err).WithMessage("The stored cyber-brain gRPC endpoint is unusable").Err()
+		}
+	}
+	return out, nil
 }
 
 // RenewBrainCertificate gets a new client certificate for the same key over the current mutual-TLS connection when the
@@ -423,11 +487,17 @@ func (u *UseCase) RenewBrainCertificate(ctx context.Context) (bool, error) {
 	if !found || !renewDue(conn, u.now()) {
 		return false, nil
 	}
-	current, err := u.buildClient(conn)
+	built, err := u.buildClients(conn)
 	if err != nil {
 		return false, err
 	}
-	defer current.Close()
+	current := built.http
+	defer func() {
+		current.Close()
+		if built.control != nil {
+			_ = built.control.Close()
+		}
+	}()
 	// The brain renews a certificate only for the key it was issued to (a stolen certificate cannot be rolled to a new key),
 	// so the request is made for the stored key.
 	keyPEM, err := u.cipher.DecryptWithContext(conn.KeyCiphertext, assistantModel.SecretContext(conn.Endpoint, "key"))

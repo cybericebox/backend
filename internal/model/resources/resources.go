@@ -186,6 +186,32 @@ func (p Policy) offers(a Amount) bool {
 	return false
 }
 
+// workableShare is the least share of a hinted size (each resource, in percent) a device clamped to the frame may get: below
+// it the device would run starved and is refused.
+const workableShare = 50
+
+// FitHint is the preset of a device whose size is a hint (the tools device of an opponent): the smallest preset that holds the
+// hint within the frame, else the frame itself when it still gives at least half of each hinted resource. ok is false when the
+// hint does not fit at a workable size. A zero hint takes the default preset.
+func (p Policy) FitHint(hint Amount) (Preset, bool) {
+	if hint.CPUMillicores <= 0 && hint.MemoryBytes <= 0 {
+		preset, ok := p.Preset(p.DefaultPreset)
+		return preset, ok
+	}
+	if preset, ok := p.fit(hint); ok && preset.Amount.Within(p.Frame) {
+		return preset, true
+	}
+	frame, ok := p.Largest(p.Frame)
+	if !ok {
+		return Preset{}, false
+	}
+	workable := func(have, want int64) bool { return want <= 0 || have*100 >= want*workableShare }
+	if !workable(frame.CPUMillicores, hint.CPUMillicores) || !workable(frame.MemoryBytes, hint.MemoryBytes) {
+		return Preset{}, false
+	}
+	return frame, true
+}
+
 // BlocksOf is the blocks of the smallest preset that holds the amount; above the largest preset, the blocks of its
 // memory rounded up.
 func (p Policy) BlocksOf(a Amount) int {

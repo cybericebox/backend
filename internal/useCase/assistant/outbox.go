@@ -1,21 +1,17 @@
 package assistant
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand/v2"
-	"net/http"
-	"net/url"
 	"regexp"
-	"strconv"
+	"sync"
 	"time"
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/backend/internal/delivery/infrastructure/brain"
+	brainapiv1 "github.com/cybericebox/backend/pkg/brainapi/v1"
 )
 
 // The codes the platform answers an outbox request with when it cannot give a result. The schema is additive: the brain
@@ -29,53 +25,190 @@ const (
 )
 
 type (
-	// OutboxCursor keeps the last outbox request that was answered, so a restart or a new leader resumes after it.
-	OutboxCursor interface {
-		OutboxSeq(ctx context.Context, endpoint string) (int64, error)
-		SetOutboxSeq(ctx context.Context, endpoint string, seq int64) error
-	}
-
-	// OutboxRequest is one request of the brain's outbox: `{request_id, type, ...}`; Raw is the whole payload for the
-	// handler of its type.
+	// OutboxRequest is one request of the brain's outbox: its id, its kind (provide_lab, provide_device, provide_data,
+	// provide_task) and the request itself for the handler of its kind.
 	OutboxRequest struct {
-		Seq  int64
-		ID   string          `json:"request_id"`
-		Type string          `json:"type"`
-		Raw  json.RawMessage `json:"-"`
+		ID   string
+		Type string
+		Req  *brainapiv1.BrainRequest
 	}
 
 	// AnswerError is the refusal sent as the answer: a stable code and a human line.
 	AnswerError struct {
-		Code    string `json:"code"`
-		Message string `json:"message"`
+		Code    string
+		Message string
 	}
 
-	// requestHandler produces the result of one request type, or the refusal.
-	requestHandler func(ctx context.Context, req OutboxRequest) (result any, refusal *AnswerError)
+	// requestHandler produces the result of one request kind (a RequestAnswer with its result set; the request id is filled
+	// in when it is sent), or the refusal.
+	requestHandler func(ctx context.Context, req OutboxRequest) (result *brainapiv1.RequestAnswer, refusal *AnswerError)
+
+	// outboxStream is the outbox of this replica: the stream answers go up on, and the requests being handled (max_inflight of
+	// the brain's StreamHello at most; a request the brain sends again while it is handled is not handled twice).
+	outboxStream struct {
+		mu       sync.Mutex
+		send     func(*brainapiv1.RequestAnswer) error
+		sendID   *int
+		inflight map[string]struct{}
+		limit    int
+		changed  chan struct{}
+	}
 )
 
-// requestIDPattern is what a request id may look like in a path.
+// requestIDPattern is what a request id may look like.
 var requestIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._~-]{0,127}$`)
 
-// requestIDField finds a request_id in a payload that is not valid JSON.
-var requestIDField = regexp.MustCompile(`"request_id"\s*:\s*"([A-Za-z0-9][A-Za-z0-9._~-]{0,127})"`)
+// errNoOutbox: no outbox stream is open, so an answer cannot be sent now (the caller tries again; the brain re-sends the
+// request when the stream is back).
+var errNoOutbox = errors.New("the cyber-brain outbox stream is not open")
 
-// readableRequestID is the request id of a payload, read leniently: from the JSON when it parses, else from the text.
-// Empty when there is none.
-func readableRequestID(data []byte) string {
-	var probe struct {
-		ID string `json:"request_id"`
+// changedLocked wakes everyone waiting for a free slot or a stream.
+func (o *outboxStream) changedLocked() {
+	if o.changed != nil {
+		close(o.changed)
 	}
-	if json.Unmarshal(data, &probe) == nil && requestIDPattern.MatchString(probe.ID) {
-		return probe.ID
+	o.changed = make(chan struct{})
+}
+
+func (o *outboxStream) wait() <-chan struct{} {
+	if o.changed == nil {
+		o.changed = make(chan struct{})
 	}
-	if m := requestIDField.FindSubmatch(data); m != nil {
-		return string(m[1])
+	return o.changed
+}
+
+// openAs makes send (of the stream id) the one answers go up on, with the brain's max_inflight.
+func (o *outboxStream) openAs(id *int, send func(*brainapiv1.RequestAnswer) error, limit int) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.send, o.sendID, o.limit = send, id, limit
+	o.changedLocked()
+}
+
+// close forgets the stream (only the one given: a newer stream stays).
+func (o *outboxStream) close(id *int) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.send != nil && o.sendID == id {
+		o.send = nil
+	}
+	o.changedLocked()
+}
+
+// acquire takes a slot for a request: it waits while max_inflight requests are being handled. duplicate is true when the
+// request is being handled already (the brain sent it again).
+func (o *outboxStream) acquire(ctx context.Context, id string) (duplicate bool, err error) {
+	for {
+		o.mu.Lock()
+		if o.inflight == nil {
+			o.inflight = map[string]struct{}{}
+		}
+		if _, busy := o.inflight[id]; busy {
+			o.mu.Unlock()
+			return true, nil
+		}
+		if len(o.inflight) < max(o.limit, 1) {
+			o.inflight[id] = struct{}{}
+			o.mu.Unlock()
+			return false, nil
+		}
+		ch := o.wait()
+		o.mu.Unlock()
+		select {
+		case <-ctx.Done():
+			return false, ctx.Err()
+		case <-ch:
+		}
+	}
+}
+
+func (o *outboxStream) release(id string) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	delete(o.inflight, id)
+	o.changedLocked()
+}
+
+// sendAnswer sends on the open stream; errNoOutbox while there is none.
+func (o *outboxStream) sendAnswer(a *brainapiv1.RequestAnswer) (<-chan struct{}, error) {
+	o.mu.Lock()
+	send, ch := o.send, o.wait()
+	o.mu.Unlock()
+	if send == nil {
+		return ch, errNoOutbox
+	}
+	return ch, send(a)
+}
+
+// claimTurns lets the lab claims (provide_lab, provide_device) run one at a time in the order the stream delivered them: a
+// ticket is taken when the request is read, the handler waits for its turn and passes it on when it is done.
+type claimTurns struct {
+	mu   sync.Mutex
+	cond *sync.Cond
+	next uint64 // the next ticket to hand out
+	turn uint64 // the ticket whose turn it is
+}
+
+func (c *claimTurns) init() {
+	if c.cond == nil {
+		c.cond = sync.NewCond(&c.mu)
+	}
+}
+
+// take hands out the next ticket as a context the handler carries.
+func (c *claimTurns) take(ctx context.Context) context.Context {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.init()
+	ticketed := context.WithValue(ctx, claimTicketKey{}, c.next)
+	c.next++
+	return ticketed
+}
+
+type claimTicketKey struct{}
+
+// wait blocks until the ticket of ctx has its turn (a context without a ticket goes at once).
+func (c *claimTurns) wait(ctx context.Context) {
+	ticket, ok := ctx.Value(claimTicketKey{}).(uint64)
+	if !ok {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.init()
+	for c.turn != ticket {
+		c.cond.Wait()
+	}
+}
+
+// done passes the turn on (a context without a ticket changes nothing).
+func (c *claimTurns) done(ctx context.Context) {
+	if _, ok := ctx.Value(claimTicketKey{}).(uint64); !ok {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.init()
+	c.turn++
+	c.cond.Broadcast()
+}
+
+// requestKind names the kind of a request ("" when the brain sent a kind this platform does not know).
+func requestKind(r *brainapiv1.BrainRequest) string {
+	switch r.GetKind().(type) {
+	case *brainapiv1.BrainRequest_ProvideLab:
+		return "provide_lab"
+	case *brainapiv1.BrainRequest_ProvideDevice:
+		return "provide_device"
+	case *brainapiv1.BrainRequest_ProvideData:
+		return "provide_data"
+	case *brainapiv1.BrainRequest_ProvideTask:
+		return "provide_task"
 	}
 	return ""
 }
 
-// handlers maps the request types the platform knows to their handlers. A type that is not here is answered with
+// handlers maps the request kinds the platform knows to their handlers. A kind that is not here is answered with
 // unsupported_request.
 func (u *UseCase) handlers() map[string]requestHandler {
 	return map[string]requestHandler{
@@ -92,17 +225,12 @@ const toolsDeviceType = "tools"
 
 // provideDevice answers provide_device. The tools device is provided as the task's lab with the platform tools device in
 // it (see provideTaskLab); a configured host, a draft, or a platform without a tools image is not_supported_yet.
-func (u *UseCase) provideDevice(ctx context.Context, req OutboxRequest) (any, *AnswerError) {
-	var in struct {
-		DeviceType string `json:"device_type"`
-	}
-	if err := json.Unmarshal(req.Raw, &in); err != nil {
-		return nil, &AnswerError{Code: codeInvalidRequest, Message: "the request could not be read"}
-	}
-	if in.DeviceType != toolsDeviceType {
+func (u *UseCase) provideDevice(ctx context.Context, req OutboxRequest) (*brainapiv1.RequestAnswer, *AnswerError) {
+	in := req.Req.GetProvideDevice()
+	if in.GetDeviceType() != toolsDeviceType {
 		return nil, &AnswerError{Code: codeNotSupportedYet, Message: "this device type is not supported yet"}
 	}
-	return u.provideTaskLab(ctx, req, true)
+	return u.provideTaskLab(ctx, req.ID, in.GetSubject(), in.GetSource(), true)
 }
 
 const (
@@ -110,15 +238,18 @@ const (
 	watchBackoffMax = time.Minute
 	// watchStable: a stream that lived this long resets the backoff.
 	watchStable = 30 * time.Second
-	// answerAttempts is how often an answer is sent before the stream is dropped (the cursor stays, the brain re-sends).
+	// answerAttempts is how often an answer is tried (waiting for an open stream in between) before the caller is told it
+	// did not get through; the brain re-sends a request that stays unanswered.
 	answerAttempts = 5
+	// defaultInflight is the max_inflight of a StreamHello that names none (the contract suggests 16).
+	defaultInflight = 16
 )
 
-// WatchOutbox holds the brain's outbox stream until ctx ends (the leadership is lost, or the process stops): it
-// reconnects with an exponential backoff and jitter, and resumes after the last answered request. Only the leader
-// replica runs it.
+// WatchOutbox holds the brain's outbox stream (Requests) until ctx ends (the leadership is lost, or the process stops): it
+// reconnects with an exponential backoff and jitter. There is no cursor: the brain re-sends every unanswered request on a new
+// stream, and a new leader's stream supersedes the old one. Only the leader replica runs it.
 func (u *UseCase) WatchOutbox(ctx context.Context) {
-	if !u.Enabled() || u.cursor == nil {
+	if !u.Enabled() {
 		return
 	}
 	backoff := u.watchMin
@@ -145,64 +276,76 @@ func (u *UseCase) WatchOutbox(ctx context.Context) {
 	}
 }
 
-// watchOnce holds one stream: every request after the cursor is handled, answered and then the cursor moves past it.
+// watchOnce holds one stream: the StreamHello first, then every request is handled (at most max_inflight at once: the stream
+// is not read while they are all taken) and answered on the open stream.
 func (u *UseCase) watchOnce(ctx context.Context) error {
-	after, err := u.cursor.OutboxSeq(ctx, u.endpoint())
-	if err != nil {
-		return fmt.Errorf("read the outbox cursor: %w", err)
-	}
-	c, err := u.client(ctx)
+	c, err := u.control(ctx)
 	if err != nil {
 		return err
 	}
-	resp, err := c.Do(ctx, brain.Request{
-		Method: http.MethodGet, Path: "/v1/requests/watch", Query: url.Values{"after": {strconv.FormatInt(after, 10)}},
-		Header: http.Header{"Accept": {"text/event-stream"}},
-	})
+	streamCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	stream, err := c.Requests(streamCtx)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = resp.Body.Close() }()
-	return brain.ReadFrames(resp.Body, func(f brain.Frame) error {
-		seq, perr := strconv.ParseInt(f.ID, 10, 64)
-		if perr != nil || seq <= 0 {
-			return nil // a heartbeat or a frame without a sequence number
+	first, err := stream.Recv()
+	if err != nil {
+		return fmt.Errorf("read the outbox hello: %w", err)
+	}
+	hello := first.GetHello()
+	if hello == nil {
+		return errors.New("the cyber-brain outbox stream did not start with a StreamHello")
+	}
+	limit := int(hello.GetMaxInflight())
+	if limit <= 0 {
+		limit = defaultInflight
+	}
+	var sendMu sync.Mutex
+	id := new(int)
+	u.outbox.openAs(id, func(a *brainapiv1.RequestAnswer) error {
+		sendMu.Lock()
+		defer sendMu.Unlock()
+		return stream.Send(a)
+	}, limit)
+	defer u.outbox.close(id)
+	for {
+		frame, recvErr := stream.Recv()
+		if recvErr != nil {
+			return recvErr
 		}
-		if seq <= after {
-			return nil // seen already
+		req := frame.GetRequest()
+		if req == nil {
+			continue // a second hello: nothing to do
 		}
-		if err := u.handleRequest(ctx, seq, f); err != nil {
-			return err
+		if !requestIDPattern.MatchString(req.GetRequestId()) {
+			log.Warn().Msg("A cyber-brain outbox request without a usable request_id was skipped: nothing can answer it")
+			continue
 		}
-		after = seq
-		return nil
-	})
+		duplicate, waitErr := u.outbox.acquire(streamCtx, req.GetRequestId())
+		if waitErr != nil {
+			return waitErr
+		}
+		if duplicate {
+			continue // re-sent while it is being handled: one handling answers it
+		}
+		handleCtx := ctx
+		if kind := requestKind(req); kind == "provide_lab" || kind == "provide_device" {
+			handleCtx = u.claims.take(ctx)
+		}
+		go u.handleRequest(handleCtx, req)
+	}
 }
 
-// handleRequest answers one request and then moves the cursor past it. The cursor moves only after the answer got
-// through (or the brain said the request is gone), so a request is never skipped; one that was answered but whose cursor
-// write failed is sent again, which is harmless: the answer is idempotent by request_id at the brain and every handler
-// is a pure read or a refusal.
-func (u *UseCase) handleRequest(ctx context.Context, seq int64, f brain.Frame) error {
-	req := OutboxRequest{Seq: seq, Raw: json.RawMessage(f.Data)}
-	if err := json.Unmarshal(f.Data, &req); err != nil || !requestIDPattern.MatchString(req.ID) {
-		// A broken request still gets its answer when its id can be read, or the brain would keep it open for ever.
-		id := readableRequestID(f.Data)
-		if id == "" {
-			log.Warn().Int64("seq", seq).Msg("A cyber-brain outbox request without a readable request_id was skipped")
-			return u.cursor.SetOutboxSeq(ctx, u.endpoint(), seq)
-		}
-		log.Warn().Int64("seq", seq).Str("request", id).Msg("A malformed cyber-brain outbox request is answered as invalid")
-		refusal := &AnswerError{Code: codeInvalidRequest, Message: "the request could not be read"}
-		if err = u.answer(ctx, id, nil, refusal); err != nil {
-			return fmt.Errorf("answer request %s: %w", id, err)
-		}
-		return u.cursor.SetOutboxSeq(ctx, u.endpoint(), seq)
-	}
-	if req.Type == "" {
-		req.Type = f.Event
-	}
-	var result any
+// handleRequest answers one request on the open stream and frees its slot. A request that cannot be answered now stays
+// unanswered at the brain, which sends it again; every handler is a pure read, a refusal, or idempotent by request id.
+func (u *UseCase) handleRequest(ctx context.Context, r *brainapiv1.BrainRequest) {
+	defer u.outbox.release(r.GetRequestId())
+	// A lab claim waits for its turn; the turn is passed on whatever the handler does.
+	u.claims.wait(ctx)
+	defer u.claims.done(ctx)
+	req := OutboxRequest{ID: r.GetRequestId(), Type: requestKind(r), Req: r}
+	var result *brainapiv1.RequestAnswer
 	var refusal *AnswerError
 	if handler, ok := u.handlers()[req.Type]; ok {
 		result, refusal = u.safely(ctx, handler, req)
@@ -210,18 +353,15 @@ func (u *UseCase) handleRequest(ctx context.Context, seq int64, f brain.Frame) e
 		refusal = &AnswerError{Code: codeUnsupportedRequest, Message: "this request type is not supported"}
 	}
 	if refusal == answerLater {
-		// The handler persisted the request as claimed and answers it itself: the stream goes on.
-		return u.cursor.SetOutboxSeq(ctx, u.endpoint(), seq)
+		return // the handler persisted the request as claimed and answers it itself
 	}
 	if err := u.answer(ctx, req.ID, result, refusal); err != nil {
-		return fmt.Errorf("answer request %s: %w", req.ID, err)
+		log.Warn().Err(err).Str("request", req.ID).Str("type", req.Type).Msg("An outbox answer did not get through; the brain sends the request again")
 	}
-	return u.cursor.SetOutboxSeq(ctx, u.endpoint(), seq)
 }
 
-// safely runs a handler so that a failure of one request never takes the stream down: a panic or an error becomes an
-// internal refusal.
-func (u *UseCase) safely(ctx context.Context, h requestHandler, req OutboxRequest) (result any, refusal *AnswerError) {
+// safely runs a handler so that a failure of one request never takes the stream down: a panic becomes an internal refusal.
+func (u *UseCase) safely(ctx context.Context, h requestHandler, req OutboxRequest) (result *brainapiv1.RequestAnswer, refusal *AnswerError) {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Error().Interface("panic", r).Str("type", req.Type).Msg("An outbox request handler panicked")
@@ -231,53 +371,31 @@ func (u *UseCase) safely(ctx context.Context, h requestHandler, req OutboxReques
 	return h(ctx, req)
 }
 
-// answer sends `{result}` or `{error: {code, message}}` to the brain, retried on a 5xx, a 429 and network failures.
-// A 4xx that says the request is gone or already answered (400, 404, 409, 410, 422) is final: there is nothing to
-// retry. Any other failure is returned and the stream is dropped; the brain sends the request again.
-func (u *UseCase) answer(ctx context.Context, requestID string, result any, refusal *AnswerError) error {
-	var body []byte
-	var err error
-	if refusal != nil {
-		body, err = json.Marshal(map[string]*AnswerError{"error": refusal})
-	} else {
-		body, err = json.Marshal(map[string]any{"result": result})
-	}
-	if err != nil {
-		return err
-	}
-	c, err := u.client(ctx)
-	if err != nil {
-		return err
+// answer sends the result or the refusal of a request up the open outbox stream (any stream: the brain takes an answer by
+// request_id and ignores a duplicate). While no stream is open, or a send fails, it waits for the next stream and tries again,
+// a few times; then the error is returned and the brain, which still holds the request, sends it again.
+func (u *UseCase) answer(ctx context.Context, requestID string, result *brainapiv1.RequestAnswer, refusal *AnswerError) error {
+	msg := &brainapiv1.RequestAnswer{RequestId: requestID}
+	switch {
+	case refusal != nil:
+		msg.Result = &brainapiv1.RequestAnswer_Error{Error: &brainapiv1.RequestError{Code: refusal.Code, Message: refusal.Message}}
+	case result != nil:
+		msg.Result = result.GetResult()
 	}
 	pause := u.answerPause
+	var err error
 	for attempt := 1; ; attempt++ {
-		resp, doErr := c.Do(ctx, brain.Request{
-			Method: http.MethodPost, Path: "/v1/requests/" + requestID + "/answer",
-			Header: http.Header{"Content-Type": {"application/json"}}, Body: bytes.NewReader(body), ContentLength: int64(len(body)),
-		})
-		if doErr == nil {
-			_ = resp.Body.Close()
+		var next <-chan struct{}
+		if next, err = u.outbox.sendAnswer(msg); err == nil {
 			return nil
 		}
-		var api *brain.APIError
-		if errors.As(doErr, &api) {
-			switch api.Status {
-			case http.StatusBadRequest, http.StatusNotFound, http.StatusConflict, http.StatusGone, http.StatusUnprocessableEntity:
-				log.Warn().Int("status", api.Status).Str("code", api.Code).Msg("The brain refused an answer as final")
-				return nil
-			}
-			if api.Status < 500 && api.Status != http.StatusTooManyRequests {
-				return doErr
-			}
-		} else if !errors.Is(doErr, brain.ErrUnreachable) {
-			return doErr
-		}
 		if attempt >= answerAttempts {
-			return doErr
+			return err
 		}
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-next: // a stream opened or closed
 		case <-time.After(pause):
 		}
 		pause *= 2

@@ -12,9 +12,7 @@ import (
 )
 
 type fakeQueries struct {
-	seq      int64
-	seqErr   error
-	lastSeq  postgres.SetBrainOutboxSeqParams
+	lastGRPC postgres.SetBrainConnectionGRPCEndpointParams
 	row      *postgres.BrainConnection
 	creates  int64
 	updates  int64
@@ -76,24 +74,22 @@ func TestSetCertificateFiltersByEndpointAndTenant(t *testing.T) {
 	}
 }
 
-func (f *fakeQueries) GetBrainOutboxSeq(context.Context, string) (int64, error) {
-	return f.seq, f.seqErr
+func (f *fakeQueries) SetBrainConnectionGRPCEndpoint(_ context.Context, p postgres.SetBrainConnectionGRPCEndpointParams) (int64, error) {
+	f.lastGRPC = p
+	return f.updates, nil
 }
 
-func (f *fakeQueries) SetBrainOutboxSeq(_ context.Context, p postgres.SetBrainOutboxSeqParams) (int64, error) {
-	f.lastSeq = p
-	return 1, nil
-}
-
-func TestOutboxCursor(t *testing.T) {
-	if seq, err := New(&fakeQueries{seq: 41}).OutboxSeq(context.Background(), "b:1"); err != nil || seq != 41 {
-		t.Fatalf("seq: %d %v", seq, err)
+func TestTheGRPCEndpointIsStoredAndRead(t *testing.T) {
+	f := &fakeQueries{updates: 1, row: &postgres.BrainConnection{Endpoint: "b:1", GrpcEndpoint: "b:2"}}
+	c, _, err := New(f).Get(context.Background(), "b:1")
+	if err != nil || c.GRPCEndpoint != "b:2" {
+		t.Fatalf("read: %+v %v", c, err)
 	}
-	if seq, err := New(&fakeQueries{seqErr: pgx.ErrNoRows}).OutboxSeq(context.Background(), "b:1"); err != nil || seq != 0 {
-		t.Fatalf("no connection reads as 0: %d %v", seq, err)
+	if _, err = New(f).Create(context.Background(), assistantModel.Connection{Endpoint: "b:1", GRPCEndpoint: "b:2"}); err != nil || f.lastMake.GrpcEndpoint != "b:2" {
+		t.Fatalf("create: %+v %v", f.lastMake, err)
 	}
-	f := &fakeQueries{}
-	if err := New(f).SetOutboxSeq(context.Background(), "b:1", 42); err != nil || f.lastSeq.OutboxSeq != 42 || f.lastSeq.Endpoint != "b:1" {
-		t.Fatalf("set: %v %+v", err, f.lastSeq)
+	ok, err := New(f).SetGRPCEndpoint(context.Background(), "b:1", "b:3", time.Unix(5, 0))
+	if err != nil || !ok || f.lastGRPC.Endpoint != "b:1" || f.lastGRPC.GrpcEndpoint != "b:3" || !f.lastGRPC.UpdatedAt.Equal(time.Unix(5, 0)) {
+		t.Fatalf("set: %v %v %+v", ok, err, f.lastGRPC)
 	}
 }

@@ -1,9 +1,6 @@
 package assistant
 
-import (
-	"encoding/json"
-	"testing"
-)
+import "testing"
 
 func TestGraderRunsNeverCountInStatistics(t *testing.T) {
 	if !ExcludeRun(RoleGrader) {
@@ -13,26 +10,6 @@ func TestGraderRunsNeverCountInStatistics(t *testing.T) {
 		if !ExcludeRun(role) {
 			t.Fatalf("no run is a participant, %q was counted", role)
 		}
-	}
-}
-
-func TestAccessIsAnOpenUnion(t *testing.T) {
-	// A kind the platform has never heard of survives a round trip untouched: no switch rejects it in storage.
-	in := `{"visual":{"device":"web","channel":"vnc"},"vpn":{"entry":"[Interface]"}}`
-	var a Access
-	if err := json.Unmarshal([]byte(in), &a); err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := a["visual"]; !ok || len(a) != 2 {
-		t.Fatalf("%v", a)
-	}
-	out, err := json.Marshal(a)
-	if err != nil || string(out) != in {
-		t.Fatalf("%s %v", out, err)
-	}
-	raw, _ := json.Marshal(VPNAccess("cfg"))
-	if string(raw) != `{"vpn":{"entry":"cfg"}}` {
-		t.Fatalf("%s", raw)
 	}
 }
 

@@ -29,25 +29,21 @@ func labImage() string {
 type provideRig struct {
 	*runRig
 	brain   *outboxBrain
-	cursor  *memCursor
 	subject uuid.UUID
 }
 
 func newProvideRig(t *testing.T, mutate func(*assistant.Dependencies), frames ...outboxFrame) *provideRig {
 	t.Helper()
-	cursor := &memCursor{}
 	r := newRunRig(t, func(d *assistant.Dependencies) {
-		d.Cursor = cursor
 		d.WatchMin, d.WatchMax, d.AnswerPause = 5*time.Millisecond, 20*time.Millisecond, time.Millisecond
 		if mutate != nil {
 			mutate(d)
 		}
 	})
-	b := &outboxBrain{frames: frames}
-	r.fake.Assistant = b.handler()
+	b := &outboxBrain{t: t, fake: r.fake, frames: frames}
 	subject := uuid.Must(uuid.NewV7())
 	r.runs.users[subject] = runActor.UserID
-	return &provideRig{runRig: r, brain: b, cursor: cursor, subject: subject}
+	return &provideRig{runRig: r, brain: b, subject: subject}
 }
 
 func (p *provideRig) frame(seq int64, id, body string) outboxFrame {
@@ -61,6 +57,7 @@ func (p *provideRig) task(subject uuid.UUID, image string) string {
 // serve runs the outbox of the rig until stop.
 func (p *provideRig) serve(t *testing.T) {
 	t.Helper()
+	p.brain.push()
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { defer close(done); p.uc.WatchOutbox(ctx) }()
@@ -97,8 +94,8 @@ func TestProvideLabClaimsThenTheDriverAnswersTheDeviceAndAnAccess(t *testing.T) 
 	p.brain.frames = []outboxFrame{p.frame(1, "r1", p.task(p.subject, labImage()))}
 	p.labs.readyAfter = 2
 	p.serve(t)
-	// claimed at once: the cursor moves and the lab row is there, with no answer yet
-	eventually(t, "the cursor to move", func() bool { return p.cursor.get() == 1 })
+	// claimed at once: the lab row is there, with no answer yet
+	eventually(t, "the lab row", func() bool { return p.runs.LabCount() == 1 })
 	if lab := p.lab(t); lab.RequestID != "r1" || lab.State != assistantModel.RunStarting || lab.Answered {
 		t.Fatalf("%+v", lab)
 	}
@@ -106,16 +103,8 @@ func TestProvideLabClaimsThenTheDriverAnswersTheDeviceAndAnAccess(t *testing.T) 
 		t.Fatal("not answered before the lab is ready")
 	}
 	p.drive(t)
-	var got struct {
-		Result struct {
-			DeviceRef string                            `json:"device_ref"`
-			Access    map[string]struct{ Entry string } `json:"access"`
-		}
-	}
-	if err := json.Unmarshal([]byte(p.answeredOnce(t, "r1")), &got); err != nil {
-		t.Fatal(err)
-	}
-	if got.Result.DeviceRef != runDeploy.String() || !strings.Contains(got.Result.Access["vpn"].Entry, "PrivateKey = run-key") {
+	got := deviceAnswer(t, p.answeredOnce(t, "r1"))
+	if got.Device.DeviceRef != runDeploy.String() || !strings.Contains(got.Device.Access.Vpn.Entry, "PrivateKey = run-key") || got.Device.Access.Vpn.Addr != "" {
 		t.Fatalf("%v", p.brain.answered("r1"))
 	}
 	if p.labs.deployOwner != runActor.UserID || p.labs.deployLen != 0 {
@@ -137,7 +126,7 @@ func TestProvideLabAuthorizesTheTaskAgainstTheSubjectsUser(t *testing.T) {
 		p.users.users[runActor.UserID] = userModel.User{ID: runActor.UserID, Role: rbac.RoleAdmin, Status: userModel.UserStatusActive}
 		p.brain.frames = []outboxFrame{p.frame(1, "r1", p.task(p.subject, labImage()))}
 		p.serve(t)
-		eventually(t, "the cursor to move", func() bool { return p.cursor.get() == 1 })
+		eventually(t, "the lab row", func() bool { return p.runs.LabCount() == 1 })
 		if len(p.labs.authorized) != 1 || p.labs.authorized[0].UserID != runActor.UserID || p.labs.authorized[0].Role != rbac.RoleAdmin {
 			t.Fatalf("%+v", p.labs.authorized)
 		}
@@ -200,7 +189,6 @@ func TestProvideLabRefusals(t *testing.T) {
 			if got := refusalCode(t, p.answeredOnce(t, "r1")); got != c.code {
 				t.Fatalf("%s", p.brain.answered("r1")[0])
 			}
-			eventually(t, "the cursor to move", func() bool { return p.cursor.get() == 1 })
 		})
 	}
 }
@@ -250,7 +238,7 @@ func TestProvideDataStaysFastWhileALabIsComingUp(t *testing.T) {
 	p.brain.frames = []outboxFrame{p.frame(1, "r1", p.task(p.subject, labImage())), data}
 	p.serve(t)
 	p.drive(t)
-	eventually(t, "both requests read and the data answered", func() bool { return p.cursor.get() == 2 && len(p.brain.answered("d1")) == 1 })
+	eventually(t, "both requests read and the data answered", func() bool { return p.runs.LabCount() == 1 && len(p.brain.answered("d1")) == 1 })
 	if len(p.brain.answered("r1")) != 0 || p.lab(t).State != assistantModel.RunStarting {
 		t.Fatal("the lab is still coming up and its request still waits")
 	}
@@ -261,16 +249,13 @@ func TestARequestSeenAgainFindsItsLabInsteadOfMakingAnother(t *testing.T) {
 	p.brain.frames = []outboxFrame{p.frame(1, "r1", p.task(p.subject, labImage()))}
 	p.labs.readyAfter = 1 << 30
 	p.serve(t)
-	eventually(t, "the cursor to move", func() bool { return p.cursor.get() == 1 })
-	// the cursor write was lost, so the brain sends the request again
-	p.cursor.mu.Lock()
-	p.cursor.seq = 0
-	p.cursor.mu.Unlock()
-	p.brain.mu.Lock()
-	p.brain.frames = append(p.brain.frames, p.frame(2, "r2", p.task(p.subject, labImage())))
-	p.brain.mu.Unlock()
-	// a dropped stream reconnects and reads from the cursor again
-	eventually(t, "the stream to read the request twice", func() bool { return p.brain.watchCount() >= 2 && p.cursor.get() >= 1 })
+	eventually(t, "the lab row", func() bool { return p.runs.LabCount() == 1 })
+	// the request is unanswered: a dropped stream is reopened and the brain sends it again
+	p.brain.fake.Outbox.DropStream()
+	eventually(t, "the stream to be reopened", func() bool { return p.brain.watchCount() >= 2 })
+	p.brain.fake.Outbox.Resend()
+	p.brain.add(p.frame(2, "r2", p.task(p.subject, labImage())))
+	eventually(t, "the next request read", func() bool { return p.runs.LabCount() == 2 })
 	time.Sleep(50 * time.Millisecond)
 	p.runs.mu.Lock()
 	labsOfR1 := 0
@@ -354,9 +339,10 @@ func TestTheUsersCapAlsoCountsTheirBrainLabs(t *testing.T) {
 func TestAnUnansweredLabIsClosedAndTornDownWhileTheBrainIsDown(t *testing.T) {
 	t.Run("the lab is gone", func(t *testing.T) {
 		p := newProvideRig(t, nil)
-		p.brain.answerCodes = repeatStatus(500, 200)
 		p.brain.frames = []outboxFrame{p.frame(1, "r1", p.task(p.subject, labImage()))}
 		p.serve(t)
+		eventually(t, "the lab row", func() bool { return p.runs.LabCount() == 1 })
+		p.brain.down()
 		p.drive(t)
 		eventually(t, "the lab to be running, unanswered", func() bool {
 			l := p.runs.LabCount() == 1 && p.lab(t).State == assistantModel.RunRunning
@@ -373,9 +359,10 @@ func TestAnUnansweredLabIsClosedAndTornDownWhileTheBrainIsDown(t *testing.T) {
 	})
 	t.Run("past its expiry the answer is no longer tried", func(t *testing.T) {
 		p := newProvideRig(t, nil)
-		p.brain.answerCodes = repeatStatus(500, 200)
 		p.brain.frames = []outboxFrame{p.frame(1, "r1", p.task(p.subject, labImage()))}
 		p.serve(t)
+		eventually(t, "the lab row", func() bool { return p.runs.LabCount() == 1 })
+		p.brain.down()
 		p.drive(t)
 		eventually(t, "the lab to be running, unanswered", func() bool {
 			return p.runs.LabCount() == 1 && p.lab(t).State == assistantModel.RunRunning
@@ -387,9 +374,10 @@ func TestAnUnansweredLabIsClosedAndTornDownWhileTheBrainIsDown(t *testing.T) {
 	})
 	t.Run("an answer that keeps failing is given up after the window", func(t *testing.T) {
 		p := newProvideRig(t, nil)
-		p.brain.answerCodes = repeatStatus(500, 400)
 		p.brain.frames = []outboxFrame{p.frame(1, "r1", p.task(p.subject, labImage()))}
 		p.serve(t)
+		eventually(t, "the lab row", func() bool { return p.runs.LabCount() == 1 })
+		p.brain.down()
 		p.drive(t)
 		eventually(t, "the lab to be running, unanswered", func() bool {
 			return p.runs.LabCount() == 1 && p.lab(t).State == assistantModel.RunRunning
@@ -404,12 +392,44 @@ func TestAnUnansweredLabIsClosedAndTornDownWhileTheBrainIsDown(t *testing.T) {
 	})
 }
 
-func repeatStatus(status, n int) []int {
-	out := make([]int, n)
-	for i := range out {
-		out[i] = status
+// deviceResult is a DeviceResult answer as proto-JSON.
+type deviceResult struct {
+	Device struct {
+		DeviceRef string `json:"device_ref"`
+		Access    struct {
+			Vpn struct{ Entry, Addr string }
+		}
 	}
-	return out
+}
+
+func deviceAnswer(t *testing.T, body string) deviceResult {
+	t.Helper()
+	var got deviceResult
+	if err := json.Unmarshal([]byte(body), &got); err != nil {
+		t.Fatalf("%s: %v", body, err)
+	}
+	return got
+}
+
+// The brain re-sends only what it has no answer for: an answer lost with a stream is sent again, with the same access.
+func TestALabAnswerTheBrainNeverGotIsSentAgainWhenItAsksAgain(t *testing.T) {
+	p := newProvideRig(t, nil)
+	p.brain.fake.Outbox.LoseAnswers(1)
+	p.brain.frames = []outboxFrame{p.frame(1, "r1", p.task(p.subject, labImage()))}
+	p.serve(t)
+	p.drive(t)
+	eventually(t, "the answer to be sent (and lost)", func() bool { return p.runs.LabCount() == 1 && p.lab(t).Answered })
+	if len(p.brain.answered("r1")) != 0 {
+		t.Fatal("the brain lost the first answer")
+	}
+	p.brain.fake.Outbox.DropStream() // the brain sends the unanswered request again on the new stream
+	got := deviceAnswer(t, p.answeredOnce(t, "r1"))
+	if !strings.Contains(got.Device.Access.Vpn.Entry, "PrivateKey = run-key") || got.Device.DeviceRef != runDeploy.String() {
+		t.Fatalf("%v", p.brain.answered("r1"))
+	}
+	if n := p.labs.count("deploy"); n != 1 {
+		t.Fatalf("one lab for the request: %d", n)
+	}
 }
 
 func (p *provideRig) deviceFrame(seq int64, id, deviceType, body string) outboxFrame {
@@ -435,29 +455,11 @@ func TestProvideDeviceToolsAnswersTheVPNAccessOfTheRunAndPlacesTheDevice(t *test
 	p.labs.readyAfter = 1
 	p.serve(t)
 	p.drive(t)
-	var got struct {
-		Result struct {
-			DeviceRef string                     `json:"device_ref"`
-			Access    map[string]json.RawMessage `json:"access"`
-		}
-	}
-	if err := json.Unmarshal([]byte(p.answeredOnce(t, "r1")), &got); err != nil {
-		t.Fatal(err)
-	}
-	var vpn struct{ Entry string }
-	_ = json.Unmarshal(got.Result.Access["vpn"], &vpn)
-	if got.Result.DeviceRef != runDeploy.String() || len(got.Result.Access) != 2 || vpn.Entry == "" {
+	got := deviceAnswer(t, p.answeredOnce(t, "r1"))
+	if got.Device.DeviceRef != runDeploy.String() || got.Device.Access.Vpn.Entry == "" {
 		t.Fatalf("the lab and the VPN entry of the run's client: %v", p.brain.answered("r1"))
 	}
-	var raw struct {
-		Result struct {
-			Access struct {
-				Addr string `json:"addr"`
-			} `json:"access"`
-		} `json:"result"`
-	}
-	_ = json.Unmarshal([]byte(p.brain.answered("r1")[0]), &raw)
-	if raw.Result.Access.Addr != "10.8.4.10:9099" {
+	if got.Device.Access.Vpn.Addr != "10.8.4.10:9099" {
 		t.Fatalf("the runner's address on the control gateway: %v", p.brain.answered("r1"))
 	}
 	if p.labs.count("deploy-tools") != 1 || p.labs.count("deploy") != 1 {

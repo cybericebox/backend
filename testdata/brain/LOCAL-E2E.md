@@ -1,28 +1,32 @@
 # Running the daemon against cyber-brain locally
 
 A recipe for an end-to-end run on one machine: the daemon (host process), PostgreSQL and a laboratory from the local stand, and a
-brain process. The wire it speaks is pinned in `cyber-brain/docs/daemon-interface.md`; the samples are in
-[`testdata/brain`](README.md). What is **not** verified here is marked.
+brain process. The daemon speaks two transports to the brain: **HTTP/SSE** for the authoring chat (`/v1/assistant/*`) and the
+enrollment and renewal (`POST /v1/enroll`, `POST /v1/renew`), and **gRPC** for the machine control plane, whose contract is
+[`pkg/brainapi/v1/brain.proto`](../../pkg/brainapi/v1/brain.proto) (read its comments: error model, idempotency, deadlines,
+keepalive, sizes, stream semantics). The samples are in [`testdata/brain`](README.md). What is **not** verified here is marked.
 
 ## Who dials whom
 
 ```
- browser --cookie--> daemon --mTLS HTTP/SSE--> brain      (the daemon is ALWAYS the client of the brain)
-                        |                        |
+ browser --cookie--> daemon --mTLS HTTP/SSE--> brain :8099  chat, enroll, renew
+                        |   \----mTLS gRPC-----> brain :9099  runs, outbox, statistics, archives, opponents
+                        |                        |            (the daemon is ALWAYS the client of the brain)
                         | gRPC mTLS              | WireGuard (the run's own client, per run)
                         v                        v
                     laboratory agent -----> lab network <-- the brain reaches the tools device runner at ONE address (a /32 on `ctl`)
 ```
 
-- **The daemon dials the brain**, never the reverse. Enrollment, `POST /v1/runs` (StartRun), materials, verdicts, stop, the run
-  and chat event streams, `GET /v1/requests/watch` (the brain's outbox: `provide_lab`, `provide_device`, `provide_data`),
-  `POST /v1/requests/{id}/answer`, `POST /v1/data` (PushData) and `POST /v1/runs/{id}/lab_facts` are all daemon-to-brain HTTP.
-  The brain must be reachable from the daemon; it never calls the daemon.
+- **The daemon dials the brain**, never the reverse. Over HTTP: the enrollment, the renewal and the chat (with its event
+  stream). Over gRPC, with the same client certificate and the same pinned brain CA: `UploadMaterials`, `StartRun`, `RunEvents`,
+  `PostVerdict`, `PostLabFacts`, `StopRun`, `GetOpponent`, `PushData`, `UploadTaskArchive` and the outbox, one bidirectional
+  `Requests` stream (`provide_lab`, `provide_device`, `provide_data`, `provide_task` come down, the answers go up). The brain
+  must be reachable from the daemon on both ports; it never calls the daemon.
 - **The brain dials the lab**: `access.vpn.entry` of StartRun is the full WireGuard config of a client the daemon made for that run
   (its own key, revoked at teardown). The brain brings the tunnel up and speaks to the lab as a participant. For an opponent,
-  `access.addr` is `ip:port` of the runner agent on the tools device, on the hidden control gateway `ctl`; the run's tunnel is
+  `access.vpn.addr` is `ip:port` of the runner agent on the tools device, on the hidden control gateway `ctl`; the run's tunnel is
   restricted to exactly that one address. The runner authenticates the brain's per-run credential (`EDA_RUN_ID` and `EDA_TRUST_CA`
-  are set on the tools device by the daemon). So the machine that runs the brain must reach the **laboratory's VPN endpoint** (the
+  come in the `deploy.env` of the brain's `GetOpponent` spec; with the fallback image the daemon sets them). So the machine that runs the brain must reach the **laboratory's VPN endpoint** (the
   UDP address the agent publishes), and WireGuard must be usable there (root or CAP_NET_ADMIN; a rootless run is not verified).
 - The daemon talks to the laboratory agent over gRPC mTLS as for any lab; the brain never touches infrastructure.
 
@@ -68,10 +72,11 @@ Add to the daemon's environment file (names and defaults are in `internal/config
 
 | Variable | Value |
 |---|---|
-| `BRAIN_ENDPOINT` | `localhost:8099` (host:port of the brain, HTTPS; empty switches the assistant off) |
+| `BRAIN_ENDPOINT` | `localhost:8099` (host:port of the brain's HTTPS endpoint: chat, enrollment, renewal; empty switches the assistant off) |
+| `BRAIN_GRPC_ENDPOINT` | `localhost:9099` (host:port of the brain's gRPC control plane; stored with the connection; empty: the chat works, runs, outbox and statistics are off) |
 | `BRAIN_ENROLLMENT_TOKEN` | the token above (read once; ignored after the first enrollment) |
 | `BRAIN_CA_FILE` | `/tmp/brain-ca.crt` (bootstrap trust for the first enrollment; empty: the system roots) |
-| `BRAIN_TOOLS_IMAGE` | the platform tools image (no default; without it `provide_device` for tools and opponent runs answer `not_supported_yet`) |
+| `BRAIN_TOOLS_IMAGE` | **deprecated**: the fallback tools image, used only while the brain answers `GetOpponent` with `Unimplemented` (and for a `provide_device` tools lab). No default |
 | `BRAIN_RUN_GRACE` | `60s` (how long an unreachable brain is waited for before a run fails) |
 | `BRAIN_RUN_MAX_DURATION` | `30m` (the longest a run may last, its lab start included) |
 | `BRAIN_OPPONENT_ACTIONS`, `BRAIN_OPPONENT_TOKENS`, `BRAIN_OPPONENT_SECONDS` | `100`, `500000`, `1200` (the budget every opponent run gets; the author never sets one) |
@@ -100,7 +105,10 @@ The log says whether it enrolled. To enroll again (a new token, a new brain CA):
 ## 5. Check the connection
 
 - The assistant routes answer `503` until enrolled; `GET /api/assistant/ideas` (signed in as an author) answers once it works.
-- In the brain's log: one `POST /v1/enroll`, then mTLS requests; `GET /v1/requests/watch` stays open (the daemon's outbox stream).
+- In the brain's log: one `POST /v1/enroll`, then mTLS requests; the gRPC `Requests` stream stays open (the daemon's outbox; the
+  leader replica only). The brain's first frame on it is a `StreamHello{max_inflight}`: the daemon handles at most that many
+  requests at once, answers by `request_id` on whichever stream is open, and after a reconnect handles again what the brain re-sends
+  (there is no cursor; a request re-sent while it is being handled is handled once).
 
 ## 6. Statistics (PushData)
 
@@ -111,9 +119,10 @@ PUT /api/admin/assistant/statistics/defaults/events        {"Mode": "continuous"
 PUT /api/admin/assistant/statistics/events/{eventID}       {"Mode": "default"}       # default follows the platform
 ```
 
-`final` reports an event once it has ended, `continuous` while it runs. The leader pushes every hour; the brain can also ask for
-fresh figures with a `provide_data` request in its outbox (answered at once). The effort figures need the laboratory's activity
-reports (`activityReports.enabled` in the laboratory chart); without them they are `null`. Before enabling this on a real
+`final` reports an event once it has ended, `continuous` while it runs. The leader pushes every hour (`PushData`: one backend
+`Aggregate` JSON object per `TaskAggregate.json`, batches split by size under 16 MiB, rejected items logged); the brain can also ask for
+fresh figures with a `provide_data` request in its outbox (answered at once with `data_json`). The effort figures need the laboratory's
+activity reports (`activityReports.enabled` in the laboratory chart); without them they are `null` (in `PostLabFacts`: unset). Before enabling this on a real
 installation the Privacy Policy wording gets its legal review.
 
 ## 7. Grader and opponent runs
@@ -121,24 +130,32 @@ installation the Privacy Policy wording gets its legal review.
 1. Import `testdata/brain/tasks/web-dynamic` (zip the folder with `exercise.yaml` at its root; `POST /api/exercises/import` or the
    exercises site) and publish it. The grader needs a working lab (an image the cluster can pull, here `nginx:1.27`).
 2. Start a grader run on its variant (`POST /api/exercises/{id}/versions/{versionID}/variants/{variantID}/measure`). The daemon
-   deploys a test lab, makes the run's own VPN client, uploads the materials (`POST /v1/runs/{id}/materials`), then `POST /v1/runs`.
-   It follows the run's events, judges each `answer` event with the platform checker and replies with `POST /v1/runs/{id}/verdict`
-   (only `correct`, never the expected value); at the end it sends `lab_facts` and destroys the lab.
-3. For an opponent import and publish `testdata/brain/tasks/opponent-lab`, set `BRAIN_TOOLS_IMAGE`, and try an opponent
-   (`POST /api/exercises/{id}/versions/{versionID}/variants/{variantID}/opponents/{index}/try`). The lab is deployed with the tools
-   device (the attacker at the foothold switch, the defender beside the devices it operates) and the control gateway; `StartRun`
-   carries `access: {vpn, addr}`. `testdata/brain/wire/start_run_opponent.json` is the exact body.
+   deploys a test lab, makes the run's own VPN client, streams the materials (`UploadMaterials`: the meta with `task.json` inline,
+   the total size and the sha256, then the files in chunks of at most 1 MiB), then `StartRun`. It follows `RunEvents` (reopened
+   with `after_seq` = the last stored event; a closed stream is not the end of the run, only `run_finished` is; `NotFound` ends
+   the run as `brain_failed`), judges each `answer` event with the platform checker and replies with `PostVerdict` keyed by
+   `(run_id, answer_seq)` (only `correct`, never the expected value); at the end it sends `PostLabFacts` and destroys the lab.
+3. For an opponent import and publish `testdata/brain/tasks/opponent-lab` and try an opponent
+   (`POST /api/exercises/{id}/versions/{versionID}/variants/{variantID}/opponents/{index}/try`). The daemon asks the brain
+   `GetOpponent(run_id, role, band, task_ref, version)` and deploys the tools device from the spec: `deploy.image` and `deploy.env`
+   as given, `deploy.resources` as a size hint clamped to the lab's device limits (the run is refused when it cannot fit at half of
+   the hint or more), and `deploy.pull` as a pull secret of that lab only (never stored or logged). The tools device sits at the
+   foothold switch (attacker) or beside the devices it operates (defender), with the control gateway. `StartRun` carries the
+   `spec_id` and the filled inputs: `access.vpn{entry, addr}` (VPN_ENTRY, CONTROL_ADDR) and `foothold` (FOOTHOLD).
+   `testdata/brain/wire/start_run_opponent.json` is the exact message. A brain that answers `GetOpponent` with `Unimplemented`
+   gets the deprecated fallback: `BRAIN_TOOLS_IMAGE`, no `spec_id`.
 4. A run the brain does not reach, or that outlives `BRAIN_RUN_MAX_DURATION`, ends as failed; the daemon always revokes the run's
    client and destroys the lab, and never waits on the brain to do it.
 
 ## 8. Without the daemon: replaying the samples
 
-`testdata/brain/wire/*.json` are the exact bodies. A PushData receiver can be checked with a client certificate from your own
-enrollment, for example:
+`testdata/brain/wire/*.json` are the exact messages as proto-JSON (protojson with the proto field names). A gRPC receiver can be
+checked with a client certificate from your own enrollment and `grpcurl` (not pinned in this repository), for example:
 
 ```sh
-curl --cacert /tmp/brain-ca.crt --cert client.crt --key client.key -H 'Content-Type: application/json' \
-  --data @testdata/brain/wire/push_data_web_dynamic.json https://localhost:8099/v1/data
+grpcurl -cacert /tmp/brain-ca.crt -cert client.crt -key client.key -import-path pkg/brainapi/v1 -proto brain.proto \
+  -d @ localhost:9099 cybericebox.brain.v1.Brain/PushData < testdata/brain/wire/push_data_web_dynamic.json
 ```
 
-Run events and the outbox are Server-Sent Events: `id: <seq>`, `event: <type>`, `data: <json>`, resumed with `?after=<seq>`.
+`PushData` items carry the aggregate as bytes, so in proto-JSON `aggregates[].json` is base64 of the backend's `Aggregate` JSON
+(`jq -r '.aggregates[0].json | @base64d'` shows it).

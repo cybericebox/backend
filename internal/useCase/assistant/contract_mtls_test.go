@@ -43,10 +43,6 @@ func TestTheRealBrainInMutualTLSMode(t *testing.T) {
 		t.Fatalf("enrolled: %v %v %+v", found, err, conn)
 	}
 
-	// 2. the static grader flow over mutual TLS, with no reverse proxy in between
-	staticMaterials(r)
-	staticGraderRun(t, r)
-
 	// 3. the one-time token works once
 	again := newRig(t, func(d *assistant.Dependencies) { d.Config = config })
 	if enrolled, err := again.uc.BootstrapBrain(ctx); err == nil || enrolled {
@@ -63,5 +59,4 @@ func TestTheRealBrainInMutualTLSMode(t *testing.T) {
 	if after.Tenant != "daemon" || after.CertPEM == conn.CertPEM {
 		t.Fatalf("the certificate is new and names the same tenant: %q", after.Tenant)
 	}
-	staticGraderRun(t, r)
 }

@@ -6,9 +6,9 @@ WHERE endpoint = sqlc.arg(endpoint);
 
 -- name: CreateBrainConnection :execrows
 -- A freshly enrolled connection. Two replicas enrolling at once: the first row stays (0 rows for the second).
-INSERT INTO brain_connections (endpoint, tenant, client_cert_pem, client_key_ciphertext, ca_pem, cert_not_after,
+INSERT INTO brain_connections (endpoint, grpc_endpoint, tenant, client_cert_pem, client_key_ciphertext, ca_pem, cert_not_after,
                                created_at, updated_at)
-VALUES (sqlc.arg(endpoint), sqlc.arg(tenant), sqlc.arg(client_cert_pem), sqlc.arg(client_key_ciphertext),
+VALUES (sqlc.arg(endpoint), sqlc.arg(grpc_endpoint), sqlc.arg(tenant), sqlc.arg(client_cert_pem), sqlc.arg(client_key_ciphertext),
         sqlc.arg(ca_pem), sqlc.arg(cert_not_after), sqlc.arg(created_at), sqlc.arg(updated_at))
 ON CONFLICT (endpoint) DO NOTHING;
 
@@ -23,15 +23,10 @@ SET client_cert_pem       = sqlc.arg(client_cert_pem),
 WHERE endpoint = sqlc.arg(endpoint)
   AND tenant = sqlc.arg(tenant);
 
--- name: GetBrainOutboxSeq :one
--- The last outbox request that was answered.
-SELECT outbox_seq
-FROM brain_connections
-WHERE endpoint = sqlc.arg(endpoint);
-
--- name: SetBrainOutboxSeq :execrows
--- Moves the outbox cursor forward; it never goes back.
+-- name: SetBrainConnectionGRPCEndpoint :execrows
+-- The gRPC endpoint of the control plane changed in the configuration (BRAIN_GRPC_ENDPOINT); the replicas rebuild their client.
 UPDATE brain_connections
-SET outbox_seq = sqlc.arg(outbox_seq)
+SET grpc_endpoint = sqlc.arg(grpc_endpoint),
+    updated_at    = sqlc.arg(updated_at)
 WHERE endpoint = sqlc.arg(endpoint)
-  AND outbox_seq < sqlc.arg(outbox_seq);
+  AND grpc_endpoint <> sqlc.arg(grpc_endpoint);

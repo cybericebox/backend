@@ -4,177 +4,147 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
-	"strconv"
-	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/gofrs/uuid"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/cybericebox/backend/internal/delivery/infrastructure/brain/brainfake"
+	assistantModel "github.com/cybericebox/backend/internal/model/assistant"
 	"github.com/cybericebox/backend/internal/useCase/assistant"
+	brainapiv1 "github.com/cybericebox/backend/pkg/brainapi/v1"
 )
 
-type memCursor struct {
-	mu  sync.Mutex
-	seq int64
-}
-
-func (c *memCursor) OutboxSeq(context.Context, string) (int64, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.seq, nil
-}
-
-func (c *memCursor) SetOutboxSeq(_ context.Context, _ string, seq int64) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if seq > c.seq {
-		c.seq = seq
-	}
-	return nil
-}
-
-func (c *memCursor) get() int64 { c.mu.Lock(); defer c.mu.Unlock(); return c.seq }
-
-// outboxBrain is the brain's side of the outbox: the requests it still holds, and what the platform answered.
-type outboxBrain struct {
-	mu          sync.Mutex
-	frames      []outboxFrame
-	answers     map[string][]string // request id -> bodies
-	afterSeen   []string
-	answerCodes []int // statuses to answer the next answers with (then 200)
-	watches     int
-	// archives are the task archives uploaded for a request (provide_task); archiveCodes the statuses the next uploads are answered with (then 202)
-	archives     map[string][]archiveUpload
-	archiveCodes []int
-}
-
-type archiveUpload struct {
-	Field, Filename, ContentType, RequestedWith string
-	Data                                        []byte
-}
-
+// outboxFrame is one request of the brain's outbox, written as the JSON of its kind: {"request_id", "type", ...the fields of the
+// kind} (provide_data names its tasks "task_refs"). It becomes a BrainRequest when the outbox serves it.
 type outboxFrame struct {
 	seq   int64
 	event string
 	data  string
 }
 
-func (b *outboxBrain) handler() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		switch {
-		case req.URL.Path == "/v1/requests/watch":
-			b.mu.Lock()
-			b.watches++
-			b.afterSeen = append(b.afterSeen, req.URL.Query().Get("after"))
-			frames := append([]outboxFrame(nil), b.frames...)
-			b.mu.Unlock()
-			after, _ := strconv.ParseInt(req.URL.Query().Get("after"), 10, 64)
-			w.Header().Set("Content-Type", "text/event-stream")
-			_, _ = io.WriteString(w, "event: heartbeat\ndata: {}\n\n")
-			for _, f := range frames {
-				if f.seq <= after {
-					continue
-				}
-				_, _ = fmt.Fprintf(w, "id: %d\nevent: %s\ndata: %s\n\n", f.seq, f.event, f.data)
-			}
-		case strings.HasPrefix(req.URL.Path, "/v1/requests/") && strings.HasSuffix(req.URL.Path, "/answer"):
-			id := strings.TrimSuffix(strings.TrimPrefix(req.URL.Path, "/v1/requests/"), "/answer")
-			body, _ := io.ReadAll(req.Body)
-			b.mu.Lock()
-			if b.answers == nil {
-				b.answers = map[string][]string{}
-			}
-			b.answers[id] = append(b.answers[id], string(body))
-			status := 0
-			if len(b.answerCodes) > 0 {
-				status, b.answerCodes = b.answerCodes[0], b.answerCodes[1:]
-			}
-			b.mu.Unlock()
-			if status != 0 {
-				brainfake.Fail(w, status, "x", "x")
-				return
-			}
-			_, _ = w.Write([]byte("{}"))
-		case strings.HasPrefix(req.URL.Path, "/v1/requests/") && strings.HasSuffix(req.URL.Path, "/archive") && req.Method == http.MethodPost:
-			id := strings.TrimSuffix(strings.TrimPrefix(req.URL.Path, "/v1/requests/"), "/archive")
-			upload := archiveUpload{RequestedWith: req.Header.Get("X-Requested-With")}
-			if err := req.ParseMultipartForm(64 << 20); err == nil && req.MultipartForm != nil {
-				for field, headers := range req.MultipartForm.File {
-					for _, h := range headers {
-						f, _ := h.Open()
-						data, _ := io.ReadAll(f)
-						_ = f.Close()
-						upload.Field, upload.Filename, upload.ContentType, upload.Data = field, h.Filename, h.Header.Get("Content-Type"), data
-					}
-				}
-			}
-			b.mu.Lock()
-			if b.archives == nil {
-				b.archives = map[string][]archiveUpload{}
-			}
-			status := http.StatusAccepted
-			if len(b.archiveCodes) > 0 {
-				status, b.archiveCodes = b.archiveCodes[0], b.archiveCodes[1:]
-			}
-			if status < 400 {
-				b.archives[id] = append(b.archives[id], upload)
-			}
-			b.mu.Unlock()
-			if status >= 400 {
-				brainfake.Fail(w, status, "x", "x")
-				return
-			}
-			w.WriteHeader(status)
-			_, _ = w.Write([]byte("{}"))
-		default:
-			brainfake.Fail(w, http.StatusNotFound, "not_found", "no route")
+// toRequest turns a frame into the BrainRequest of its type; an unknown type is a request of a kind the platform does not
+// know (no kind set).
+func toRequest(t *testing.T, f outboxFrame) *brainapiv1.BrainRequest {
+	t.Helper()
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(f.data), &fields); err != nil {
+		t.Fatalf("frame %q: %v", f.data, err)
+	}
+	var id, typ string
+	_ = json.Unmarshal(fields["request_id"], &id)
+	_ = json.Unmarshal(fields["type"], &typ)
+	delete(fields, "request_id")
+	delete(fields, "type")
+	if typ == "" {
+		typ = f.event
+	}
+	if refs, ok := fields["task_refs"]; ok {
+		fields["tasks"] = refs
+		delete(fields, "task_refs")
+	}
+	body, _ := json.Marshal(fields)
+	req := &brainapiv1.BrainRequest{}
+	switch typ {
+	case "provide_lab", "provide_device", "provide_data", "provide_task":
+		wrapped, _ := json.Marshal(map[string]json.RawMessage{"request_id": json.RawMessage(fmt.Sprintf("%q", id)), typ: body})
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(wrapped, req); err != nil {
+			t.Fatalf("frame %q: %v", f.data, err)
 		}
-	})
+	default:
+		req.RequestId = id
+	}
+	return req
 }
 
-func (b *outboxBrain) uploaded(id string) []archiveUpload {
+// outboxBrain is the brain's side of the outbox in the tests: the frames it serves (pushed to the fake's outbox when the
+// watcher starts, or at once when it runs) and what the platform answered, as proto-JSON.
+type outboxBrain struct {
+	t      *testing.T
+	fake   *brainfake.Fake
+	mu     sync.Mutex
+	frames []outboxFrame
+	pushed int
+}
+
+// push hands the frames not pushed yet to the fake's outbox.
+func (b *outboxBrain) push() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	return append([]archiveUpload(nil), b.archives[id]...)
+	for _, f := range b.frames[b.pushed:] {
+		b.fake.Outbox.Push(toRequest(b.t, f))
+	}
+	b.pushed = len(b.frames)
 }
 
-func (b *outboxBrain) watchCount() int { b.mu.Lock(); defer b.mu.Unlock(); return b.watches }
+// add serves more frames on the open stream.
+func (b *outboxBrain) add(frames ...outboxFrame) {
+	b.mu.Lock()
+	b.frames = append(b.frames, frames...)
+	b.mu.Unlock()
+	b.push()
+}
 
+func (b *outboxBrain) watchCount() int { return b.fake.Outbox.Streams() }
+
+// answered are the answers of a request as proto-JSON: {"request_id", "device"|"data_json"|"task_uploaded"|"error"}.
 func (b *outboxBrain) answered(id string) []string {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return append([]string(nil), b.answers[id]...)
+	var out []string
+	for _, a := range b.fake.Outbox.Answers(id) {
+		out = append(out, string(brainfake.WireJSON(a)))
+	}
+	return out
+}
+
+// uploaded is the task archive stored for a request (none or one: a repeat is AlreadyExists).
+func (b *outboxBrain) uploaded(id string) []*brainfake.Archive {
+	if a := b.fake.Archives.Uploaded(id); a != nil {
+		return []*brainfake.Archive{a}
+	}
+	return nil
+}
+
+// down breaks the outbox: the open stream ends and every new one is unusable (it does not start with the hello), so no answer
+// gets through.
+func (b *outboxBrain) down() {
+	before := b.fake.Outbox.Streams()
+	b.fake.Outbox.SkipHello(true)
+	b.fake.Outbox.DropStream()
+	// The platform has seen the end of the stream once it opens another (a send on a stream the brain has ended may still look
+	// sent to the platform: that is why the brain re-sends every unanswered request).
+	eventually(b.t, "the platform to reconnect", func() bool { return b.fake.Outbox.Streams() > before })
 }
 
 type outboxRig struct {
 	*rig
-	brain  *outboxBrain
-	cursor *memCursor
+	brain *outboxBrain
 }
 
 func newOutboxRig(t *testing.T, frames ...outboxFrame) *outboxRig {
 	t.Helper()
-	cursor := &memCursor{}
+	return newOutboxRigWith(t, nil, frames...)
+}
+
+func newOutboxRigWith(t *testing.T, mutate func(*assistant.Dependencies), frames ...outboxFrame) *outboxRig {
+	t.Helper()
 	r := newRig(t, func(d *assistant.Dependencies) {
-		d.Cursor = cursor
 		d.WatchMin, d.WatchMax, d.AnswerPause = 5*time.Millisecond, 20*time.Millisecond, time.Millisecond
+		if mutate != nil {
+			mutate(d)
+		}
 	})
 	if _, err := r.uc.BootstrapBrain(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	b := &outboxBrain{frames: frames}
-	r.fake.Assistant = b.handler()
-	return &outboxRig{rig: r, brain: b, cursor: cursor}
+	return &outboxRig{rig: r, brain: &outboxBrain{t: t, fake: r.fake, frames: frames}}
 }
 
 // run holds the outbox until stop is called (the leadership lost).
 func (o *outboxRig) run(t *testing.T) (stop func()) {
 	t.Helper()
+	o.brain.push()
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { defer close(done); o.uc.WatchOutbox(ctx) }()
@@ -220,107 +190,162 @@ func refusalCode(t *testing.T, body string) string {
 	return got.Error.Code
 }
 
-func TestALabFromADraftAndAnyDeviceAreAnsweredNotSupportedYetAndTheCursorMoves(t *testing.T) {
-	draft := outboxFrame{seq: 1, event: "provide_lab", data: `{"request_id":"r1","type":"provide_lab","subject":"` + uuid.Nil.String() + `","source":{"draft":"d-1"}}`}
-	o := newOutboxRig(t, draft, req(2, "r2", "provide_device"))
+func TestALabFromADraftAndAnyDeviceAreAnsweredNotSupportedYet(t *testing.T) {
+	draft := outboxFrame{event: "provide_lab", data: `{"request_id":"r1","type":"provide_lab","subject":"x","source":{"draft":"d-1"}}`}
+	device := outboxFrame{event: "provide_device", data: `{"request_id":"r2","type":"provide_device","device_type":"configured_host"}`}
+	o := newOutboxRig(t, draft, device)
 	o.run(t)
-	eventually(t, "both answered and the cursor moved", func() bool { return o.cursor.get() == 2 })
+	eventually(t, "both answered", func() bool { return len(o.brain.answered("r1")) == 1 && len(o.brain.answered("r2")) == 1 })
 	for _, id := range []string{"r1", "r2"} {
-		answers := o.brain.answered(id)
-		if len(answers) != 1 || refusalCode(t, answers[0]) != "not_supported_yet" {
+		if answers := o.brain.answered(id); refusalCode(t, answers[0]) != "not_supported_yet" {
 			t.Fatalf("%s: %v", id, answers)
 		}
 	}
 }
 
-func TestAnUnknownRequestTypeIsRefusedAndTheStreamGoesOn(t *testing.T) {
-	o := newOutboxRig(t, req(1, "r1", "teleport"), outboxFrame{seq: 2, event: "x", data: "{not json"}, req(3, "r3", "provide_lab"))
+func TestARequestOfAnUnknownKindIsRefusedAndTheStreamGoesOn(t *testing.T) {
+	o := newOutboxRig(t, req(1, "r1", "teleport"), req(2, "r2", "provide_lab"))
 	o.run(t)
-	eventually(t, "the last request answered", func() bool { return o.cursor.get() == 3 })
-	if a := o.brain.answered("r1"); len(a) != 1 || refusalCode(t, a[0]) != "unsupported_request" {
-		t.Fatalf("unknown type: %v", a)
-	}
-	if a := o.brain.answered("r3"); len(a) != 1 {
-		t.Fatalf("the request after the broken one was answered: %v", a)
+	eventually(t, "both answered", func() bool { return len(o.brain.answered("r1")) == 1 && len(o.brain.answered("r2")) == 1 })
+	if a := o.brain.answered("r1"); refusalCode(t, a[0]) != "unsupported_request" {
+		t.Fatalf("unknown kind: %v", a)
 	}
 }
 
-func TestTheStreamResumesAfterTheStoredCursor(t *testing.T) {
-	o := newOutboxRig(t, req(5, "old", "provide_lab"), req(6, "new", "provide_lab"))
-	o.cursor.seq = 5
+func TestARequestWithoutAUsableIDIsSkippedAndTheStreamGoesOn(t *testing.T) {
+	o := newOutboxRig(t, req(1, "", "provide_lab"), req(2, "bad/id with spaces", "provide_lab"), req(3, "r3", "provide_lab"))
 	o.run(t)
-	eventually(t, "the new request answered", func() bool { return o.cursor.get() == 6 })
-	o.brain.mu.Lock()
-	first := o.brain.afterSeen[0]
-	o.brain.mu.Unlock()
-	if first != "5" {
-		t.Fatalf("resumed with after=%s", first)
-	}
-	if len(o.brain.answered("old")) != 0 {
-		t.Fatal("an answered request must not be answered again after a restart")
+	eventually(t, "the request after the unusable ones", func() bool { return len(o.brain.answered("r3")) == 1 })
+	if all := o.brain.fake.Outbox.AllAnswers(); len(all) != 1 {
+		t.Fatalf("nothing can answer a request without an id: %v", all)
 	}
 }
 
-func TestAnAnswerIsRetriedOnServerErrorsAndSentOnce(t *testing.T) {
+// The first frame of the stream is the StreamHello; a stream that starts otherwise is dropped and opened again.
+func TestAStreamThatDoesNotStartWithTheHelloIsDroppedAndReopened(t *testing.T) {
 	o := newOutboxRig(t, req(1, "r1", "provide_lab"))
-	o.brain.answerCodes = []int{http.StatusServiceUnavailable, http.StatusBadGateway}
+	o.brain.fake.Outbox.SkipHello(true)
 	o.run(t)
-	eventually(t, "answered", func() bool { return o.cursor.get() == 1 })
-	if n := len(o.brain.answered("r1")); n != 3 {
-		t.Fatalf("two failures and one success: %d attempts", n)
+	eventually(t, "several streams", func() bool { return o.brain.watchCount() >= 3 })
+	if len(o.brain.answered("r1")) != 0 {
+		t.Fatal("nothing is handled on a stream without the hello")
 	}
-	// The same answer every time (idempotent by request_id).
-	a := o.brain.answered("r1")
-	if a[0] != a[1] || a[1] != a[2] {
-		t.Fatalf("attempts differ: %v", a)
+	o.brain.fake.Outbox.SkipHello(false)
+	eventually(t, "answered on a proper stream", func() bool { return len(o.brain.answered("r1")) == 1 })
+}
+
+// A dropped stream is opened again and the brain re-sends what it has no answer for; there is no cursor.
+func TestUnansweredRequestsAreHandledAgainAfterAReconnect(t *testing.T) {
+	o := newOutboxRig(t, req(1, "r1", "teleport"))
+	o.run(t)
+	eventually(t, "answered", func() bool { return len(o.brain.answered("r1")) == 1 })
+	o.brain.fake.Outbox.DropStream()
+	eventually(t, "a second stream", func() bool { return o.brain.watchCount() >= 2 })
+	o.brain.add(req(2, "r2", "teleport"))
+	eventually(t, "the next request on the new stream", func() bool { return len(o.brain.answered("r2")) == 1 })
+	if n := len(o.brain.answered("r1")); n != 1 {
+		t.Fatalf("an answered request is not sent again by the brain, so not answered again: %d", n)
 	}
 }
 
-func TestAnAnswerTheBrainCallsFinalMovesTheCursor(t *testing.T) {
-	for _, status := range []int{http.StatusConflict, http.StatusNotFound, http.StatusGone} {
-		o := newOutboxRig(t, req(1, "r1", "provide_lab"))
-		o.brain.answerCodes = []int{status}
-		o.run(t)
-		eventually(t, fmt.Sprintf("cursor after %d", status), func() bool { return o.cursor.get() == 1 })
-		if n := len(o.brain.answered("r1")); n != 1 {
-			t.Fatalf("%d: %d attempts", status, n)
+// blockingStats is a statistics source whose reads wait until released, counting the reads in progress.
+type blockingStats struct {
+	release chan struct{}
+	now     atomic.Int32
+	most    atomic.Int32
+	calls   atomic.Int32
+}
+
+func (b *blockingStats) Name() string { return "events" }
+func (b *blockingStats) Aggregates(context.Context, []assistantModel.TaskRef, time.Time) ([]assistantModel.Aggregate, error) {
+	return nil, nil
+}
+func (b *blockingStats) CollectionOn(_ context.Context, _ []assistantModel.TaskRef) (map[assistantModel.TaskRef]bool, error) {
+	b.calls.Add(1)
+	n := b.now.Add(1)
+	for {
+		most := b.most.Load()
+		if n <= most || b.most.CompareAndSwap(most, n) {
+			break
 		}
 	}
+	<-b.release
+	b.now.Add(-1)
+	return map[assistantModel.TaskRef]bool{}, nil
 }
 
-func TestWhenAnswersKeepFailingTheCursorStaysAndTheRequestIsSentAgain(t *testing.T) {
-	o := newOutboxRig(t, req(1, "r1", "provide_lab"), req(2, "r2", "provide_lab"))
-	// More failures than one connection retries: the stream is dropped and the brain sends it again.
-	o.brain.answerCodes = []int{503, 503, 503, 503, 503}
+func dataFrame(id string) outboxFrame {
+	return outboxFrame{event: "provide_data", data: fmt.Sprintf(`{"request_id":%q,"type":"provide_data","task_refs":[{"task_ref":"t","version":"v","image":""}]}`, id)}
+}
+
+// At most max_inflight requests of the StreamHello are handled at once; the stream is read on as slots free.
+func TestTheOutboxRespectsMaxInflight(t *testing.T) {
+	stats := &blockingStats{release: make(chan struct{})}
+	o := newOutboxRigWith(t, func(d *assistant.Dependencies) { d.Stats = stats }, dataFrame("d1"), dataFrame("d2"), dataFrame("d3"), dataFrame("d4"), dataFrame("d5"))
+	o.brain.fake.Outbox.SetMaxInflight(2)
 	o.run(t)
-	eventually(t, "both answered after the reconnect", func() bool { return o.cursor.get() == 2 })
-	o.brain.mu.Lock()
-	watches := o.brain.watches
-	o.brain.mu.Unlock()
-	if watches < 2 {
-		t.Fatalf("the stream must have been reopened: %d", watches)
+	eventually(t, "two requests in progress", func() bool { return stats.now.Load() == 2 })
+	time.Sleep(40 * time.Millisecond)
+	if stats.calls.Load() != 2 {
+		t.Fatalf("a third request is not taken while two are in progress: %d", stats.calls.Load())
 	}
-	if len(o.brain.answered("r1")) < 6 {
-		t.Fatalf("r1 answered %d times", len(o.brain.answered("r1")))
+	close(stats.release)
+	eventually(t, "all five answered", func() bool {
+		n := 0
+		for _, id := range []string{"d1", "d2", "d3", "d4", "d5"} {
+			n += len(o.brain.answered(id))
+		}
+		return n == 5
+	})
+	if most := stats.most.Load(); most > 2 {
+		t.Fatalf("max_inflight 2, %d were handled at once", most)
 	}
+}
+
+// A request the brain sends again while it is being handled (on the same stream, or on a new one) is handled once.
+func TestARequestResentWhileInFlightIsHandledOnce(t *testing.T) {
+	stats := &blockingStats{release: make(chan struct{})}
+	o := newOutboxRigWith(t, func(d *assistant.Dependencies) { d.Stats = stats }, dataFrame("d1"))
+	o.run(t)
+	eventually(t, "the request in progress", func() bool { return stats.now.Load() == 1 })
+	o.brain.fake.Outbox.Resend()
+	time.Sleep(20 * time.Millisecond)
+	o.brain.fake.Outbox.DropStream()
+	eventually(t, "a second stream", func() bool { return o.brain.watchCount() >= 2 })
+	time.Sleep(40 * time.Millisecond)
+	close(stats.release)
+	eventually(t, "answered", func() bool { return len(o.brain.answered("d1")) >= 1 })
+	time.Sleep(30 * time.Millisecond)
+	if n := stats.calls.Load(); n != 1 {
+		t.Fatalf("handled %d times", n)
+	}
+	if n := len(o.brain.answered("d1")); n != 1 {
+		t.Fatalf("answered %d times", n)
+	}
+}
+
+// An answer whose handler finished while no stream was open goes up the next stream (answers are taken on any stream).
+func TestAnAnswerWaitsForTheNextStream(t *testing.T) {
+	stats := &blockingStats{release: make(chan struct{})}
+	o := newOutboxRigWith(t, func(d *assistant.Dependencies) {
+		d.Stats = stats
+		d.WatchMin, d.WatchMax, d.AnswerPause = 20*time.Millisecond, 40*time.Millisecond, 5*time.Millisecond
+	}, dataFrame("d1"))
+	o.run(t)
+	eventually(t, "the request in progress", func() bool { return stats.now.Load() == 1 })
+	o.brain.fake.Outbox.DropStream()
+	close(stats.release)
+	eventually(t, "answered after the reconnect", func() bool { return len(o.brain.answered("d1")) == 1 })
 }
 
 func TestTheWatcherStopsWhenLeadershipIsLost(t *testing.T) {
 	o := newOutboxRig(t)
 	stop := o.run(t)
-	eventually(t, "the first connection", func() bool {
-		o.brain.mu.Lock()
-		defer o.brain.mu.Unlock()
-		return o.brain.watches >= 1
-	})
+	eventually(t, "the first connection", func() bool { return o.brain.watchCount() >= 1 })
 	stop() // fails the test itself if the watcher does not return
-	o.brain.mu.Lock()
-	seen := o.brain.watches
-	o.brain.mu.Unlock()
+	seen := o.brain.watchCount()
 	time.Sleep(60 * time.Millisecond)
-	o.brain.mu.Lock()
-	defer o.brain.mu.Unlock()
-	if o.brain.watches != seen {
+	if o.brain.watchCount() != seen {
 		t.Fatal("the watcher reconnected after it was stopped")
 	}
 }
@@ -328,11 +353,27 @@ func TestTheWatcherStopsWhenLeadershipIsLost(t *testing.T) {
 func TestTheWatcherReconnectsAfterTheBrainDropsTheStream(t *testing.T) {
 	o := newOutboxRig(t)
 	o.run(t)
-	eventually(t, "several connections", func() bool {
-		o.brain.mu.Lock()
-		defer o.brain.mu.Unlock()
-		return o.brain.watches >= 3
-	})
+	for i := 1; i <= 3; i++ {
+		eventually(t, "a connection", func() bool { return o.brain.watchCount() >= i })
+		time.Sleep(5 * time.Millisecond)
+		o.brain.fake.Outbox.DropStream()
+	}
+}
+
+// A new stream (a new leader's) supersedes the old one: the brain ends the old stream and the requests go to the new one.
+func TestANewLeadersStreamSupersedesTheOldOne(t *testing.T) {
+	a := newOutboxRig(t)
+	stopA := a.run(t)
+	eventually(t, "the first leader's stream", func() bool { return a.brain.watchCount() == 1 })
+	stopA() // the leadership moves
+	b := assistant.New(assistant.Dependencies{Store: a.store, Cipher: cipher(t, keyA), Config: assistant.Config{Endpoint: a.fake.Endpoint(), GRPCEndpoint: a.fake.GRPCEndpoint()}, Now: a.clock.now})
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { defer close(done); b.WatchOutbox(ctx) }()
+	t.Cleanup(func() { cancel(); <-done })
+	eventually(t, "the new leader's stream", func() bool { return a.brain.watchCount() >= 2 })
+	a.brain.add(req(1, "r1", "teleport"))
+	eventually(t, "answered by the new leader", func() bool { return len(a.brain.answered("r1")) == 1 })
 }
 
 func TestAnUnenrolledOrUnconfiguredWatcherDoesNothing(t *testing.T) {
@@ -343,38 +384,5 @@ func TestAnUnenrolledOrUnconfiguredWatcherDoesNothing(t *testing.T) {
 	case <-done:
 	case <-time.After(time.Second):
 		t.Fatal("a watcher without a brain must return at once")
-	}
-}
-
-func TestABrokenRequestWithAReadableIDIsAnsweredInvalidBeforeTheCursorMoves(t *testing.T) {
-	o := newOutboxRig(t,
-		outboxFrame{seq: 1, event: "x", data: `{"request_id":"r1","type":"provide_data","task_refs":[`},   // cut off JSON
-		outboxFrame{seq: 2, event: "x", data: `{"request_id":"r2","type":["not","a","string"]}`},          // valid JSON, wrong shape
-		outboxFrame{seq: 3, event: "x", data: `no id at all {`},                                           // nothing to answer to
-		outboxFrame{seq: 4, event: "x", data: `{"request_id":"bad/id with spaces","type":"provide_lab"}`}, // unusable id
-		req(5, "r5", "provide_lab"),
-	)
-	o.run(t)
-	eventually(t, "all handled", func() bool { return o.cursor.get() == 5 })
-	for _, id := range []string{"r1", "r2"} {
-		a := o.brain.answered(id)
-		if len(a) != 1 || refusalCode(t, a[0]) != "invalid_request" {
-			t.Fatalf("%s: %v", id, a)
-		}
-	}
-	o.brain.mu.Lock()
-	defer o.brain.mu.Unlock()
-	if len(o.brain.answers) != 3 {
-		t.Fatalf("only requests with a readable id are answered (r1, r2, r5): %v", o.brain.answers)
-	}
-}
-
-func TestAnInvalidAnswerIsNotAdvancedPastWhenTheBrainKeepsFailing(t *testing.T) {
-	o := newOutboxRig(t, outboxFrame{seq: 1, event: "x", data: `{"request_id":"r1","type":`})
-	o.brain.answerCodes = []int{503, 503, 503, 503, 503}
-	o.run(t)
-	eventually(t, "answered after the reconnect", func() bool { return o.cursor.get() == 1 })
-	if len(o.brain.answered("r1")) < 6 {
-		t.Fatalf("answers: %d", len(o.brain.answered("r1")))
 	}
 }
