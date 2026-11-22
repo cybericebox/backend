@@ -51,6 +51,12 @@ const (
 	FailureInternal         = "internal"
 )
 
+// RunLab is the test lab of runs and its owner (the actor of the runs, who owns their test deploy).
+type RunLab struct {
+	DeployID uuid.UUID
+	Owner    uuid.UUID
+}
+
 // Run is one run the platform asked the brain for: its test lab (DeployID, owned by Actor), its state, the brain's last
 // event sequence number that was stored and the final measurement (the brain's last aggregate, opaque).
 type Run struct {
@@ -63,7 +69,7 @@ type Run struct {
 	Role       string
 	// Opponent is the 1-based position of the opponent in the variant's manifest for an opponent run, 0 for any other run.
 	Opponent int
-	// ToolsIndex is the index of the run's own tools device in its lab (its control host is ControlHost(ToolsIndex)): 0 for a lab
+	// ToolsIndex is the index of the run's own tools device in its lab (its control gateway is ControlGatewayOf(ToolsIndex), its host ControlHostBase): 0 for a lab
 	// with one device, the position of the opponent in the list it was started with when several share one lab.
 	ToolsIndex int
 	State      RunState

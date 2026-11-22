@@ -261,7 +261,7 @@ func (u *ExerciseUseCase) DeployVariantTest(ctx context.Context, ownerID, versio
 
 // DeployVariantTestWithTools is DeployVariantTest with the platform tools devices added to the lab, one per placement (see
 // Topology.WithToolsDevices): the lab automated opponents work from. The device of the placement at position i has the index i
-// (its control host is ControlHost(i)); the handle names the devices in that order. A placement without an image takes the
+// (its control gateway is ControlGatewayOf(i)); the handle names the devices in that order. A placement without an image takes the
 // platform's tools image; without one it is refused with ErrToolsNoImage, more than MaxOpponents placements with
 // ErrToolsTooMany, a variant without a lab with ErrTestDeployNoLab.
 func (u *ExerciseUseCase) DeployVariantTestWithTools(ctx context.Context, ownerID, versionID, variantID uuid.UUID, length time.Duration, places []exerciseModel.ToolsPlacement) (exerciseModel.DeployHandle, error) {
@@ -406,7 +406,7 @@ func (u *ExerciseUseCase) deployVariantTest(ctx context.Context, eventID *uuid.U
 	if topo, err = topo.WithBootstrapFiles(u.readBootstrapFile(ctx)); err != nil {
 		return exerciseModel.DeployHandle{}, exerciseModel.InVariantIfScoped(err, number)
 	}
-	// All the tools devices are added at once, so they share one control gateway; the device of position i has the index i.
+	// All the tools devices are added at once, each with a control gateway of its own; the device of position i has the index i.
 	var (
 		toolsNames  []string
 		brainImages map[uuid.UUID]string

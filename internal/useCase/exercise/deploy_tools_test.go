@@ -14,6 +14,7 @@ import (
 	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
 	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
 	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	labAccessModel "github.com/cybericebox/backend/internal/model/labAccess"
 	"github.com/cybericebox/backend/internal/useCase/exercise"
 )
 
@@ -42,7 +43,7 @@ func toolsFixture(t *testing.T) (*postgresMocks.MockQuerier, uuid.UUID, uuid.UUI
 // toolsDevices are the devices of a deployed topology that are the platform's: the tools devices and the control gateway.
 func toolsDevices(topo exerciseModel.Topology) (tools []exerciseModel.Device, controls int) {
 	for _, d := range topo.Devices {
-		if d.Name == exerciseModel.ControlGatewayName {
+		if exerciseModel.IsControlGatewayName(d.Name) {
 			controls++
 		}
 		if strings.HasPrefix(d.Name, exerciseModel.ToolsDeviceName) && d.Type == exerciseModel.DeviceTypeNode {
@@ -52,7 +53,7 @@ func toolsDevices(topo exerciseModel.Topology) (tools []exerciseModel.Device, co
 	return tools, controls
 }
 
-func TestDeployVariantTestWithTools_SeveralDevicesShareOneControlInTheOrderOfThePlacements(t *testing.T) {
+func TestDeployVariantTestWithTools_EachDeviceHasItsOwnControlInTheOrderOfThePlacements(t *testing.T) {
 	q, variantID, versionID, owner := toolsFixture(t)
 	infra := &fakeInfra{status: exerciseModel.LabDeployStatus{VPNConfig: "author-config"}}
 	uc := exercise.NewExerciseUseCase(exercise.Dependencies{Repo: q, Infra: infra, VPNStore: &fakeVPNStore{}})
@@ -70,11 +71,11 @@ func TestDeployVariantTestWithTools_SeveralDevicesShareOneControlInTheOrderOfThe
 		t.Fatalf("the handle names the tools devices in the order of the placements: %+v", handle.Tools)
 	}
 	tools, controls := toolsDevices(infra.deployedTopo)
-	if len(tools) != 2 || controls != 1 {
-		t.Fatalf("two tools devices, one control gateway: %d %d", len(tools), controls)
+	if len(tools) != 2 || controls != 2 {
+		t.Fatalf("two tools devices, a control gateway each: %d %d", len(tools), controls)
 	}
 	for i, d := range tools {
-		if d.Interfaces[1].IP.AddressRef.Host != exerciseModel.ControlHost(i) || d.Bootstrap.Env[0].Value != []string{"run-a", "run-b"}[i] {
+		if ref := d.Interfaces[1].IP.AddressRef; ref.Gateway != exerciseModel.ControlGatewayOf(i) || ref.Host != exerciseModel.ControlHostBase || d.Bootstrap.Env[0].Value != []string{"run-a", "run-b"}[i] {
 			t.Fatalf("device %d: %+v", i, d)
 		}
 	}
@@ -129,9 +130,9 @@ func TestControlAddressAndTheBotPolicyFollowTheToolsIndex(t *testing.T) {
 	owner, deployID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 	q.EXPECT().GetOwnedExerciseTestDeploy(gomock.Any(), gomock.Any()).Return(graderRow(owner, deployID), nil).AnyTimes()
 	q.EXPECT().ListOwnedExerciseTestDeploys(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
-	infra := &fakeInfra{status: exerciseModel.LabDeployStatus{VPNConfig: agentConfig("10.8.0.0/10"), Gateways: gws("vpn", "10.8.3.0/24", "ctl", "10.8.4.0/24")}}
+	infra := &fakeInfra{status: exerciseModel.LabDeployStatus{VPNConfig: agentConfig("10.8.0.0/10"), Gateways: gws("vpn", "10.8.3.0/24", "ctl", "10.8.4.0/24", "ctl-2", "10.8.5.0/24", "ctl-8", "10.8.11.0/24")}}
 	uc := exercise.NewExerciseUseCase(exercise.Dependencies{Repo: q, Infra: infra})
-	for index, want := range []string{"10.8.4.10", "10.8.4.11", "10.8.4.17"} {
+	for index, want := range []string{"10.8.4.10", "10.8.5.10", "10.8.11.10"} {
 		i := []int{0, 1, 7}[index]
 		if got, err := uc.ControlAddress(context.Background(), owner, deployID, i); err != nil || got != want {
 			t.Fatalf("index %d: %q %v", i, got, err)
@@ -143,13 +144,13 @@ func TestControlAddressAndTheBotPolicyFollowTheToolsIndex(t *testing.T) {
 	if _, err := uc.MintLabClient(context.Background(), owner, deployID, "g-two"); err != nil {
 		t.Fatal(err)
 	}
-	hosts := map[string]int32{}
+	reach := map[string]labAccessModel.ControlAccess{}
 	for _, p := range infra.policies {
 		if p.Control != nil {
-			hosts[p.Name] = p.Control.Host
+			reach[p.Name] = *p.Control
 		}
 	}
-	if hosts["g-one"] != 10 || hosts["g-two"] != 11 {
-		t.Fatalf("each bot reaches only its own device: %v", hosts)
+	if one, two := reach["g-one"], reach["g-two"]; one.Gateway != "ctl" || one.Host != 10 || two.Gateway != "ctl-2" || two.Host != 10 || one.Lab != two.Lab {
+		t.Fatalf("each bot reaches only its own device on its own control gateway: %v", reach)
 	}
 }

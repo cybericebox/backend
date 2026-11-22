@@ -32,6 +32,11 @@ type (
 	// RunStore keeps the runs, their events and the judged answers (assistantRunRepo.Repository).
 	RunStore interface {
 		Create(ctx context.Context, run assistantModel.Run, now time.Time) error
+		// CreateAll stores the runs of one request (one actor) in one step: the cap of the actor's active runs (maxActive) is
+		// checked and every run inserted atomically (assistantRunRepo.ErrLimit, ErrActive: none is stored).
+		CreateAll(ctx context.Context, runs []assistantModel.Run, maxActive int, now time.Time) error
+		// IdleOpponentLabs are the test labs of opponent runs that still exist although none of their runs is active.
+		IdleOpponentLabs(ctx context.Context, limit int) ([]assistantModel.RunLab, error)
 		Get(ctx context.Context, id uuid.UUID) (assistantModel.Run, bool, error)
 		LabOfRequest(ctx context.Context, requestID string) (assistantModel.Run, bool, error)
 		SetAnswered(ctx context.Context, id uuid.UUID, now time.Time) error
@@ -138,11 +143,15 @@ func (u *UseCase) StartGraderRun(ctx context.Context, actor exerciseUseCase.Acto
 		Actor: actor.UserID, Role: assistantModel.RoleGrader, State: assistantModel.RunStarting, CreatedAt: now, UpdatedAt: now,
 		ExpiresAt: now.Add(u.runMax),
 	}
-	if err = u.runs.Create(ctx, run, now); err != nil {
+	// The cap is checked again with the insert, under the user's lock: a request made at the same moment passed the first check too.
+	if err = u.runs.CreateAll(ctx, []assistantModel.Run{run}, u.maxActive, now); err != nil {
 		// The lab was made for nothing: take it down again, whatever the cause.
 		u.dropLab(ctx, actor.UserID, deployID)
 		if errors.Is(err, assistantRunRepo.ErrActive) {
 			return assistantModel.Run{}, assistantModel.ErrAssistantRunActive.Err()
+		}
+		if errors.Is(err, assistantRunRepo.ErrLimit) {
+			return assistantModel.Run{}, assistantModel.ErrAssistantRunLimit.Err()
 		}
 		return assistantModel.Run{}, model.ErrPlatform.WithError(err).WithMessage("Failed to save the run").Err()
 	}

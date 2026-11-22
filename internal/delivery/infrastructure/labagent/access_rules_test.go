@@ -69,7 +69,7 @@ func TestTheRulesComeInAFixedOrder(t *testing.T) {
 }
 
 func TestTheControlGatewayIsNeverAParticipantsGateway(t *testing.T) {
-	spec := []byte(`{"gateways":[{"name":"vpn","kind":"vpn"},{"name":"ctl","kind":"vpn"}]}`)
+	spec := []byte(`{"gateways":[{"name":"vpn","kind":"vpn"},{"name":"ctl","kind":"vpn"},{"name":"ctl-2","kind":"vpn"},{"name":"ctl-8","kind":"vpn"}]}`)
 	require.Equal(t, []string{"vpn"}, vpnGatewaysOfSpec(spec))
 	rules := accessRules([]labAccessModel.ClientPolicy{{Name: "p-1", AllowedLabs: []string{"lab-bot"}}}, map[string][]string{"lab-bot": vpnGatewaysOfSpec(spec)})
 	require.Len(t, rules, 1)
@@ -78,7 +78,7 @@ func TestTheControlGatewayIsNeverAParticipantsGateway(t *testing.T) {
 
 func TestTheClientOfABotGetsOneAddressOfTheControlGatewayAndNothingElse(t *testing.T) {
 	rules := accessRules([]labAccessModel.ClientPolicy{
-		{Name: "g-run", Control: &labAccessModel.ControlAccess{Lab: "lab-bot", Host: exerciseModel.ControlHost(0)}},
+		{Name: "g-run", Control: &labAccessModel.ControlAccess{Lab: "lab-bot", Gateway: exerciseModel.ControlGatewayOf(0), Host: exerciseModel.ControlHostBase}},
 		{Name: "p-1", AllowedLabs: []string{"lab-bot"}},
 	}, map[string][]string{"lab-bot": {"vpn"}})
 	require.Len(t, rules, 2)
@@ -96,8 +96,21 @@ func TestTheClientOfABotGetsOneAddressOfTheControlGatewayAndNothingElse(t *testi
 	}
 }
 
+// The bot of the second tools device of a lab reaches .10 of that device's own control gateway, never the first one's.
+func TestTheClientOfASecondBotNamesItsOwnControlGateway(t *testing.T) {
+	rules := accessRules([]labAccessModel.ClientPolicy{
+		{Name: "g-one", Control: &labAccessModel.ControlAccess{Lab: "lab-bot", Gateway: exerciseModel.ControlGatewayOf(0), Host: exerciseModel.ControlHostBase}},
+		{Name: "g-two", Control: &labAccessModel.ControlAccess{Lab: "lab-bot", Gateway: exerciseModel.ControlGatewayOf(1), Host: exerciseModel.ControlHostBase}},
+	}, map[string][]string{"lab-bot": {"vpn"}})
+	require.Len(t, rules, 2)
+	require.Equal(t, []string{"ctl"}, rules[0].GetGatewayNames())
+	require.Equal(t, []string{"ctl-2"}, rules[1].GetGatewayNames())
+	require.Equal(t, []string{"g-two"}, rules[1].GetClientNames())
+	require.Equal(t, int32(10), rules[1].GetInclude()[0].GetHost())
+}
+
 func TestAGradersRuleNamesEveryVPNGatewayAParticipantGetsAndNeverCtl(t *testing.T) {
-	spec := []byte(`{"gateways":[{"name":"vpn","kind":"vpn"},{"name":"vpn-b","kind":"vpn"},{"name":"internet","kind":"internet"},{"name":"ctl","kind":"vpn"}]}`)
+	spec := []byte(`{"gateways":[{"name":"vpn","kind":"vpn"},{"name":"vpn-b","kind":"vpn"},{"name":"internet","kind":"internet"},{"name":"ctl","kind":"vpn"},{"name":"ctl-3","kind":"vpn"}]}`)
 	gateways := map[string][]string{"lab-run": vpnGatewaysOfSpec(spec)}
 	rules := accessRules([]labAccessModel.ClientPolicy{
 		{Name: "g-grader", AllowedLabs: []string{"lab-run"}},

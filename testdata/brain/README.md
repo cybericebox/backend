@@ -47,7 +47,7 @@ version's device images (empty for a static task).
 | `opponent-lab/opponents.json` | The manifest as the daemon stores it (generated). |
 | `opponent-lab/deployed-topology-attack.json` | The lab as it is deployed for the attacker (generated): the document's devices plus the **tools device** cabled on the foothold switch and the hidden **control gateway `ctl`** (with its own switch) that carries only the platform's control of the tools device (second interface of the tools device, fixed address). |
 | `opponent-lab/deployed-topology-defense.json` | The same for the defender (the tools device sits on the segment of the first operated device). |
-| `opponent-lab/deployed-topology-both.json` | Both opponents in one lab (generated): a tools device each (`tools` for the attacker, index 0, host `.10`; `tools-2` for the defender, index 1, host `.11`) and one shared control gateway `ctl`. |
+| `opponent-lab/deployed-topology-both.json` | Both opponents in one lab (generated): a tools device each (`tools` for the attacker, index 0, `.10` of control gateway `ctl`; `tools-2` for the defender, index 1, `.10` of control gateway `ctl-2`), each control gateway with its own switch, so no two tools devices share a control segment. |
 
 Import a task: zip the folder (`exercise.yaml` at the root of the zip) and use the exercises site "Import", or
 `POST /api/exercises/import` with the archive. The import always creates a draft; publish it to run the grader or an opponent

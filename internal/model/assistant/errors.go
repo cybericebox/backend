@@ -7,7 +7,7 @@ import (
 	"github.com/cybericebox/backend/pkg/err"
 )
 
-// next free detail code: 22
+// next free detail code: 25
 
 var (
 	// ErrAssistantUnavailable: the assistant is off (no BRAIN_ENDPOINT), not enrolled yet, or the platform secrets
@@ -140,4 +140,11 @@ var (
 					WithMessage("The brain gave an opponent the platform cannot deploy").
 					WithDetailCode(23).
 					WithHTTPCode(http.StatusBadGateway)
+
+	// ErrAssistantOpponentControlName: the task has a device of its own named like a control gateway the platform adds for the
+	// opponents' tools devices ("ctl", "ctl-2" ... "ctl-8"), so the opponents cannot be given their control. Renaming the
+	// device fixes it (newer versions refuse such a name when they are saved).
+	ErrAssistantOpponentControlName = err.ErrConflict.WithObjectCode(model.AssistantObjectCode).
+					WithMessage("The task has a device named like a control gateway the platform adds for opponents").
+					WithDetailCode(24)
 )

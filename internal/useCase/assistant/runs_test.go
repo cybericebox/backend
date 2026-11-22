@@ -37,6 +37,11 @@ type memRuns struct {
 	events         map[uuid.UUID][]assistantModel.RunEvent
 	answers        map[uuid.UUID][]assistantModel.RunAnswer
 	users          map[uuid.UUID]uuid.UUID
+	// batches are the runs CreateAll stored, one entry per call; singles counts the calls of Create.
+	batches [][]uuid.UUID
+	singles int
+	// labPresent says the test lab of a deploy still exists (nil: every lab does).
+	labPresent func(uuid.UUID) bool
 }
 
 func newMemRuns() *memRuns {
@@ -46,6 +51,63 @@ func newMemRuns() *memRuns {
 func (m *memRuns) Create(_ context.Context, run assistantModel.Run, _ time.Time) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.singles++
+	return m.createLocked(run)
+}
+
+// CreateAll is atomic like the repository's: the cap and every run are checked before any is stored.
+func (m *memRuns) CreateAll(_ context.Context, runs []assistantModel.Run, maxActive int, _ time.Time) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if len(runs) == 0 {
+		return nil
+	}
+	n := 0
+	for _, r := range m.runs {
+		if r.Actor == runs[0].Actor && r.State.Active() {
+			n++
+		}
+	}
+	if maxActive > 0 && n+len(runs) > maxActive {
+		return assistantRunRepo.ErrLimit
+	}
+	saved := make([]uuid.UUID, 0, len(runs))
+	for _, run := range runs {
+		if err := m.createLocked(run); err != nil {
+			for _, id := range saved {
+				delete(m.runs, id)
+			}
+			m.order = m.order[:len(m.order)-len(saved)]
+			return err
+		}
+		saved = append(saved, run.ID)
+	}
+	m.batches = append(m.batches, saved)
+	return nil
+}
+
+func (m *memRuns) IdleOpponentLabs(_ context.Context, limit int) ([]assistantModel.RunLab, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	active, seen := map[uuid.UUID]bool{}, map[uuid.UUID]bool{}
+	for _, r := range m.runs {
+		if r.State.Active() {
+			active[r.DeployID] = true
+		}
+	}
+	var out []assistantModel.RunLab
+	for _, id := range m.order {
+		r := m.runs[id]
+		if r.Opponent == 0 || active[r.DeployID] || seen[r.DeployID] || len(out) >= limit || (m.labPresent != nil && !m.labPresent(r.DeployID)) {
+			continue
+		}
+		seen[r.DeployID] = true
+		out = append(out, assistantModel.RunLab{DeployID: r.DeployID, Owner: r.Actor})
+	}
+	return out, nil
+}
+
+func (m *memRuns) createLocked(run assistantModel.Run) error {
 	if run.Opponent > 0 && run.Opponent == m.refuseOpponent {
 		return assistantRunRepo.ErrActive
 	}
@@ -60,6 +122,12 @@ func (m *memRuns) Create(_ context.Context, run assistantModel.Run, _ time.Time)
 	m.runs[run.ID] = run
 	m.order = append(m.order, run.ID)
 	return nil
+}
+
+func (m *memRuns) batchesMade() ([][]uuid.UUID, int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([][]uuid.UUID(nil), m.batches...), m.singles
 }
 func (m *memRuns) Get(_ context.Context, id uuid.UUID) (assistantModel.Run, bool, error) {
 	m.mu.Lock()
@@ -353,7 +421,13 @@ type fakeLabs struct {
 	placeCalls  [][]exerciseModel.ToolsPlacement
 	opponents   []exerciseModel.Opponent
 	solved      map[string]bool
+	// present: the lab of the last deploy exists (no destroy took it down since).
+	present bool
+	// beforeDeploy runs before a deploy (outside the lock): a test holds two requests there.
+	beforeDeploy func()
 }
+
+func (f *fakeLabs) isPresent(uuid.UUID) bool { f.mu.Lock(); defer f.mu.Unlock(); return f.present }
 
 func newFakeLabs() *fakeLabs { return &fakeLabs{hasLab: true, judged: map[string]string{}} }
 
@@ -383,6 +457,12 @@ func (f *fakeLabs) AuthorizeTestDeploy(_ context.Context, actor exerciseUseCase.
 }
 func (f *fakeLabs) DeployVariantTest(_ context.Context, owner, _, _ uuid.UUID, length time.Duration) (exerciseModel.DeployHandle, error) {
 	f.mu.Lock()
+	hook := f.beforeDeploy
+	f.mu.Unlock()
+	if hook != nil {
+		hook()
+	}
+	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls = append(f.calls, "deploy")
 	f.deployLen, f.deployOwner = length, owner
@@ -390,6 +470,7 @@ func (f *fakeLabs) DeployVariantTest(_ context.Context, owner, _, _ uuid.UUID, l
 	if f.deployErr != nil {
 		return exerciseModel.DeployHandle{}, f.deployErr
 	}
+	f.present = true
 	return exerciseModel.DeployHandle{Group: runDeploy.String(), Lab: "l-lab"}, nil
 }
 func (f *fakeLabs) DeployVariantTestWithTools(ctx context.Context, owner, version, variant uuid.UUID, length time.Duration, places []exerciseModel.ToolsPlacement) (exerciseModel.DeployHandle, error) {
@@ -414,10 +495,15 @@ func (f *fakeLabs) ControlAddress(_ context.Context, _, _ uuid.UUID, index int) 
 	if f.ctlErr != nil {
 		return "", f.ctlErr
 	}
-	return "10.8.4." + strconv.Itoa(10+index), nil
+	return "10.8." + strconv.Itoa(4+index) + ".10", nil // .10 of the device's own control gateway
 }
 func (f *fakeLabs) DestroyDeployTest(context.Context, uuid.UUID, uuid.UUID) error {
 	f.record("destroy")
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.destroyErr == nil {
+		f.present = false
+	}
 	return f.destroyErr
 }
 func (f *fakeLabs) TestLabState(context.Context, uuid.UUID, uuid.UUID) (exerciseUseCase.LabState, error) {
@@ -567,6 +653,7 @@ type runRig struct {
 func newRunRig(t *testing.T, mutate func(*assistant.Dependencies)) *runRig {
 	t.Helper()
 	runs, labs := newMemRuns(), newFakeLabs()
+	runs.labPresent = labs.isPresent
 	users := &memUsers{users: map[uuid.UUID]userModel.User{runActor.UserID: {ID: runActor.UserID, Role: rbac.RoleUser, Status: userModel.UserStatusActive}}}
 	r := newRig(t, func(d *assistant.Dependencies) {
 		d.Runs, d.Labs, d.Users = runs, labs, users
@@ -690,6 +777,9 @@ func (r *racingRuns) OfVariant(context.Context, uuid.UUID, int) ([]assistantMode
 	return nil, nil
 }
 func (r *racingRuns) Create(context.Context, assistantModel.Run, time.Time) error {
+	return assistantRunRepo.ErrActive
+}
+func (r *racingRuns) CreateAll(context.Context, []assistantModel.Run, int, time.Time) error {
 	return assistantRunRepo.ErrActive
 }
 

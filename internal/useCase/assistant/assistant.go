@@ -116,6 +116,8 @@ type (
 		MaxActiveRuns  int
 		RunPoll        time.Duration
 		RunPause       time.Duration
+		// LabSweep is how often the leader looks for the labs of opponent runs that outlived all their runs (zero: a minute).
+		LabSweep time.Duration
 		// OpponentBudget is what every opponent run may spend (the author never sets one); zero fields take the defaults.
 		OpponentBudget assistantModel.RunBudget
 	}
@@ -147,6 +149,7 @@ type (
 		oppBudget         assistantModel.RunBudget
 		maxActive         int
 		runPoll, runPause time.Duration
+		labSweep          time.Duration
 
 		subjects     SubjectStore
 		subjectCache sync.Map // user id -> subject: a pseudonym never changes while the account lives
@@ -181,6 +184,7 @@ func New(d Dependencies) *UseCase {
 		runs:        d.Runs, users: d.Users, labs: d.Labs, activity: d.LabActivity, tasks: d.Tasks, maxActive: d.MaxActiveRuns,
 		runMax: orDefault(d.RunMaxDuration, DefaultRunMaxDuration), runGrace: orDefault(d.RunGrace, DefaultRunGrace),
 		oppBudget: d.OpponentBudget, runPoll: orDefault(d.RunPoll, 2*time.Second), runPause: orDefault(d.RunPause, time.Second),
+		labSweep: orDefault(d.LabSweep, defaultLabSweep),
 	}
 	if u.maxActive <= 0 {
 		u.maxActive = DefaultMaxActiveRuns

@@ -140,6 +140,16 @@
     },
     {
       "id": "00000000-0000-4000-8000-000000000009",
+      "name": "ctl-2",
+      "type": "vpn_gateway"
+    },
+    {
+      "id": "00000000-0000-4000-8000-00000000000a",
+      "name": "ctl-switch-2",
+      "type": "unmanaged-switch"
+    },
+    {
+      "id": "00000000-0000-4000-8000-00000000000b",
       "name": "tools-2",
       "type": "node",
       "profile": "container",
@@ -157,8 +167,8 @@
           "ip": {
             "type": "static",
             "address_ref": {
-              "gateway": "ctl",
-              "host": 11
+              "gateway": "ctl-2",
+              "host": 10
             }
           }
         }
@@ -167,7 +177,7 @@
         "env": [
           {
             "name": "EDA_RUN_ID",
-            "value": "00000000-0000-4000-8000-00000000000a",
+            "value": "00000000-0000-4000-8000-00000000000c",
             "secret": false
           }
         ]
@@ -264,7 +274,7 @@
       "endpoints": [
         {
           "kind": "device",
-          "device_id": "00000000-0000-4000-8000-000000000009",
+          "device_id": "00000000-0000-4000-8000-00000000000b",
           "interface": "eth0"
         },
         {
@@ -279,12 +289,26 @@
         {
           "kind": "device",
           "device_id": "00000000-0000-4000-8000-000000000009",
+          "interface": "eth0"
+        },
+        {
+          "kind": "device",
+          "device_id": "00000000-0000-4000-8000-00000000000a",
+          "interface": "GigabitEthernet0/1"
+        }
+      ]
+    },
+    {
+      "endpoints": [
+        {
+          "kind": "device",
+          "device_id": "00000000-0000-4000-8000-00000000000b",
           "interface": "eth1"
         },
         {
           "kind": "device",
-          "device_id": "00000000-0000-4000-8000-000000000006",
-          "interface": "GigabitEthernet0/3"
+          "device_id": "00000000-0000-4000-8000-00000000000a",
+          "interface": "GigabitEthernet0/2"
         }
       ]
     }

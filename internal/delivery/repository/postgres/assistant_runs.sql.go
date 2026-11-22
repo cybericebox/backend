@@ -604,6 +604,45 @@ func (q *Queries) ListAssistantRunsOfVariant(ctx context.Context, arg ListAssist
 	return items, nil
 }
 
+const listIdleOpponentLabs = `-- name: ListIdleOpponentLabs :many
+SELECT DISTINCT r.deploy_id, r.actor_id
+FROM assistant_runs r
+         JOIN exercise_test_deployments d ON d.id = r.deploy_id AND d.created_by = r.actor_id
+WHERE r.opponent > 0
+  AND NOT EXISTS (SELECT 1
+                  FROM assistant_runs a
+                  WHERE a.deploy_id = r.deploy_id
+                    AND a.state IN ('starting', 'running', 'closing'))
+LIMIT $1
+`
+
+type ListIdleOpponentLabsRow struct {
+	DeployID uuid.UUID `json:"deploy_id"`
+	ActorID  uuid.UUID `json:"actor_id"`
+}
+
+// The test labs of opponent runs in which no run is active any more but which still exist: a teardown that was cut short (the
+// destroy after the last run failed, or the leader stopped between finishing the run and destroying its lab).
+func (q *Queries) ListIdleOpponentLabs(ctx context.Context, maxRows int32) ([]ListIdleOpponentLabsRow, error) {
+	rows, err := q.db.Query(ctx, listIdleOpponentLabs, maxRows)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListIdleOpponentLabsRow{}
+	for rows.Next() {
+		var i ListIdleOpponentLabsRow
+		if err := rows.Scan(&i.DeployID, &i.ActorID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRecentAssistantRunAnswers = `-- name: ListRecentAssistantRunAnswers :many
 SELECT subtask_ref, judged_at
 FROM assistant_run_answers
@@ -682,6 +721,17 @@ func (q *Queries) ListUnsentAssistantRunAnswers(ctx context.Context, runID uuid.
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockAssistantRunsOfActor = `-- name: LockAssistantRunsOfActor :exec
+SELECT pg_advisory_xact_lock(hashtextextended('cybericebox.assistant-runs:' || $1::uuid::text, 0))
+`
+
+// Serializes the creation of the runs of one user until the end of the transaction, so the cap of active runs is checked and
+// the runs are inserted as one step (two requests at once cannot both pass the cap).
+func (q *Queries) LockAssistantRunsOfActor(ctx context.Context, actorID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, lockAssistantRunsOfActor, actorID)
+	return err
 }
 
 const setAssistantRunAccessClient = `-- name: SetAssistantRunAccessClient :execrows
