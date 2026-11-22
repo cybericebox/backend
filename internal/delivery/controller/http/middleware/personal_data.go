@@ -7,9 +7,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
-	eventManagerModel "github.com/cybericebox/daemon/internal/model/eventManager"
-	"github.com/cybericebox/daemon/internal/model/rbac"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
+	eventManagerModel "github.com/cybericebox/backend/internal/model/eventManager"
+	"github.com/cybericebox/backend/internal/model/rbac"
 )
 
 // SeesEventPersonalData tells whether the caller sees the participants' personal data of the event in full (email

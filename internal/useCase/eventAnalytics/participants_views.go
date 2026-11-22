@@ -5,7 +5,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
 )
 
 // Read models of "Participants" (§6.2) and "Communications" (§6.7).

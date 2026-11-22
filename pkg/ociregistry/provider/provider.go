@@ -12,7 +12,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/cybericebox/daemon/pkg/ociregistry"
+	"github.com/cybericebox/backend/pkg/ociregistry"
 )
 
 const (

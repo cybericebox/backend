@@ -6,8 +6,8 @@ import (
 	"io"
 	"strings"
 
-	imageRegistryModel "github.com/cybericebox/daemon/internal/model/imageRegistry"
-	"github.com/cybericebox/daemon/pkg/ociregistry"
+	imageRegistryModel "github.com/cybericebox/backend/internal/model/imageRegistry"
+	"github.com/cybericebox/backend/pkg/ociregistry"
 )
 
 // Export of platform images into task archives ("with images"): a platform reference is read from the platform

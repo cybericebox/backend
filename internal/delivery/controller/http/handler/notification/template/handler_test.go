@@ -12,12 +12,12 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	emailModel "github.com/cybericebox/daemon/internal/model/notification/email"
-	inAppModel "github.com/cybericebox/daemon/internal/model/notification/inapp"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	emailUseCase "github.com/cybericebox/daemon/internal/useCase/notification/channels/email"
-	"github.com/cybericebox/daemon/pkg/tools"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	emailModel "github.com/cybericebox/backend/internal/model/notification/email"
+	inAppModel "github.com/cybericebox/backend/internal/model/notification/inapp"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	emailUseCase "github.com/cybericebox/backend/internal/useCase/notification/channels/email"
+	"github.com/cybericebox/backend/pkg/tools"
 )
 
 // fakeUseCase satisfies IUseCase for handler tests.

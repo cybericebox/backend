@@ -11,8 +11,8 @@ import (
 
 	labnames "github.com/cybericebox/laboratory/pkg/names"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	platformSettingsModel "github.com/cybericebox/daemon/internal/model/platformSettings"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	platformSettingsModel "github.com/cybericebox/backend/internal/model/platformSettings"
 )
 
 func TestDevice_FormerContainerLoadsAsNodeWithContainerProfile(t *testing.T) {

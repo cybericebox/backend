@@ -10,9 +10,9 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	exerciseUseCase "github.com/cybericebox/daemon/internal/useCase/exercise"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	exerciseUseCase "github.com/cybericebox/backend/internal/useCase/exercise"
 )
 
 // postArchive sends archive bytes to the multipart import route.

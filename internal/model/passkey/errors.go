@@ -1,9 +1,9 @@
 package passkeyModel
 
 import (
-	"github.com/cybericebox/daemon/pkg/err"
+	"github.com/cybericebox/backend/pkg/err"
 
-	"github.com/cybericebox/daemon/internal/model"
+	"github.com/cybericebox/backend/internal/model"
 )
 
 // Error-code convention: see internal/model/auth/errors.go. Enforced by `mise run lint:errors`.

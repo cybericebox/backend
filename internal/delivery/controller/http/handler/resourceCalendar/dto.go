@@ -5,7 +5,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	calUseCase "github.com/cybericebox/daemon/internal/useCase/resourceCalendar"
+	calUseCase "github.com/cybericebox/backend/internal/useCase/resourceCalendar"
 )
 
 // amountDTO is CPU and memory.

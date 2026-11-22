@@ -8,9 +8,9 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
-	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
-	_ "github.com/cybericebox/daemon/internal/model/notification/types/payloads"
-	signalModel "github.com/cybericebox/daemon/internal/model/signal"
+	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
+	_ "github.com/cybericebox/backend/internal/model/notification/types/payloads"
+	signalModel "github.com/cybericebox/backend/internal/model/signal"
 )
 
 type recordingBrands struct{ called bool }

@@ -9,7 +9,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/pkg/tools"
+	"github.com/cybericebox/backend/pkg/tools"
 )
 
 const (

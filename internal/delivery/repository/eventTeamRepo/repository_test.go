@@ -8,8 +8,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	eventTeamModel "github.com/cybericebox/daemon/internal/model/eventTeam"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	eventTeamModel "github.com/cybericebox/backend/internal/model/eventTeam"
 )
 
 type fakeQueries struct {

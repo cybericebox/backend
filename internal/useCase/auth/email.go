@@ -10,16 +10,16 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/sessionRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/temporalCodeRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/delivery/repository/userRepo"
-	"github.com/cybericebox/daemon/internal/model"
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
-	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
-	notificationPayloads "github.com/cybericebox/daemon/internal/model/notification/types/payloads"
-	temporalCodeModel "github.com/cybericebox/daemon/internal/model/temporalCode"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
+	"github.com/cybericebox/backend/internal/delivery/repository/sessionRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/temporalCodeRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/delivery/repository/userRepo"
+	"github.com/cybericebox/backend/internal/model"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
+	notificationPayloads "github.com/cybericebox/backend/internal/model/notification/types/payloads"
+	temporalCodeModel "github.com/cybericebox/backend/internal/model/temporalCode"
+	userModel "github.com/cybericebox/backend/internal/model/user"
 )
 
 // RequestEmailChange issues a one-time code bound to the user + new address and

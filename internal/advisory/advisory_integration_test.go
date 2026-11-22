@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/advisory"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/advisory"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 func TestLockWaitsForTheHolderAndGivesUpWithTheContext(t *testing.T) {

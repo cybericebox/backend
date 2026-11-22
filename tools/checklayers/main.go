@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-var forbiddenRe = regexp.MustCompile(`"github\.com/cybericebox/daemon/internal/(delivery|useCase)(/[^"]*)?"`)
+var forbiddenRe = regexp.MustCompile(`"github\.com/cybericebox/backend/internal/(delivery|useCase)(/[^"]*)?"`)
 
 func violations(src string) []string {
 	var out []string

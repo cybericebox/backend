@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 func TestTaskBoardResponsesOmitContentUpdateMetadata(t *testing.T) {

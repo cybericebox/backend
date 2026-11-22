@@ -12,8 +12,8 @@ import (
 
 	labnames "github.com/cybericebox/laboratory/pkg/names"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	"github.com/cybericebox/daemon/internal/secretctx"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	"github.com/cybericebox/backend/internal/secretctx"
 )
 
 // Agent sources: an agent an administrator enrolled, or the agent bootstrapped from the deployment

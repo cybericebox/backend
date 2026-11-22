@@ -7,11 +7,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/audit"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	passkeyModel "github.com/cybericebox/daemon/internal/model/passkey"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	authUseCase "github.com/cybericebox/daemon/internal/useCase/auth"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/audit"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	passkeyModel "github.com/cybericebox/backend/internal/model/passkey"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	authUseCase "github.com/cybericebox/backend/internal/useCase/auth"
 )
 
 // redirectURLKey names the sign-in answer field the client navigates by.

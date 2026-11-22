@@ -7,8 +7,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	mailModel "github.com/cybericebox/daemon/internal/model/mail"
-	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
+	mailModel "github.com/cybericebox/backend/internal/model/mail"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
 )
 
 // The limiter timings are set once at start (MAIL_MAX_RATE_WAIT, MAIL_QUOTA_RETRY_AFTER,

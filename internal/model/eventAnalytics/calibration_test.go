@@ -3,7 +3,7 @@ package eventAnalyticsModel_test
 import (
 	"testing"
 
-	eventAnalyticsModel "github.com/cybericebox/daemon/internal/model/eventAnalytics"
+	eventAnalyticsModel "github.com/cybericebox/backend/internal/model/eventAnalytics"
 )
 
 func TestCalibrate(t *testing.T) {

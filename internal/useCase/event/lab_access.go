@@ -7,9 +7,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabGroupRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabGroupRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
 	"github.com/rs/zerolog/log"
 	"sort"
 	"sync"
@@ -17,11 +17,11 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	labAccessSyncModel "github.com/cybericebox/daemon/internal/delivery/repository/labAccessSyncRepo"
-	"github.com/cybericebox/daemon/internal/model"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	labAccessModel "github.com/cybericebox/daemon/internal/model/labAccess"
-	labBindingModel "github.com/cybericebox/daemon/internal/model/labBinding"
+	labAccessSyncModel "github.com/cybericebox/backend/internal/delivery/repository/labAccessSyncRepo"
+	"github.com/cybericebox/backend/internal/model"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	labAccessModel "github.com/cybericebox/backend/internal/model/labAccess"
+	labBindingModel "github.com/cybericebox/backend/internal/model/labBinding"
 )
 
 // LabClientAccess is the desired complete ACL for one named VPN client in a

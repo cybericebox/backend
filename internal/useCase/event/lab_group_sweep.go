@@ -7,8 +7,8 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/daemon/internal/model"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
+	"github.com/cybericebox/backend/internal/model"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
 )
 
 // DefaultLabSweepGrace is how old a lab group must be before the orphan sweep judges it: a stand or

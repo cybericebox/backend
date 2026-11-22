@@ -8,8 +8,8 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	resourcesModel "github.com/cybericebox/daemon/internal/model/resources"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	resourcesModel "github.com/cybericebox/backend/internal/model/resources"
 )
 
 // elevation maps a stored request to the domain entity. Never validates: a request written by an older version

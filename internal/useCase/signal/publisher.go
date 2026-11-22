@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	signalModel "github.com/cybericebox/daemon/internal/model/signal"
-	"github.com/cybericebox/daemon/pkg/tools"
+	signalModel "github.com/cybericebox/backend/internal/model/signal"
+	"github.com/cybericebox/backend/pkg/tools"
 )
 
 // Outbox is deliberately small so a use case can use its transaction-bound

@@ -9,11 +9,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/protection"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	authUseCase "github.com/cybericebox/daemon/internal/useCase/auth"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/protection"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	authUseCase "github.com/cybericebox/backend/internal/useCase/auth"
 )
 
 // The OAuth cookies carry the __Host- prefix: the browser then accepts them only from this exact host

@@ -12,10 +12,10 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventContentRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/liveScreenRepo"
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventContentRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/liveScreenRepo"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 func TestEventLiveLayoutDraftPublishRoundTrip(t *testing.T) {

@@ -3,7 +3,7 @@ package auth_test
 import (
 	"time"
 
-	"github.com/cybericebox/daemon/internal/config"
+	"github.com/cybericebox/backend/internal/config"
 )
 
 // testAuthConfig is the host set of the handler tests.

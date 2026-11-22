@@ -7,9 +7,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/labCheckRepo"
-	labCheckModel "github.com/cybericebox/daemon/internal/model/labCheck"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/labCheckRepo"
+	labCheckModel "github.com/cybericebox/backend/internal/model/labCheck"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 var t0 = time.Date(2026, 11, 11, 12, 0, 0, 0, time.UTC)

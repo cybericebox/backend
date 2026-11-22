@@ -5,8 +5,8 @@ import (
 	"math/rand/v2"
 	"testing"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	teamChallengeModel "github.com/cybericebox/daemon/internal/model/teamChallenge"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	teamChallengeModel "github.com/cybericebox/backend/internal/model/teamChallenge"
 )
 
 // refBalance is the origin/develop VariantBalance, copied verbatim before the

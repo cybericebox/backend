@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 func TestConfigCarriesTheTaskRevealMode(t *testing.T) {

@@ -8,9 +8,9 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
-	calModel "github.com/cybericebox/daemon/internal/model/resourceCalendar"
-	inboxUseCase "github.com/cybericebox/daemon/internal/useCase/notification/inbox"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
+	calModel "github.com/cybericebox/backend/internal/model/resourceCalendar"
+	inboxUseCase "github.com/cybericebox/backend/internal/useCase/notification/inbox"
 )
 
 // ChangeInput is an organizer's change request: the size, the window and/or the estimate for future dynamic

@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
 )
 
 func TestDispatchStatuses_StringValues(t *testing.T) {

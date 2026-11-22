@@ -1,7 +1,7 @@
 package infrastructure
 
 import (
-	resourcesModel "github.com/cybericebox/daemon/internal/model/resources"
+	resourcesModel "github.com/cybericebox/backend/internal/model/resources"
 	"math"
 )
 

@@ -9,8 +9,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	labBindingModel "github.com/cybericebox/daemon/internal/model/labBinding"
-	labTraffic "github.com/cybericebox/daemon/internal/model/labTraffic"
+	labBindingModel "github.com/cybericebox/backend/internal/model/labBinding"
+	labTraffic "github.com/cybericebox/backend/internal/model/labTraffic"
 	labpb "github.com/cybericebox/laboratory/pkg/agent/protobuf"
 )
 

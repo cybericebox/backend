@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/autoRecreateRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	eventStandModel "github.com/cybericebox/daemon/internal/model/eventStand"
+	"github.com/cybericebox/backend/internal/delivery/repository/autoRecreateRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	eventStandModel "github.com/cybericebox/backend/internal/model/eventStand"
 )
 
 // A Lab the agent accepted that then failed is tracked for automatic recreation: while it has attempts left the stand

@@ -7,7 +7,7 @@ import (
 	"github.com/gofrs/uuid" //nolint:depguard // the uuid package of the whole repository
 	"github.com/jackc/pgx/v5"
 
-	errorJournalUseCase "github.com/cybericebox/daemon/internal/useCase/errorJournal"
+	errorJournalUseCase "github.com/cybericebox/backend/internal/useCase/errorJournal"
 )
 
 const (

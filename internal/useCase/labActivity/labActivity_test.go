@@ -10,11 +10,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/assistantStatsRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/labActivityRepo"
-	assistantModel "github.com/cybericebox/daemon/internal/model/assistant"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	"github.com/cybericebox/daemon/internal/useCase/labActivity"
+	"github.com/cybericebox/backend/internal/delivery/repository/assistantStatsRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/labActivityRepo"
+	assistantModel "github.com/cybericebox/backend/internal/model/assistant"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	"github.com/cybericebox/backend/internal/useCase/labActivity"
 )
 
 // fakeAgent serves the pages in order and records the cursors it was asked with.

@@ -1,7 +1,7 @@
 package infrastructure
 
 import (
-	r "github.com/cybericebox/daemon/internal/model/resources"
+	r "github.com/cybericebox/backend/internal/model/resources"
 	"math"
 	"testing"
 )

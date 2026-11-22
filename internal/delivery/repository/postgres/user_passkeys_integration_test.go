@@ -8,9 +8,9 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/passkeyRepo"
-	passkeyModel "github.com/cybericebox/daemon/internal/model/passkey"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/passkeyRepo"
+	passkeyModel "github.com/cybericebox/backend/internal/model/passkey"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 func newPasskey(user uuid.UUID, n int) passkeyModel.Passkey {

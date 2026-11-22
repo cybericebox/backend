@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	resourcesModel "github.com/cybericebox/daemon/internal/model/resources"
+	resourcesModel "github.com/cybericebox/backend/internal/model/resources"
 )
 
 const mi, gi = 1 << 20, 1 << 30

@@ -2,7 +2,7 @@ package config
 
 import (
 	"encoding/json"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
 	"os"
 	"reflect"
 	"strings"

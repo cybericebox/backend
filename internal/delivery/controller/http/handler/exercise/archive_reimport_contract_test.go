@@ -12,10 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v3"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/handler/apidocs"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	exerciseUseCase "github.com/cybericebox/daemon/internal/useCase/exercise"
-	"github.com/cybericebox/daemon/pkg/pagination"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/handler/apidocs"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	exerciseUseCase "github.com/cybericebox/backend/internal/useCase/exercise"
+	"github.com/cybericebox/backend/pkg/pagination"
 )
 
 func TestCommitImportRequestAndResponseSchemasMatchActualPascalCaseKeys(t *testing.T) {

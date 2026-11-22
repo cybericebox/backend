@@ -3,8 +3,8 @@ package auth
 import (
 	"net/mail"
 
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
+	userModel "github.com/cybericebox/backend/internal/model/user"
 )
 
 // maxEmailLength is the RFC 5321 limit for a mailbox address.

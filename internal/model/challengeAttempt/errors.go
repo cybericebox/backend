@@ -3,8 +3,8 @@ package challengeAttempt
 import (
 	"net/http"
 
-	"github.com/cybericebox/daemon/internal/model"
-	"github.com/cybericebox/daemon/pkg/err"
+	"github.com/cybericebox/backend/internal/model"
+	"github.com/cybericebox/backend/pkg/err"
 )
 
 // EventChallengeObjectCode is shared with eventChallenge, teamChallenge and

@@ -7,7 +7,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/golang-jwt/jwt/v5"
 
-	"github.com/cybericebox/daemon/pkg/secret"
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
 // SetupTokenTTL is the default lifetime (SETUP_TOKEN_TTL overrides it) of a setup link: the one validity of every

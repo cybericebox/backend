@@ -1,8 +1,8 @@
 package eventStandModel
 
 import (
-	"github.com/cybericebox/daemon/internal/model"
-	"github.com/cybericebox/daemon/pkg/err"
+	"github.com/cybericebox/backend/internal/model"
+	"github.com/cybericebox/backend/pkg/err"
 )
 
 // EventStandObjectCode — next free detail code: 10

@@ -3,8 +3,8 @@ package labview
 import (
 	"github.com/gofrs/uuid"
 
-	labBindingModel "github.com/cybericebox/daemon/internal/model/labBinding"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	labBindingModel "github.com/cybericebox/backend/internal/model/labBinding"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 type (

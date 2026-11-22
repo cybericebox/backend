@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/platformAnalyticsRepo"
-	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
-	platformAnalyticsModel "github.com/cybericebox/daemon/internal/model/platformAnalytics"
+	"github.com/cybericebox/backend/internal/delivery/repository/platformAnalyticsRepo"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
+	platformAnalyticsModel "github.com/cybericebox/backend/internal/model/platformAnalytics"
 )
 
 const (

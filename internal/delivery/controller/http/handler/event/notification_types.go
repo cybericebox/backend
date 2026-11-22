@@ -3,8 +3,8 @@ package event
 import (
 	"github.com/gin-gonic/gin"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
 )
 
 type notificationVariableResponse struct {

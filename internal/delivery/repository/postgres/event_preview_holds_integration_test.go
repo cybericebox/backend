@@ -2,12 +2,12 @@ package postgres_test
 
 import (
 	"context"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	"github.com/cybericebox/daemon/internal/delivery/repository/resourceCalendarRepo"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	calModel "github.com/cybericebox/daemon/internal/model/resourceCalendar"
-	"github.com/cybericebox/daemon/internal/testhelpers"
-	calendar "github.com/cybericebox/daemon/internal/useCase/resourceCalendar"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/delivery/repository/resourceCalendarRepo"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	calModel "github.com/cybericebox/backend/internal/model/resourceCalendar"
+	"github.com/cybericebox/backend/internal/testhelpers"
+	calendar "github.com/cybericebox/backend/internal/useCase/resourceCalendar"
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 	"sync"

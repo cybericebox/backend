@@ -130,6 +130,6 @@ run = """
 test -d ../../laboratory || { echo "../../laboratory is not checked out" >&2; exit 1; }
 test ! -e ../../go.work || { echo "../../go.work already exists" >&2; exit 1; }
 v=$(.github/scripts/lab-pin.sh version)
-cd ../.. && go work init ./platform/daemon ./laboratory && go work edit -replace "github.com/cybericebox/laboratory@$v=./laboratory"
-echo "../../go.work created: the daemon builds against ../../laboratory (rerun after changing the pin: rm ../../go.work && mise run work)"
+cd ../.. && go work init ./platform/backend ./laboratory && go work edit -replace "github.com/cybericebox/laboratory@$v=./laboratory"
+echo "../../go.work created: the backend builds against ../../laboratory (rerun after changing the pin: rm ../../go.work && mise run work)"
 """

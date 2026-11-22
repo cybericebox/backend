@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/useCase/analyticsCache"
+	"github.com/cybericebox/backend/internal/useCase/analyticsCache"
 )
 
 // Analytics reports are shared by every staff viewer of an event, and a

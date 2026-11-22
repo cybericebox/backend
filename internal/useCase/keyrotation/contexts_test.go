@@ -6,8 +6,8 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/secretctx"
-	"github.com/cybericebox/daemon/internal/useCase/keyrotation"
+	"github.com/cybericebox/backend/internal/secretctx"
+	"github.com/cybericebox/backend/internal/useCase/keyrotation"
 )
 
 // The re-encryption opens every value with the context the code sealed it with: the contexts it uses are the builders of

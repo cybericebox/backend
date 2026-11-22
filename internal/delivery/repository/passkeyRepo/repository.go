@@ -10,9 +10,9 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	passkeyModel "github.com/cybericebox/daemon/internal/model/passkey"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	passkeyModel "github.com/cybericebox/backend/internal/model/passkey"
 )
 
 // Queries is the narrow slice of the sqlc Querier this repository needs.

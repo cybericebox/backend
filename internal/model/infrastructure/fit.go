@@ -4,8 +4,8 @@ import (
 	"context"
 	"math"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	resourcesModel "github.com/cybericebox/daemon/internal/model/resources"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	resourcesModel "github.com/cybericebox/backend/internal/model/resources"
 )
 
 // LimitsFeature is what an agent reports about its hardware and the sizing of a lab group's own pods. The

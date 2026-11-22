@@ -10,10 +10,10 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventRepo"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	adminAuditUseCase "github.com/cybericebox/daemon/internal/useCase/adminAudit"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventRepo"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	adminAuditUseCase "github.com/cybericebox/backend/internal/useCase/adminAudit"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 type bulkArchiveUC struct {

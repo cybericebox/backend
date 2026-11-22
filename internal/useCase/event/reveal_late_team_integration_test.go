@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/teamChallengeRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/teamChallengeRepo"
 )
 
 // Owner, 2026-10-26: «show to all» waits for every eligible team and has no timeout, but a team that is not in the

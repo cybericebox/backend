@@ -7,8 +7,8 @@ package platformSettingsRepo
 import (
 	"context"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	platformSettingsModel "github.com/cybericebox/daemon/internal/model/platformSettings"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	platformSettingsModel "github.com/cybericebox/backend/internal/model/platformSettings"
 )
 
 // Queries is the narrow slice of the sqlc Querier this repository needs.

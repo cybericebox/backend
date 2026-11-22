@@ -8,7 +8,7 @@ import (
 
 	labnames "github.com/cybericebox/laboratory/pkg/names"
 
-	infra "github.com/cybericebox/daemon/internal/model/infrastructure"
+	infra "github.com/cybericebox/backend/internal/model/infrastructure"
 )
 
 // Only `<CODE>:<n>/<m>` with a code of the list passes; the free text, node names and paths of an agent never do.

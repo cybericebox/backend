@@ -9,11 +9,11 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/exerciseRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/participantRepo"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	participantModel "github.com/cybericebox/daemon/internal/model/participant"
-	"github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/repository/exerciseRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/participantRepo"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
+	"github.com/cybericebox/backend/internal/useCase/event"
 )
 
 // shownTask is what a team saw of one task on its board.

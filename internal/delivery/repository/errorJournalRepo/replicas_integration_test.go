@@ -8,10 +8,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/errorJournalRepo"
-	errorJournal "github.com/cybericebox/daemon/internal/model/errorJournal"
-	"github.com/cybericebox/daemon/internal/testhelpers"
-	errorJournalUseCase "github.com/cybericebox/daemon/internal/useCase/errorJournal"
+	"github.com/cybericebox/backend/internal/delivery/repository/errorJournalRepo"
+	errorJournal "github.com/cybericebox/backend/internal/model/errorJournal"
+	"github.com/cybericebox/backend/internal/testhelpers"
+	errorJournalUseCase "github.com/cybericebox/backend/internal/useCase/errorJournal"
 )
 
 // twoReplicas builds two journals over one database, each with a repository of its own, as two daemon processes

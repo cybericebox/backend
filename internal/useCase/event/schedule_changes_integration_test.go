@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/useCase/event"
 )
 
 // A schedule change records who moved it, when, and from what to what; an edit that bypasses the application is

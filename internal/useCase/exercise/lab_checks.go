@@ -7,12 +7,12 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	labCheckModel "github.com/cybericebox/daemon/internal/model/labCheck"
-	"github.com/cybericebox/daemon/pkg/err"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	labCheckModel "github.com/cybericebox/backend/internal/model/labCheck"
+	"github.com/cybericebox/backend/pkg/err"
 )
 
 // ILabChecks keeps the recorded results of laboratory checks and the manual runs asked for (satisfied by

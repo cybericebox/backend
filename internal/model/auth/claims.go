@@ -1,7 +1,7 @@
 package authModel
 
 import (
-	"github.com/cybericebox/daemon/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/model/rbac"
 )
 
 // AuthClaims are resolved from a validated session cookie. There is exactly one

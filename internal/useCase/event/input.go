@@ -2,19 +2,19 @@ package event
 
 import (
 	"encoding/json"
-	"github.com/cybericebox/daemon/internal/delivery/repository/participantRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/participantRepo"
 	"time"
 
 	"github.com/gofrs/uuid"
 
-	challengeAttemptModel "github.com/cybericebox/daemon/internal/model/challengeAttempt"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
-	eventExerciseModel "github.com/cybericebox/daemon/internal/model/eventExercise"
-	eventFormModel "github.com/cybericebox/daemon/internal/model/eventForm"
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
-	participantModel "github.com/cybericebox/daemon/internal/model/participant"
+	challengeAttemptModel "github.com/cybericebox/backend/internal/model/challengeAttempt"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
+	eventExerciseModel "github.com/cybericebox/backend/internal/model/eventExercise"
+	eventFormModel "github.com/cybericebox/backend/internal/model/eventForm"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
 )
 
 type CreateEventInput struct {

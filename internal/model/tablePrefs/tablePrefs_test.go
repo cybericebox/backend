@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	tablePrefsModel "github.com/cybericebox/daemon/internal/model/tablePrefs"
+	tablePrefsModel "github.com/cybericebox/backend/internal/model/tablePrefs"
 )
 
 func TestValidKey(t *testing.T) {

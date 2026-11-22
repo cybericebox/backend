@@ -7,7 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	controller "github.com/cybericebox/daemon/internal/delivery/controller/http"
+	controller "github.com/cybericebox/backend/internal/delivery/controller/http"
 )
 
 // GET /api/health is the public liveness probe the frontends poll while the

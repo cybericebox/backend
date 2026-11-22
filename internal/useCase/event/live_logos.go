@@ -8,8 +8,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
 )
 
 // liveLogoType sniffs the content (never the file name): PNG and WebP as

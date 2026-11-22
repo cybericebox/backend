@@ -2,7 +2,7 @@ package lablifecycleJob
 
 import (
 	"context"
-	jobsModel "github.com/cybericebox/daemon/internal/model/jobs"
+	jobsModel "github.com/cybericebox/backend/internal/model/jobs"
 	"github.com/riverqueue/river"
 )
 

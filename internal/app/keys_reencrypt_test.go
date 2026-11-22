@@ -15,8 +15,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/useCase/keyrotation"
-	"github.com/cybericebox/daemon/pkg/secret"
+	"github.com/cybericebox/backend/internal/useCase/keyrotation"
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
 type fakeRun struct {

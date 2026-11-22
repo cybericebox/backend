@@ -6,7 +6,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	labBindingModel "github.com/cybericebox/daemon/internal/model/labBinding"
+	labBindingModel "github.com/cybericebox/backend/internal/model/labBinding"
 )
 
 // VPNOnlineWindow is how recent the last handshake must be for a peer to count

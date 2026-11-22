@@ -13,9 +13,9 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	imageRegistryModel "github.com/cybericebox/daemon/internal/model/imageRegistry"
-	appErr "github.com/cybericebox/daemon/pkg/err"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	imageRegistryModel "github.com/cybericebox/backend/internal/model/imageRegistry"
+	appErr "github.com/cybericebox/backend/pkg/err"
 	"github.com/gofrs/uuid"
 )
 

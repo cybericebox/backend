@@ -3,7 +3,7 @@ package eventself
 import (
 	"github.com/gin-gonic/gin"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 )
 
 // abortWithETagData answers like response.AbortWithData, tagged with a hash

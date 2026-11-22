@@ -3,7 +3,7 @@ name: Check
 # A PR into develop or into a release line (release/X.Y): tests plus the image build. Nothing is published and nothing is written to a
 # registry: a check runs the code of the pull request, so it holds no Docker Hub credential at all (those are secrets of the environments
 # "candidate", "release" and "build") and pulls public images anonymously. It reads the layer cache that the candidate builds write
-# (cybericebox/daemon:buildcache-release, public).
+# (cybericebox/backend:buildcache-release, public).
 # Into a line, go.mod must pin a laboratory release (job "Laboratory pin"): the line becomes a candidate, and a candidate needs one.
 # main takes only the pull requests of Promote, which have their own gate (main-gate.yml, "Main gate"). The required check here is "Check passed".
 # It must come from a pull_request run: a check of a workflow_dispatch run is not evaluated for a pull request, so there is no dispatch trigger.
@@ -82,8 +82,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: daemon
-            image: cybericebox/daemon
+          - name: backend
+            image: cybericebox/backend
     steps:
       - name: Check repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

@@ -7,7 +7,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabAllocationRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabAllocationRepo"
 )
 
 // reservationEnder is the optional part of the resource gate that tells when the event's reservation window ends.

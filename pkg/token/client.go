@@ -4,7 +4,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/cybericebox/daemon/pkg/secret"
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
 const issuer = "id"

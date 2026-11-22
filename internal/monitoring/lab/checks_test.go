@@ -9,7 +9,7 @@ import (
 
 	labpb "github.com/cybericebox/laboratory/pkg/agent/protobuf"
 
-	labCheckModel "github.com/cybericebox/daemon/internal/model/labCheck"
+	labCheckModel "github.com/cybericebox/backend/internal/model/labCheck"
 )
 
 type memoryChecks struct {

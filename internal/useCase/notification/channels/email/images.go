@@ -16,8 +16,8 @@ import (
 	"github.com/gofrs/uuid"
 	"golang.org/x/image/draw"
 
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	notificationModel "github.com/cybericebox/daemon/internal/model/notification"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	notificationModel "github.com/cybericebox/backend/internal/model/notification"
 )
 
 // The template image limits are set once at start (EMAIL_IMAGE_UPLOAD_MAX_BYTES,

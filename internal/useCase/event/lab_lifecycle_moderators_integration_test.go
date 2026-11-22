@@ -2,11 +2,11 @@ package event_test
 
 import (
 	"context"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/labBindingRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
-	"github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/labBindingRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
+	"github.com/cybericebox/backend/internal/useCase/event"
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"strings"

@@ -6,9 +6,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	broadcastModel "github.com/cybericebox/daemon/internal/model/notification/broadcast"
-	"github.com/cybericebox/daemon/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	broadcastModel "github.com/cybericebox/backend/internal/model/notification/broadcast"
+	"github.com/cybericebox/backend/internal/model/rbac"
 )
 
 type (

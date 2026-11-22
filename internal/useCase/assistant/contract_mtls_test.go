@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/useCase/assistant"
+	"github.com/cybericebox/backend/internal/useCase/assistant"
 )
 
 // startBrainMTLS starts the real brain in its mutual-TLS mode: it runs its own CA, enrolls the daemon on the one-time token

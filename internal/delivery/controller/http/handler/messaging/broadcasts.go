@@ -12,15 +12,15 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/download"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/middleware"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	broadcastModel "github.com/cybericebox/daemon/internal/model/notification/broadcast"
-	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	broadcastUseCase "github.com/cybericebox/daemon/internal/useCase/notification/broadcast"
-	"github.com/cybericebox/daemon/pkg/pagination"
-	"github.com/cybericebox/daemon/pkg/tools"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/download"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	broadcastModel "github.com/cybericebox/backend/internal/model/notification/broadcast"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	broadcastUseCase "github.com/cybericebox/backend/internal/useCase/notification/broadcast"
+	"github.com/cybericebox/backend/pkg/pagination"
+	"github.com/cybericebox/backend/pkg/tools"
 )
 
 func marshalJSON(v any, fallback string) (json.RawMessage, error) {

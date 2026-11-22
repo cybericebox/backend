@@ -8,10 +8,10 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/liveScreenRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/liveScreenRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 func TestEventLiveScreenLinkIsOnePerScreen(t *testing.T) {

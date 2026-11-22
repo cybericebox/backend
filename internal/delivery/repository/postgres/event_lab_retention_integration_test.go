@@ -2,7 +2,7 @@ package postgres_test
 
 import (
 	"context"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/testhelpers"
 	"github.com/stretchr/testify/require"
 	"testing"
 )

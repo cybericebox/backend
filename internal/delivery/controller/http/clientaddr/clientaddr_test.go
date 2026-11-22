@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/clientaddr"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/clientaddr"
 )
 
 var verified = &tls.ConnectionState{VerifiedChains: [][]*x509.Certificate{{{}}}}

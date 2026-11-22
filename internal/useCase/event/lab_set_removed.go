@@ -8,8 +8,8 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabRepo"
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabRepo"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
 )
 
 // retireRemovedSetLab ends a canonical Lab whose event exercise is gone (the set

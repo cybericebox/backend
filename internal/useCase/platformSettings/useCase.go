@@ -6,14 +6,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/platformSettingsRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	preview "github.com/cybericebox/daemon/internal/model/participantPreview"
-	"github.com/cybericebox/daemon/internal/model/platformSettings"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	retentionModel "github.com/cybericebox/daemon/internal/model/retention"
+	"github.com/cybericebox/backend/internal/delivery/repository/platformSettingsRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	preview "github.com/cybericebox/backend/internal/model/participantPreview"
+	"github.com/cybericebox/backend/internal/model/platformSettings"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	retentionModel "github.com/cybericebox/backend/internal/model/retention"
 )
 
 type (

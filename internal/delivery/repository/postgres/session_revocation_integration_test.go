@@ -7,14 +7,14 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/mediaRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/sessionRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/userRepo"
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
-	"github.com/cybericebox/daemon/internal/session"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/mediaRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/sessionRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/userRepo"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	userModel "github.com/cybericebox/backend/internal/model/user"
+	"github.com/cybericebox/backend/internal/session"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 var revokeLifetimes = session.Lifetimes{Idle: time.Hour, Absolute: 48 * time.Hour}

@@ -1,8 +1,8 @@
 package exerciseModel
 
 import (
-	"github.com/cybericebox/daemon/internal/model"
-	"github.com/cybericebox/daemon/pkg/err"
+	"github.com/cybericebox/backend/internal/model"
+	"github.com/cybericebox/backend/pkg/err"
 )
 
 // ErrDeviceNameReserved is raised when a device is named like an endpoint the platform provides in every lab. The public context

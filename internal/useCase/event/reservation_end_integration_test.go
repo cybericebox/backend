@@ -7,13 +7,13 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
-	labBindingModel "github.com/cybericebox/daemon/internal/model/labBinding"
-	resourcesModel "github.com/cybericebox/daemon/internal/model/resources"
-	signalModel "github.com/cybericebox/daemon/internal/model/signal"
-	"github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
+	labBindingModel "github.com/cybericebox/backend/internal/model/labBinding"
+	resourcesModel "github.com/cybericebox/backend/internal/model/resources"
+	signalModel "github.com/cybericebox/backend/internal/model/signal"
+	"github.com/cybericebox/backend/internal/useCase/event"
 )
 
 // reservationAgent is the stand agent that also says which agent holds a group (every group is on one agent).

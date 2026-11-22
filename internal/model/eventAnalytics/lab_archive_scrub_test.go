@@ -9,7 +9,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
-	eventAnalyticsModel "github.com/cybericebox/daemon/internal/model/eventAnalytics"
+	eventAnalyticsModel "github.com/cybericebox/backend/internal/model/eventAnalytics"
 )
 
 func archiveOf(t *testing.T, lines ...string) []byte {

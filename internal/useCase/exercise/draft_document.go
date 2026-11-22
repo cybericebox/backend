@@ -11,7 +11,7 @@ import (
 	"github.com/gofrs/uuid"
 	"go.yaml.in/yaml/v3"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 // MaxDraftDocumentBytes is the largest document DraftDocument answers (the draft itself is bounded by the request limits of

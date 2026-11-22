@@ -3,8 +3,8 @@ package settingsUseCase
 import (
 	"context"
 
-	"github.com/cybericebox/daemon/internal/model"
-	settingsModel "github.com/cybericebox/daemon/internal/model/notification/settings"
+	"github.com/cybericebox/backend/internal/model"
+	settingsModel "github.com/cybericebox/backend/internal/model/notification/settings"
 )
 
 func (u *NotificationSettingsUseCase) ListGlobalSettings(

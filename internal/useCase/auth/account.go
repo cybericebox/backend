@@ -5,12 +5,12 @@ import (
 	"errors"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/model/rbac"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/model"
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
+	"github.com/cybericebox/backend/internal/model"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
+	userModel "github.com/cybericebox/backend/internal/model/user"
 )
 
 // GetAccount returns the signed-in user's account view (profile + providers + login methods).

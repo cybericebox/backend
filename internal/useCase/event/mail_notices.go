@@ -8,10 +8,10 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/mailRepo"
-	"github.com/cybericebox/daemon/internal/model"
-	participantModel "github.com/cybericebox/daemon/internal/model/participant"
-	signalModel "github.com/cybericebox/daemon/internal/model/signal"
+	"github.com/cybericebox/backend/internal/delivery/repository/mailRepo"
+	"github.com/cybericebox/backend/internal/model"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
+	signalModel "github.com/cybericebox/backend/internal/model/signal"
 )
 
 // kyiv formats participant-facing times; the platform audience is Ukrainian.

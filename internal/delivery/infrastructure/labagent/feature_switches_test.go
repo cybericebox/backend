@@ -14,8 +14,8 @@ import (
 	labclient "github.com/cybericebox/laboratory/pkg/agent/client"
 	labpb "github.com/cybericebox/laboratory/pkg/agent/protobuf"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
 )
 
 // The features of contract 2.8 are read as the agent reports them; a field the agent does not send (an older agent) stays unknown

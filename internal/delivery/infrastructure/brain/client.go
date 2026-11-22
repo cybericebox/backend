@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	assistantModel "github.com/cybericebox/daemon/internal/model/assistant"
+	assistantModel "github.com/cybericebox/backend/internal/model/assistant"
 )
 
 const (

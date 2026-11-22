@@ -5,7 +5,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/model"
+	"github.com/cybericebox/backend/internal/model"
 )
 
 // ReplaceReferences syncs the owner's reference set to exactly fileIDs.

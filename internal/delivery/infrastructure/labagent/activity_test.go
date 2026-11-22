@@ -14,7 +14,7 @@ import (
 	labclient "github.com/cybericebox/laboratory/pkg/agent/client"
 	labpb "github.com/cybericebox/laboratory/pkg/agent/protobuf"
 
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
 )
 
 // activityAgent answers GetLabGroupActivity (and GetFeatures) from the test.

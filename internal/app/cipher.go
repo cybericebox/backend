@@ -1,6 +1,6 @@
 package app
 
-import "github.com/cybericebox/daemon/pkg/secret"
+import "github.com/cybericebox/backend/pkg/secret"
 
 // cipherOrNil keeps a missing cipher a nil interface: a nil *secret.Cipher stored in an interface
 // would look present.

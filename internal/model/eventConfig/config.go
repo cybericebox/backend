@@ -13,9 +13,9 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	challengeAttempt "github.com/cybericebox/daemon/internal/model/challengeAttempt"
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
-	eventStandModel "github.com/cybericebox/daemon/internal/model/eventStand"
+	challengeAttempt "github.com/cybericebox/backend/internal/model/challengeAttempt"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
+	eventStandModel "github.com/cybericebox/backend/internal/model/eventStand"
 )
 
 const previewDescriptionMaxLen = 1000

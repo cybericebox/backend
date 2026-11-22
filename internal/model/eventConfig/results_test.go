@@ -7,7 +7,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
 )
 
 func TestResultsSettingsDefaults(t *testing.T) {

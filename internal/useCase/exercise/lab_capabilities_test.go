@@ -6,8 +6,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	"github.com/cybericebox/daemon/internal/useCase/exercise"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	"github.com/cybericebox/backend/internal/useCase/exercise"
 )
 
 type capabilityInfra struct {

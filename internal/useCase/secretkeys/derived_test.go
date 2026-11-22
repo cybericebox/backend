@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	mailUseCase "github.com/cybericebox/daemon/internal/useCase/mail"
-	"github.com/cybericebox/daemon/pkg/secret"
+	mailUseCase "github.com/cybericebox/backend/internal/useCase/mail"
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
 // After the move to a master key the platform data is partly still sealed with the old explicit key: the report tells the two

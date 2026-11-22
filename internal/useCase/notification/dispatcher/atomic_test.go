@@ -10,13 +10,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
-	payloads "github.com/cybericebox/daemon/internal/model/notification/types/payloads"
-	dispatcherUseCase "github.com/cybericebox/daemon/internal/useCase/notification/dispatcher"
-	"github.com/cybericebox/daemon/pkg/tools"
-	"github.com/cybericebox/daemon/pkg/worker"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
+	payloads "github.com/cybericebox/backend/internal/model/notification/types/payloads"
+	dispatcherUseCase "github.com/cybericebox/backend/internal/useCase/notification/dispatcher"
+	"github.com/cybericebox/backend/pkg/tools"
+	"github.com/cybericebox/backend/pkg/worker"
 )
 
 type transactionHandle struct {

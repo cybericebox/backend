@@ -5,7 +5,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	calModel "github.com/cybericebox/daemon/internal/model/resourceCalendar"
+	calModel "github.com/cybericebox/backend/internal/model/resourceCalendar"
 )
 
 // ShareView is the part of a reservation placed on one agent (admin only).

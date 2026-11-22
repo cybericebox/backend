@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/leader"
+	"github.com/cybericebox/backend/internal/leader"
 )
 
 // sharedLock is one lock key that several fake replicas race for.

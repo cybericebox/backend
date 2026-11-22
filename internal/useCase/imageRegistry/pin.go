@@ -5,8 +5,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	imageRegistryModel "github.com/cybericebox/daemon/internal/model/imageRegistry"
-	"github.com/cybericebox/daemon/pkg/ociregistry"
+	imageRegistryModel "github.com/cybericebox/backend/internal/model/imageRegistry"
+	"github.com/cybericebox/backend/pkg/ociregistry"
 )
 
 // PinImages fixes the images of an import by digest: for every distinct external reference that names none, one HEAD of

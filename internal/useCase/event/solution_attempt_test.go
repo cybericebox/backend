@@ -11,10 +11,10 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventResultRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	challengeAttempt "github.com/cybericebox/daemon/internal/model/challengeAttempt"
-	event "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventResultRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	challengeAttempt "github.com/cybericebox/backend/internal/model/challengeAttempt"
+	event "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 func TestDecideSolutionAttempt_Accepted_RecalculatesUsingOriginalAttemptTime(t *testing.T) {

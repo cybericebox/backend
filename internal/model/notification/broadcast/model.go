@@ -10,9 +10,9 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	notificationModel "github.com/cybericebox/daemon/internal/model/notification"
-	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
-	"github.com/cybericebox/daemon/internal/model/rbac"
+	notificationModel "github.com/cybericebox/backend/internal/model/notification"
+	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
+	"github.com/cybericebox/backend/internal/model/rbac"
 )
 
 // Status is the lifecycle of a broadcast.

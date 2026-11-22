@@ -9,10 +9,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/model"
-	labMonitoringModel "github.com/cybericebox/daemon/internal/model/labMonitoring"
-	platformAnalyticsModel "github.com/cybericebox/daemon/internal/model/platformAnalytics"
-	"github.com/cybericebox/daemon/internal/useCase/analyticsCache"
+	"github.com/cybericebox/backend/internal/model"
+	labMonitoringModel "github.com/cybericebox/backend/internal/model/labMonitoring"
+	platformAnalyticsModel "github.com/cybericebox/backend/internal/model/platformAnalytics"
+	"github.com/cybericebox/backend/internal/useCase/analyticsCache"
 )
 
 // reportTTL bounds how stale a report may be; the admin polls the live

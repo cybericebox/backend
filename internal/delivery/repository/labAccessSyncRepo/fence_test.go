@@ -2,10 +2,10 @@ package labAccessSyncRepo_test
 
 import (
 	"context"
-	"github.com/cybericebox/daemon/internal/delivery/repository/labAccessSyncRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
+	"github.com/cybericebox/backend/internal/delivery/repository/labAccessSyncRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
 	labpb "github.com/cybericebox/laboratory/pkg/agent/protobuf"
 	"github.com/gofrs/uuid"
 	"go.uber.org/mock/gomock"

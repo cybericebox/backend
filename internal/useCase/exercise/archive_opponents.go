@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 // forbiddenOpponentKeys are what the platform alone decides about an opponent: its image, its toolset, the keys it

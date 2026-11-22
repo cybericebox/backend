@@ -8,8 +8,8 @@ import (
 
 	labclient "github.com/cybericebox/laboratory/pkg/agent/client"
 
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	"github.com/cybericebox/daemon/pkg/labaccess"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	"github.com/cybericebox/backend/pkg/labaccess"
 )
 
 // SessionIssuer signs the access grants of the laboratory (the web and console sessions) with the access key

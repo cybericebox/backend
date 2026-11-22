@@ -9,18 +9,18 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/middleware"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
 	"io"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/handler/notification/stats"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	mailModel "github.com/cybericebox/daemon/internal/model/mail"
-	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	mailUseCase "github.com/cybericebox/daemon/internal/useCase/mail"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/handler/notification/stats"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	mailModel "github.com/cybericebox/backend/internal/model/mail"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	mailUseCase "github.com/cybericebox/backend/internal/useCase/mail"
 )
 
 type (

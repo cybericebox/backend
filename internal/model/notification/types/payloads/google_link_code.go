@@ -3,7 +3,7 @@ package notificationPayloads
 import (
 	"encoding/json"
 
-	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
+	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
 )
 
 // GoogleLinkCodePayload is the one-time code that confirms linking a Google account to this account (sign-in with a

@@ -11,19 +11,19 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5"
 
-	eventChallengeModel "github.com/cybericebox/daemon/internal/model/eventChallenge"
+	eventChallengeModel "github.com/cybericebox/backend/internal/model/eventChallenge"
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	challengeAttemptModel "github.com/cybericebox/daemon/internal/model/challengeAttempt"
-	eventExerciseModel "github.com/cybericebox/daemon/internal/model/eventExercise"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	vpnModel "github.com/cybericebox/daemon/internal/model/vpn"
-	event "github.com/cybericebox/daemon/internal/useCase/event"
-	errs "github.com/cybericebox/daemon/pkg/err"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	challengeAttemptModel "github.com/cybericebox/backend/internal/model/challengeAttempt"
+	eventExerciseModel "github.com/cybericebox/backend/internal/model/eventExercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	vpnModel "github.com/cybericebox/backend/internal/model/vpn"
+	event "github.com/cybericebox/backend/internal/useCase/event"
+	errs "github.com/cybericebox/backend/pkg/err"
 )
 
 type readyLabInfra struct{ status exerciseModel.LabDeployStatus }

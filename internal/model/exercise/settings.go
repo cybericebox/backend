@@ -3,8 +3,8 @@ package exerciseModel
 import (
 	"time"
 
-	imageRegistryModel "github.com/cybericebox/daemon/internal/model/imageRegistry"
-	platformSettingsModel "github.com/cybericebox/daemon/internal/model/platformSettings"
+	imageRegistryModel "github.com/cybericebox/backend/internal/model/imageRegistry"
+	platformSettingsModel "github.com/cybericebox/backend/internal/model/platformSettings"
 )
 
 // Default archive limits, one set for import and export: the export refuses what the import would refuse, so an

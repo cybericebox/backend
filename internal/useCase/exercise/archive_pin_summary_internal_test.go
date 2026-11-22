@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 func pinVariantOf(images ...string) exerciseModel.Variant {

@@ -3,9 +3,9 @@ package errorJournalRepo
 import (
 	"context"
 	"errors"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	jobsModel "github.com/cybericebox/daemon/internal/model/jobs"
-	errorJournalUseCase "github.com/cybericebox/daemon/internal/useCase/errorJournal"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	jobsModel "github.com/cybericebox/backend/internal/model/jobs"
+	errorJournalUseCase "github.com/cybericebox/backend/internal/useCase/errorJournal"
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"

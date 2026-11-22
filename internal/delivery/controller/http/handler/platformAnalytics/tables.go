@@ -7,10 +7,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	utils "github.com/cybericebox/daemon/internal/delivery/controller/http/utils"
-	platformAnalyticsUseCase "github.com/cybericebox/daemon/internal/useCase/platformAnalytics"
-	"github.com/cybericebox/daemon/pkg/pagination"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	utils "github.com/cybericebox/backend/internal/delivery/controller/http/utils"
+	platformAnalyticsUseCase "github.com/cybericebox/backend/internal/useCase/platformAnalytics"
+	"github.com/cybericebox/backend/pkg/pagination"
 )
 
 var errInvalidSort = errors.New("sortBy or sortDir is not valid")

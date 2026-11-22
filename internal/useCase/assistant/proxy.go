@@ -10,8 +10,8 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/daemon/internal/delivery/infrastructure/brain"
-	assistantModel "github.com/cybericebox/daemon/internal/model/assistant"
+	"github.com/cybericebox/backend/internal/delivery/infrastructure/brain"
+	assistantModel "github.com/cybericebox/backend/internal/model/assistant"
 )
 
 // SubjectHeader names the opaque user the brain binds a chat session to.

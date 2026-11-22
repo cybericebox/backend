@@ -5,7 +5,7 @@ package audit
 import (
 	"github.com/gin-gonic/gin"
 
-	adminAuditUseCase "github.com/cybericebox/daemon/internal/useCase/adminAudit"
+	adminAuditUseCase "github.com/cybericebox/backend/internal/useCase/adminAudit"
 )
 
 const targetKey = "adminAuditTarget"

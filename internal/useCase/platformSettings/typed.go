@@ -11,13 +11,13 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	platformSettingsModel "github.com/cybericebox/daemon/internal/model/platformSettings"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	retentionModel "github.com/cybericebox/daemon/internal/model/retention"
-	appErr "github.com/cybericebox/daemon/pkg/err"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	platformSettingsModel "github.com/cybericebox/backend/internal/model/platformSettings"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	retentionModel "github.com/cybericebox/backend/internal/model/retention"
+	appErr "github.com/cybericebox/backend/pkg/err"
 )
 
 // The test run leases without config: the defaults of EXERCISE_TEST_DEPLOY_TTL and EXERCISE_TEST_DEPLOY_TTL_MAX.

@@ -11,10 +11,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	authHandler "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/auth"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
-	passkeyModel "github.com/cybericebox/daemon/internal/model/passkey"
+	authHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/auth"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
+	passkeyModel "github.com/cybericebox/backend/internal/model/passkey"
 )
 
 func passkeyRouter(uc *fakeUC, prot *fakeProt, identity bool) *gin.Engine {

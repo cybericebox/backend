@@ -8,8 +8,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/model/notification/inappdefaults"
-	inboxModel "github.com/cybericebox/daemon/internal/model/notification/inbox"
+	"github.com/cybericebox/backend/internal/model/notification/inappdefaults"
+	inboxModel "github.com/cybericebox/backend/internal/model/notification/inbox"
 )
 
 // ResourceChange is the resource change request snapshot the calendar reports.

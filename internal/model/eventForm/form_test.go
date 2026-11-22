@@ -3,7 +3,7 @@ package eventFormModel
 import (
 	"time"
 
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
 	"testing"
 )
 

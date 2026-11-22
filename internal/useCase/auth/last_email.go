@@ -3,7 +3,7 @@ package auth
 import (
 	"context"
 
-	"github.com/cybericebox/daemon/internal/model"
+	"github.com/cybericebox/backend/internal/model"
 )
 
 // SessionEmail is the address of the account behind a session cookie that was just issued: what the browser

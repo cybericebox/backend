@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	labMonitoringModel "github.com/cybericebox/daemon/internal/model/labMonitoring"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	labMonitoringModel "github.com/cybericebox/backend/internal/model/labMonitoring"
 )
 
 // InfrastructureKindQueries are the statements that split the infrastructure

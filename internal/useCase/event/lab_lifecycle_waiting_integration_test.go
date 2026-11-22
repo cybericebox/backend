@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
 )
 
 // The lab_lifecycle pass saw «get lab group ... not found» in the same second the group was being created and

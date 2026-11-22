@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/cybericebox/daemon/pkg/email"
+	"github.com/cybericebox/backend/pkg/email"
 )
 
 // GuardedTransport returns a clone of base (a default transport when nil) whose dialer refuses, at connect

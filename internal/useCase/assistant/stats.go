@@ -11,8 +11,8 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/daemon/internal/delivery/infrastructure/brain"
-	assistantModel "github.com/cybericebox/daemon/internal/model/assistant"
+	"github.com/cybericebox/backend/internal/delivery/infrastructure/brain"
+	assistantModel "github.com/cybericebox/backend/internal/model/assistant"
 )
 
 // StatsInterval is how often the leader pushes the aggregates of the events whose collection is on.

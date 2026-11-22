@@ -3,7 +3,7 @@ package entry
 import (
 	"strings"
 
-	"github.com/cybericebox/daemon/internal/config"
+	"github.com/cybericebox/backend/internal/config"
 )
 
 // neverProxied are the labels under DOMAIN that belong to the laboratory (lab pages and VPN, the agent

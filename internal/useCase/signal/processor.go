@@ -7,7 +7,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	signalModel "github.com/cybericebox/daemon/internal/model/signal"
+	signalModel "github.com/cybericebox/backend/internal/model/signal"
 )
 
 const (

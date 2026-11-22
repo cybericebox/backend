@@ -3,7 +3,7 @@ package eventFormModel
 import (
 	"fmt"
 
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
 )
 
 // MissingRequired lists the keys of the required questions the answers leave

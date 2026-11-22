@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/cybericebox/daemon/pkg/secret"
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
 // Write prints the report for an operator: the loaded key ids per family, then per column how many values each key

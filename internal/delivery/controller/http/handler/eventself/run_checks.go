@@ -6,8 +6,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
 )
 
 // challengeChecksRunner is the optional part of the use case that asks for a check of the caller's own task now.

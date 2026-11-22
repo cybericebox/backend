@@ -2,7 +2,7 @@ package eventself
 
 import (
 	"encoding/json"
-	"github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/useCase/event"
 	"github.com/gofrs/uuid"
 	"testing"
 )

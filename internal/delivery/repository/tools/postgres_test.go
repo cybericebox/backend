@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	notificationModel "github.com/cybericebox/daemon/internal/model/notification"
+	notificationModel "github.com/cybericebox/backend/internal/model/notification"
 )
 
 // ---------------------------------------------------------------------------

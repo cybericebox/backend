@@ -5,8 +5,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/model/notification/branding"
-	"github.com/cybericebox/daemon/internal/model/notification/types"
+	"github.com/cybericebox/backend/internal/model/notification/branding"
+	"github.com/cybericebox/backend/internal/model/notification/types"
 )
 
 // Brand is the resolved appearance and inline logo for one email. Preview and

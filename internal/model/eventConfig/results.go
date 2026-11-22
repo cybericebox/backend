@@ -5,7 +5,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	siteBannerModel "github.com/cybericebox/daemon/internal/model/siteBanner"
+	siteBannerModel "github.com/cybericebox/backend/internal/model/siteBanner"
 )
 
 const (

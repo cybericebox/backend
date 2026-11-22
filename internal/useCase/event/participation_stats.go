@@ -8,11 +8,11 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/scoreboardRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	eventManagerModel "github.com/cybericebox/daemon/internal/model/eventManager"
-	participantModel "github.com/cybericebox/daemon/internal/model/participant"
+	"github.com/cybericebox/backend/internal/delivery/repository/scoreboardRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	eventManagerModel "github.com/cybericebox/backend/internal/model/eventManager"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
 )
 
 // ParticipationSolveView is one solved task of the caller's team. It carries no

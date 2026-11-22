@@ -5,7 +5,7 @@ import (
 
 	labpb "github.com/cybericebox/laboratory/pkg/agent/protobuf"
 
-	labMonitoringModel "github.com/cybericebox/daemon/internal/model/labMonitoring"
+	labMonitoringModel "github.com/cybericebox/backend/internal/model/labMonitoring"
 )
 
 // WithdrawalSink hears the groups of labs that reached labMonitoringModel.RepeatedWithdrawals in a monitoring message.

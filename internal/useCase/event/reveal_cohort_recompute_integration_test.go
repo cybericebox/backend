@@ -8,9 +8,9 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabRevealRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	"github.com/cybericebox/daemon/internal/delivery/repository/revealDeclineRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabRevealRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/delivery/repository/revealDeclineRepo"
 )
 
 // Owner, 2026-10-31: the «show to all» cohort is recomputed until the tasks are shown (a team that becomes eligible,

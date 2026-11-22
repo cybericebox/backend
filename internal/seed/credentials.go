@@ -9,7 +9,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/cybericebox/daemon/pkg/password"
+	"github.com/cybericebox/backend/pkg/password"
 )
 
 // DefaultCredentialsPath is where the seeded accounts and their password go. The file is

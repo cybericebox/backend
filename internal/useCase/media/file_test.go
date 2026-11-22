@@ -14,15 +14,15 @@ import (
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	"github.com/cybericebox/daemon/internal/secretctx"
-	"github.com/cybericebox/daemon/internal/testhelpers"
-	media "github.com/cybericebox/daemon/internal/useCase/media"
-	"github.com/cybericebox/daemon/pkg/filecrypt"
-	"github.com/cybericebox/daemon/pkg/secret"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	"github.com/cybericebox/backend/internal/secretctx"
+	"github.com/cybericebox/backend/internal/testhelpers"
+	media "github.com/cybericebox/backend/internal/useCase/media"
+	"github.com/cybericebox/backend/pkg/filecrypt"
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
 // fakeStorage records puts/copies in-memory.

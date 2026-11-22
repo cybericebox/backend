@@ -7,7 +7,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
 )
 
 // ResultsFreezeBanner reads the freeze state of the event for one viewer, for the freeze banner of the

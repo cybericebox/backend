@@ -8,11 +8,11 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/inboxRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	"github.com/cybericebox/daemon/internal/model"
-	notificationModel "github.com/cybericebox/daemon/internal/model/notification"
-	inboxModel "github.com/cybericebox/daemon/internal/model/notification/inbox"
+	"github.com/cybericebox/backend/internal/delivery/repository/inboxRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/model"
+	notificationModel "github.com/cybericebox/backend/internal/model/notification"
+	inboxModel "github.com/cybericebox/backend/internal/model/notification/inbox"
 )
 
 type (

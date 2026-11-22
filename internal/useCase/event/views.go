@@ -6,18 +6,18 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	challengeAttemptModel "github.com/cybericebox/daemon/internal/model/challengeAttempt"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
-	eventExerciseModel "github.com/cybericebox/daemon/internal/model/eventExercise"
-	eventFormModel "github.com/cybericebox/daemon/internal/model/eventForm"
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
-	eventStandModel "github.com/cybericebox/daemon/internal/model/eventStand"
-	participantModel "github.com/cybericebox/daemon/internal/model/participant"
-	resourcesModel "github.com/cybericebox/daemon/internal/model/resources"
-	siteBannerModel "github.com/cybericebox/daemon/internal/model/siteBanner"
-	teamChallengeModel "github.com/cybericebox/daemon/internal/model/teamChallenge"
+	challengeAttemptModel "github.com/cybericebox/backend/internal/model/challengeAttempt"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
+	eventExerciseModel "github.com/cybericebox/backend/internal/model/eventExercise"
+	eventFormModel "github.com/cybericebox/backend/internal/model/eventForm"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
+	eventStandModel "github.com/cybericebox/backend/internal/model/eventStand"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
+	resourcesModel "github.com/cybericebox/backend/internal/model/resources"
+	siteBannerModel "github.com/cybericebox/backend/internal/model/siteBanner"
+	teamChallengeModel "github.com/cybericebox/backend/internal/model/teamChallenge"
 )
 
 type EventView struct {

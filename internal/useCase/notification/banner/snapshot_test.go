@@ -9,10 +9,10 @@ import (
 	"github.com/gofrs/uuid"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	siteModel "github.com/cybericebox/daemon/internal/model/site"
-	siteBannerModel "github.com/cybericebox/daemon/internal/model/siteBanner"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	siteModel "github.com/cybericebox/backend/internal/model/site"
+	siteBannerModel "github.com/cybericebox/backend/internal/model/siteBanner"
 )
 
 func row(text string, mod func(*postgres.SiteBanner)) postgres.SiteBanner {

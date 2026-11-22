@@ -6,8 +6,8 @@ package labview
 import (
 	"time"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	labMonitoring "github.com/cybericebox/daemon/internal/model/labMonitoring"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	labMonitoring "github.com/cybericebox/backend/internal/model/labMonitoring"
 )
 
 type (

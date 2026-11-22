@@ -4,7 +4,7 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/cybericebox/daemon/internal/model/usertext"
+	"github.com/cybericebox/backend/internal/model/usertext"
 )
 
 // Typed settings: a stored row whose value is a fixed set of integer fields, each with bounds, edited on its own

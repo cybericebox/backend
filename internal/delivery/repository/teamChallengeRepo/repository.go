@@ -9,13 +9,13 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventChallengeRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventChallengeModel "github.com/cybericebox/daemon/internal/model/eventChallenge"
-	teamChallengeModel "github.com/cybericebox/daemon/internal/model/teamChallenge"
-	"github.com/cybericebox/daemon/internal/model/usertext"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventChallengeRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventChallengeModel "github.com/cybericebox/backend/internal/model/eventChallenge"
+	teamChallengeModel "github.com/cybericebox/backend/internal/model/teamChallenge"
+	"github.com/cybericebox/backend/internal/model/usertext"
 )
 
 type Queries interface {

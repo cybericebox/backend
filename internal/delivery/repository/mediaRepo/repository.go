@@ -6,14 +6,14 @@ package mediaRepo
 import (
 	"context"
 	"errors"
-	"github.com/cybericebox/daemon/pkg/safeconv"
+	"github.com/cybericebox/backend/pkg/safeconv"
 	"time"
 
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
 )
 
 type Queries interface {

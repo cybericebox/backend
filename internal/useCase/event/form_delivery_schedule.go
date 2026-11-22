@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	eventFormRepo "github.com/cybericebox/daemon/internal/delivery/repository/eventFormRepo"
-	"github.com/cybericebox/daemon/internal/model"
+	eventFormRepo "github.com/cybericebox/backend/internal/delivery/repository/eventFormRepo"
+	"github.com/cybericebox/backend/internal/model"
 )
 
 const dueFormAssignmentBatchSize = 100

@@ -14,11 +14,11 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/infrastructure/brain/brainfake"
-	assistantModel "github.com/cybericebox/daemon/internal/model/assistant"
-	"github.com/cybericebox/daemon/internal/useCase/assistant"
-	"github.com/cybericebox/daemon/pkg/agentcrypto"
-	"github.com/cybericebox/daemon/pkg/secret"
+	"github.com/cybericebox/backend/internal/delivery/infrastructure/brain/brainfake"
+	assistantModel "github.com/cybericebox/backend/internal/model/assistant"
+	"github.com/cybericebox/backend/internal/useCase/assistant"
+	"github.com/cybericebox/backend/pkg/agentcrypto"
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
 const (

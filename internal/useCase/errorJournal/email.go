@@ -6,9 +6,9 @@ import (
 	"html"
 	"strings"
 
-	"github.com/cybericebox/daemon/internal/model/notification/branding"
-	"github.com/cybericebox/daemon/internal/model/usertext"
-	"github.com/cybericebox/daemon/internal/useCase/notification/channels/render"
+	"github.com/cybericebox/backend/internal/model/notification/branding"
+	"github.com/cybericebox/backend/internal/model/usertext"
+	"github.com/cybericebox/backend/internal/useCase/notification/channels/render"
 	"github.com/gofrs/uuid"
 )
 

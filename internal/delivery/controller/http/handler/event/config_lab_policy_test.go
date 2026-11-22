@@ -2,8 +2,8 @@ package event
 
 import (
 	"encoding/json"
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 	"os"
 	"strings"
 	"testing"

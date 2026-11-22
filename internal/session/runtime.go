@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/cybericebox/daemon/pkg/secret"
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
 // SeenWindow is the span in which the first request of a session writes last_seen at once and the rest only

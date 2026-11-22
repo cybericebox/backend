@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	liberr "github.com/cybericebox/daemon/pkg/err"
+	liberr "github.com/cybericebox/backend/pkg/err"
 )
 
 // errors.Is routes through statusCode.As. With a fully-specified target it

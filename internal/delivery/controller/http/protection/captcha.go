@@ -12,9 +12,9 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/model"
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/model"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
 )
 
 // CaptchaVerifier checks a token of the platform's bot-check provider. action is the name the frontend

@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventTeamModel "github.com/cybericebox/daemon/internal/model/eventTeam"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventTeamModel "github.com/cybericebox/backend/internal/model/eventTeam"
 )
 
 func joiningEvent(t *testing.T, policy eventModel.JoinPolicy, start time.Time) eventModel.Event {

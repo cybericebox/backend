@@ -1,8 +1,8 @@
 package eventself
 
 import (
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
-	eventFormModel "github.com/cybericebox/daemon/internal/model/eventForm"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
+	eventFormModel "github.com/cybericebox/backend/internal/model/eventForm"
 )
 
 func nonNilKeys(keys []string) []string {

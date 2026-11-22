@@ -3,7 +3,7 @@ package http_utils
 import (
 	"github.com/gin-gonic/gin"
 
-	"github.com/cybericebox/daemon/pkg/pagination"
+	"github.com/cybericebox/backend/pkg/pagination"
 )
 
 // GetCursorPaginationParams binds and validates the cursor-pagination query

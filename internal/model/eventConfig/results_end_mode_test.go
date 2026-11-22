@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
 	"github.com/gofrs/uuid"
 )
 

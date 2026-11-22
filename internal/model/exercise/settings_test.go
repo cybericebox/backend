@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	imageRegistryModel "github.com/cybericebox/daemon/internal/model/imageRegistry"
-	platformSettingsModel "github.com/cybericebox/daemon/internal/model/platformSettings"
-	appErr "github.com/cybericebox/daemon/pkg/err"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	imageRegistryModel "github.com/cybericebox/backend/internal/model/imageRegistry"
+	platformSettingsModel "github.com/cybericebox/backend/internal/model/platformSettings"
+	appErr "github.com/cybericebox/backend/pkg/err"
 )
 
 const mib = int64(1 << 20)

@@ -8,11 +8,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	notificationModel "github.com/cybericebox/daemon/internal/model/notification"
-	inAppModel "github.com/cybericebox/daemon/internal/model/notification/inapp"
-	inAppUseCase "github.com/cybericebox/daemon/internal/useCase/notification/channels/inapp"
-	"github.com/cybericebox/daemon/pkg/tools"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	notificationModel "github.com/cybericebox/backend/internal/model/notification"
+	inAppModel "github.com/cybericebox/backend/internal/model/notification/inapp"
+	inAppUseCase "github.com/cybericebox/backend/internal/useCase/notification/channels/inapp"
+	"github.com/cybericebox/backend/pkg/tools"
 )
 
 // Event-scoped rows belong to the Event API; the platform API must treat

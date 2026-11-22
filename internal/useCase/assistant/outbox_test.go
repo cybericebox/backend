@@ -14,8 +14,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/infrastructure/brain/brainfake"
-	"github.com/cybericebox/daemon/internal/useCase/assistant"
+	"github.com/cybericebox/backend/internal/delivery/infrastructure/brain/brainfake"
+	"github.com/cybericebox/backend/internal/useCase/assistant"
 )
 
 type memCursor struct {

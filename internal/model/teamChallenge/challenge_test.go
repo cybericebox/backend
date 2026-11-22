@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	teamChallengeModel "github.com/cybericebox/daemon/internal/model/teamChallenge"
+	teamChallengeModel "github.com/cybericebox/backend/internal/model/teamChallenge"
 	"github.com/gofrs/uuid"
 )
 

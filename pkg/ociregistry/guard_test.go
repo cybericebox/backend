@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/cybericebox/daemon/pkg/email"
+	"github.com/cybericebox/backend/pkg/email"
 
 	"github.com/stretchr/testify/require"
 )

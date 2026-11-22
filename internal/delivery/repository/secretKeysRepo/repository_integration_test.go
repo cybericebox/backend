@@ -8,8 +8,8 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/secretKeysRepo"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/secretKeysRepo"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 // The queries run against the real schema: every table and column the scan reads exists, the empty values are skipped and the

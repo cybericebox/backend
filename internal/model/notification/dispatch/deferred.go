@@ -4,7 +4,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/model/usertext"
+	"github.com/cybericebox/backend/internal/model/usertext"
 )
 
 // Journal texts of a deferred delivery.

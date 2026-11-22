@@ -10,9 +10,9 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/clusterReservationRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	calModel "github.com/cybericebox/daemon/internal/model/resourceCalendar"
+	"github.com/cybericebox/backend/internal/delivery/repository/clusterReservationRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	calModel "github.com/cybericebox/backend/internal/model/resourceCalendar"
 )
 
 type Queries interface {

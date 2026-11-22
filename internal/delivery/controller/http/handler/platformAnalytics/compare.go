@@ -5,7 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 )
 
 // compareEnvelope is the answer of a report asked with compare=previous: the report of the period, the same report of

@@ -2,10 +2,10 @@ package event
 
 import (
 	"context"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabAllocationRepo"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	calModel "github.com/cybericebox/daemon/internal/model/resourceCalendar"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabAllocationRepo"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	calModel "github.com/cybericebox/backend/internal/model/resourceCalendar"
 	"github.com/gofrs/uuid"
 )
 

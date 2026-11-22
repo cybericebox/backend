@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/config"
+	"github.com/cybericebox/backend/internal/config"
 )
 
 // Each pool takes its own size and the shared connection lifetime and idle time from the configuration.

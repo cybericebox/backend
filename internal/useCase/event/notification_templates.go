@@ -8,18 +8,18 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	notificationModel "github.com/cybericebox/daemon/internal/model/notification"
-	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
-	emailModel "github.com/cybericebox/daemon/internal/model/notification/email"
-	inAppModel "github.com/cybericebox/daemon/internal/model/notification/inapp"
-	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
-	notificationPayloads "github.com/cybericebox/daemon/internal/model/notification/types/payloads"
-	emailUseCase "github.com/cybericebox/daemon/internal/useCase/notification/channels/email"
-	"github.com/cybericebox/daemon/internal/useCase/notification/channels/render"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	notificationModel "github.com/cybericebox/backend/internal/model/notification"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
+	emailModel "github.com/cybericebox/backend/internal/model/notification/email"
+	inAppModel "github.com/cybericebox/backend/internal/model/notification/inapp"
+	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
+	notificationPayloads "github.com/cybericebox/backend/internal/model/notification/types/payloads"
+	emailUseCase "github.com/cybericebox/backend/internal/useCase/notification/channels/email"
+	"github.com/cybericebox/backend/internal/useCase/notification/channels/render"
 )
 
 // Event templates inherit from the platform: for every Event-scoped type the

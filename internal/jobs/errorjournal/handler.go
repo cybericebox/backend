@@ -11,9 +11,9 @@ import (
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
 
-	errorJournal "github.com/cybericebox/daemon/internal/model/errorJournal"
-	jobsModel "github.com/cybericebox/daemon/internal/model/jobs"
-	"github.com/cybericebox/daemon/pkg/overload"
+	errorJournal "github.com/cybericebox/backend/internal/model/errorJournal"
+	jobsModel "github.com/cybericebox/backend/internal/model/jobs"
+	"github.com/cybericebox/backend/pkg/overload"
 )
 
 // ErrorHandler is River's error handler: it reports to the installed error journal reporter. It never changes how a

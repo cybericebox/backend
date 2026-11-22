@@ -10,13 +10,13 @@ import (
 	"github.com/gofrs/uuid"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	labAccessModel "github.com/cybericebox/daemon/internal/model/labAccess"
-	labBindingModel "github.com/cybericebox/daemon/internal/model/labBinding"
-	vpnModel "github.com/cybericebox/daemon/internal/model/vpn"
-	event "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	labAccessModel "github.com/cybericebox/backend/internal/model/labAccess"
+	labBindingModel "github.com/cybericebox/backend/internal/model/labBinding"
+	vpnModel "github.com/cybericebox/backend/internal/model/vpn"
+	event "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 type recordingLabAccessInfra struct {

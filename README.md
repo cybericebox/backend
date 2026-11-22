@@ -1,6 +1,6 @@
-# Daemon
+# Backend
 
-The daemon is the backend of the Cyber&nbsp;ICE&nbsp;Box platform. It is one Go service that keeps users, events,
+The backend (the `daemon` program, `cmd/daemon`) is the server of the Cyber&nbsp;ICE&nbsp;Box platform. It is one Go service that keeps users, events,
 tasks and the task catalog, and serves the HTTP API for every platform frontend. It drives the
 laboratory through one gRPC API: the platform runs on top of the
 laboratory, while the laboratory also works on its own.

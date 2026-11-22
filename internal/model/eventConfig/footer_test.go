@@ -2,7 +2,7 @@ package eventConfigModel_test
 
 import (
 	"encoding/json"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 	"strings"

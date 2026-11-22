@@ -2,7 +2,7 @@ package eventContentModel
 
 import (
 	"encoding/json"
-	"github.com/cybericebox/daemon/internal/model/eventContent/testutil"
+	"github.com/cybericebox/backend/internal/model/eventContent/testutil"
 	"testing"
 
 	"github.com/gofrs/uuid"

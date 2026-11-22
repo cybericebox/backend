@@ -3,7 +3,7 @@ package resourceCalendarUseCase
 import (
 	"context"
 	"errors"
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
 	"testing"
 	"time"
 
@@ -11,11 +11,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	liberr "github.com/cybericebox/daemon/pkg/err"
+	liberr "github.com/cybericebox/backend/pkg/err"
 
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	calModel "github.com/cybericebox/daemon/internal/model/resourceCalendar"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	calModel "github.com/cybericebox/backend/internal/model/resourceCalendar"
 )
 
 var now0 = time.Date(2026, 10, 5, 6, 0, 0, 0, time.UTC)

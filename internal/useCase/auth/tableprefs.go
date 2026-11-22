@@ -6,8 +6,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/model"
-	tablePrefsModel "github.com/cybericebox/daemon/internal/model/tablePrefs"
+	"github.com/cybericebox/backend/internal/model"
+	tablePrefsModel "github.com/cybericebox/backend/internal/model/tablePrefs"
 )
 
 // GetTablePrefs returns the person's saved view of a table, nil when there is none.

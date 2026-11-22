@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	calModel "github.com/cybericebox/daemon/internal/model/resourceCalendar"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	calModel "github.com/cybericebox/backend/internal/model/resourceCalendar"
 )
 
 func scheduled(t *testing.T, start, finish time.Time, withdraw *time.Time) eventModel.Event {

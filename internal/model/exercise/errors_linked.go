@@ -1,8 +1,8 @@
 package exerciseModel
 
 import (
-	"github.com/cybericebox/daemon/internal/model"
-	"github.com/cybericebox/daemon/pkg/err"
+	"github.com/cybericebox/backend/internal/model"
+	"github.com/cybericebox/backend/pkg/err"
 )
 
 // Publish gates for linked variants. Both name the 1-based position of the variant in the version (and the subtask

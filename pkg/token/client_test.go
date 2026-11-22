@@ -4,7 +4,7 @@ import (
 	"testing"
 
 
-	"github.com/cybericebox/daemon/pkg/token"
+	"github.com/cybericebox/backend/pkg/token"
 )
 
 // validConfig returns a well-formed Config for tests.

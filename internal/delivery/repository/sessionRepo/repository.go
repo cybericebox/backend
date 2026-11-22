@@ -18,9 +18,9 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
-	"github.com/cybericebox/daemon/internal/session"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
+	"github.com/cybericebox/backend/internal/session"
 )
 
 // Queries is the narrow slice of the sqlc Querier this repository needs.

@@ -1,7 +1,7 @@
 package http
 
 import (
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/middleware"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
 )
 
 // newOriginPolicy is the allow-list of browser origins for CORS and the origin guard: the platform

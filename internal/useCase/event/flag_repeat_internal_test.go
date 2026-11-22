@@ -6,8 +6,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/flagFilterRepo"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	"github.com/cybericebox/backend/internal/delivery/repository/flagFilterRepo"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 func fixedFlags(n int) []string {

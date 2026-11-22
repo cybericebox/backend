@@ -7,11 +7,11 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	eventFormRepo "github.com/cybericebox/daemon/internal/delivery/repository/eventFormRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	eventFormModel "github.com/cybericebox/daemon/internal/model/eventForm"
-	participantModel "github.com/cybericebox/daemon/internal/model/participant"
+	eventFormRepo "github.com/cybericebox/backend/internal/delivery/repository/eventFormRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	eventFormModel "github.com/cybericebox/backend/internal/model/eventForm"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
 )
 
 func (u *EventUseCase) CreateEventForm(ctx context.Context, eventID uuid.UUID, in CreateEventFormInput) (EventFormView, error) {

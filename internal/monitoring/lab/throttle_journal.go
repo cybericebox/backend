@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/model/errorJournal"
+	"github.com/cybericebox/backend/internal/model/errorJournal"
 )
 
 // ThrottleJournalWindow is how often one device of one lab is written to the journal while it stays throttled.

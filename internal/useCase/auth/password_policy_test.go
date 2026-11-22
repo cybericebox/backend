@@ -3,8 +3,8 @@ package auth_test
 import (
 	"testing"
 
-	"github.com/cybericebox/daemon/internal/useCase/auth"
-	"github.com/cybericebox/daemon/pkg/password"
+	"github.com/cybericebox/backend/internal/useCase/auth"
+	"github.com/cybericebox/backend/pkg/password"
 )
 
 func TestPasswordPolicy_ReflectsPasswordClientComplexity(t *testing.T) {

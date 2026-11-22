@@ -1,6 +1,6 @@
 # Load test: 15 teams, one owner at the wheel
 
-A copy lives in `/Volumes/Projects/My/CyberICEBox/docs/loadtest/` (the root folder is not under git; the daemon's `docs/` folder is in .gitignore, so the file is kept here, next to the tool). Edit both.
+A copy lives in `/Volumes/Projects/My/CyberICEBox/docs/loadtest/` (the root folder is not under git; the backend repository's `docs/` folder is in .gitignore, so the file is kept here, next to the tool). Edit both.
 
 
 Prepared on: 2026-10-20. The owner runs the test by hand. The tools were prepared and checked only on a local stand (a separate Postgres, a daemon started in the `make run-local` style, no cluster). None of this was run against AWS.
@@ -11,8 +11,8 @@ The owner's scenario: a separate event, resource reservation starting 2 hours be
 
 | What | Where | Purpose |
 |---|---|---|
-| `loadtest-users` | `daemon`, branch `feat/loadtest-tools`, `cmd/loadtest-users`; binary `/app/loadtest-users` in the backend image | creates and deletes test accounts (`create`, `delete`) |
-| `loadtest` | `daemon`, `tools/loadtest` (pure stdlib, builds on the owner's laptop) | participant scenario and report |
+| `loadtest-users` | `backend` (renamed from `daemon` on 2026-11-22), branch `feat/loadtest-tools`, `cmd/loadtest-users`; binary `/app/loadtest-users` in the backend image | creates and deletes test accounts (`create`, `delete`) |
+| `loadtest` | `backend`, `tools/loadtest` (pure stdlib, builds on the owner's laptop) | participant scenario and report |
 | `loadtest-users-job.yaml` | `tools/loadtest/` | Job for `delete` in the cluster. Never applied |
 | This file | `tools/loadtest/RUNBOOK.md` | order of actions |
 
@@ -56,7 +56,7 @@ The event (created by the owner, in the platform panel):
 Image and binary:
 
 - [ ] The backend is deployed from an image built with this branch (a second build and a `COPY` were added to the Dockerfile). Check: `kubectl exec -n <NS> deploy/backend -- /app/loadtest-users` prints usage. If the image is old, release first, otherwise there is nowhere to run `create`.
-- [ ] `loadtest` is built on the owner's machine: `cd daemon && GOWORK=off go build -o /tmp/loadtest ./tools/loadtest` (Go 1.27).
+- [ ] `loadtest` is built on the owner's machine: `cd backend && GOWORK=off go build -o /tmp/loadtest ./tools/loadtest` (Go 1.27).
 
 Infrastructure:
 

@@ -2,7 +2,7 @@ package event_test
 
 import (
 	"context"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabRepo"
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 	"testing"

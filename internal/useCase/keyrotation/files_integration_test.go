@@ -6,9 +6,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/keyRotationRepo"
-	"github.com/cybericebox/daemon/internal/secretctx"
-	"github.com/cybericebox/daemon/internal/useCase/keyrotation"
+	"github.com/cybericebox/backend/internal/delivery/repository/keyRotationRepo"
+	"github.com/cybericebox/backend/internal/secretctx"
+	"github.com/cybericebox/backend/internal/useCase/keyrotation"
 )
 
 // A master key change moves only the wrapped file keys: the key of each file stays the same, no file is touched, and a blob

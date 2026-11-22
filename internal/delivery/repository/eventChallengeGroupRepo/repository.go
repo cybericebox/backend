@@ -6,8 +6,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	eventChallengeGroupModel "github.com/cybericebox/daemon/internal/model/eventChallengeGroup"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	eventChallengeGroupModel "github.com/cybericebox/backend/internal/model/eventChallengeGroup"
 )
 
 type Queries interface {

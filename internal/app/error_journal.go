@@ -6,8 +6,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/config"
-	errorJournalUseCase "github.com/cybericebox/daemon/internal/useCase/errorJournal"
+	"github.com/cybericebox/backend/internal/config"
+	errorJournalUseCase "github.com/cybericebox/backend/internal/useCase/errorJournal"
 	labpb "github.com/cybericebox/laboratory/pkg/agent/protobuf"
 )
 

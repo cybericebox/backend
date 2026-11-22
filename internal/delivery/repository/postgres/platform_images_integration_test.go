@@ -9,11 +9,11 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/imageRegistryRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/mediaRepo"
-	imageRegistryModel "github.com/cybericebox/daemon/internal/model/imageRegistry"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/imageRegistryRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/mediaRepo"
+	imageRegistryModel "github.com/cybericebox/backend/internal/model/imageRegistry"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 // Uploading the same image again refreshes its row (one row per digest and tag): the tag collector's grace

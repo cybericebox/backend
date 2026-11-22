@@ -7,8 +7,8 @@ import (
 
 	"github.com/riverqueue/river"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	jobsModel "github.com/cybericebox/daemon/internal/model/jobs"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	jobsModel "github.com/cybericebox/backend/internal/model/jobs"
 )
 
 type IUseCase interface {

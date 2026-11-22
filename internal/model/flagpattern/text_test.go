@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/cybericebox/daemon/internal/model/flagpattern"
+	"github.com/cybericebox/backend/internal/model/flagpattern"
 )
 
 // constantReader never runs dry: every byte is b.

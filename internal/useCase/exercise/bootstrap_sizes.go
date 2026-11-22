@@ -5,7 +5,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 // requireBootstrapSizes refuses, at a draft save, a bootstrap file of the archive over the laboratory's size ceilings and a

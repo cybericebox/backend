@@ -6,8 +6,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	challengeAttempt "github.com/cybericebox/daemon/internal/model/challengeAttempt"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
+	challengeAttempt "github.com/cybericebox/backend/internal/model/challengeAttempt"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
 )
 
 func TestUpdateMaxFlagAttempts(t *testing.T) {

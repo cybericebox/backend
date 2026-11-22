@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 // The join info carries the computed participation block, so the event site

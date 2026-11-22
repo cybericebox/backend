@@ -12,8 +12,8 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	assistantModel "github.com/cybericebox/daemon/internal/model/assistant"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	assistantModel "github.com/cybericebox/backend/internal/model/assistant"
 )
 
 // fake overrides what a test needs; every other query would panic on the nil interface, which a test must not reach.

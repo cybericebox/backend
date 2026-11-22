@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 // The stand engine's listing runs against the real migrated schema: a query still selecting a column

@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	errorJournal "github.com/cybericebox/daemon/internal/model/errorJournal"
+	errorJournal "github.com/cybericebox/backend/internal/model/errorJournal"
 	"github.com/gofrs/uuid"
 )
 

@@ -3,7 +3,7 @@ package notificationTypes
 import (
 	"encoding/json"
 
-	inboxModel "github.com/cybericebox/daemon/internal/model/notification/inbox"
+	inboxModel "github.com/cybericebox/backend/internal/model/notification/inbox"
 )
 
 // resourceChangePayload is the resource calendar change flow: the request to the platform admins and the decision

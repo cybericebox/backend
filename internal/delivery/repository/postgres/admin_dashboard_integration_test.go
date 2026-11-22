@@ -8,10 +8,10 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/dashboardRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/platformStandRepo"
-	eventStandModel "github.com/cybericebox/daemon/internal/model/eventStand"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/dashboardRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/platformStandRepo"
+	eventStandModel "github.com/cybericebox/backend/internal/model/eventStand"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 func TestAdminDashboardQueries(t *testing.T) {

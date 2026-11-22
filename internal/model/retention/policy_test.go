@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	retentionModel "github.com/cybericebox/daemon/internal/model/retention"
+	retentionModel "github.com/cybericebox/backend/internal/model/retention"
 )
 
 var now = time.Date(2026, 9, 29, 3, 0, 0, 0, time.UTC)

@@ -15,7 +15,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/pkg/email"
+	"github.com/cybericebox/backend/pkg/email"
 )
 
 type TLSMode string

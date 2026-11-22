@@ -11,7 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 // prodFrontendDraft is a draft save in the exact shape the production

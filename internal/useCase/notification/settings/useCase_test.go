@@ -9,11 +9,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	"github.com/cybericebox/daemon/internal/model/notification/settings"
-	"github.com/cybericebox/daemon/internal/useCase/notification/settings"
-	"github.com/cybericebox/daemon/pkg/tools"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	"github.com/cybericebox/backend/internal/model/notification/settings"
+	"github.com/cybericebox/backend/internal/useCase/notification/settings"
+	"github.com/cybericebox/backend/pkg/tools"
 )
 
 func setupSettings(

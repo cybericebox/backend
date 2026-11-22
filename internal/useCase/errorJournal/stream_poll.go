@@ -8,7 +8,7 @@ import (
 	"github.com/gofrs/uuid" //nolint:depguard // the uuid package of the whole journal
 	"github.com/rs/zerolog/log"
 
-	errorJournal "github.com/cybericebox/daemon/internal/model/errorJournal"
+	errorJournal "github.com/cybericebox/backend/internal/model/errorJournal"
 )
 
 const (

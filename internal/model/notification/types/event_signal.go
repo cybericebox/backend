@@ -3,8 +3,8 @@ package notificationTypes
 import (
 	"encoding/json"
 
-	signalModel "github.com/cybericebox/daemon/internal/model/signal"
-	"github.com/cybericebox/daemon/internal/model/usertext"
+	signalModel "github.com/cybericebox/backend/internal/model/signal"
+	"github.com/cybericebox/backend/internal/model/usertext"
 )
 
 // eventSignalPayload is the code-owned variable contract for every initial

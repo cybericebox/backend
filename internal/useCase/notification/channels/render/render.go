@@ -7,8 +7,8 @@ import (
 	"io"
 	texttemplate "text/template"
 
-	"github.com/cybericebox/daemon/internal/model"
-	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
+	"github.com/cybericebox/backend/internal/model"
+	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
 )
 
 // maxRenderedBytes bounds one rendered template string; variable values are the only thing that can make it

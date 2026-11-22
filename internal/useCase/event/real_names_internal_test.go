@@ -5,8 +5,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	participantModel "github.com/cybericebox/daemon/internal/model/participant"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
 )
 
 func TestMayShowRealNames(t *testing.T) {

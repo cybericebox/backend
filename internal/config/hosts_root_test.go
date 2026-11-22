@@ -3,7 +3,7 @@ package config_test
 import (
 	"testing"
 
-	"github.com/cybericebox/daemon/internal/config"
+	"github.com/cybericebox/backend/internal/config"
 )
 
 // The root domain (DOMAIN itself) keeps every role it has: allowed origin, frontend origin, platform host.

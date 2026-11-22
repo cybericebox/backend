@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabRevealRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/resourceCalendarRepo"
-	calModel "github.com/cybericebox/daemon/internal/model/resourceCalendar"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabRevealRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/resourceCalendarRepo"
+	calModel "github.com/cybericebox/backend/internal/model/resourceCalendar"
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 )

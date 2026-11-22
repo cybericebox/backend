@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/useCase/auth"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/useCase/auth"
 )
 
 func newUCWithDomain(t *testing.T, domain string) *auth.AuthUseCase {

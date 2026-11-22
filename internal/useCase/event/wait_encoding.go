@@ -8,8 +8,8 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	eventStandModel "github.com/cybericebox/daemon/internal/model/eventStand"
-	labBindingModel "github.com/cybericebox/daemon/internal/model/labBinding"
+	eventStandModel "github.com/cybericebox/backend/internal/model/eventStand"
+	labBindingModel "github.com/cybericebox/backend/internal/model/labBinding"
 )
 
 // A wait travels from the deploy step to the place that records it as a machine code; the need and the room of a

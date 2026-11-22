@@ -6,8 +6,8 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/riverqueue/river"
 
-	inboxModel "github.com/cybericebox/daemon/internal/model/notification/inbox"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
+	inboxModel "github.com/cybericebox/backend/internal/model/notification/inbox"
+	userModel "github.com/cybericebox/backend/internal/model/user"
 )
 
 // NotifyArgs is the River job envelope. It carries ids and non-personal routing only: the variables,

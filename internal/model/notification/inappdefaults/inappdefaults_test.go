@@ -6,12 +6,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/model/notification/emaildefaults"
-	"github.com/cybericebox/daemon/internal/model/notification/inappdefaults"
-	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
-	_ "github.com/cybericebox/daemon/internal/model/notification/types/payloads"
-	calModel "github.com/cybericebox/daemon/internal/model/resourceCalendar"
-	"github.com/cybericebox/daemon/internal/useCase/notification/channels/render"
+	"github.com/cybericebox/backend/internal/model/notification/emaildefaults"
+	"github.com/cybericebox/backend/internal/model/notification/inappdefaults"
+	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
+	_ "github.com/cybericebox/backend/internal/model/notification/types/payloads"
+	calModel "github.com/cybericebox/backend/internal/model/resourceCalendar"
+	"github.com/cybericebox/backend/internal/useCase/notification/channels/render"
 )
 
 var banned = regexp.MustCompile(`(?i)поді[яїюй]|івент|імейл|кукі|noreply|\bcookie|CyberICEBox`)

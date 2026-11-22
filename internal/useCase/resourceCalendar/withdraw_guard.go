@@ -6,9 +6,9 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventStandModel "github.com/cybericebox/daemon/internal/model/eventStand"
-	calModel "github.com/cybericebox/daemon/internal/model/resourceCalendar"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventStandModel "github.com/cybericebox/backend/internal/model/eventStand"
+	calModel "github.com/cybericebox/backend/internal/model/resourceCalendar"
 )
 
 // The window of an event's reservation (owner, 2026-10-31):

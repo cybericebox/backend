@@ -6,14 +6,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	access "github.com/cybericebox/daemon/internal/useCase/eventManager"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	access "github.com/cybericebox/backend/internal/useCase/eventManager"
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5"
 
-	eventManagerRepo "github.com/cybericebox/daemon/internal/delivery/repository/eventManagerRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	eventManagerModel "github.com/cybericebox/daemon/internal/model/eventManager"
+	eventManagerRepo "github.com/cybericebox/backend/internal/delivery/repository/eventManagerRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	eventManagerModel "github.com/cybericebox/backend/internal/model/eventManager"
 )
 
 type fakeQueries struct {

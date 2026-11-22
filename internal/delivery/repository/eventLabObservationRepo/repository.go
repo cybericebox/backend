@@ -9,9 +9,9 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	labBindingModel "github.com/cybericebox/daemon/internal/model/labBinding"
-	labMonitoringModel "github.com/cybericebox/daemon/internal/model/labMonitoring"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	labBindingModel "github.com/cybericebox/backend/internal/model/labBinding"
+	labMonitoringModel "github.com/cybericebox/backend/internal/model/labMonitoring"
 )
 
 type Queries interface {

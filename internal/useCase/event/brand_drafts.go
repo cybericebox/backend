@@ -13,9 +13,9 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
 )
 
 const brandDraftLifetime = 24 * time.Hour

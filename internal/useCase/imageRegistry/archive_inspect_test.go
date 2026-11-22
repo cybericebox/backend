@@ -13,9 +13,9 @@ import (
 	"github.com/google/go-containerregistry/pkg/registry"
 	"github.com/stretchr/testify/require"
 
-	imageRegistryModel "github.com/cybericebox/daemon/internal/model/imageRegistry"
-	"github.com/cybericebox/daemon/pkg/ociregistry"
-	"github.com/cybericebox/daemon/pkg/ociregistry/archivetest"
+	imageRegistryModel "github.com/cybericebox/backend/internal/model/imageRegistry"
+	"github.com/cybericebox/backend/pkg/ociregistry"
+	"github.com/cybericebox/backend/pkg/ociregistry/archivetest"
 )
 
 // hubRegistry behaves like Docker Hub with access tokens: a token server on the same host hands the account

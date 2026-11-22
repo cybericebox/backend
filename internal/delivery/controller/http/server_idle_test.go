@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/config"
+	"github.com/cybericebox/backend/internal/config"
 )
 
 // Every listener keeps an idle connection for IDLE_TIMEOUT, not for READ_TIMEOUT: Cloudflare keeps one HTTP/2

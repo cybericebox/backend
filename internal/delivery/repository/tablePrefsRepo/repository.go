@@ -8,9 +8,9 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	tablePrefsModel "github.com/cybericebox/daemon/internal/model/tablePrefs"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	tablePrefsModel "github.com/cybericebox/backend/internal/model/tablePrefs"
 )
 
 // Queries is the narrow slice of the sqlc Querier this repository needs.

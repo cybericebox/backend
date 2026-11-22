@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"testing"
 
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
 )
 
 func zipOf(t *testing.T, entries map[string]string) []byte {

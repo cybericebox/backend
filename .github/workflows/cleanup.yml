@@ -60,7 +60,7 @@ jobs:
           fetch-depth: 0
       - name: Apply
         env:
-          IMAGES: cybericebox/daemon
+          IMAGES: cybericebox/backend
           CHART_REPO: "" # no Helm chart in the platform repositories
           PRUNE_FROM: "2.20"
           PRUNE_KEEP: "10"

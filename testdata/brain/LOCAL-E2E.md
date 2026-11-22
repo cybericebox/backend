@@ -29,7 +29,7 @@ brain process. The wire it speaks is pinned in `cyber-brain/docs/daemon-interfac
 ## 1. Prerequisites
 
 1. The local stand of the infrastructure repository (`make host-up` in `infrastructure/local`): PostgreSQL, the object store, a
-   cluster with the laboratory agent. The daemon README ("Running locally") lists what the environment file needs; a working lab
+   cluster with the laboratory agent. The backend README ("Running locally") lists what the environment file needs; a working lab
    agent is needed for anything that runs a lab (grader, opponents, tools device).
 2. `PLATFORM_SECRETS_KEY` in the daemon's environment file: 64 hex characters. **Without it the assistant stays off** even with an
    endpoint (the stored client key is sealed with it).
@@ -76,7 +76,7 @@ Add to the daemon's environment file (names and defaults are in `internal/config
 | `BRAIN_OPPONENT_ACTIONS`, `BRAIN_OPPONENT_TOKENS`, `BRAIN_OPPONENT_SECONDS` | `100`, `500000`, `1200` (the budget every opponent run gets; the author never sets one) |
 | `BRAIN_CONSOLE_MAX_LIFETIME` | `8h` (caps a console session that never reported its end, in the statistics) |
 
-Then, from the daemon directory:
+Then, from the backend repository:
 
 ```sh
 mise run run-local     # loads the environment file, then go run ./cmd/daemon

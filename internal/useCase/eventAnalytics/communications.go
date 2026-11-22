@@ -7,8 +7,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/model"
-	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
+	"github.com/cybericebox/backend/internal/model"
+	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
 )
 
 // Dispatch statuses and channels as stored by the notification dispatcher.

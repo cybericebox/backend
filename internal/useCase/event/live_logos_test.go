@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
 )
 
 func TestLiveLogoTypeSniffsContent(t *testing.T) {

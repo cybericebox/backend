@@ -7,9 +7,9 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	eventStandModel "github.com/cybericebox/daemon/internal/model/eventStand"
-	labMonitoringModel "github.com/cybericebox/daemon/internal/model/labMonitoring"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	eventStandModel "github.com/cybericebox/backend/internal/model/eventStand"
+	labMonitoringModel "github.com/cybericebox/backend/internal/model/labMonitoring"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 func TestStandsResponseCarriesTheQueueAndImageWarningPerStand(t *testing.T) {

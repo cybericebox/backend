@@ -3,7 +3,7 @@ package eventFormModel
 import (
 	"testing"
 
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
 )
 
 func dateForm(mode, min, max string, condition *eventContentModel.Condition) Form {

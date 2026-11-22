@@ -3,7 +3,7 @@ package notificationTypes
 import (
 	"encoding/json"
 
-	inboxModel "github.com/cybericebox/daemon/internal/model/notification/inbox"
+	inboxModel "github.com/cybericebox/backend/internal/model/notification/inbox"
 )
 
 // Inbox-only notification types (platform templates, in-app channel): the

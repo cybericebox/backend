@@ -1,8 +1,8 @@
 package exercise
 
 import (
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	exerciseUseCase "github.com/cybericebox/daemon/internal/useCase/exercise"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	exerciseUseCase "github.com/cybericebox/backend/internal/useCase/exercise"
 )
 
 // labCapabilitiesResponse tells the editor what the laboratories that are used can run, so it can disable an option with a

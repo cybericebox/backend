@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	challengeAttempt "github.com/cybericebox/daemon/internal/model/challengeAttempt"
+	challengeAttempt "github.com/cybericebox/backend/internal/model/challengeAttempt"
 )
 
 func ptr(v int32) *int32 { return &v }

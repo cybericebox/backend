@@ -4,10 +4,10 @@ import (
 	"math"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/limits"
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
-	"github.com/cybericebox/daemon/pkg/err"
-	"github.com/cybericebox/daemon/pkg/ratelimit"
+	"github.com/cybericebox/backend/internal/limits"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
+	"github.com/cybericebox/backend/pkg/err"
+	"github.com/cybericebox/backend/pkg/ratelimit"
 )
 
 // The abuse limits of the auth flows (config.LimitsConfig, LIMIT_* env keys).

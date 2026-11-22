@@ -4,14 +4,14 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	calModel "github.com/cybericebox/daemon/internal/model/resourceCalendar"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	calModel "github.com/cybericebox/backend/internal/model/resourceCalendar"
 	"time"
 
 	"github.com/gofrs/uuid"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	calendarUseCase "github.com/cybericebox/daemon/internal/useCase/resourceCalendar"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	calendarUseCase "github.com/cybericebox/backend/internal/useCase/resourceCalendar"
 )
 
 // TestLabGate is the resource calendar's admission of a catalog author's test laboratory: inside the author's

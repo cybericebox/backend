@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"testing"
 
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
 )
 
 // A setup link whose Google identity has another address returns to setup with its own error, so the page can

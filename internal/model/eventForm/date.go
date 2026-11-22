@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
 )
 
 // InputDate is the answer type of a "Date / time" question. DateMode says what

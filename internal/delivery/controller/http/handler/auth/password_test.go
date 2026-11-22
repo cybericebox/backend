@@ -8,8 +8,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	authHandler "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/auth"
-	authUseCase "github.com/cybericebox/daemon/internal/useCase/auth"
+	authHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/auth"
+	authUseCase "github.com/cybericebox/backend/internal/useCase/auth"
 )
 
 func TestPasswordPolicy_PublicReturnsThresholds(t *testing.T) {

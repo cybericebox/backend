@@ -3,8 +3,8 @@ package labagent
 import (
 	"context"
 	"fmt"
-	eventLab "github.com/cybericebox/daemon/internal/model/eventLab"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
+	eventLab "github.com/cybericebox/backend/internal/model/eventLab"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
 	pb "github.com/cybericebox/laboratory/pkg/agent/protobuf"
 )
 

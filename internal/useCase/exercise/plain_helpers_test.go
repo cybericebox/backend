@@ -1,7 +1,7 @@
 package exercise_test
 
 import (
-	"github.com/cybericebox/daemon/pkg/secret"
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
 // Tests seal and open plain strings under one fixed test context; production code has no way to seal without a context.

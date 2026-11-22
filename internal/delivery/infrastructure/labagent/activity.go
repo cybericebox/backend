@@ -9,7 +9,7 @@ import (
 
 	labpb "github.com/cybericebox/laboratory/pkg/agent/protobuf"
 
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
 )
 
 // GroupActivity asks the agent for the raw activity facts of one lab group since a cursor (contract 2.5). The cursor is the one

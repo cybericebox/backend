@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/cybericebox/daemon/internal/config"
+	"github.com/cybericebox/backend/internal/config"
 )
 
 // TestSiteLinkVectors runs the shared value rule for the optional addresses. The file is an identical copy of

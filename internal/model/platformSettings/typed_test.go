@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	appErr "github.com/cybericebox/daemon/pkg/err"
+	appErr "github.com/cybericebox/backend/pkg/err"
 
-	platformSettingsModel "github.com/cybericebox/daemon/internal/model/platformSettings"
+	platformSettingsModel "github.com/cybericebox/backend/internal/model/platformSettings"
 )
 
 var specs = []platformSettingsModel.FieldSpec{

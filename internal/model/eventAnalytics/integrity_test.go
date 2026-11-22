@@ -8,7 +8,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
-	m "github.com/cybericebox/daemon/internal/model/eventAnalytics"
+	m "github.com/cybericebox/backend/internal/model/eventAnalytics"
 )
 
 var (

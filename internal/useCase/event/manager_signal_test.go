@@ -11,10 +11,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	eventManagerModel "github.com/cybericebox/daemon/internal/model/eventManager"
-	signalModel "github.com/cybericebox/daemon/internal/model/signal"
-	event "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	eventManagerModel "github.com/cybericebox/backend/internal/model/eventManager"
+	signalModel "github.com/cybericebox/backend/internal/model/signal"
+	event "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 func TestSetEventManagerPublishesSignalForAssigneeInSameTransaction(t *testing.T) {

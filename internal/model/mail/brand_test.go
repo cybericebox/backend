@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	mailModel "github.com/cybericebox/daemon/internal/model/mail"
+	mailModel "github.com/cybericebox/backend/internal/model/mail"
 )
 
 func TestKeepBrandText_JoinsWithNoBreakSpaces(t *testing.T) {

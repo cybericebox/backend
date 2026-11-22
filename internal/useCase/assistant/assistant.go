@@ -18,14 +18,14 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/daemon/internal/delivery/infrastructure/brain"
-	"github.com/cybericebox/daemon/internal/model"
-	assistantModel "github.com/cybericebox/daemon/internal/model/assistant"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	adminAuditUseCase "github.com/cybericebox/daemon/internal/useCase/adminAudit"
-	exerciseUseCase "github.com/cybericebox/daemon/internal/useCase/exercise"
-	"github.com/cybericebox/daemon/pkg/agentcrypto"
-	"github.com/cybericebox/daemon/pkg/secret"
+	"github.com/cybericebox/backend/internal/delivery/infrastructure/brain"
+	"github.com/cybericebox/backend/internal/model"
+	assistantModel "github.com/cybericebox/backend/internal/model/assistant"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	adminAuditUseCase "github.com/cybericebox/backend/internal/useCase/adminAudit"
+	exerciseUseCase "github.com/cybericebox/backend/internal/useCase/exercise"
+	"github.com/cybericebox/backend/pkg/agentcrypto"
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
 const (

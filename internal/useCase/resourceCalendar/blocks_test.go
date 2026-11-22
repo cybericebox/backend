@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	resourcesModel "github.com/cybericebox/daemon/internal/model/resources"
+	resourcesModel "github.com/cybericebox/backend/internal/model/resources"
 )
 
 // A device is a whole number of blocks, so the largest device an agent can place is mapped down to the largest

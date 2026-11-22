@@ -9,9 +9,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/model/notification/emaildefaults"
-	"github.com/cybericebox/daemon/internal/model/notification/inappdefaults"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/model/notification/emaildefaults"
+	"github.com/cybericebox/backend/internal/model/notification/inappdefaults"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 func readMigration(t *testing.T, name string) string {

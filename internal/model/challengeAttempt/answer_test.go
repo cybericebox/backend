@@ -3,7 +3,7 @@ package challengeAttempt_test
 import (
 	"testing"
 
-	"github.com/cybericebox/daemon/internal/model/challengeAttempt"
+	"github.com/cybericebox/backend/internal/model/challengeAttempt"
 )
 
 func TestAnswerMatches(t *testing.T) {
