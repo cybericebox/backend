@@ -24,7 +24,7 @@
 //
 // SUBJECT: the gRPC control calls are TENANT-scoped (mTLS CN = tenant), never user-scoped — no
 // "x-subject" metadata. User authority travels IN-MESSAGE on the outbox provide_* requests, which the
-// brain ORIGINATES (provide_lab.subject / provide_task.subject); the client authorizes against that. The
+// brain ORIGINATES (provide_lab.subject / provide_task.subject / provide_device.subject); the client authorizes against that. The
 // chat's per-user subject (X-Cib-Subject) rides the SEPARATE HTTP/SSE transport, not here.
 //
 // ERROR MODEL (RPC status): InvalidArgument (bad/oversized/unsupported-media input); Unauthenticated
@@ -56,7 +56,7 @@ service Brain {
 
   // --- Runs (grader + opponents). The brain drives; the client provisions the lab, follows the event
   // stream, answers verdicts. Idempotency: StartRun/UploadMaterials/PostLabFacts keyed by run_id;
-  // a verdict by (run_id, answer_seq); StopRun idempotent (NOT_FOUND = success). ---
+  // a verdict by (run_id, answer_seq) or (run_id, subtask_ref) for state; StopRun idempotent (NOT_FOUND = success). ---
   // UploadMaterials: meta first (with task.json inline + size + sha256), then the binary files. A repeat
   // for the same run_id => AlreadyExists (success).
   rpc UploadMaterials(stream MaterialsChunk) returns (google.protobuf.Empty);
@@ -65,12 +65,12 @@ service Brain {
   // dedupes seq <= last; the run ends only with a `run_finished` event. An unknown run => NotFound (the
   // client then closes the run as brain_failed). gRPC keepalive, no server heartbeats.
   rpc RunEvents(RunEventsRequest) returns (stream RunEvent);
-  rpc PostVerdict(VerdictRequest) returns (google.protobuf.Empty); // idempotent by (run_id, answer_seq)
+  rpc PostVerdict(VerdictRequest) returns (google.protobuf.Empty); // idempotent by (run_id, answer_seq), or (run_id, subtask_ref) for a state verdict
   rpc PostLabFacts(LabFactsRequest) returns (google.protobuf.Empty);
   rpc StopRun(RunRef) returns (google.protobuf.Empty);             // best-effort; NotFound = success
 
-  // --- "Give me an opponent." role+band+task -> a ready-to-deploy spec plus the lab-side inputs the
-  // client must fill and pass back on StartRun (spec_id + the filled inputs). The brain owns the
+  // --- "Give me an opponent." role+band+task -> a ready-to-deploy spec; the client passes spec_id
+  // back on StartRun. The brain owns the
   // harness; the client owns the lab, so each fills only what it knows. ---
   rpc GetOpponent(GetOpponentRequest) returns (OpponentSpec);
 
@@ -107,8 +107,8 @@ message EnrollResponse { string cert_pem = 1; string ca_pem = 2; }
 // emits it; lab services are reached over vpn) and omitted.
 message Access {
   message Vpn {
-    string entry = 1;  // the FULL WireGuard config text of the run's tunnel (client-filled: VPN_ENTRY)
-    string addr  = 2;  // "ip:port" of the tools-device runner (client-filled: CONTROL_ADDR); empty = a
+    string entry = 1;  // the FULL WireGuard config text of the run's tunnel
+    string addr  = 2;  // "ip:port" of the tools-device runner; empty = a
                        //   plain participant vantage (grader-as-student)
   }
   message None {}
@@ -195,8 +195,8 @@ message Deploy {
   Resources resources = 3;                  // sizing HINT; the client may clamp to lab/operator limits and
                                             //   MUST refuse the run if the opponent cannot fit at a workable
                                             //   size (never run it starved — that would mismeasure)
-  ImagePull pull = 4;                       // short-lived, read-only pull credential for `image`: the brain
-                                            //   holds the standing registry creds and mints this per request;
+  ImagePull pull = 4;                       // read-only pull credential for `image`: the brain
+                                            //   holds the standing registry creds (reusable/long-lived today);
                                             //   the client hands it to the lab as a per-lab pull secret and
                                             //   NEVER stores it. Absent => the image is public/already pullable.
 }

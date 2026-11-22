@@ -24,7 +24,7 @@
 //
 // SUBJECT: the gRPC control calls are TENANT-scoped (mTLS CN = tenant), never user-scoped — no
 // "x-subject" metadata. User authority travels IN-MESSAGE on the outbox provide_* requests, which the
-// brain ORIGINATES (provide_lab.subject / provide_task.subject); the client authorizes against that. The
+// brain ORIGINATES (provide_lab.subject / provide_task.subject / provide_device.subject); the client authorizes against that. The
 // chat's per-user subject (X-Cib-Subject) rides the SEPARATE HTTP/SSE transport, not here.
 //
 // ERROR MODEL (RPC status): InvalidArgument (bad/oversized/unsupported-media input); Unauthenticated
@@ -1283,7 +1283,7 @@ type Deploy struct {
 	Resources *Resources             `protobuf:"bytes,3,opt,name=resources,proto3" json:"resources,omitempty"`                                                               // sizing HINT; the client may clamp to lab/operator limits and
 	// MUST refuse the run if the opponent cannot fit at a workable
 	// size (never run it starved — that would mismeasure)
-	Pull          *ImagePull `protobuf:"bytes,4,opt,name=pull,proto3" json:"pull,omitempty"` // short-lived, read-only pull credential for `image`: the brain
+	Pull          *ImagePull `protobuf:"bytes,4,opt,name=pull,proto3" json:"pull,omitempty"` // read-only pull credential for `image`: the brain
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2683,8 +2683,8 @@ func (x *RequestError) GetMessage() string {
 
 type Access_Vpn struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Entry         string                 `protobuf:"bytes,1,opt,name=entry,proto3" json:"entry,omitempty"` // the FULL WireGuard config text of the run's tunnel (client-filled: VPN_ENTRY)
-	Addr          string                 `protobuf:"bytes,2,opt,name=addr,proto3" json:"addr,omitempty"`   // "ip:port" of the tools-device runner (client-filled: CONTROL_ADDR); empty = a
+	Entry         string                 `protobuf:"bytes,1,opt,name=entry,proto3" json:"entry,omitempty"` // the FULL WireGuard config text of the run's tunnel
+	Addr          string                 `protobuf:"bytes,2,opt,name=addr,proto3" json:"addr,omitempty"`   // "ip:port" of the tools-device runner; empty = a
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
