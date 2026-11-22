@@ -1327,6 +1327,38 @@ func TestAStaticGraderRunEndToEnd(t *testing.T) {
 	}
 }
 
+// A run of a static variant (Access.none) has no lab: its teardown reads no lab activity, revokes no client and sends no lab
+// facts (the contract: lab_facts are facts of a lab run). Only the platform's own test row is removed, which asks no agent.
+func TestAStaticGraderRunTearsDownWithoutTheLab(t *testing.T) {
+	for name, status := range map[string]string{"finished": "done", "stopped": "stopped", "failed": "failed"} {
+		t.Run(name, func(t *testing.T) {
+			act := &fakeActivity{err: errors.New("infrastructure agent is not connected")}
+			r := newRunRig(t, func(d *assistant.Dependencies) { d.LabActivity = act })
+			r.labs.hasLab = false
+			run := r.start(t)
+			id := run.ID.String()
+			r.drive(t)
+			r.waitState(t, run.ID, assistantModel.RunRunning)
+			r.brn.Emit(id, "run_finished", `{"type":"run_finished","run_id":"`+id+`","status":"`+status+`"}`)
+			eventually(t, "the run to be torn down", func() bool { return !r.runs.state(run.ID).FinishedAt.IsZero() })
+
+			for _, c := range r.labs.called() {
+				if c == "labref" || strings.HasPrefix(c, "revoke:") || strings.HasPrefix(c, "mint:") || c == "control-address" {
+					t.Fatalf("a run without a lab never asks for the lab: %v", r.labs.called())
+				}
+			}
+			act.mu.Lock()
+			refreshed, asked := len(act.refreshed), len(act.askedFor)
+			act.mu.Unlock()
+			assert.Zero(t, refreshed, "no activity read of a lab that does not exist")
+			assert.Zero(t, asked, "no activity read of a lab that does not exist")
+			assert.Empty(t, r.brn.LabFacts(id), "a run with Access.none carries no lab facts")
+			assert.Nil(t, r.runs.state(run.ID).LabActivity)
+			assert.Equal(t, 1, r.labs.count("destroy"), "the static test row is removed")
+		})
+	}
+}
+
 func TestOnlyTheMeasureEventIsTheMeasurement(t *testing.T) {
 	r := newRunRig(t, nil)
 	run := r.start(t)
