@@ -208,7 +208,7 @@ func TestConsoleCables_GraphRules(t *testing.T) {
 			cable(devEP(pc1, "serial0"), devEP(r1, "console0")),
 			cable(devEP(pc1, "serial0"), devEP(r2, "console0")),
 		}, exerciseModel.ErrConsolePortInUse.Err(), map[string]any{"device": "pc1", "port": "serial0"}},
-		{"a port on a network connection", []exerciseModel.Connection{conn(devEP(pc1, "serial0"), devEP(r1, "console0"))}, exerciseModel.ErrConsolePortOnNetwork.Err(), map[string]any{"connection": 1, "device": "pc1", "port": "serial0", "field": "kind"}},
+		{"a port on a network connection", []exerciseModel.Connection{conn(devEP(pc1, "serial0"), devEP(r1, "console0"))}, exerciseModel.ErrConsolePortOnNetwork.Err(), map[string]any{"connection": 1, "device": "pc1", "port": "serial0", "field": "kind", "reason": "port"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			err := publishOf(exerciseModel.Topology{Devices: devices, Connections: tc.conns})
@@ -343,6 +343,17 @@ func TestValidateConsoleLines(t *testing.T) {
 	assert.Equal(t, 2, got["variant"])
 	assert.Equal(t, 2, got["connection"])
 	assert.Equal(t, "kind", got["field"])
+	assert.Equal(t, "port_name", got["reason"], "the device declares no such port: only the name looks like one")
+
+	declared := router("rd", exerciseModel.ConsolePort{Name: "console0"})
+	onPort := exerciseModel.Variant{Topology: exerciseModel.Topology{
+		Devices:     []exerciseModel.Device{declared, r1},
+		Connections: []exerciseModel.Connection{conn(devEP(r1, "eth0"), devEP(declared, "console0"))},
+	}}
+	err = exerciseModel.ValidateConsoleLines([]exerciseModel.Variant{onPort})
+	require.ErrorIs(t, err, exerciseModel.ErrConsolePortOnNetwork.Err())
+	assert.Equal(t, "port", consoleContext(t, err)["reason"], "a declared port: it should be a console cable")
+	assert.Equal(t, "rd", consoleContext(t, err)["device"])
 
 	unknown := exerciseModel.Variant{Topology: exerciseModel.Topology{Connections: []exerciseModel.Connection{{Kind: "foo"}}}}
 	require.ErrorIs(t, exerciseModel.ValidateConsoleLines([]exerciseModel.Variant{unknown}), exerciseModel.ErrConnectionKindInvalid.Err())

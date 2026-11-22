@@ -43,8 +43,10 @@ var (
 	// ErrConsoleUnavailable: the lab uses console ports or cables and no laboratory agent offers them.
 	ErrConsoleUnavailable = err.ErrConflict.WithObjectCode(model.ConsoleObjectCode).
 				WithMessage("No connected laboratory agent offers console cables").WithDetailCode(10)
-	// ErrConsolePortOnNetwork: a network connection ends on a console or serial port (or a name of one that is no interface
-	// of the node); it must be a console cable (kind console). Context connection, device, port and field kind.
+	// ErrConsolePortOnNetwork: a network connection ends on a console or serial port, or on a port name that is no interface
+	// of the node. Context connection, device, port, field kind and reason: port (a declared port, so the connection should be
+	// a console cable) or port_name (only the name of a port, and the device has no such interface).
 	ErrConsolePortOnNetwork = err.ErrInvalidData.WithObjectCode(model.ConsoleObjectCode).
-				WithMessage("A connection to a console or serial port must be a console cable").WithDetailCode(12)
+				WithMessage("A network connection ends on a console or serial port, or on a port name the device has no interface for").
+				WithDetailCode(12)
 )

@@ -338,15 +338,21 @@ func (t Topology) validateConsoleLines() error {
 			if !ok || !d.Type.IsNode() || hasInterface(d, ep.Interface) {
 				continue // resolved, or refused, by the graph rules
 			}
-			kind := d.PortOf(ep.Interface)
-			if kind == PortSerial || kind == PortConsole ||
-				consolePortNameRe.MatchString(ep.Interface) || serialPortNameRe.MatchString(ep.Interface) {
-				return ErrConsolePortOnNetwork.WithPublicContext("connection", ci+1).
-					WithPublicContext("device", d.Name).
-					WithPublicContext("port", ep.Interface).
-					WithPublicContext("field", "kind").
-					Err()
+			reason := ""
+			switch kind := d.PortOf(ep.Interface); {
+			case kind == PortSerial || kind == PortConsole:
+				reason = "port" // a declared port: the connection should be a console cable
+			case consolePortNameRe.MatchString(ep.Interface) || serialPortNameRe.MatchString(ep.Interface):
+				reason = "port_name" // only the name of a port, and the device has no such interface
+			default:
+				continue
 			}
+			return ErrConsolePortOnNetwork.WithPublicContext("connection", ci+1).
+				WithPublicContext("device", d.Name).
+				WithPublicContext("port", ep.Interface).
+				WithPublicContext("field", "kind").
+				WithPublicContext("reason", reason).
+				Err()
 		}
 	}
 	return nil
