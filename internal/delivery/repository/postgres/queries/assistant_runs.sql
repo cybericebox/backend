@@ -1,7 +1,7 @@
 -- name: CreateAssistantRun :exec
 -- A run that is starting. The partial unique index refuses a second active run of the variant.
-INSERT INTO assistant_runs (id, exercise_id, version_id, variant_id, deploy_id, actor_id, role, opponent, request_id, spec_id, state, created_at, updated_at, expires_at)
-VALUES (sqlc.arg(id), sqlc.arg(exercise_id), sqlc.arg(version_id), sqlc.arg(variant_id), sqlc.arg(deploy_id), sqlc.arg(actor_id), sqlc.arg(role), sqlc.arg(opponent), sqlc.arg(request_id), sqlc.arg(spec_id),
+INSERT INTO assistant_runs (id, exercise_id, version_id, variant_id, deploy_id, actor_id, role, opponent, tools_index, request_id, spec_id, state, created_at, updated_at, expires_at)
+VALUES (sqlc.arg(id), sqlc.arg(exercise_id), sqlc.arg(version_id), sqlc.arg(variant_id), sqlc.arg(deploy_id), sqlc.arg(actor_id), sqlc.arg(role), sqlc.arg(opponent), sqlc.arg(tools_index), sqlc.arg(request_id), sqlc.arg(spec_id),
         'starting', sqlc.arg(now)::timestamptz, sqlc.arg(now)::timestamptz, sqlc.arg(expires_at)::timestamptz);
 
 -- name: GetAssistantRun :one
@@ -53,6 +53,14 @@ LIMIT sqlc.arg(max_rows);
 SELECT count(*)::bigint
 FROM assistant_runs
 WHERE actor_id = sqlc.arg(actor_id)
+  AND state IN ('starting', 'running', 'closing');
+
+-- name: CountOtherActiveAssistantRunsOnDeploy :one
+-- The active runs of a lab other than one of them (the runs of several opponents share one lab).
+SELECT count(*)::bigint
+FROM assistant_runs
+WHERE deploy_id = sqlc.arg(deploy_id)
+  AND id <> sqlc.arg(id)
   AND state IN ('starting', 'running', 'closing');
 
 -- name: SetAssistantRunAccessClient :execrows

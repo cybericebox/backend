@@ -355,7 +355,7 @@ func (d *runDriver) startingOpponent(ctx context.Context, run assistantModel.Run
 // plus the device's fixed host. ok is false when it cannot be known yet (the run is closed after a few tries) and wait says when
 // to try again.
 func (d *runDriver) runnerAddr(ctx context.Context, run assistantModel.Run) (addr string, wait time.Duration, ok bool) {
-	host, err := d.u.labs.ControlAddress(ctx, run.Actor, run.DeployID)
+	host, err := d.u.labs.ControlAddress(ctx, run.Actor, run.DeployID, run.ToolsIndex)
 	if err != nil {
 		d.ctlFails++
 		log.Warn().Err(err).Int("attempt", d.ctlFails).Msg("Reading the control address of the tools device failed")
@@ -902,9 +902,17 @@ func (d *runDriver) closing(ctx context.Context, run assistantModel.Run) time.Du
 			d.revoked = true
 		}
 	}
-	if err := u.labs.DestroyDeployTest(ctx, run.Actor, run.DeployID); err != nil && !errors.Is(err, exerciseModel.ErrTestDeployNotFound.Err()) {
-		log.Warn().Err(err).Msg("Destroying the lab of a run failed; trying again")
+	// The runs of several opponents share one lab: it is destroyed by the last of them that ends.
+	others, err := u.runs.OthersActiveOnLab(ctx, run.DeployID, run.ID)
+	switch {
+	case err != nil:
+		log.Warn().Err(err).Msg("Counting the other runs of a lab failed; trying again")
 		failed = true
+	case others == 0:
+		if err = u.labs.DestroyDeployTest(ctx, run.Actor, run.DeployID); err != nil && !errors.Is(err, exerciseModel.ErrTestDeployNotFound.Err()) {
+			log.Warn().Err(err).Msg("Destroying the lab of a run failed; trying again")
+			failed = true
+		}
 	}
 	if failed {
 		return d.backoff()
@@ -922,7 +930,24 @@ func (d *runDriver) closing(ctx context.Context, run assistantModel.Run) time.Du
 		log.Warn().Err(err).Msg("Finishing a run failed; trying again")
 		return d.backoff()
 	}
+	if others > 0 {
+		d.destroyIfLast(ctx, run)
+	}
 	return 0
+}
+
+// destroyIfLast destroys the lab of a run that has just finished when no other run works in it any more. The runs of one lab
+// that end together may each see the other still active before they finish; the one that finishes last then sees none here,
+// so the lab is never left behind (a failure is only logged: the lab's own lease ends it).
+func (d *runDriver) destroyIfLast(ctx context.Context, run assistantModel.Run) {
+	u := d.u
+	others, err := u.runs.OthersActiveOnLab(ctx, run.DeployID, run.ID)
+	if err != nil || others > 0 {
+		return
+	}
+	if err = u.labs.DestroyDeployTest(ctx, run.Actor, run.DeployID); err != nil && !errors.Is(err, exerciseModel.ErrTestDeployNotFound.Err()) {
+		log.Warn().Err(err).Msg("Destroying the lab of the last run failed; its lease will end it")
+	}
 }
 
 // joinsLab says the run was given a lab to join: a VPN client of its own was recorded for it (Access.vpn). A run of a

@@ -24,10 +24,17 @@ type fake struct {
 	down      postgres.SetAssistantRunStreamDownParams
 	insertN   int64
 	advanced  int
+	created   postgres.CreateAssistantRunParams
+	others    postgres.CountOtherActiveAssistantRunsOnDeployParams
 }
 
-func (f *fake) CreateAssistantRun(context.Context, postgres.CreateAssistantRunParams) error {
+func (f *fake) CreateAssistantRun(_ context.Context, p postgres.CreateAssistantRunParams) error {
+	f.created = p
 	return f.createErr
+}
+func (f *fake) CountOtherActiveAssistantRunsOnDeploy(_ context.Context, p postgres.CountOtherActiveAssistantRunsOnDeployParams) (int64, error) {
+	f.others = p
+	return 2, nil
 }
 func (f *fake) GetAssistantRun(context.Context, uuid.UUID) (postgres.AssistantRun, error) {
 	if f.run == nil {
@@ -90,5 +97,21 @@ func TestStreamDownZeroClearsAndAppendReportsNewFrames(t *testing.T) {
 	f.insertN = 0
 	if isNew, err = r.AppendEvent(context.Background(), uuid.Nil, assistantModel.RunEvent{Seq: 3}, time.Now()); err != nil || isNew {
 		t.Fatalf("a frame seen again is not new: %v %v", err, isNew)
+	}
+}
+
+func TestTheToolsIndexOfARunIsStoredAndReadAndTheOtherRunsOfItsLabAreCounted(t *testing.T) {
+	f := &fake{}
+	repo := New(f)
+	run := assistantModel.Run{ID: uuid.Must(uuid.NewV7()), DeployID: uuid.Must(uuid.NewV7()), Opponent: 2, ToolsIndex: 3}
+	if err := repo.Create(context.Background(), run, time.Now()); err != nil || f.created.ToolsIndex != 3 || f.created.Opponent != 2 {
+		t.Fatalf("%v %+v", err, f.created)
+	}
+	f.run = &postgres.AssistantRun{ID: run.ID, ToolsIndex: 3}
+	if got, found, err := repo.Get(context.Background(), run.ID); err != nil || !found || got.ToolsIndex != 3 {
+		t.Fatalf("%v %+v", err, got)
+	}
+	if n, err := repo.OthersActiveOnLab(context.Background(), run.DeployID, run.ID); err != nil || n != 2 || f.others.DeployID != run.DeployID || f.others.ID != run.ID {
+		t.Fatalf("%d %v %+v", n, err, f.others)
 	}
 }

@@ -69,6 +69,9 @@ type DeployHandle struct {
 	Flags []DeployFlag
 	// Static is true for a test without devices: there is no lab behind the handle.
 	Static bool
+	// Tools are the names of the platform tools devices of a lab deployed with them, in the order of their placements: the one
+	// at position i has the index i (its control host is ControlHost(i)).
+	Tools []string
 }
 
 // DeployFlag is the value pinned for one answer task of a test deploy, with the options the author's answer is

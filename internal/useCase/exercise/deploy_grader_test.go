@@ -396,12 +396,12 @@ func TestControlAddress_IsTheDevicesFixedHostOfTheGatewaysNetwork(t *testing.T) 
 	q.EXPECT().GetOwnedExerciseTestDeploy(gomock.Any(), gomock.Any()).Return(graderRow(owner, deployID), nil).AnyTimes()
 	infra := &fakeInfra{status: exerciseModel.LabDeployStatus{Gateways: gws("ctl", "10.8.4.0/24")}}
 	uc := exercise.NewExerciseUseCase(exercise.Dependencies{Repo: q, Infra: infra})
-	if got, err := uc.ControlAddress(context.Background(), owner, deployID); err != nil || got != "10.8.4.10" {
+	if got, err := uc.ControlAddress(context.Background(), owner, deployID, 0); err != nil || got != "10.8.4.10" {
 		t.Fatalf("%q %v", got, err)
 	}
 	for name, cidr := range map[string]string{"none yet": "", "not a /24": "10.8.4.0/23", "not ipv4": "fd00::/64", "garbage": "x"} {
 		infra.status.Gateways = gws("ctl", cidr)
-		if _, err := uc.ControlAddress(context.Background(), owner, deployID); !errors.Is(err, exerciseModel.ErrToolsNoControl) {
+		if _, err := uc.ControlAddress(context.Background(), owner, deployID, 0); !errors.Is(err, exerciseModel.ErrToolsNoControl) {
 			t.Errorf("%s: %v", name, err)
 		}
 	}

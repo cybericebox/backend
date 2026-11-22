@@ -63,7 +63,10 @@ type Run struct {
 	Role       string
 	// Opponent is the 1-based position of the opponent in the variant's manifest for an opponent run, 0 for any other run.
 	Opponent int
-	State    RunState
+	// ToolsIndex is the index of the run's own tools device in its lab (its control host is ControlHost(ToolsIndex)): 0 for a lab
+	// with one device, the position of the opponent in the list it was started with when several share one lab.
+	ToolsIndex int
+	State      RunState
 	// EndState is how a closing run ends ("" otherwise).
 	EndState      RunState
 	FailureReason string

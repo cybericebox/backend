@@ -39,6 +39,8 @@ type (
 		OpponentsOfVariant(ctx context.Context, variant uuid.UUID, limit int) ([]assistantModel.Run, error)
 		Active(ctx context.Context, limit int) ([]assistantModel.Run, error)
 		CountActiveOf(ctx context.Context, actor uuid.UUID) (int, error)
+		// OthersActiveOnLab is how many active runs other than except work in the lab of a test deploy.
+		OthersActiveOnLab(ctx context.Context, deploy, except uuid.UUID) (int, error)
 		SetAccessClient(ctx context.Context, id uuid.UUID, client string, now time.Time) error
 		SetRunning(ctx context.Context, id uuid.UUID, now time.Time) (bool, error)
 		Close(ctx context.Context, id uuid.UUID, end assistantModel.RunState, reason string, now time.Time) (bool, error)
@@ -65,7 +67,7 @@ type (
 	LabRunner interface {
 		AuthorizeTestDeploy(ctx context.Context, actor exerciseUseCase.Actor, exerciseID, versionID, variantID uuid.UUID) error
 		DeployVariantTest(ctx context.Context, owner, versionID, variantID uuid.UUID, length time.Duration) (exerciseModel.DeployHandle, error)
-		DeployVariantTestWithTools(ctx context.Context, owner, versionID, variantID uuid.UUID, length time.Duration, place exerciseModel.ToolsPlacement) (exerciseModel.DeployHandle, error)
+		DeployVariantTestWithTools(ctx context.Context, owner, versionID, variantID uuid.UUID, length time.Duration, places []exerciseModel.ToolsPlacement) (exerciseModel.DeployHandle, error)
 		DestroyDeployTest(ctx context.Context, owner, deployID uuid.UUID) error
 		TestLabState(ctx context.Context, owner, deployID uuid.UUID) (exerciseUseCase.LabState, error)
 		MintLabClient(ctx context.Context, owner, deployID uuid.UUID, client string) (string, error)
@@ -74,7 +76,7 @@ type (
 		RunTarget(ctx context.Context, versionID, variantID uuid.UUID, want time.Duration) (exerciseUseCase.RunTarget, error)
 		RunMaterials(ctx context.Context, owner, deployID uuid.UUID) (exerciseUseCase.Materials, error)
 		RunStateTasks(ctx context.Context, owner, deployID uuid.UUID) ([]exerciseUseCase.StateSubtask, error)
-		ControlAddress(ctx context.Context, owner, deployID uuid.UUID) (string, error)
+		ControlAddress(ctx context.Context, owner, deployID uuid.UUID, index int) (string, error)
 		RunSolvedSubtasks(ctx context.Context, owner, deployID uuid.UUID) (map[string]bool, error)
 		// RunLabRef is the lab group and the lab of the run's test lab, as the laboratory names them.
 		RunLabRef(ctx context.Context, owner, deployID uuid.UUID) (group, lab string, err error)
@@ -305,7 +307,7 @@ func (u *UseCase) LabClients(ctx context.Context, owner uuid.UUID) []exerciseUse
 	var out []exerciseUseCase.LabClient
 	for _, r := range runs {
 		if r.Actor == owner && r.AccessClient != "" {
-			out = append(out, exerciseUseCase.LabClient{Name: r.AccessClient, DeployID: r.DeployID, Control: isBotRun(r)})
+			out = append(out, exerciseUseCase.LabClient{Name: r.AccessClient, DeployID: r.DeployID, Control: isBotRun(r), ToolsIndex: r.ToolsIndex})
 		}
 	}
 	return out

@@ -68,6 +68,10 @@ func (u *UseCase) StartOpponentRun(ctx context.Context, actor exerciseUseCase.Ac
 	return u.Assistant.StartOpponentRun(ctx, actor, exerciseID, versionID, variantID, index)
 }
 
+func (u *UseCase) StartOpponentRuns(ctx context.Context, actor exerciseUseCase.Actor, exerciseID, versionID, variantID uuid.UUID, indexes []int) ([]assistantModel.Run, error) {
+	return u.Assistant.StartOpponentRuns(ctx, actor, exerciseID, versionID, variantID, indexes)
+}
+
 func (u *UseCase) OpponentRuns(ctx context.Context, actor exerciseUseCase.Actor, exerciseID, versionID, variantID uuid.UUID, index int) ([]assistantModel.Run, error) {
 	return u.Assistant.OpponentRuns(ctx, actor, exerciseID, versionID, variantID, index)
 }

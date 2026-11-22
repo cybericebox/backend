@@ -27,6 +27,7 @@ type Queries interface {
 	ListAssistantOpponentRunsOfVariant(context.Context, postgres.ListAssistantOpponentRunsOfVariantParams) ([]postgres.AssistantRun, error)
 	ListActiveAssistantRuns(context.Context, int32) ([]postgres.AssistantRun, error)
 	CountActiveAssistantRunsOfActor(context.Context, uuid.UUID) (int64, error)
+	CountOtherActiveAssistantRunsOnDeploy(context.Context, postgres.CountOtherActiveAssistantRunsOnDeployParams) (int64, error)
 	SetAssistantRunAccessClient(context.Context, postgres.SetAssistantRunAccessClientParams) (int64, error)
 	SetAssistantRunRunning(context.Context, postgres.SetAssistantRunRunningParams) (int64, error)
 	CloseAssistantRun(context.Context, postgres.CloseAssistantRunParams) (int64, error)
@@ -64,7 +65,7 @@ func timeOf(t pgtype.Timestamptz) time.Time {
 func toRun(r postgres.AssistantRun) assistantModel.Run {
 	return assistantModel.Run{
 		ID: r.ID, ExerciseID: r.ExerciseID, VersionID: r.VersionID, VariantID: r.VariantID, DeployID: r.DeployID, Actor: r.ActorID,
-		Role: r.Role, Opponent: int(r.Opponent), State: assistantModel.RunState(r.State), EndState: assistantModel.RunState(r.EndState), FailureReason: r.FailureReason,
+		Role: r.Role, Opponent: int(r.Opponent), ToolsIndex: int(r.ToolsIndex), State: assistantModel.RunState(r.State), EndState: assistantModel.RunState(r.EndState), FailureReason: r.FailureReason,
 		AccessClient: r.AccessClient, RequestID: r.RequestID, Answered: r.Answered, SpecID: r.SpecID, LastSeq: r.LastSeq, StreamDownSince: timeOf(r.StreamDownSince), Measurement: r.Measurement,
 		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, StartedAt: timeOf(r.StartedAt), FinishedAt: timeOf(r.FinishedAt), LabReadyAt: timeOf(r.LabReadyAt), LabActivity: r.LabActivity, ExpiresAt: r.ExpiresAt,
 	}
@@ -82,7 +83,7 @@ func toRuns(rows []postgres.AssistantRun) []assistantModel.Run {
 func (r *Repository) Create(ctx context.Context, run assistantModel.Run, now time.Time) error {
 	err := r.q.CreateAssistantRun(ctx, postgres.CreateAssistantRunParams{
 		ID: run.ID, ExerciseID: run.ExerciseID, VersionID: run.VersionID, VariantID: run.VariantID, DeployID: run.DeployID,
-		ActorID: run.Actor, Role: run.Role, Opponent: safeconv.Int32(run.Opponent), RequestID: run.RequestID, SpecID: run.SpecID, Now: now, ExpiresAt: run.ExpiresAt,
+		ActorID: run.Actor, Role: run.Role, Opponent: safeconv.Int32(run.Opponent), ToolsIndex: safeconv.Int32(run.ToolsIndex), RequestID: run.RequestID, SpecID: run.SpecID, Now: now, ExpiresAt: run.ExpiresAt,
 	})
 	if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == pgerrcode.UniqueViolation {
 		return ErrActive
@@ -150,6 +151,13 @@ func (r *Repository) Active(ctx context.Context, limit int) ([]assistantModel.Ru
 // CountActiveOf is how many active runs the user has.
 func (r *Repository) CountActiveOf(ctx context.Context, actor uuid.UUID) (int, error) {
 	n, err := r.q.CountActiveAssistantRunsOfActor(ctx, actor)
+	return int(n), err
+}
+
+// OthersActiveOnLab is how many active runs other than except work in the lab of a test deploy (the runs of several opponents
+// share one lab).
+func (r *Repository) OthersActiveOnLab(ctx context.Context, deploy, except uuid.UUID) (int, error) {
+	n, err := r.q.CountOtherActiveAssistantRunsOnDeploy(ctx, postgres.CountOtherActiveAssistantRunsOnDeployParams{DeployID: deploy, ID: except})
 	return int(n), err
 }
 

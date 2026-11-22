@@ -259,11 +259,16 @@ func (u *ExerciseUseCase) DeployVariantTest(ctx context.Context, ownerID, versio
 	return u.deployVariantTest(ctx, nil, ownerID, versionID, variantID, length, nil)
 }
 
-// DeployVariantTestWithTools is DeployVariantTest with the platform tools device added to the lab (see
-// Topology.WithToolsDevice): the lab an automated opponent works from. Without a configured tools image it is refused with
-// ErrToolsNoImage; a variant without a lab with ErrTestDeployNoLab.
-func (u *ExerciseUseCase) DeployVariantTestWithTools(ctx context.Context, ownerID, versionID, variantID uuid.UUID, length time.Duration, place exerciseModel.ToolsPlacement) (exerciseModel.DeployHandle, error) {
-	return u.deployVariantTest(ctx, nil, ownerID, versionID, variantID, length, &place)
+// DeployVariantTestWithTools is DeployVariantTest with the platform tools devices added to the lab, one per placement (see
+// Topology.WithToolsDevices): the lab automated opponents work from. The device of the placement at position i has the index i
+// (its control host is ControlHost(i)); the handle names the devices in that order. A placement without an image takes the
+// platform's tools image; without one it is refused with ErrToolsNoImage, more than MaxOpponents placements with
+// ErrToolsTooMany, a variant without a lab with ErrTestDeployNoLab.
+func (u *ExerciseUseCase) DeployVariantTestWithTools(ctx context.Context, ownerID, versionID, variantID uuid.UUID, length time.Duration, places []exerciseModel.ToolsPlacement) (exerciseModel.DeployHandle, error) {
+	if len(places) == 0 {
+		return exerciseModel.DeployHandle{}, exerciseModel.ErrToolsNoImage
+	}
+	return u.deployVariantTest(ctx, nil, ownerID, versionID, variantID, length, places)
 }
 
 // sizeTools gives the tools device its preset from the size it was asked for: the hint clamped to the device limits of a lab
@@ -322,7 +327,7 @@ func (u *ExerciseUseCase) testLength(ctx context.Context, chosen time.Duration) 
 	return lease, nil
 }
 
-func (u *ExerciseUseCase) deployVariantTest(ctx context.Context, eventID *uuid.UUID, ownerID, versionID, variantID uuid.UUID, length time.Duration, tools *exerciseModel.ToolsPlacement) (exerciseModel.DeployHandle, error) {
+func (u *ExerciseUseCase) deployVariantTest(ctx context.Context, eventID *uuid.UUID, ownerID, versionID, variantID uuid.UUID, length time.Duration, tools []exerciseModel.ToolsPlacement) (exerciseModel.DeployHandle, error) {
 	defer logDuration("deploy test lab", time.Now(), uuid.Nil)
 
 	lease, err := u.testLength(ctx, length)
@@ -339,10 +344,19 @@ func (u *ExerciseUseCase) deployVariantTest(ctx context.Context, eventID *uuid.U
 	}
 	// A variant without devices has no laboratory to run: its test is a row with flags and a lease, which needs
 	// no agent. An event preview always needs a laboratory.
-	if tools != nil && tools.Image == "" && u.toolsImage == "" {
-		return exerciseModel.DeployHandle{}, exerciseModel.ErrToolsNoImage
+	// Opponents never play in an event: an event lab (and its preview) never gets a tools device.
+	if eventID != nil && len(tools) > 0 {
+		return exerciseModel.DeployHandle{}, exerciseModel.ErrToolsNoVPN
 	}
-	if eventID == nil && !variant.Topology.HasLab() && tools == nil {
+	if len(tools) > exerciseModel.MaxOpponents {
+		return exerciseModel.DeployHandle{}, exerciseModel.ErrToolsTooMany
+	}
+	for _, place := range tools {
+		if place.Image == "" && u.toolsImage == "" {
+			return exerciseModel.DeployHandle{}, exerciseModel.ErrToolsNoImage
+		}
+	}
+	if eventID == nil && !variant.Topology.HasLab() && len(tools) == 0 {
 		return u.deployStaticTest(ctx, ownerID, versionID, variant, lease)
 	}
 	if u.infra == nil {
@@ -392,30 +406,47 @@ func (u *ExerciseUseCase) deployVariantTest(ctx context.Context, eventID *uuid.U
 	if topo, err = topo.WithBootstrapFiles(u.readBootstrapFile(ctx)); err != nil {
 		return exerciseModel.DeployHandle{}, exerciseModel.InVariantIfScoped(err, number)
 	}
-	var place exerciseModel.ToolsPlacement
-	if tools != nil {
-		if place, err = u.sizeTools(*tools); err != nil {
-			return exerciseModel.DeployHandle{}, err
-		}
-		// The fallback tools image (BRAIN_TOOLS_IMAGE) is checked like every image of the lab.
-		if place.Image == "" {
-			if topo, _, err = topo.WithToolsDevice(u.toolsImage, place); err != nil {
+	// All the tools devices are added at once, so they share one control gateway; the device of position i has the index i.
+	var (
+		toolsNames  []string
+		brainImages map[uuid.UUID]string
+	)
+	if len(tools) > 0 {
+		places := make([]exerciseModel.ToolsPlacement, len(tools))
+		fromBrain := make([]bool, len(tools))
+		for i, p := range tools {
+			if places[i], err = u.sizeTools(p); err != nil {
 				return exerciseModel.DeployHandle{}, err
 			}
+			fromBrain[i] = places[i].Image != ""
+			if !fromBrain[i] {
+				places[i].Image = u.toolsImage
+			}
 		}
+		var devices []exerciseModel.Device
+		if topo, devices, err = topo.WithToolsDevices(places); err != nil {
+			return exerciseModel.DeployHandle{}, err
+		}
+		// The fallback tools image (BRAIN_TOOLS_IMAGE) is checked like every image of the lab; the brain's image is applied as
+		// it is: it is hidden from the check (a device without an image is not checked) and put back after it.
+		brainImages = map[uuid.UUID]string{}
+		for i, d := range devices {
+			toolsNames = append(toolsNames, d.Name)
+			if fromBrain[i] {
+				brainImages[d.ID] = d.Image
+			}
+		}
+		topo = withDeviceImages(topo, brainImages, true)
 	}
 	// Every image must be pullable before anything is created; the agent gets exactly the credentials they need.
 	topo, pullCredentials, err := u.prepareLabImages(ctx, eventID, exerciseID, topo)
 	if err != nil {
 		return exerciseModel.DeployHandle{}, err
 	}
-	// The brain's tools image is applied as it is, with the short-lived credential it came with: a pull secret of this lab only
-	// (it is in no row and no log).
-	if tools != nil && place.Image != "" {
-		if topo, _, err = topo.WithToolsDevice(place.Image, place); err != nil {
-			return exerciseModel.DeployHandle{}, err
-		}
-		if pullCredentials, err = withToolsPull(pullCredentials, place.Pull); err != nil {
+	// The brain's images come with their short-lived credentials: pull secrets of this lab only (they are in no row and no log).
+	topo = withDeviceImages(topo, brainImages, false)
+	for _, p := range tools {
+		if pullCredentials, err = withToolsPull(pullCredentials, p.Pull); err != nil {
 			return exerciseModel.DeployHandle{}, err
 		}
 	}
@@ -506,9 +537,27 @@ func (u *ExerciseUseCase) deployVariantTest(ctx context.Context, eventID *uuid.U
 
 	u.scheduleTestDeployExpiry(ctx, deploy)
 
-	handle := exerciseModel.DeployHandle{Group: deploy.ID.String(), Lab: deploy.LabName}
+	handle := exerciseModel.DeployHandle{Group: deploy.ID.String(), Lab: deploy.LabName, Tools: toolsNames}
 	handle.Flags = deployFlags
 	return handle, nil
+}
+
+// withDeviceImages returns a copy of the topology whose devices named in images have no image (hide) or the image given again.
+func withDeviceImages(topo exerciseModel.Topology, images map[uuid.UUID]string, hide bool) exerciseModel.Topology {
+	if len(images) == 0 {
+		return topo
+	}
+	topo.Devices = slices.Clone(topo.Devices)
+	for i, d := range topo.Devices {
+		if image, ok := images[d.ID]; ok {
+			if hide {
+				topo.Devices[i].Image = ""
+			} else {
+				topo.Devices[i].Image = image
+			}
+		}
+	}
+	return topo
 }
 
 // deployStaticTest starts the test of a variant without devices: a row with a flag for every task and a lease,

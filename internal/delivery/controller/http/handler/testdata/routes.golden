@@ -479,6 +479,7 @@ POST   /api/exercises/:id/versions/:versionID/variants/:variantID/opponents/:ind
 GET    /api/exercises/:id/versions/:versionID/variants/:variantID/opponents/:index/try/:runID | gate: self | layers: -
 GET    /api/exercises/:id/versions/:versionID/variants/:variantID/opponents/:index/try/:runID/events | gate: self | layers: -
 POST   /api/exercises/:id/versions/:versionID/variants/:variantID/opponents/:index/try/:runID/stop | gate: self | layers: -
+POST   /api/exercises/:id/versions/:versionID/variants/:variantID/opponents/try | gate: self | layers: -
 GET    /api/exercises/access | gate: self | layers: -
 GET    /api/exercises/authors | gate: self | layers: -
 PUT    /api/exercises/bulk/access | gate: exercises.write | layers: -

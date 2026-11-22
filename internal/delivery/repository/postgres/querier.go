@@ -172,6 +172,8 @@ type Querier interface {
 	// tag. The exclusion constraint closes the race between concurrent writers.
 	CountLiveEventsWithTag(ctx context.Context, arg CountLiveEventsWithTagParams) (int64, error)
 	CountNotificationBroadcasts(ctx context.Context, arg CountNotificationBroadcastsParams) (int64, error)
+	// The active runs of a lab other than one of them (the runs of several opponents share one lab).
+	CountOtherActiveAssistantRunsOnDeploy(ctx context.Context, arg CountOtherActiveAssistantRunsOnDeployParams) (int64, error)
 	CountPendingExerciseResourceElevations(ctx context.Context) (int64, error)
 	CountPendingResourceChangeRequests(ctx context.Context) (int64, error)
 	CountPendingTeamInvitations(ctx context.Context, arg CountPendingTeamInvitationsParams) (int64, error)
