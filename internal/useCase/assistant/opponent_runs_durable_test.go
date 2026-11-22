@@ -129,3 +129,13 @@ func TestATasksOwnControlGatewayNameIsATypedRefusal(t *testing.T) {
 		t.Fatalf("%v", err)
 	}
 }
+
+// Opponents whose control gateways would take the lab over the gateways a lab may have get a refusal that names that limit.
+func TestTooManyGatewaysForTheOpponentsIsATypedRefusal(t *testing.T) {
+	r := opponentRig(t, attacker(), defender())
+	r.labs.toolsErr = exerciseModel.ErrToolsGatewayLimit
+	_, err := r.uc.StartOpponentRuns(context.Background(), runActor, runExercise, runVersion, runVariant, []int{1, 2})
+	if !errors.Is(err, assistantModel.ErrAssistantOpponentGatewayLimit.Err()) {
+		t.Fatalf("%v", err)
+	}
+}

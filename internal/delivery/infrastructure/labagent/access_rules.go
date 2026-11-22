@@ -61,10 +61,19 @@ func vpnGatewaysOfSpec(specJSON []byte) []string {
 	if json.Unmarshal(specJSON, &spec) != nil {
 		return nil
 	}
+	// The platform adds "ctl" to every lab with a tools device, and a task can never have a device of that name (reserved since the
+	// first tools device, refused at deploy). So only in a lab with ctl are the other control names (ctl-2 ... ctl-8) the platform's:
+	// a deploy with tools devices refuses a task device of any control name. In a lab without ctl a gateway named ctl-3 is the
+	// task's own (published before the name was reserved) and stays a participant's.
+	platformControl := false
+	for _, g := range spec.Gateways {
+		platformControl = platformControl || g.Kind == "vpn" && g.Name == exerciseModel.ControlGatewayName
+	}
 	var out []string
 	for _, g := range spec.Gateways {
 		// A control gateway of a tools device is never a participant's: only the run client of that bot gets a rule for it.
-		if g.Kind == "vpn" && !exerciseModel.IsControlGatewayName(g.Name) {
+		control := g.Name == exerciseModel.ControlGatewayName || platformControl && exerciseModel.IsControlGatewayName(g.Name)
+		if g.Kind == "vpn" && !control {
 			out = append(out, g.Name)
 		}
 	}

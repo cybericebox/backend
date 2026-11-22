@@ -131,10 +131,11 @@ func (u *UseCase) DriveRuns(ctx context.Context) {
 // sweepIdleLabs destroys the test labs of opponent runs that still exist although none of their runs is active. The last run of
 // a lab destroys it in its teardown; this is what makes that durable: a destroy that failed after the run was finished, or a
 // leader that stopped between finishing the run and destroying its lab, leaves the lab to the next sweep (of this leader or the
-// next), not to its lease. A lab whose runs are being stored is never seen without an active run (they are stored together), and
-// a destroy that fails is tried again on the next sweep.
+// next), not to its lease. A lab whose runs are being stored is never seen without an active run (they are stored together). A
+// destroy hands the lab to removal (its lease ends), after which the sweep never lists it again (the expiry and the removal
+// check finish it); a destroy that fails before that is tried again on the next sweep.
 func (u *UseCase) sweepIdleLabs(ctx context.Context) {
-	labs, err := u.runs.IdleOpponentLabs(ctx, maxLabsSwept)
+	labs, err := u.runs.IdleOpponentLabs(ctx, u.now().UTC(), maxLabsSwept)
 	if err != nil {
 		log.Warn().Err(err).Msg("Listing the labs of ended opponent runs failed; trying again")
 		return

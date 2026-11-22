@@ -10347,18 +10347,18 @@ func (mr *MockQuerierMockRecorder) ListFileSizes(ctx, ids any) *gomock.Call {
 }
 
 // ListIdleOpponentLabs mocks base method.
-func (m *MockQuerier) ListIdleOpponentLabs(ctx context.Context, maxRows int32) ([]postgres.ListIdleOpponentLabsRow, error) {
+func (m *MockQuerier) ListIdleOpponentLabs(ctx context.Context, arg postgres.ListIdleOpponentLabsParams) ([]postgres.ListIdleOpponentLabsRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListIdleOpponentLabs", ctx, maxRows)
+	ret := m.ctrl.Call(m, "ListIdleOpponentLabs", ctx, arg)
 	ret0, _ := ret[0].([]postgres.ListIdleOpponentLabsRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListIdleOpponentLabs indicates an expected call of ListIdleOpponentLabs.
-func (mr *MockQuerierMockRecorder) ListIdleOpponentLabs(ctx, maxRows any) *gomock.Call {
+func (mr *MockQuerierMockRecorder) ListIdleOpponentLabs(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListIdleOpponentLabs", reflect.TypeOf((*MockQuerier)(nil).ListIdleOpponentLabs), ctx, maxRows)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListIdleOpponentLabs", reflect.TypeOf((*MockQuerier)(nil).ListIdleOpponentLabs), ctx, arg)
 }
 
 // ListInAppByUser mocks base method.

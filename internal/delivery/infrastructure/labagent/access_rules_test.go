@@ -76,6 +76,16 @@ func TestTheControlGatewayIsNeverAParticipantsGateway(t *testing.T) {
 	require.Equal(t, []string{"vpn"}, rules[0].GetGatewayNames(), "a participant's rule never names ctl")
 }
 
+// A task's own VPN gateway named like a later control gateway (published before the name was reserved) is a participant's gateway
+// in a lab the platform added no control to: the names are the platform's only when the lab has the platform's "ctl".
+func TestATasksOwnGatewayNamedLikeAControlGatewayKeepsItsRules(t *testing.T) {
+	spec := []byte(`{"gateways":[{"name":"vpn","kind":"vpn"},{"name":"ctl-3","kind":"vpn"}],"devices":[{"name":"web"}]}`)
+	require.Equal(t, []string{"ctl-3", "vpn"}, vpnGatewaysOfSpec(spec))
+	rules := accessRules([]labAccessModel.ClientPolicy{{Name: "p-1", AllowedLabs: []string{"lab"}}}, map[string][]string{"lab": vpnGatewaysOfSpec(spec)})
+	require.Len(t, rules, 1)
+	require.Equal(t, []string{"ctl-3", "vpn"}, rules[0].GetGatewayNames())
+}
+
 func TestTheClientOfABotGetsOneAddressOfTheControlGatewayAndNothingElse(t *testing.T) {
 	rules := accessRules([]labAccessModel.ClientPolicy{
 		{Name: "g-run", Control: &labAccessModel.ControlAccess{Lab: "lab-bot", Gateway: exerciseModel.ControlGatewayOf(0), Host: exerciseModel.ControlHostBase}},

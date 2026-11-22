@@ -605,26 +605,38 @@ func (q *Queries) ListAssistantRunsOfVariant(ctx context.Context, arg ListAssist
 }
 
 const listIdleOpponentLabs = `-- name: ListIdleOpponentLabs :many
-SELECT DISTINCT r.deploy_id, r.actor_id
-FROM assistant_runs r
-         JOIN exercise_test_deployments d ON d.id = r.deploy_id AND d.created_by = r.actor_id
-WHERE r.opponent > 0
+SELECT d.id AS deploy_id, d.created_by AS actor_id
+FROM exercise_test_deployments d
+WHERE d.expires_at > $1::timestamptz
+  AND EXISTS (SELECT 1
+              FROM assistant_runs r
+              WHERE r.deploy_id = d.id
+                AND r.actor_id = d.created_by
+                AND r.opponent > 0)
   AND NOT EXISTS (SELECT 1
                   FROM assistant_runs a
-                  WHERE a.deploy_id = r.deploy_id
+                  WHERE a.deploy_id = d.id
                     AND a.state IN ('starting', 'running', 'closing'))
-LIMIT $1
+ORDER BY d.expires_at, d.id
+LIMIT $2
 `
+
+type ListIdleOpponentLabsParams struct {
+	Now     time.Time `json:"now"`
+	MaxRows int32     `json:"max_rows"`
+}
 
 type ListIdleOpponentLabsRow struct {
 	DeployID uuid.UUID `json:"deploy_id"`
 	ActorID  uuid.UUID `json:"actor_id"`
 }
 
-// The test labs of opponent runs in which no run is active any more but which still exist: a teardown that was cut short (the
-// destroy after the last run failed, or the leader stopped between finishing the run and destroying its lab).
-func (q *Queries) ListIdleOpponentLabs(ctx context.Context, maxRows int32) ([]ListIdleOpponentLabsRow, error) {
-	rows, err := q.db.Query(ctx, listIdleOpponentLabs, maxRows)
+// The live test labs of opponent runs in which no run is active any more: a teardown that was cut short (the destroy after the
+// last run failed, or the leader stopped between finishing the run and destroying its lab). A lab handed to removal (its lease
+// ended, which DestroyDeployTest does at once) is the expiry's and removal check's, never listed again. Read from the test deploys
+// (few, live ones only), each probed by its runs; oldest lease first, so a lab is never starved by newer ones.
+func (q *Queries) ListIdleOpponentLabs(ctx context.Context, arg ListIdleOpponentLabsParams) ([]ListIdleOpponentLabsRow, error) {
+	rows, err := q.db.Query(ctx, listIdleOpponentLabs, arg.Now, arg.MaxRows)
 	if err != nil {
 		return nil, err
 	}

@@ -115,51 +115,84 @@ func TestCreateAllInsertsTheRunsOfOneRequestTogether(t *testing.T) {
 	require.Equal(t, 2, n)
 }
 
-// The leader finds the labs of opponent runs that are still there although none of their runs is active.
-func TestIdleOpponentLabs(t *testing.T) {
+// idleRig is a database with a user and a way to add their test deploys (the foreign key to the exercise version is not what is
+// tested here, so the rows are inserted with it off).
+func idleRig(t *testing.T, email string) (repo *assistantRunRepo.Repository, actor uuid.UUID, deploy func(expires time.Time) uuid.UUID, end func(...assistantModel.Run)) {
+	t.Helper()
 	repo, db := runsRepo(t)
 	ctx := context.Background()
-	actor := seedUser(t, db, "idle@example.com")
-	now := time.Now().UTC()
-
+	actor = seedUser(t, db, email)
 	conn, err := db.Pool.Acquire(ctx)
 	require.NoError(t, err)
-	defer conn.Release()
-	// The test deploys reference an exercise version; the foreign keys are not what is tested here.
+	t.Cleanup(conn.Release)
 	_, err = conn.Exec(ctx, "SET session_replication_role = replica")
 	require.NoError(t, err)
-	present := func(deploy uuid.UUID) {
+	deploy = func(expires time.Time) uuid.UUID {
 		t.Helper()
+		id := uuid.Must(uuid.NewV7())
 		_, execErr := conn.Exec(ctx, `INSERT INTO exercise_test_deployments (id, group_name, lab_name, version_id, variant_id, created_by, created_at, expires_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $7)`, deploy, "g-"+deploy.String(), "l-"+deploy.String(), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), actor, now)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, id, "g-"+id.String(), "l-"+id.String(), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), actor, time.Now().UTC(), expires)
 		require.NoError(t, execErr)
+		return id
 	}
-	end := func(runs ...assistantModel.Run) {
+	end = func(runs ...assistantModel.Run) {
 		t.Helper()
 		for _, r := range runs {
-			_, closeErr := repo.Close(ctx, r.ID, assistantModel.RunFinished, "", now)
+			_, closeErr := repo.Close(ctx, r.ID, assistantModel.RunFinished, "", time.Now())
 			require.NoError(t, closeErr)
-			_, finishErr := repo.Finish(ctx, r.ID, now)
+			_, finishErr := repo.Finish(ctx, r.ID, time.Now())
 			require.NoError(t, finishErr)
 		}
 	}
-	idle, playing, gone, grader := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
-	for _, deploy := range []uuid.UUID{idle, playing, grader} {
-		present(deploy)
-	}
-	v1, v2, v3 := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	return repo, actor, deploy, end
+}
+
+// The leader finds the labs of opponent runs that are still there (not yet handed to removal) although none of their runs is
+// active.
+func TestIdleOpponentLabs(t *testing.T) {
+	repo, actor, deploy, end := idleRig(t, "idle@example.com")
+	ctx := context.Background()
+	now := time.Now().UTC()
+	live := now.Add(time.Hour)
+
+	idle, playing, grader, removing := deploy(live), deploy(live), deploy(live), deploy(now.Add(-time.Second))
+	gone := uuid.Must(uuid.NewV7())
+	v1, v2, v3, v4 := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 	i1, i2 := opponentRun(actor, v1, idle, 1, 0, now), opponentRun(actor, v1, idle, 2, 1, now)
 	p1, p2 := opponentRun(actor, v2, playing, 1, 0, now), opponentRun(actor, v2, playing, 2, 1, now)
 	g1 := opponentRun(actor, v3, gone, 1, 0, now)
 	gr := opponentRun(actor, v3, grader, 0, 0, now)
 	gr.Role = assistantModel.RoleGrader
-	for _, batch := range [][]assistantModel.Run{{i1, i2}, {p1, p2}, {g1}, {gr}} {
+	r1 := opponentRun(actor, v4, removing, 1, 0, now)
+	for _, batch := range [][]assistantModel.Run{{i1, i2}, {p1, p2}, {g1}, {gr}, {r1}} {
 		require.NoError(t, repo.CreateAll(ctx, batch, 100, now))
 	}
-	end(i1, i2, p1, g1, gr)
+	end(i1, i2, p1, g1, gr, r1)
 
-	labs, err := repo.IdleOpponentLabs(ctx, 10)
+	labs, err := repo.IdleOpponentLabs(ctx, now, 10)
 	require.NoError(t, err)
 	require.Equal(t, []assistantModel.RunLab{{DeployID: idle, Owner: actor}}, labs,
-		"only the lab whose runs all ended and which is still there; never a lab a run still plays in, a lab that is gone, or a grader's")
+		"only the lab whose runs all ended and which is still live; never a lab a run plays in, a lab that is gone or being removed, or a grader's")
+}
+
+// A lab handed to removal (its lease ended: DestroyDeployTest ends it at once) is never listed again, so the sweep does not destroy
+// it again every minute; and a lab that really leaked is found even behind many labs that are being removed.
+func TestIdleOpponentLabsSkipsLabsBeingRemoved(t *testing.T) {
+	repo, actor, deploy, end := idleRig(t, "removing@example.com")
+	ctx := context.Background()
+	now := time.Now().UTC()
+	for i := range 25 {
+		id := deploy(now.Add(-time.Duration(i+1) * time.Minute))
+		run := opponentRun(actor, uuid.Must(uuid.NewV7()), id, 1, 0, now)
+		require.NoError(t, repo.CreateAll(ctx, []assistantModel.Run{run}, 100, now))
+		end(run)
+	}
+	leaked := deploy(now.Add(time.Hour))
+	run := opponentRun(actor, uuid.Must(uuid.NewV7()), leaked, 1, 0, now)
+	require.NoError(t, repo.CreateAll(ctx, []assistantModel.Run{run}, 100, now))
+	end(run)
+
+	labs, err := repo.IdleOpponentLabs(ctx, now, 20)
+	require.NoError(t, err)
+	require.Equal(t, []assistantModel.RunLab{{DeployID: leaked, Owner: actor}}, labs)
 }

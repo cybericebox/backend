@@ -475,16 +475,18 @@ func TestTheToolsDevicesAreCappedAndATasksControlGatewayIsRefused(t *testing.T) 
 	for i := range MaxLabGateways - MaxOpponents {
 		crowded.Devices = append(crowded.Devices, Device{ID: uuid.Must(uuid.NewV7()), Name: "inet" + strconv.Itoa(i), Type: DeviceTypeInternetGateway})
 	}
-	if _, _, err := crowded.WithToolsDevices(places[:MaxOpponents]); !errors.Is(err, ErrToolsTooMany) {
+	if _, _, err := crowded.WithToolsDevices(places[:MaxOpponents]); !errors.Is(err, ErrToolsGatewayLimit) {
 		t.Fatalf("more gateways than a lab may have: %v", err)
 	}
 	if _, _, err := crowded.WithToolsDevices(places[:MaxOpponents-1]); err != nil {
 		t.Fatalf("exactly the limit: %v", err)
 	}
-	for _, name := range []string{"ctl-2", "ctl-3"} {
+	// Any control name of the task is refused, even one no device of this lab would get (one device gets only ctl): in a lab with
+	// the platform's ctl every ctl-N is the platform's, which is how the participants' access tells them apart.
+	for _, name := range []string{"ctl-2", "ctl-3", "CTL-8"} {
 		taken := topo
 		taken.Devices = []Device{topo.Devices[0], node(name)}
-		if _, _, err := taken.WithToolsDevices([]ToolsPlacement{{Image: "a:1"}, {Image: "b:1"}, {Image: "c:1"}}); !errors.Is(err, ErrToolsNoControl) {
+		if _, _, err := taken.WithToolsDevices([]ToolsPlacement{{Image: "a:1"}}); !errors.Is(err, ErrToolsNoControl) {
 			t.Fatalf("a task's own %s: %v", name, err)
 		}
 	}

@@ -86,7 +86,7 @@ func (m *memRuns) CreateAll(_ context.Context, runs []assistantModel.Run, maxAct
 	return nil
 }
 
-func (m *memRuns) IdleOpponentLabs(_ context.Context, limit int) ([]assistantModel.RunLab, error) {
+func (m *memRuns) IdleOpponentLabs(_ context.Context, _ time.Time, limit int) ([]assistantModel.RunLab, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	active, seen := map[uuid.UUID]bool{}, map[uuid.UUID]bool{}

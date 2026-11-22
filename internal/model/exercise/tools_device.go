@@ -24,9 +24,11 @@ var (
 	ErrToolsNoSegment = errors.New("the lab has no such segment for the tools device")
 	// ErrToolsTooLarge: the size the tools device was asked for does not fit the device limits of a lab at a workable size.
 	ErrToolsTooLarge = errors.New("the tools device does not fit the device limits of the lab")
-	// ErrToolsTooMany: more tools devices were asked for than a lab may hold (MaxOpponents), or their control gateways would take
-	// the lab over the gateways it may have (MaxLabGateways).
+	// ErrToolsTooMany: more tools devices were asked for than a lab may hold (MaxOpponents).
 	ErrToolsTooMany = errors.New("the lab cannot hold that many tools devices")
+	// ErrToolsGatewayLimit: the control gateways of the tools devices (one each) would take the lab over the gateways a lab may
+	// have (MaxLabGateways, the task's own gateways counted).
+	ErrToolsGatewayLimit = errors.New("the lab cannot hold a control gateway for every tools device")
 	// ErrToolsPullConflict: the lab pulls other images from the registry of the tools image with another credential.
 	ErrToolsPullConflict = errors.New("the tools image registry is already used by the lab with another credential")
 )
@@ -216,7 +218,8 @@ func (t Topology) WithToolsDevice(image string, place ToolsPlacement) (Topology,
 // takes a port of that switch: the data side of the devices is shared by design (they play against the same segments). The
 // control side is not: the device at position i (its index) gets a control gateway and switch of its own, ControlGatewayOf(i),
 // and the address ControlHostBase there. At most MaxOpponents devices are added, and only while the gateways of the task and
-// the control gateways stay within MaxLabGateways; every device of a lab is added in this one call (a topology that has a
+// the control gateways stay within MaxLabGateways (ErrToolsGatewayLimit); a task device with any control name is refused
+// (ErrToolsNoControl); every device of a lab is added in this one call (a topology that has a
 // control gateway already is refused). The copy is validated; the input is never changed.
 func (t Topology) WithToolsDevices(places []ToolsPlacement) (Topology, []Device, error) {
 	if len(places) > MaxOpponents {
@@ -241,7 +244,14 @@ func (t Topology) WithToolsDevices(places []ToolsPlacement) (Topology, []Device,
 		}
 	}
 	if gateways+len(places) > MaxLabGateways {
-		return Topology{}, nil, ErrToolsTooMany
+		return Topology{}, nil, ErrToolsGatewayLimit
+	}
+	// No device of the task may have any control name, not only the ones this lab gets: in a lab with the platform's ctl every
+	// ctl-N is the platform's (the participants' access relies on it), and a published task may predate the reservation.
+	for _, d := range t.Devices {
+		if IsControlGatewayName(d.Name) {
+			return Topology{}, nil, ErrToolsNoControl
+		}
 	}
 	out := t
 	out.Devices = append([]Device(nil), t.Devices...)

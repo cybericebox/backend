@@ -206,6 +206,8 @@ func (u *UseCase) StartOpponentRuns(ctx context.Context, actor exerciseUseCase.A
 	switch {
 	case errors.Is(err, exerciseModel.ErrToolsTooLarge):
 		return nil, assistantModel.ErrAssistantOpponentTooLarge.Err()
+	case errors.Is(err, exerciseModel.ErrToolsGatewayLimit):
+		return nil, assistantModel.ErrAssistantOpponentGatewayLimit.WithPublicContext("limit", exerciseModel.MaxLabGateways).Err()
 	case errors.Is(err, exerciseModel.ErrToolsNoControl):
 		// A device of the task is named like a control gateway of the platform (the deploy refuses to add the gateway).
 		return nil, assistantModel.ErrAssistantOpponentControlName.Err()

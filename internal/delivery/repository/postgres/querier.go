@@ -1401,9 +1401,11 @@ type Querier interface {
 	ListFileOwners(ctx context.Context, ids []uuid.UUID) ([]ListFileOwnersRow, error)
 	// Batch size lookup for board attachments; missing files are simply absent.
 	ListFileSizes(ctx context.Context, ids []uuid.UUID) ([]ListFileSizesRow, error)
-	// The test labs of opponent runs in which no run is active any more but which still exist: a teardown that was cut short (the
-	// destroy after the last run failed, or the leader stopped between finishing the run and destroying its lab).
-	ListIdleOpponentLabs(ctx context.Context, maxRows int32) ([]ListIdleOpponentLabsRow, error)
+	// The live test labs of opponent runs in which no run is active any more: a teardown that was cut short (the destroy after the
+	// last run failed, or the leader stopped between finishing the run and destroying its lab). A lab handed to removal (its lease
+	// ended, which DestroyDeployTest does at once) is the expiry's and removal check's, never listed again. Read from the test deploys
+	// (few, live ones only), each probed by its runs; oldest lease first, so a lab is never starved by newer ones.
+	ListIdleOpponentLabs(ctx context.Context, arg ListIdleOpponentLabsParams) ([]ListIdleOpponentLabsRow, error)
 	// An empty event_filter lists everything; an Event id lists that Event's items and
 	// items without an Event (account/system), as on the Event site (M5). The nil
 	// uuid matches no Event, so it lists only items without an Event (platform sites).

@@ -29,7 +29,7 @@ type Queries interface {
 	CountActiveAssistantRunsOfActor(context.Context, uuid.UUID) (int64, error)
 	CountOtherActiveAssistantRunsOnDeploy(context.Context, postgres.CountOtherActiveAssistantRunsOnDeployParams) (int64, error)
 	LockAssistantRunsOfActor(context.Context, uuid.UUID) error
-	ListIdleOpponentLabs(context.Context, int32) ([]postgres.ListIdleOpponentLabsRow, error)
+	ListIdleOpponentLabs(context.Context, postgres.ListIdleOpponentLabsParams) ([]postgres.ListIdleOpponentLabsRow, error)
 	SetAssistantRunAccessClient(context.Context, postgres.SetAssistantRunAccessClientParams) (int64, error)
 	SetAssistantRunRunning(context.Context, postgres.SetAssistantRunRunningParams) (int64, error)
 	CloseAssistantRun(context.Context, postgres.CloseAssistantRunParams) (int64, error)
@@ -155,10 +155,10 @@ func create(ctx context.Context, q Queries, run assistantModel.Run, now time.Tim
 	return err
 }
 
-// IdleOpponentLabs are the test labs of opponent runs that still exist although none of their runs is active (a teardown that
-// was cut short), at most limit of them.
-func (r *Repository) IdleOpponentLabs(ctx context.Context, limit int) ([]assistantModel.RunLab, error) {
-	rows, err := r.q.ListIdleOpponentLabs(ctx, safeconv.Int32(limit))
+// IdleOpponentLabs are the live test labs (lease after now, so not handed to removal) of opponent runs in which none of their
+// runs is active (a teardown that was cut short), oldest lease first, at most limit of them.
+func (r *Repository) IdleOpponentLabs(ctx context.Context, now time.Time, limit int) ([]assistantModel.RunLab, error) {
+	rows, err := r.q.ListIdleOpponentLabs(ctx, postgres.ListIdleOpponentLabsParams{Now: now, MaxRows: safeconv.Int32(limit)})
 	if err != nil {
 		return nil, err
 	}

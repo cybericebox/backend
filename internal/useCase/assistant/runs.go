@@ -35,8 +35,9 @@ type (
 		// CreateAll stores the runs of one request (one actor) in one step: the cap of the actor's active runs (maxActive) is
 		// checked and every run inserted atomically (assistantRunRepo.ErrLimit, ErrActive: none is stored).
 		CreateAll(ctx context.Context, runs []assistantModel.Run, maxActive int, now time.Time) error
-		// IdleOpponentLabs are the test labs of opponent runs that still exist although none of their runs is active.
-		IdleOpponentLabs(ctx context.Context, limit int) ([]assistantModel.RunLab, error)
+		// IdleOpponentLabs are the live test labs (not handed to removal at now) of opponent runs in which none of their runs is
+		// active, oldest lease first.
+		IdleOpponentLabs(ctx context.Context, now time.Time, limit int) ([]assistantModel.RunLab, error)
 		Get(ctx context.Context, id uuid.UUID) (assistantModel.Run, bool, error)
 		LabOfRequest(ctx context.Context, requestID string) (assistantModel.Run, bool, error)
 		SetAnswered(ctx context.Context, id uuid.UUID, now time.Time) error
