@@ -355,6 +355,21 @@ func (u *EventUseCase) prepareTeamAssignment(ctx context.Context, e eventModel.E
 		if _, err = txRepo.LockEventForLabSourceChange(txCtx, e.ID); err != nil {
 			return err
 		}
+	}
+	attachment, err := eventExerciseRepo.New(txRepo).GetByID(txCtx, e.ID, assignment.EventExerciseID)
+	if err != nil {
+		return model.ErrPlatform.WithError(err).WithMessage("Failed to get event exercise").Err()
+	}
+	if attachment.Status != eventExerciseModel.StatusActive {
+		return nil
+	}
+	version, err := exerciseRepo.New(txRepo).GetVersion(txCtx, attachment.ExerciseVersionID)
+	if err != nil {
+		return model.ErrPlatform.WithError(err).WithMessage("Failed to get pinned exercise version").Err()
+	}
+	// Only an exercise that can get a lab has a reveal barrier: the barrier opens when every cohort team's lab is
+	// ready, so one for an exercise without labs would never open.
+	if u.lifecycleControls && e.InfrastructureAllowed && exerciseModel.HasInfrastructure(version.Variants) {
 		if _, err = eventLabRevealRepo.New(txRepo).Freeze(txCtx, e.ID, assignment.EventExerciseID, now); err != nil {
 			return err
 		}
@@ -368,17 +383,6 @@ func (u *EventUseCase) prepareTeamAssignment(ctx context.Context, e eventModel.E
 			return nil
 		}
 		return model.ErrPlatform.WithError(err).WithMessage("Failed to get stand team").Err()
-	}
-	attachment, err := eventExerciseRepo.New(txRepo).GetByID(txCtx, e.ID, assignment.EventExerciseID)
-	if err != nil {
-		return model.ErrPlatform.WithError(err).WithMessage("Failed to get event exercise").Err()
-	}
-	if attachment.Status != eventExerciseModel.StatusActive {
-		return nil
-	}
-	version, err := exerciseRepo.New(txRepo).GetVersion(txCtx, attachment.ExerciseVersionID)
-	if err != nil {
-		return model.ErrPlatform.WithError(err).WithMessage("Failed to get pinned exercise version").Err()
 	}
 	teamChallenges := teamChallengeRepo.New(txRepo)
 	flags := u.newTeamFlags(txRepo, e.ID, attachment.ID)
