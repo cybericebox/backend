@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +15,9 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	pkgerr "github.com/cybericebox/backend/pkg/err"
 )
 
 func TestPercentileNearestRank(t *testing.T) {
@@ -95,6 +99,8 @@ type fakeStand struct {
 	startTime time.Time
 	t         *testing.T
 	badOrigin int
+	// resultsDenied, when set, is the platform code the results endpoints answer with 403 (results hidden, participants only).
+	resultsDenied int
 }
 
 const (
@@ -125,6 +131,12 @@ func (f *fakeStand) handler() http.Handler {
 			return
 		}
 		team := f.teams[who]
+		if f.resultsDenied != 0 && (strings.HasSuffix(path, "/results") || strings.HasSuffix(path, "/results/changes")) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(map[string]any{"Status": map[string]any{"Code": f.resultsDenied, "Message": "denied"}})
+			return
+		}
 		switch {
 		case path == "/api/auth/me":
 			reply(w, map[string]any{})
@@ -206,11 +218,14 @@ func (f *fakeStand) handler() http.Handler {
 	})
 }
 
-// TestWholeRunAgainstAFakeStand drives two teams through the full flow and checks that every
-// step of the scenario was exercised and reported.
-func TestWholeRunAgainstAFakeStand(t *testing.T) {
-	stand := &fakeStand{t: t, teams: map[string]string{}, codes: map[string]string{}, solved: map[string]bool{},
+func newFakeStand(t *testing.T) *fakeStand {
+	return &fakeStand{t: t, teams: map[string]string{}, codes: map[string]string{}, solved: map[string]bool{},
 		labReady: time.Now().Add(400 * time.Millisecond), startTime: time.Now().Add(300 * time.Millisecond)}
+}
+
+// runAgainst runs the whole scenario against the fake stand and returns the JSON report and the text output.
+func runAgainst(t *testing.T, stand *fakeStand) (Report, string) {
+	t.Helper()
 	server := httptest.NewServer(stand.handler())
 	defer server.Close()
 
@@ -247,6 +262,14 @@ func TestWholeRunAgainstAFakeStand(t *testing.T) {
 	if err = json.Unmarshal(raw, &report); err != nil {
 		t.Fatal(err)
 	}
+	return report, out.String() + logs.String()
+}
+
+// TestWholeRunAgainstAFakeStand drives two teams through the full flow and checks that every
+// step of the scenario was exercised and reported.
+func TestWholeRunAgainstAFakeStand(t *testing.T) {
+	stand := newFakeStand(t)
+	report, out := runAgainst(t, stand)
 	seen := map[string]EndpointReport{}
 	for _, e := range report.Endpoints {
 		seen[e.Endpoint] = e
@@ -262,7 +285,7 @@ func TestWholeRunAgainstAFakeStand(t *testing.T) {
 		}
 	}
 	if report.Errors != 0 {
-		t.Errorf("errors = %d, want 0\n%s", report.Errors, out.String())
+		t.Errorf("errors = %d, want 0\n%s", report.Errors, out)
 	}
 	if report.Labs.Labs != 2 || report.Labs.Ready != 2 || report.Labs.P50s <= 0 {
 		t.Errorf("labs = %+v, want 2 ready labs with a start time", report.Labs)
@@ -273,8 +296,53 @@ func TestWholeRunAgainstAFakeStand(t *testing.T) {
 	if stand.badOrigin != 0 {
 		t.Errorf("%d event requests carried the wrong Origin", stand.badOrigin)
 	}
-	if !strings.Contains(out.String(), "p95 ms") || !strings.Contains(out.String(), "Labs: 2 tracked, 2 ready") {
-		t.Errorf("text report incomplete:\n%s", out.String())
+	if !strings.Contains(out, "p95 ms") || !strings.Contains(out, "Labs: 2 tracked, 2 ready") {
+		t.Errorf("text report incomplete:\n%s", out)
+	}
+}
+
+func resultsRow(report Report) EndpointReport {
+	for _, e := range report.Endpoints {
+		if e.Endpoint == "GET /api/events/{id}/results" {
+			return e
+		}
+	}
+	return EndpointReport{}
+}
+
+// A hidden scoreboard answers 403 (results hidden) by design; the scoreboard polls must not count it as a
+// failure, or a run on such an event reports errors and trips the abort rule.
+func TestHiddenScoreboardIsNotAFailure(t *testing.T) {
+	stand := newFakeStand(t)
+	stand.resultsDenied = resultsHiddenCode
+	report, out := runAgainst(t, stand)
+	results := resultsRow(report)
+	if results.Count == 0 || results.Status[http.StatusForbidden] == 0 {
+		t.Fatalf("the scoreboard was never asked or never hidden: %+v", results)
+	}
+	if results.ErrorRate != 0 || report.Errors != 0 {
+		t.Errorf("hidden scoreboard counted as failure: results %+v, errors %d\n%s", results, report.Errors, out)
+	}
+}
+
+// Any other 403 of the results endpoints (participants only: the join failed) stays an error.
+func TestOtherResultsDenialIsAFailure(t *testing.T) {
+	stand := newFakeStand(t)
+	stand.resultsDenied = resultsHiddenCode + 1
+	report, _ := runAgainst(t, stand)
+	if results := resultsRow(report); results.Status[http.StatusForbidden] == 0 || results.ErrorRate == 0 {
+		t.Fatalf("a participants-only 403 must count as an error: %+v", results)
+	}
+}
+
+// resultsHiddenCode is the wire code of the platform's results-hidden error.
+func TestResultsHiddenCodeMatchesThePlatform(t *testing.T) {
+	var coded interface{ StatusCode() pkgerr.StatusCode }
+	if !errors.As(eventConfigModel.ErrResultsHidden.Err(), &coded) {
+		t.Fatal("ErrResultsHidden has no status code")
+	}
+	if got := coded.StatusCode().FullCode(); got != resultsHiddenCode {
+		t.Fatalf("ErrResultsHidden is %d on the wire, the tool expects %d", got, resultsHiddenCode)
 	}
 }
 

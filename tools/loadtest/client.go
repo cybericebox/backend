@@ -70,6 +70,9 @@ type request struct {
 	Header              map[string]string
 	// Expect lists 4xx answers the flow treats as normal.
 	Expect []int
+	// ExpectCode lists platform codes (Status.Code of the answer) the flow treats as normal on a 4xx,
+	// when only one reason of a status is normal (a 403 for hidden results, not for a failed join).
+	ExpectCode []int
 }
 
 var uuidLike = regexp.MustCompile(`[0-9a-fA-F]{8}-[0-9a-fA-F-]{27}`)
@@ -121,13 +124,14 @@ func (a *api) do(ctx context.Context, rq request) result {
 		a.m.observe(rq.label(), 0, took, false)
 		return result{}
 	}
-	a.m.observe(rq.label(), resp.StatusCode, took, slices.Contains(rq.Expect, resp.StatusCode))
-
 	out := result{Status: resp.StatusCode, Header: resp.Header}
 	var env envelope
 	if json.Unmarshal(raw, &env) == nil {
 		out.Data, out.Code, out.Message = env.Data, env.Status.Code, env.Status.Message
 	}
+	expected := slices.Contains(rq.Expect, resp.StatusCode) ||
+		(resp.StatusCode >= 400 && resp.StatusCode < 500 && slices.Contains(rq.ExpectCode, out.Code))
+	a.m.observe(rq.label(), resp.StatusCode, took, expected)
 	if resp.StatusCode == http.StatusTooManyRequests {
 		wait := 2 * time.Second
 		if s, err := strconv.Atoi(resp.Header.Get("Retry-After")); err == nil && s > 0 {
