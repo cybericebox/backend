@@ -52,9 +52,13 @@ func (u *UseCase) opponentBudget() *brainapiv1.Budget {
 // opponentSpec asks the brain for the opponent (GetOpponent) and turns its spec into the placement of the tools device: the
 // image and the env as the brain gave them, the size as a hint, the short-lived pull credential (kept in memory only, for this
 // deploy). ok is false when the brain has no specs (Unimplemented): the caller then deploys the fallback tools image of the
-// platform (BRAIN_TOOLS_IMAGE). Every required input must be one the platform fills, and a pull credential must still be valid
-// (one that expired on the way is fetched once more).
+// platform (BRAIN_TOOLS_IMAGE). The inputs StartRun carries are fixed (the run's VPN client, the runner address, the manifest's
+// foothold), so an attacker or attack-defender without a foothold is refused before the brain is asked; a pull credential must
+// still be valid (one that expired on the way is fetched once more; one without expires_at is reusable).
 func (u *UseCase) opponentSpec(ctx context.Context, runID uuid.UUID, o exerciseModel.Opponent, exerciseID, versionID uuid.UUID, place exerciseModel.ToolsPlacement) (exerciseModel.ToolsPlacement, string, bool, error) {
+	if o.Role != exerciseModel.OpponentDefense && o.Foothold == "" {
+		return place, "", false, assistantModel.ErrAssistantOpponentSpecInvalid.WithMessage("The opponent needs a foothold the manifest does not name").Err()
+	}
 	c, err := u.control(ctx)
 	if err != nil {
 		return place, "", false, err
@@ -80,17 +84,6 @@ func (u *UseCase) opponentSpec(ctx context.Context, runID uuid.UUID, o exerciseM
 	deploy := spec.GetDeploy()
 	if deploy.GetImage() == "" || spec.GetSpecId() == "" {
 		return place, "", false, assistantModel.ErrAssistantOpponentSpecInvalid.WithMessage("The opponent spec has no image or no id").Err()
-	}
-	for _, in := range spec.GetRequiredInputs() {
-		switch in.GetKind() {
-		case brainapiv1.InputKind_VPN_ENTRY, brainapiv1.InputKind_CONTROL_ADDR:
-		case brainapiv1.InputKind_FOOTHOLD:
-			if o.Foothold == "" {
-				return place, "", false, assistantModel.ErrAssistantOpponentSpecInvalid.WithMessage("The opponent needs a foothold the manifest does not name").Err()
-			}
-		default:
-			return place, "", false, assistantModel.ErrAssistantOpponentSpecInvalid.WithMessage("The opponent needs an input the platform cannot fill").Err()
-		}
 	}
 	if pull := deploy.GetPull(); pull != nil {
 		if pull.GetExpiresAt() != nil && !u.now().Before(pull.GetExpiresAt().AsTime()) {

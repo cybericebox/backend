@@ -47,8 +47,8 @@ func captureLogs(t *testing.T) *syncBuffer {
 	return sink
 }
 
-func spec(expires time.Time, inputs ...brainapiv1.InputKind) *brainapiv1.OpponentSpec {
-	s := &brainapiv1.OpponentSpec{
+func spec(expires time.Time) *brainapiv1.OpponentSpec {
+	return &brainapiv1.OpponentSpec{
 		SpecId: "spec-7",
 		Deploy: &brainapiv1.Deploy{
 			Image:     "registry.brain.test/eda/runner@sha256:abc",
@@ -57,20 +57,16 @@ func spec(expires time.Time, inputs ...brainapiv1.InputKind) *brainapiv1.Opponen
 			Pull:      &brainapiv1.ImagePull{Registry: "registry.brain.test", Username: "pull-bot", Password: pullSecret, ExpiresAt: timestamppb.New(expires)},
 		},
 	}
-	for i, kind := range inputs {
-		s.RequiredInputs = append(s.RequiredInputs, &brainapiv1.RequiredInput{Key: fmt.Sprintf("in%d", i), Kind: kind})
-	}
-	return s
 }
 
 // The new flow: GetOpponent(run_id, role, band, task_ref, version) gives the spec; the tools device is deployed with its image,
-// env and size and its pull credential goes to the lab only; StartRun names the spec and fills the inputs (VPN_ENTRY, CONTROL_ADDR,
-// FOOTHOLD). The pull credential is in no stored row and no log line.
+// env and size and its pull credential goes to the lab only; StartRun names the spec and carries the fixed inputs (access.vpn
+// entry and addr, foothold). The pull credential is in no stored row and no log line.
 func TestAnOpponentIsDeployedFromItsGetOpponentSpecAndThePullSecretIsNeverKept(t *testing.T) {
 	logs := captureLogs(t)
 	r := opponentRig(t, attacker())
 	r.fake.Opponents.Answer(func(*brainapiv1.GetOpponentRequest) (*brainapiv1.OpponentSpec, error) {
-		return spec(time.Now().Add(time.Hour), brainapiv1.InputKind_VPN_ENTRY, brainapiv1.InputKind_CONTROL_ADDR, brainapiv1.InputKind_FOOTHOLD), nil
+		return spec(time.Now().Add(time.Hour)), nil
 	})
 	run := r.tryOpponent(t, 1)
 
@@ -137,17 +133,15 @@ func TestWithoutGetOpponentTheFallbackToolsImageIsDeployed(t *testing.T) {
 }
 
 func TestAnOpponentSpecThePlatformCannotDeployIsRefusedBeforeAnyLab(t *testing.T) {
-	defender := exerciseModel.Opponent{Role: exerciseModel.OpponentDefense, Band: 2, Operates: []string{"web"}}
+	footless := attacker()
+	footless.Foothold = ""
 	for name, c := range map[string]struct {
 		opponent exerciseModel.Opponent
 		answer   func() (*brainapiv1.OpponentSpec, error)
 		want     error
 	}{
-		"an input the platform does not know": {attacker(), func() (*brainapiv1.OpponentSpec, error) {
-			return spec(time.Now().Add(time.Hour), brainapiv1.InputKind_INPUT_KIND_UNSPECIFIED), nil
-		}, assistantModel.ErrAssistantOpponentSpecInvalid.Err()},
-		"a foothold the manifest does not name": {defender, func() (*brainapiv1.OpponentSpec, error) {
-			return spec(time.Now().Add(time.Hour), brainapiv1.InputKind_FOOTHOLD), nil
+		"an attacker whose manifest names no foothold": {footless, func() (*brainapiv1.OpponentSpec, error) {
+			return spec(time.Now().Add(time.Hour)), nil
 		}, assistantModel.ErrAssistantOpponentSpecInvalid.Err()},
 		"no image": {attacker(), func() (*brainapiv1.OpponentSpec, error) {
 			s := spec(time.Now().Add(time.Hour))
@@ -207,5 +201,22 @@ func TestAnOpponentThatDoesNotFitTheLabIsRefused(t *testing.T) {
 	}
 	if n := len(r.runs.runs); n != 0 {
 		t.Fatalf("no run is kept: %d", n)
+	}
+}
+
+// A reusable pull credential (no expires_at, as the brain sends today) is deployed as it is, without asking the brain again.
+func TestAReusablePullCredentialWithoutExpiryIsDeployed(t *testing.T) {
+	r := opponentRig(t, attacker())
+	r.fake.Opponents.Answer(func(*brainapiv1.GetOpponentRequest) (*brainapiv1.OpponentSpec, error) {
+		s := spec(time.Now())
+		s.Deploy.Pull.ExpiresAt = nil
+		return s, nil
+	})
+	r.tryOpponent(t, 1)
+	if len(r.fake.Opponents.Requests()) != 1 {
+		t.Fatalf("asked %d times", len(r.fake.Opponents.Requests()))
+	}
+	if place := r.labs.places[0]; place.Pull == nil || place.Pull.Password != pullSecret {
+		t.Fatalf("the credential goes to the lab: %+v", place.Pull)
 	}
 }

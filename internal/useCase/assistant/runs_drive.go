@@ -340,8 +340,8 @@ func (d *runDriver) startingOpponent(ctx context.Context, run assistantModel.Run
 		return wait
 	}
 	image, _ := imageAndKind(target.VariantsJS)
-	// The lab-side inputs of the spec are filled here: VPN_ENTRY is the run's own client, CONTROL_ADDR the runner of its tools
-	// device, FOOTHOLD the manifest's segment (the kinds were checked when the spec was taken, before the lab was deployed).
+	// StartRun carries the fixed lab-side inputs: access.vpn.entry is the run's own client, access.vpn.addr the runner of its tools
+	// device, foothold the manifest's segment (an attacker without one was refused before the lab was deployed).
 	body := &brainapiv1.StartRunRequest{
 		RunId: run.ID.String(), Role: string(opponent.Role), TaskRef: run.ExerciseID.String(), Version: run.VersionID.String(),
 		Image: image, Access: vpnAccess(d.config, addr), Start: immediateStart(),

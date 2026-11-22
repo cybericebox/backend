@@ -22,9 +22,10 @@
 //
 // The brain<->pad (runner) link is a DIFFERENT gRPC service (internal to Brain + the lab).
 //
-// SUBJECT: the control calls are tenant-scoped (the mTLS client certificate CN) and carry no user subject. User
-// authority travels in-message on the outbox provide_* requests, which the brain originates (provide_lab.subject,
-// provide_device.subject, provide_task.subject); the client authorizes them against that subject.
+// SUBJECT: the gRPC control calls are TENANT-scoped (mTLS CN = tenant), never user-scoped — no
+// "x-subject" metadata. User authority travels IN-MESSAGE on the outbox provide_* requests, which the
+// brain ORIGINATES (provide_lab.subject / provide_task.subject); the client authorizes against that. The
+// chat's per-user subject (X-Cib-Subject) rides the SEPARATE HTTP/SSE transport, not here.
 //
 // ERROR MODEL (RPC status): InvalidArgument (bad/oversized/unsupported-media input); Unauthenticated
 // (missing/invalid client cert); PermissionDenied; NotFound (unknown run/session/task; reason="gone"
@@ -64,7 +65,7 @@ service Brain {
   // dedupes seq <= last; the run ends only with a `run_finished` event. An unknown run => NotFound (the
   // client then closes the run as brain_failed). gRPC keepalive, no server heartbeats.
   rpc RunEvents(RunEventsRequest) returns (stream RunEvent);
-  rpc PostVerdict(VerdictRequest) returns (google.protobuf.Empty); // idempotent by (run_id, answer_seq) for an answer verdict; (run_id, subtask_ref) when state=true (a state subtask passes once, answer_seq unset)
+  rpc PostVerdict(VerdictRequest) returns (google.protobuf.Empty); // idempotent by (run_id, answer_seq)
   rpc PostLabFacts(LabFactsRequest) returns (google.protobuf.Empty);
   rpc StopRun(RunRef) returns (google.protobuf.Empty);             // best-effort; NotFound = success
 
@@ -134,7 +135,7 @@ message StartRunRequest {
   string image    = 4;
   string role     = 5;     // opaque to the client; the brain interprets ("grader" | attack | defense | ...)
   repeated string goal = 6; // this variant's subtask keys (e.g. recon, root)
-  Access access   = 7;     // built from the filled required_inputs (vpn.entry, vpn.addr)
+  Access access   = 7;     // the client fills vpn.entry + vpn.addr
   uint32 band     = 8;     // opponent ability 1..6; 0/unset for a grader
   Budget budget   = 9;     // omitted for a grader
   Start  start    = 10;
@@ -153,12 +154,14 @@ message RunEvent { uint64 seq = 1; string type = 2; bytes data = 3; } // data = 
 
 message VerdictRequest {
   string run_id = 1;
-  uint64 answer_seq = 2;   // the seq of the `answer` event this verdicts; idempotency is (run_id, answer_seq) for an answer verdict;
-                           //   (run_id, subtask_ref) when state=true (a state subtask passes once, answer_seq unset)
-  string subtask_ref = 3;  // informational (the brain already knows it from the answer event)
+  uint64 answer_seq = 2;   // the seq of the `answer` event this verdicts (answer subtasks only; UNSET for a
+                           //   state-checked subtask, see `state`). Idempotency: (run_id, answer_seq).
+  string subtask_ref = 3;  // the subtask this verdicts; for a STATE verdict (state=true) there is no
+                           //   answer_seq, so the brain matches on (run_id, subtask_ref)
   bool   correct = 4;      // the brain learns ONLY this + the time, never the expected value
   google.protobuf.Timestamp at = 5;
-  bool   state = 6;        // true for a STATE-checked subtask: no answer event, answer_seq unset, keyed by subtask_ref
+  bool   state = 6;        // true for a STATE-checked subtask: the platform judges the lab state, there is
+                           //   no answer event, answer_seq is unset, and the verdict is keyed by subtask_ref
 }
 
 message LabFactsRequest {
@@ -185,33 +188,25 @@ message GetOpponentRequest {
 message OpponentSpec {
   string spec_id = 1;                       // referenced back on StartRun
   Deploy deploy = 2;                        // ready to apply as-is
-  repeated RequiredInput required_inputs = 3; // the client fills these, then passes them on StartRun
 }
 message Deploy {
-  string image = 1;                         // the platform-chosen tools/runner image for the role
+  string image = 1;                         // the brain-chosen tools/runner image for the role (private)
   map<string, string> env = 2;              // run-scoped env the brain bakes (EDA_TRUST_CA, EDA_RUN_ID=run_id)
-  Resources resources = 3;                  // sizing HINTS: the client may clamp them to its device limits; when
-                                            //   the opponent cannot fit at a workable size the client refuses the run
-                                            //   with a clear error instead of running it starved
-  ImagePull pull = 4;                       // short-lived, read-only pull credential for image; the brain holds the
-                                            //   standing registry creds and mints this per request; the client hands
-                                            //   it to the lab as a per-lab pull secret and NEVER stores it; absent =>
-                                            //   image public / already pullable
+  Resources resources = 3;                  // sizing HINT; the client may clamp to lab/operator limits and
+                                            //   MUST refuse the run if the opponent cannot fit at a workable
+                                            //   size (never run it starved — that would mismeasure)
+  ImagePull pull = 4;                       // short-lived, read-only pull credential for `image`: the brain
+                                            //   holds the standing registry creds and mints this per request;
+                                            //   the client hands it to the lab as a per-lab pull secret and
+                                            //   NEVER stores it. Absent => the image is public/already pullable.
 }
 message ImagePull {
-  string registry = 1;
+  string registry = 1;                       // registry host the credential authenticates to
   string username = 2;
-  string password = 3;                       // short-lived token; drop after expires_at
-  google.protobuf.Timestamp expires_at = 4;  // after this, re-fetch via GetOpponent for a fresh pull
+  string password = 3;                       // a pull secret; reusable/long-lived today, may be short-lived in a later version
+  google.protobuf.Timestamp expires_at = 4;  // optional: set for a short-lived cred (re-fetch via GetOpponent once passed); omit / far-future for a reusable one
 }
 message Resources { uint32 cpu_millis = 1; uint64 mem_bytes = 2; }
-enum InputKind {
-  INPUT_KIND_UNSPECIFIED = 0;
-  VPN_ENTRY   = 1;   // -> Access.Vpn.entry
-  CONTROL_ADDR = 2;  // -> Access.Vpn.addr (the client supplies the device ip; the brain hinted the port)
-  FOOTHOLD    = 3;   // -> StartRun.foothold (the attacker's starting segment)
-}
-message RequiredInput { string key = 1; InputKind kind = 2; string description = 3; }
 
 // ---------------- Statistics ----------------
 

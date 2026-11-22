@@ -22,9 +22,10 @@
 //
 // The brain<->pad (runner) link is a DIFFERENT gRPC service (internal to Brain + the lab).
 //
-// SUBJECT: the control calls are tenant-scoped (the mTLS client certificate CN) and carry no user subject. User
-// authority travels in-message on the outbox provide_* requests, which the brain originates (provide_lab.subject,
-// provide_device.subject, provide_task.subject); the client authorizes them against that subject.
+// SUBJECT: the gRPC control calls are TENANT-scoped (mTLS CN = tenant), never user-scoped — no
+// "x-subject" metadata. User authority travels IN-MESSAGE on the outbox provide_* requests, which the
+// brain ORIGINATES (provide_lab.subject / provide_task.subject); the client authorizes against that. The
+// chat's per-user subject (X-Cib-Subject) rides the SEPARATE HTTP/SSE transport, not here.
 //
 // ERROR MODEL (RPC status): InvalidArgument (bad/oversized/unsupported-media input); Unauthenticated
 // (missing/invalid client cert); PermissionDenied; NotFound (unknown run/session/task; reason="gone"
