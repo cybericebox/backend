@@ -6,8 +6,9 @@ package exerciseModel
 const WarnAttachmentsInSomeVariants = "attachments_in_some_variants"
 
 // ContentWarning is something about the content of a version an author should know; it never forbids. Task is the
-// key of the subtask (its name when it has no key); WithFiles and WithoutFiles are the 1-based positions of the
-// variants in the version (as the "variant" context of the errors counts them). The slices are never null.
+// key of the subtask (its name when it has no key); WithFiles and WithoutFiles are the numbers of the variants: their
+// Index (1-based, as the editor shows Variants[].Index), or their 1-based position in the version when the Index is
+// not set (0 or less). The slices are never null.
 type ContentWarning struct {
 	Code         string `json:"Code"`
 	Task         string `json:"Task"`
@@ -42,10 +43,14 @@ func ContentWarnings(variants []Variant) []ContentWarning {
 					warning.Task = task.Name
 				}
 			}
+			number := i + 1
+			if variant.Index > 0 {
+				number = int(variant.Index)
+			}
 			if len(task.Attachments) > 0 {
-				warning.WithFiles = append(warning.WithFiles, i+1)
+				warning.WithFiles = append(warning.WithFiles, number)
 			} else {
-				warning.WithoutFiles = append(warning.WithoutFiles, i+1)
+				warning.WithoutFiles = append(warning.WithoutFiles, number)
 			}
 		}
 		if len(warning.WithFiles) > 0 && len(warning.WithoutFiles) > 0 {

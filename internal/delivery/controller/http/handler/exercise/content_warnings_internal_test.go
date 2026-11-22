@@ -22,6 +22,13 @@ func TestImportCommitResponse_CollectsContentWarnings(t *testing.T) {
 		got[0].Code != exerciseModel.WarnAttachmentsInSomeVariants || len(got[0].WithFiles) != 1 || got[0].WithoutFiles[0] != 1 {
 		t.Fatalf("unexpected warnings: %+v", got)
 	}
+	withWarnings := withResultWarnings(results)
+	if len(withWarnings[0].Warnings) != 1 || withWarnings[0].Warnings[0].Task != "flag" || withWarnings[0].Warnings[0].WithFiles[0] != 2 {
+		t.Fatalf("the result entry lacks its warnings: %+v", withWarnings[0])
+	}
+	if withWarnings[1].Warnings == nil || len(withWarnings[1].Warnings) != 0 {
+		t.Fatalf("a result without warnings has an empty, non-nil slice: %#v", withWarnings[1].Warnings)
+	}
 	if empty := importContentWarnings(nil); empty == nil || len(empty) != 0 {
 		t.Fatalf("want an empty, non-nil slice, got %#v", empty)
 	}

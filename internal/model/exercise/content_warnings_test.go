@@ -54,6 +54,20 @@ func TestContentWarnings_NoneWhenFilesAreEverywhereOrNowhere(t *testing.T) {
 	assert.Equal(t, []exerciseModel.ContentWarning{}, version.ContentWarnings())
 }
 
+// The variants are numbered by their Index, the number the editor shows.
+func TestContentWarnings_VariantsAreNumberedByTheirIndex(t *testing.T) {
+	version := independentVersion(3)
+	for i := range version.Variants {
+		version.Variants[i].Index = int32(10 + i)
+	}
+	version.Variants[1].Tasks[1].Attachments = attachment("b.bin")
+
+	warnings := version.ContentWarnings()
+	require.Len(t, warnings, 1)
+	assert.Equal(t, []int{11}, warnings[0].WithFiles)
+	assert.Equal(t, []int{10, 12}, warnings[0].WithoutFiles)
+}
+
 func TestContentWarnings_TaskWithoutKeyIsNamed(t *testing.T) {
 	version := independentVersion(2)
 	version.Variants[0].Tasks[0].Key = ""

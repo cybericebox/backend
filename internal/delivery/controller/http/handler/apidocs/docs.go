@@ -43529,6 +43529,13 @@ const docTemplate = `{
                             "$ref": "#/definitions/exerciseModel.ImportReport"
                         }
                     ]
+                },
+                "Warnings": {
+                    "description": "Warnings are the content warnings of the item's result (ContentWarning: Code, Task, WithFiles, WithoutFiles), the\nsame as the attachments_in_some_variants entries of Report.Warnings. Never null.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/exerciseModel.ContentWarning"
+                    }
                 }
             }
         },

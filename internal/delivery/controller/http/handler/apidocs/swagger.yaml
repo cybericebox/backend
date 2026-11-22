@@ -9576,6 +9576,13 @@ definitions:
         - $ref: '#/definitions/exerciseModel.ImportReport'
         description: Report is what the item did to the exercise; set for an import
           into an existing exercise and for a new one alike.
+      Warnings:
+        description: |-
+          Warnings are the content warnings of the item's result (ContentWarning: Code, Task, WithFiles, WithoutFiles), the
+          same as the attachments_in_some_variants entries of Report.Warnings. Never null.
+        items:
+          $ref: '#/definitions/exerciseModel.ContentWarning'
+        type: array
     type: object
   exerciseModel.ImportUsage:
     properties:
