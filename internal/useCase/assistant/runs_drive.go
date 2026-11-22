@@ -885,7 +885,8 @@ func (d *runDriver) closing(ctx context.Context, run assistantModel.Run) time.Du
 		d.flushStateTasks(ctx, run)
 	}
 	// What the lab did is read while the lab is still known to the laboratory and the platform; the figures stay on the run.
-	if run.Role == assistantModel.RoleGrader && !run.StartedAt.IsZero() && run.LabActivity == nil {
+	// A run without a lab has nothing to read.
+	if run.Role == assistantModel.RoleGrader && joinsLab(run) && !run.StartedAt.IsZero() && run.LabActivity == nil {
 		raw, done := d.captureActivity(ctx, run)
 		if !done {
 			return d.backoff()
@@ -893,7 +894,7 @@ func (d *runDriver) closing(ctx context.Context, run assistantModel.Run) time.Du
 		run.LabActivity = raw
 	}
 	failed := false
-	if !d.revoked {
+	if !d.revoked && joinsLab(run) {
 		if err := u.labs.RevokeLabClient(ctx, run.Actor, run.DeployID, run.AccessClient); err != nil {
 			log.Warn().Err(err).Msg("Revoking the VPN client of a run failed; trying again")
 			failed = true
@@ -909,8 +910,9 @@ func (d *runDriver) closing(ctx context.Context, run assistantModel.Run) time.Du
 		return d.backoff()
 	}
 	// The lab facts are not read from the lab (it is gone by now) but from what was recorded, so the brain being down only
-	// delays them: a few passes are spent on it, then the run is finished without them.
-	if run.Role == assistantModel.RoleGrader && !run.StartedAt.IsZero() && !d.factsSent && d.factsTries < labFactsPasses {
+	// delays them: a few passes are spent on it, then the run is finished without them. A run without a lab (Access.none)
+	// never carries lab facts.
+	if run.Role == assistantModel.RoleGrader && joinsLab(run) && !run.StartedAt.IsZero() && !d.factsSent && d.factsTries < labFactsPasses {
 		d.factsTries++
 		if !d.sendLabFacts(ctx, run) {
 			return d.backoff()
@@ -922,6 +924,11 @@ func (d *runDriver) closing(ctx context.Context, run assistantModel.Run) time.Du
 	}
 	return 0
 }
+
+// joinsLab says the run was given a lab to join: a VPN client of its own was recorded for it (Access.vpn). A run of a
+// variant without devices gets none (Access.none): its teardown asks nothing of a lab, only its test row is removed (which
+// never calls the laboratory for a static test).
+func joinsLab(run assistantModel.Run) bool { return run.AccessClient != "" }
 
 // activityPasses is how many passes of the teardown try to read the lab's activity before the run goes on without it.
 const activityPasses = 3
