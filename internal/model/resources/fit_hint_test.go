@@ -10,7 +10,7 @@ func TestFitHintClampsToTheFrameAndRefusesWhatCannotWork(t *testing.T) {
 		want string
 		ok   bool
 	}{
-		"no hint: the default preset":             {Amount{}, "micro", true},
+		"no hint: the default preset":              {Amount{}, "micro", true},
 		"a small hint: the smallest that holds it": {Amount{CPUMillicores: 20, MemoryBytes: 100 * mi}, "small", true},
 		"exactly the frame":                        {Amount{CPUMillicores: 250, MemoryBytes: 1024 * mi}, "large", true},
 		"above the frame, workable: clamped":       {Amount{CPUMillicores: 500, MemoryBytes: 2048 * mi}, "large", true},

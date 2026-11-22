@@ -21,6 +21,7 @@ import (
 	"github.com/cybericebox/backend/internal/delivery/infrastructure/brain"
 	assistantModel "github.com/cybericebox/backend/internal/model/assistant"
 	"github.com/cybericebox/backend/internal/model/challengeAttempt"
+	"github.com/cybericebox/backend/internal/model/errorJournal"
 	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 	exerciseUseCase "github.com/cybericebox/backend/internal/useCase/exercise"
 	labActivityUseCase "github.com/cybericebox/backend/internal/useCase/labActivity"
@@ -129,7 +130,12 @@ type runDriver struct {
 	// materialsSent: the materials of this run are with the brain (kept for this leadership; a new leader sends them again).
 	materialsSent bool
 	revoked       bool
-	pause         time.Duration
+	// brainEnded: the brain ended the run itself (run_finished), so it is not told to stop.
+	brainEnded bool
+	// credFails counts the verdicts the brain refused for the platform's credentials; credAlarmed: the alarm was raised.
+	credFails   int
+	credAlarmed bool
+	pause       time.Duration
 }
 
 func sleep(ctx context.Context, d time.Duration) bool {
@@ -638,10 +644,15 @@ func (d *runDriver) frame(ctx context.Context, run assistantModel.Run, last *int
 			Status string `json:"status"`
 		}
 		_ = json.Unmarshal(data, &finished)
-		// The outcome is decided before the frame is stored, for the same reason; the measurement is already stored.
-		if finished.Status == "done" {
+		// The outcome is decided before the frame is stored, for the same reason; the measurement is already stored. "done"
+		// finished, "stopped" was cancelled (StopRun, or the brain shutting down: no failure), anything else ("failed") errored.
+		d.brainEnded = true
+		switch finished.Status {
+		case "done":
 			d.close(ctx, run, assistantModel.RunFinished, "")
-		} else {
+		case "stopped":
+			d.close(ctx, run, assistantModel.RunStopped, "")
+		default:
 			d.close(ctx, run, assistantModel.RunFailed, assistantModel.FailureBrainFailed)
 		}
 	case measurementEvents[typ]:
@@ -802,12 +813,35 @@ func (d *runDriver) sendVerdict(ctx context.Context, run assistantModel.Run, a a
 	}
 	err = brain.Retry(ctx, verdictAttempts, u.runPause, func(ctx context.Context) error { return c.PostVerdict(ctx, body) })
 	if err == nil || finalRefusal(err) {
+		d.credFails = 0
 		if markErr := u.runs.SetAnswerSent(ctx, run.ID, a.Seq); markErr != nil {
 			log.Warn().Err(markErr).Msg("Recording a delivered verdict failed")
 		}
 		return
 	}
+	if code := brain.Code(err); code == codes.PermissionDenied || code == codes.Unauthenticated {
+		d.credentialRefusal(run, code)
+	}
 	log.Warn().Err(err).Msg("A verdict was not delivered; it is sent again on the next pass")
+}
+
+// credentialPasses is how many refusals of a verdict for the platform's credentials pass before the alarm is raised.
+const credentialPasses = 3
+
+// credentialRefusal counts a verdict the brain refused for the platform's credentials (PermissionDenied, Unauthenticated). No
+// retry can fix that, so once it persists the super admins are told in the error journal, once per run; the verdict stays
+// unsent and goes as soon as the brain takes it again.
+func (d *runDriver) credentialRefusal(run assistantModel.Run, code codes.Code) {
+	d.credFails++
+	if d.credFails < credentialPasses || d.credAlarmed {
+		return
+	}
+	d.credAlarmed = true
+	errorJournal.Report(errorJournal.Event{
+		Kind: errorJournal.KindJob, Source: "assistant/brain/verdicts", Key: "brain-verdict-refused:" + code.String(),
+		Message: "Cyber-brain refuses the verdicts of a run with " + code.String() + ": check the platform's brain connection (certificate, tenant)",
+		Details: map[string]string{"run": run.ID.String(), "code": code.String(), "attempts": strconv.Itoa(d.credFails)},
+	})
 }
 
 // finalRefusal says the brain answered with a code that no retry can change (the request is wrong, or the run is gone): the
@@ -852,7 +886,7 @@ func (d *runDriver) closing(ctx context.Context, run assistantModel.Run) time.Du
 		d.refused = true
 		d.refuseLab(ctx, run)
 	}
-	if !d.stopSent && !assistantModel.IsLabRole(run.Role) && !run.StartedAt.IsZero() && run.EndState != assistantModel.RunFinished {
+	if !d.stopSent && !d.brainEnded && !assistantModel.IsLabRole(run.Role) && !run.StartedAt.IsZero() && run.EndState != assistantModel.RunFinished {
 		d.stopSent = true
 		d.stopAtBrain(ctx, run)
 	}

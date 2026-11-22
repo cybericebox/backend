@@ -24,7 +24,8 @@ func IsLabRole(role string) bool { return role == RoleLab || role == RoleTools }
 
 // RunState is where a run stands. starting: the lab is being deployed and the run is not accepted by the brain yet;
 // running: its events are read; closing: the outcome is decided and the lab and the access are being torn down;
-// finished, failed, stopped: over.
+// finished, failed, stopped: over. stopped is a cancelled run (the actor stopped it, or the brain did: its run_finished
+// "stopped"), never a failure; failed is a run that errored.
 type RunState string
 
 const (
