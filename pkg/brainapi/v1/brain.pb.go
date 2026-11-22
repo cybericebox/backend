@@ -22,9 +22,10 @@
 //
 // The brain<->pad (runner) link is a DIFFERENT gRPC service (internal to Brain + the lab).
 //
-// SUBJECT: the control calls are tenant-scoped (the mTLS client certificate CN) and carry no user subject. User
-// authority travels in-message on the outbox provide_* requests, which the brain originates (provide_lab.subject,
-// provide_device.subject, provide_task.subject); the client authorizes them against that subject.
+// SUBJECT: the gRPC control calls are TENANT-scoped (mTLS CN = tenant), never user-scoped — no
+// "x-subject" metadata. User authority travels IN-MESSAGE on the outbox provide_* requests, which the
+// brain ORIGINATES (provide_lab.subject / provide_task.subject / provide_device.subject); the client authorizes against that. The
+// chat's per-user subject (X-Cib-Subject) rides the SEPARATE HTTP/SSE transport, not here.
 //
 // ERROR MODEL (RPC status): InvalidArgument (bad/oversized/unsupported-media input); Unauthenticated
 // (missing/invalid client cert); PermissionDenied; NotFound (unknown run/session/task; reason="gone"
@@ -61,58 +62,6 @@ const (
 	// Verify that runtime/protoimpl is sufficiently up-to-date.
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
-
-type InputKind int32
-
-const (
-	InputKind_INPUT_KIND_UNSPECIFIED InputKind = 0
-	InputKind_VPN_ENTRY              InputKind = 1 // -> Access.Vpn.entry
-	InputKind_CONTROL_ADDR           InputKind = 2 // -> Access.Vpn.addr (the client supplies the device ip; the brain hinted the port)
-	InputKind_FOOTHOLD               InputKind = 3 // -> StartRun.foothold (the attacker's starting segment)
-)
-
-// Enum value maps for InputKind.
-var (
-	InputKind_name = map[int32]string{
-		0: "INPUT_KIND_UNSPECIFIED",
-		1: "VPN_ENTRY",
-		2: "CONTROL_ADDR",
-		3: "FOOTHOLD",
-	}
-	InputKind_value = map[string]int32{
-		"INPUT_KIND_UNSPECIFIED": 0,
-		"VPN_ENTRY":              1,
-		"CONTROL_ADDR":           2,
-		"FOOTHOLD":               3,
-	}
-)
-
-func (x InputKind) Enum() *InputKind {
-	p := new(InputKind)
-	*p = x
-	return p
-}
-
-func (x InputKind) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (InputKind) Descriptor() protoreflect.EnumDescriptor {
-	return file_brain_proto_enumTypes[0].Descriptor()
-}
-
-func (InputKind) Type() protoreflect.EnumType {
-	return &file_brain_proto_enumTypes[0]
-}
-
-func (x InputKind) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use InputKind.Descriptor instead.
-func (InputKind) EnumDescriptor() ([]byte, []int) {
-	return file_brain_proto_rawDescGZIP(), []int{0}
-}
 
 type EnrollRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -573,7 +522,7 @@ type StartRunRequest struct {
 	Image   string                 `protobuf:"bytes,4,opt,name=image,proto3" json:"image,omitempty"`
 	Role    string                 `protobuf:"bytes,5,opt,name=role,proto3" json:"role,omitempty"`     // opaque to the client; the brain interprets ("grader" | attack | defense | ...)
 	Goal    []string               `protobuf:"bytes,6,rep,name=goal,proto3" json:"goal,omitempty"`     // this variant's subtask keys (e.g. recon, root)
-	Access  *Access                `protobuf:"bytes,7,opt,name=access,proto3" json:"access,omitempty"` // built from the filled required_inputs (vpn.entry, vpn.addr)
+	Access  *Access                `protobuf:"bytes,7,opt,name=access,proto3" json:"access,omitempty"` // the client fills vpn.entry + vpn.addr
 	Band    uint32                 `protobuf:"varint,8,opt,name=band,proto3" json:"band,omitempty"`    // opponent ability 1..6; 0/unset for a grader
 	Budget  *Budget                `protobuf:"bytes,9,opt,name=budget,proto3" json:"budget,omitempty"` // omitted for a grader
 	Start   *Start                 `protobuf:"bytes,10,opt,name=start,proto3" json:"start,omitempty"`
@@ -1015,12 +964,13 @@ func (x *RunEvent) GetData() []byte {
 type VerdictRequest struct {
 	state     protoimpl.MessageState `protogen:"open.v1"`
 	RunId     string                 `protobuf:"bytes,1,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
-	AnswerSeq uint64                 `protobuf:"varint,2,opt,name=answer_seq,json=answerSeq,proto3" json:"answer_seq,omitempty"` // the seq of the `answer` event this verdicts; idempotency is (run_id, answer_seq) for an answer verdict;
-	// (run_id, subtask_ref) when state=true (a state subtask passes once, answer_seq unset)
-	SubtaskRef    string                 `protobuf:"bytes,3,opt,name=subtask_ref,json=subtaskRef,proto3" json:"subtask_ref,omitempty"` // informational (the brain already knows it from the answer event)
-	Correct       bool                   `protobuf:"varint,4,opt,name=correct,proto3" json:"correct,omitempty"`                        // the brain learns ONLY this + the time, never the expected value
+	AnswerSeq uint64                 `protobuf:"varint,2,opt,name=answer_seq,json=answerSeq,proto3" json:"answer_seq,omitempty"` // the seq of the `answer` event this verdicts (answer subtasks only; UNSET for a
+	// state-checked subtask, see `state`). Idempotency: (run_id, answer_seq).
+	SubtaskRef string `protobuf:"bytes,3,opt,name=subtask_ref,json=subtaskRef,proto3" json:"subtask_ref,omitempty"` // the subtask this verdicts; for a STATE verdict (state=true) there is no
+	// answer_seq, so the brain matches on (run_id, subtask_ref)
+	Correct       bool                   `protobuf:"varint,4,opt,name=correct,proto3" json:"correct,omitempty"` // the brain learns ONLY this + the time, never the expected value
 	At            *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=at,proto3" json:"at,omitempty"`
-	State         bool                   `protobuf:"varint,6,opt,name=state,proto3" json:"state,omitempty"` // true for a STATE-checked subtask: no answer event, answer_seq unset, keyed by subtask_ref
+	State         bool                   `protobuf:"varint,6,opt,name=state,proto3" json:"state,omitempty"` // true for a STATE-checked subtask: the platform judges the lab state, there is
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1275,12 +1225,11 @@ func (x *GetOpponentRequest) GetVersion() string {
 }
 
 type OpponentSpec struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	SpecId         string                 `protobuf:"bytes,1,opt,name=spec_id,json=specId,proto3" json:"spec_id,omitempty"`                         // referenced back on StartRun
-	Deploy         *Deploy                `protobuf:"bytes,2,opt,name=deploy,proto3" json:"deploy,omitempty"`                                       // ready to apply as-is
-	RequiredInputs []*RequiredInput       `protobuf:"bytes,3,rep,name=required_inputs,json=requiredInputs,proto3" json:"required_inputs,omitempty"` // the client fills these, then passes them on StartRun
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SpecId        string                 `protobuf:"bytes,1,opt,name=spec_id,json=specId,proto3" json:"spec_id,omitempty"` // referenced back on StartRun
+	Deploy        *Deploy                `protobuf:"bytes,2,opt,name=deploy,proto3" json:"deploy,omitempty"`               // ready to apply as-is
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *OpponentSpec) Reset() {
@@ -1327,21 +1276,14 @@ func (x *OpponentSpec) GetDeploy() *Deploy {
 	return nil
 }
 
-func (x *OpponentSpec) GetRequiredInputs() []*RequiredInput {
-	if x != nil {
-		return x.RequiredInputs
-	}
-	return nil
-}
-
 type Deploy struct {
 	state     protoimpl.MessageState `protogen:"open.v1"`
-	Image     string                 `protobuf:"bytes,1,opt,name=image,proto3" json:"image,omitempty"`                                                                       // the platform-chosen tools/runner image for the role
+	Image     string                 `protobuf:"bytes,1,opt,name=image,proto3" json:"image,omitempty"`                                                                       // the brain-chosen tools/runner image for the role (private)
 	Env       map[string]string      `protobuf:"bytes,2,rep,name=env,proto3" json:"env,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // run-scoped env the brain bakes (EDA_TRUST_CA, EDA_RUN_ID=run_id)
-	Resources *Resources             `protobuf:"bytes,3,opt,name=resources,proto3" json:"resources,omitempty"`                                                               // sizing HINTS: the client may clamp them to its device limits; when
-	// the opponent cannot fit at a workable size the client refuses the run
-	// with a clear error instead of running it starved
-	Pull          *ImagePull `protobuf:"bytes,4,opt,name=pull,proto3" json:"pull,omitempty"` // short-lived, read-only pull credential for image; the brain holds the
+	Resources *Resources             `protobuf:"bytes,3,opt,name=resources,proto3" json:"resources,omitempty"`                                                               // sizing HINT; the client may clamp to lab/operator limits and
+	// MUST refuse the run if the opponent cannot fit at a workable
+	// size (never run it starved — that would mismeasure)
+	Pull          *ImagePull `protobuf:"bytes,4,opt,name=pull,proto3" json:"pull,omitempty"` // read-only pull credential for `image`: the brain
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1406,10 +1348,10 @@ func (x *Deploy) GetPull() *ImagePull {
 
 type ImagePull struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Registry      string                 `protobuf:"bytes,1,opt,name=registry,proto3" json:"registry,omitempty"`
+	Registry      string                 `protobuf:"bytes,1,opt,name=registry,proto3" json:"registry,omitempty"` // registry host the credential authenticates to
 	Username      string                 `protobuf:"bytes,2,opt,name=username,proto3" json:"username,omitempty"`
-	Password      string                 `protobuf:"bytes,3,opt,name=password,proto3" json:"password,omitempty"`                    // short-lived token; drop after expires_at
-	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"` // after this, re-fetch via GetOpponent for a fresh pull
+	Password      string                 `protobuf:"bytes,3,opt,name=password,proto3" json:"password,omitempty"`                    // a pull secret; reusable/long-lived today, may be short-lived in a later version
+	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"` // optional: set for a short-lived cred (re-fetch via GetOpponent once passed); omit / far-future for a reusable one
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1524,66 +1466,6 @@ func (x *Resources) GetMemBytes() uint64 {
 	return 0
 }
 
-type RequiredInput struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Key           string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
-	Kind          InputKind              `protobuf:"varint,2,opt,name=kind,proto3,enum=cybericebox.brain.v1.InputKind" json:"kind,omitempty"`
-	Description   string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *RequiredInput) Reset() {
-	*x = RequiredInput{}
-	mi := &file_brain_proto_msgTypes[20]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RequiredInput) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RequiredInput) ProtoMessage() {}
-
-func (x *RequiredInput) ProtoReflect() protoreflect.Message {
-	mi := &file_brain_proto_msgTypes[20]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RequiredInput.ProtoReflect.Descriptor instead.
-func (*RequiredInput) Descriptor() ([]byte, []int) {
-	return file_brain_proto_rawDescGZIP(), []int{20}
-}
-
-func (x *RequiredInput) GetKey() string {
-	if x != nil {
-		return x.Key
-	}
-	return ""
-}
-
-func (x *RequiredInput) GetKind() InputKind {
-	if x != nil {
-		return x.Kind
-	}
-	return InputKind_INPUT_KIND_UNSPECIFIED
-}
-
-func (x *RequiredInput) GetDescription() string {
-	if x != nil {
-		return x.Description
-	}
-	return ""
-}
-
 type PushDataRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Aggregates    []*TaskAggregate       `protobuf:"bytes,1,rep,name=aggregates,proto3" json:"aggregates,omitempty"`
@@ -1593,7 +1475,7 @@ type PushDataRequest struct {
 
 func (x *PushDataRequest) Reset() {
 	*x = PushDataRequest{}
-	mi := &file_brain_proto_msgTypes[21]
+	mi := &file_brain_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1605,7 +1487,7 @@ func (x *PushDataRequest) String() string {
 func (*PushDataRequest) ProtoMessage() {}
 
 func (x *PushDataRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_brain_proto_msgTypes[21]
+	mi := &file_brain_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1618,7 +1500,7 @@ func (x *PushDataRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PushDataRequest.ProtoReflect.Descriptor instead.
 func (*PushDataRequest) Descriptor() ([]byte, []int) {
-	return file_brain_proto_rawDescGZIP(), []int{21}
+	return file_brain_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *PushDataRequest) GetAggregates() []*TaskAggregate {
@@ -1640,7 +1522,7 @@ type TaskAggregate struct {
 
 func (x *TaskAggregate) Reset() {
 	*x = TaskAggregate{}
-	mi := &file_brain_proto_msgTypes[22]
+	mi := &file_brain_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1652,7 +1534,7 @@ func (x *TaskAggregate) String() string {
 func (*TaskAggregate) ProtoMessage() {}
 
 func (x *TaskAggregate) ProtoReflect() protoreflect.Message {
-	mi := &file_brain_proto_msgTypes[22]
+	mi := &file_brain_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1665,7 +1547,7 @@ func (x *TaskAggregate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TaskAggregate.ProtoReflect.Descriptor instead.
 func (*TaskAggregate) Descriptor() ([]byte, []int) {
-	return file_brain_proto_rawDescGZIP(), []int{22}
+	return file_brain_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *TaskAggregate) GetJson() []byte {
@@ -1684,7 +1566,7 @@ type PushDataAck struct {
 
 func (x *PushDataAck) Reset() {
 	*x = PushDataAck{}
-	mi := &file_brain_proto_msgTypes[23]
+	mi := &file_brain_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1696,7 +1578,7 @@ func (x *PushDataAck) String() string {
 func (*PushDataAck) ProtoMessage() {}
 
 func (x *PushDataAck) ProtoReflect() protoreflect.Message {
-	mi := &file_brain_proto_msgTypes[23]
+	mi := &file_brain_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1709,7 +1591,7 @@ func (x *PushDataAck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PushDataAck.ProtoReflect.Descriptor instead.
 func (*PushDataAck) Descriptor() ([]byte, []int) {
-	return file_brain_proto_rawDescGZIP(), []int{23}
+	return file_brain_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *PushDataAck) GetRejected() []*ItemRejection {
@@ -1730,7 +1612,7 @@ type ItemRejection struct {
 
 func (x *ItemRejection) Reset() {
 	*x = ItemRejection{}
-	mi := &file_brain_proto_msgTypes[24]
+	mi := &file_brain_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1742,7 +1624,7 @@ func (x *ItemRejection) String() string {
 func (*ItemRejection) ProtoMessage() {}
 
 func (x *ItemRejection) ProtoReflect() protoreflect.Message {
-	mi := &file_brain_proto_msgTypes[24]
+	mi := &file_brain_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1755,7 +1637,7 @@ func (x *ItemRejection) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ItemRejection.ProtoReflect.Descriptor instead.
 func (*ItemRejection) Descriptor() ([]byte, []int) {
-	return file_brain_proto_rawDescGZIP(), []int{24}
+	return file_brain_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *ItemRejection) GetTaskRef() string {
@@ -1792,7 +1674,7 @@ type ArchiveChunk struct {
 
 func (x *ArchiveChunk) Reset() {
 	*x = ArchiveChunk{}
-	mi := &file_brain_proto_msgTypes[25]
+	mi := &file_brain_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1804,7 +1686,7 @@ func (x *ArchiveChunk) String() string {
 func (*ArchiveChunk) ProtoMessage() {}
 
 func (x *ArchiveChunk) ProtoReflect() protoreflect.Message {
-	mi := &file_brain_proto_msgTypes[25]
+	mi := &file_brain_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1817,7 +1699,7 @@ func (x *ArchiveChunk) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ArchiveChunk.ProtoReflect.Descriptor instead.
 func (*ArchiveChunk) Descriptor() ([]byte, []int) {
-	return file_brain_proto_rawDescGZIP(), []int{25}
+	return file_brain_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *ArchiveChunk) GetPart() isArchiveChunk_Part {
@@ -1872,7 +1754,7 @@ type ArchiveMeta struct {
 
 func (x *ArchiveMeta) Reset() {
 	*x = ArchiveMeta{}
-	mi := &file_brain_proto_msgTypes[26]
+	mi := &file_brain_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1884,7 +1766,7 @@ func (x *ArchiveMeta) String() string {
 func (*ArchiveMeta) ProtoMessage() {}
 
 func (x *ArchiveMeta) ProtoReflect() protoreflect.Message {
-	mi := &file_brain_proto_msgTypes[26]
+	mi := &file_brain_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1897,7 +1779,7 @@ func (x *ArchiveMeta) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ArchiveMeta.ProtoReflect.Descriptor instead.
 func (*ArchiveMeta) Descriptor() ([]byte, []int) {
-	return file_brain_proto_rawDescGZIP(), []int{26}
+	return file_brain_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *ArchiveMeta) GetRequestId() string {
@@ -1930,7 +1812,7 @@ type UploadAck struct {
 
 func (x *UploadAck) Reset() {
 	*x = UploadAck{}
-	mi := &file_brain_proto_msgTypes[27]
+	mi := &file_brain_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1942,7 +1824,7 @@ func (x *UploadAck) String() string {
 func (*UploadAck) ProtoMessage() {}
 
 func (x *UploadAck) ProtoReflect() protoreflect.Message {
-	mi := &file_brain_proto_msgTypes[27]
+	mi := &file_brain_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1955,7 +1837,7 @@ func (x *UploadAck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UploadAck.ProtoReflect.Descriptor instead.
 func (*UploadAck) Descriptor() ([]byte, []int) {
-	return file_brain_proto_rawDescGZIP(), []int{27}
+	return file_brain_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *UploadAck) GetStored() bool {
@@ -1979,7 +1861,7 @@ type ServerFrame struct {
 
 func (x *ServerFrame) Reset() {
 	*x = ServerFrame{}
-	mi := &file_brain_proto_msgTypes[28]
+	mi := &file_brain_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1991,7 +1873,7 @@ func (x *ServerFrame) String() string {
 func (*ServerFrame) ProtoMessage() {}
 
 func (x *ServerFrame) ProtoReflect() protoreflect.Message {
-	mi := &file_brain_proto_msgTypes[28]
+	mi := &file_brain_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2004,7 +1886,7 @@ func (x *ServerFrame) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerFrame.ProtoReflect.Descriptor instead.
 func (*ServerFrame) Descriptor() ([]byte, []int) {
-	return file_brain_proto_rawDescGZIP(), []int{28}
+	return file_brain_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *ServerFrame) GetFrame() isServerFrame_Frame {
@@ -2057,7 +1939,7 @@ type StreamHello struct {
 
 func (x *StreamHello) Reset() {
 	*x = StreamHello{}
-	mi := &file_brain_proto_msgTypes[29]
+	mi := &file_brain_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2069,7 +1951,7 @@ func (x *StreamHello) String() string {
 func (*StreamHello) ProtoMessage() {}
 
 func (x *StreamHello) ProtoReflect() protoreflect.Message {
-	mi := &file_brain_proto_msgTypes[29]
+	mi := &file_brain_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2082,7 +1964,7 @@ func (x *StreamHello) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StreamHello.ProtoReflect.Descriptor instead.
 func (*StreamHello) Descriptor() ([]byte, []int) {
-	return file_brain_proto_rawDescGZIP(), []int{29}
+	return file_brain_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *StreamHello) GetMaxInflight() uint32 {
@@ -2108,7 +1990,7 @@ type BrainRequest struct {
 
 func (x *BrainRequest) Reset() {
 	*x = BrainRequest{}
-	mi := &file_brain_proto_msgTypes[30]
+	mi := &file_brain_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2120,7 +2002,7 @@ func (x *BrainRequest) String() string {
 func (*BrainRequest) ProtoMessage() {}
 
 func (x *BrainRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_brain_proto_msgTypes[30]
+	mi := &file_brain_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2133,7 +2015,7 @@ func (x *BrainRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BrainRequest.ProtoReflect.Descriptor instead.
 func (*BrainRequest) Descriptor() ([]byte, []int) {
-	return file_brain_proto_rawDescGZIP(), []int{30}
+	return file_brain_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *BrainRequest) GetRequestId() string {
@@ -2224,7 +2106,7 @@ type ProvideLab struct {
 
 func (x *ProvideLab) Reset() {
 	*x = ProvideLab{}
-	mi := &file_brain_proto_msgTypes[31]
+	mi := &file_brain_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2236,7 +2118,7 @@ func (x *ProvideLab) String() string {
 func (*ProvideLab) ProtoMessage() {}
 
 func (x *ProvideLab) ProtoReflect() protoreflect.Message {
-	mi := &file_brain_proto_msgTypes[31]
+	mi := &file_brain_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2249,7 +2131,7 @@ func (x *ProvideLab) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProvideLab.ProtoReflect.Descriptor instead.
 func (*ProvideLab) Descriptor() ([]byte, []int) {
-	return file_brain_proto_rawDescGZIP(), []int{31}
+	return file_brain_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *ProvideLab) GetSubject() string {
@@ -2277,7 +2159,7 @@ type ProvideDevice struct {
 
 func (x *ProvideDevice) Reset() {
 	*x = ProvideDevice{}
-	mi := &file_brain_proto_msgTypes[32]
+	mi := &file_brain_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2289,7 +2171,7 @@ func (x *ProvideDevice) String() string {
 func (*ProvideDevice) ProtoMessage() {}
 
 func (x *ProvideDevice) ProtoReflect() protoreflect.Message {
-	mi := &file_brain_proto_msgTypes[32]
+	mi := &file_brain_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2302,7 +2184,7 @@ func (x *ProvideDevice) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProvideDevice.ProtoReflect.Descriptor instead.
 func (*ProvideDevice) Descriptor() ([]byte, []int) {
-	return file_brain_proto_rawDescGZIP(), []int{32}
+	return file_brain_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *ProvideDevice) GetSubject() string {
@@ -2335,7 +2217,7 @@ type ProvideData struct {
 
 func (x *ProvideData) Reset() {
 	*x = ProvideData{}
-	mi := &file_brain_proto_msgTypes[33]
+	mi := &file_brain_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2347,7 +2229,7 @@ func (x *ProvideData) String() string {
 func (*ProvideData) ProtoMessage() {}
 
 func (x *ProvideData) ProtoReflect() protoreflect.Message {
-	mi := &file_brain_proto_msgTypes[33]
+	mi := &file_brain_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2360,7 +2242,7 @@ func (x *ProvideData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProvideData.ProtoReflect.Descriptor instead.
 func (*ProvideData) Descriptor() ([]byte, []int) {
-	return file_brain_proto_rawDescGZIP(), []int{33}
+	return file_brain_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *ProvideData) GetTasks() []*TaskKey {
@@ -2381,7 +2263,7 @@ type ProvideTask struct {
 
 func (x *ProvideTask) Reset() {
 	*x = ProvideTask{}
-	mi := &file_brain_proto_msgTypes[34]
+	mi := &file_brain_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2393,7 +2275,7 @@ func (x *ProvideTask) String() string {
 func (*ProvideTask) ProtoMessage() {}
 
 func (x *ProvideTask) ProtoReflect() protoreflect.Message {
-	mi := &file_brain_proto_msgTypes[34]
+	mi := &file_brain_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2406,7 +2288,7 @@ func (x *ProvideTask) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProvideTask.ProtoReflect.Descriptor instead.
 func (*ProvideTask) Descriptor() ([]byte, []int) {
-	return file_brain_proto_rawDescGZIP(), []int{34}
+	return file_brain_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *ProvideTask) GetSubject() string {
@@ -2443,7 +2325,7 @@ type Source struct {
 
 func (x *Source) Reset() {
 	*x = Source{}
-	mi := &file_brain_proto_msgTypes[35]
+	mi := &file_brain_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2455,7 +2337,7 @@ func (x *Source) String() string {
 func (*Source) ProtoMessage() {}
 
 func (x *Source) ProtoReflect() protoreflect.Message {
-	mi := &file_brain_proto_msgTypes[35]
+	mi := &file_brain_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2468,7 +2350,7 @@ func (x *Source) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Source.ProtoReflect.Descriptor instead.
 func (*Source) Descriptor() ([]byte, []int) {
-	return file_brain_proto_rawDescGZIP(), []int{35}
+	return file_brain_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *Source) GetFrom() isSource_From {
@@ -2523,7 +2405,7 @@ type TaskKey struct {
 
 func (x *TaskKey) Reset() {
 	*x = TaskKey{}
-	mi := &file_brain_proto_msgTypes[36]
+	mi := &file_brain_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2535,7 +2417,7 @@ func (x *TaskKey) String() string {
 func (*TaskKey) ProtoMessage() {}
 
 func (x *TaskKey) ProtoReflect() protoreflect.Message {
-	mi := &file_brain_proto_msgTypes[36]
+	mi := &file_brain_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2548,7 +2430,7 @@ func (x *TaskKey) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TaskKey.ProtoReflect.Descriptor instead.
 func (*TaskKey) Descriptor() ([]byte, []int) {
-	return file_brain_proto_rawDescGZIP(), []int{36}
+	return file_brain_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *TaskKey) GetTaskRef() string {
@@ -2588,7 +2470,7 @@ type RequestAnswer struct {
 
 func (x *RequestAnswer) Reset() {
 	*x = RequestAnswer{}
-	mi := &file_brain_proto_msgTypes[37]
+	mi := &file_brain_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2600,7 +2482,7 @@ func (x *RequestAnswer) String() string {
 func (*RequestAnswer) ProtoMessage() {}
 
 func (x *RequestAnswer) ProtoReflect() protoreflect.Message {
-	mi := &file_brain_proto_msgTypes[37]
+	mi := &file_brain_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2613,7 +2495,7 @@ func (x *RequestAnswer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RequestAnswer.ProtoReflect.Descriptor instead.
 func (*RequestAnswer) Descriptor() ([]byte, []int) {
-	return file_brain_proto_rawDescGZIP(), []int{37}
+	return file_brain_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *RequestAnswer) GetRequestId() string {
@@ -2704,7 +2586,7 @@ type DeviceResult struct {
 
 func (x *DeviceResult) Reset() {
 	*x = DeviceResult{}
-	mi := &file_brain_proto_msgTypes[38]
+	mi := &file_brain_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2716,7 +2598,7 @@ func (x *DeviceResult) String() string {
 func (*DeviceResult) ProtoMessage() {}
 
 func (x *DeviceResult) ProtoReflect() protoreflect.Message {
-	mi := &file_brain_proto_msgTypes[38]
+	mi := &file_brain_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2729,7 +2611,7 @@ func (x *DeviceResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeviceResult.ProtoReflect.Descriptor instead.
 func (*DeviceResult) Descriptor() ([]byte, []int) {
-	return file_brain_proto_rawDescGZIP(), []int{38}
+	return file_brain_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *DeviceResult) GetDeviceRef() string {
@@ -2757,7 +2639,7 @@ type RequestError struct {
 
 func (x *RequestError) Reset() {
 	*x = RequestError{}
-	mi := &file_brain_proto_msgTypes[39]
+	mi := &file_brain_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2769,7 +2651,7 @@ func (x *RequestError) String() string {
 func (*RequestError) ProtoMessage() {}
 
 func (x *RequestError) ProtoReflect() protoreflect.Message {
-	mi := &file_brain_proto_msgTypes[39]
+	mi := &file_brain_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2782,7 +2664,7 @@ func (x *RequestError) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RequestError.ProtoReflect.Descriptor instead.
 func (*RequestError) Descriptor() ([]byte, []int) {
-	return file_brain_proto_rawDescGZIP(), []int{39}
+	return file_brain_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *RequestError) GetCode() string {
@@ -2801,15 +2683,15 @@ func (x *RequestError) GetMessage() string {
 
 type Access_Vpn struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Entry         string                 `protobuf:"bytes,1,opt,name=entry,proto3" json:"entry,omitempty"` // the FULL WireGuard config text of the run's tunnel (client-filled: VPN_ENTRY)
-	Addr          string                 `protobuf:"bytes,2,opt,name=addr,proto3" json:"addr,omitempty"`   // "ip:port" of the tools-device runner (client-filled: CONTROL_ADDR); empty = a
+	Entry         string                 `protobuf:"bytes,1,opt,name=entry,proto3" json:"entry,omitempty"` // the FULL WireGuard config text of the run's tunnel
+	Addr          string                 `protobuf:"bytes,2,opt,name=addr,proto3" json:"addr,omitempty"`   // "ip:port" of the tools-device runner; empty = a
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Access_Vpn) Reset() {
 	*x = Access_Vpn{}
-	mi := &file_brain_proto_msgTypes[40]
+	mi := &file_brain_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2821,7 +2703,7 @@ func (x *Access_Vpn) String() string {
 func (*Access_Vpn) ProtoMessage() {}
 
 func (x *Access_Vpn) ProtoReflect() protoreflect.Message {
-	mi := &file_brain_proto_msgTypes[40]
+	mi := &file_brain_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2859,7 +2741,7 @@ type Access_None struct {
 
 func (x *Access_None) Reset() {
 	*x = Access_None{}
-	mi := &file_brain_proto_msgTypes[41]
+	mi := &file_brain_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2871,7 +2753,7 @@ func (x *Access_None) String() string {
 func (*Access_None) ProtoMessage() {}
 
 func (x *Access_None) ProtoReflect() protoreflect.Message {
-	mi := &file_brain_proto_msgTypes[41]
+	mi := &file_brain_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2986,11 +2868,10 @@ const file_brain_proto_rawDesc = "" +
 	"\x04role\x18\x02 \x01(\tR\x04role\x12\x12\n" +
 	"\x04band\x18\x03 \x01(\rR\x04band\x12\x19\n" +
 	"\btask_ref\x18\x04 \x01(\tR\ataskRef\x12\x18\n" +
-	"\aversion\x18\x05 \x01(\tR\aversion\"\xab\x01\n" +
+	"\aversion\x18\x05 \x01(\tR\aversion\"]\n" +
 	"\fOpponentSpec\x12\x17\n" +
 	"\aspec_id\x18\x01 \x01(\tR\x06specId\x124\n" +
-	"\x06deploy\x18\x02 \x01(\v2\x1c.cybericebox.brain.v1.DeployR\x06deploy\x12L\n" +
-	"\x0frequired_inputs\x18\x03 \x03(\v2#.cybericebox.brain.v1.RequiredInputR\x0erequiredInputs\"\x83\x02\n" +
+	"\x06deploy\x18\x02 \x01(\v2\x1c.cybericebox.brain.v1.DeployR\x06deploy\"\x83\x02\n" +
 	"\x06Deploy\x12\x14\n" +
 	"\x05image\x18\x01 \x01(\tR\x05image\x127\n" +
 	"\x03env\x18\x02 \x03(\v2%.cybericebox.brain.v1.Deploy.EnvEntryR\x03env\x12=\n" +
@@ -3008,11 +2889,7 @@ const file_brain_proto_rawDesc = "" +
 	"\tResources\x12\x1d\n" +
 	"\n" +
 	"cpu_millis\x18\x01 \x01(\rR\tcpuMillis\x12\x1b\n" +
-	"\tmem_bytes\x18\x02 \x01(\x04R\bmemBytes\"x\n" +
-	"\rRequiredInput\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x123\n" +
-	"\x04kind\x18\x02 \x01(\x0e2\x1f.cybericebox.brain.v1.InputKindR\x04kind\x12 \n" +
-	"\vdescription\x18\x03 \x01(\tR\vdescription\"V\n" +
+	"\tmem_bytes\x18\x02 \x01(\x04R\bmemBytes\"V\n" +
 	"\x0fPushDataRequest\x12C\n" +
 	"\n" +
 	"aggregates\x18\x01 \x03(\v2#.cybericebox.brain.v1.TaskAggregateR\n" +
@@ -3088,12 +2965,7 @@ const file_brain_proto_rawDesc = "" +
 	"\x06access\x18\x02 \x01(\v2\x1c.cybericebox.brain.v1.AccessR\x06access\"<\n" +
 	"\fRequestError\x12\x12\n" +
 	"\x04code\x18\x01 \x01(\tR\x04code\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage*V\n" +
-	"\tInputKind\x12\x1a\n" +
-	"\x16INPUT_KIND_UNSPECIFIED\x10\x00\x12\r\n" +
-	"\tVPN_ENTRY\x10\x01\x12\x10\n" +
-	"\fCONTROL_ADDR\x10\x02\x12\f\n" +
-	"\bFOOTHOLD\x10\x032\xee\a\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage2\xee\a\n" +
 	"\x05Brain\x12S\n" +
 	"\x06Enroll\x12#.cybericebox.brain.v1.EnrollRequest\x1a$.cybericebox.brain.v1.EnrollResponse\x12Q\n" +
 	"\x05Renew\x12\".cybericebox.brain.v1.RenewRequest\x1a$.cybericebox.brain.v1.EnrollResponse\x12Q\n" +
@@ -3120,118 +2992,113 @@ func file_brain_proto_rawDescGZIP() []byte {
 	return file_brain_proto_rawDescData
 }
 
-var file_brain_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_brain_proto_msgTypes = make([]protoimpl.MessageInfo, 43)
+var file_brain_proto_msgTypes = make([]protoimpl.MessageInfo, 42)
 var file_brain_proto_goTypes = []any{
-	(InputKind)(0),                // 0: cybericebox.brain.v1.InputKind
-	(*EnrollRequest)(nil),         // 1: cybericebox.brain.v1.EnrollRequest
-	(*RenewRequest)(nil),          // 2: cybericebox.brain.v1.RenewRequest
-	(*EnrollResponse)(nil),        // 3: cybericebox.brain.v1.EnrollResponse
-	(*Access)(nil),                // 4: cybericebox.brain.v1.Access
-	(*MaterialsChunk)(nil),        // 5: cybericebox.brain.v1.MaterialsChunk
-	(*MaterialsMeta)(nil),         // 6: cybericebox.brain.v1.MaterialsMeta
-	(*FileChunk)(nil),             // 7: cybericebox.brain.v1.FileChunk
-	(*StartRunRequest)(nil),       // 8: cybericebox.brain.v1.StartRunRequest
-	(*Budget)(nil),                // 9: cybericebox.brain.v1.Budget
-	(*Start)(nil),                 // 10: cybericebox.brain.v1.Start
-	(*RunRef)(nil),                // 11: cybericebox.brain.v1.RunRef
-	(*RunEventsRequest)(nil),      // 12: cybericebox.brain.v1.RunEventsRequest
-	(*RunEvent)(nil),              // 13: cybericebox.brain.v1.RunEvent
-	(*VerdictRequest)(nil),        // 14: cybericebox.brain.v1.VerdictRequest
-	(*LabFactsRequest)(nil),       // 15: cybericebox.brain.v1.LabFactsRequest
-	(*GetOpponentRequest)(nil),    // 16: cybericebox.brain.v1.GetOpponentRequest
-	(*OpponentSpec)(nil),          // 17: cybericebox.brain.v1.OpponentSpec
-	(*Deploy)(nil),                // 18: cybericebox.brain.v1.Deploy
-	(*ImagePull)(nil),             // 19: cybericebox.brain.v1.ImagePull
-	(*Resources)(nil),             // 20: cybericebox.brain.v1.Resources
-	(*RequiredInput)(nil),         // 21: cybericebox.brain.v1.RequiredInput
-	(*PushDataRequest)(nil),       // 22: cybericebox.brain.v1.PushDataRequest
-	(*TaskAggregate)(nil),         // 23: cybericebox.brain.v1.TaskAggregate
-	(*PushDataAck)(nil),           // 24: cybericebox.brain.v1.PushDataAck
-	(*ItemRejection)(nil),         // 25: cybericebox.brain.v1.ItemRejection
-	(*ArchiveChunk)(nil),          // 26: cybericebox.brain.v1.ArchiveChunk
-	(*ArchiveMeta)(nil),           // 27: cybericebox.brain.v1.ArchiveMeta
-	(*UploadAck)(nil),             // 28: cybericebox.brain.v1.UploadAck
-	(*ServerFrame)(nil),           // 29: cybericebox.brain.v1.ServerFrame
-	(*StreamHello)(nil),           // 30: cybericebox.brain.v1.StreamHello
-	(*BrainRequest)(nil),          // 31: cybericebox.brain.v1.BrainRequest
-	(*ProvideLab)(nil),            // 32: cybericebox.brain.v1.ProvideLab
-	(*ProvideDevice)(nil),         // 33: cybericebox.brain.v1.ProvideDevice
-	(*ProvideData)(nil),           // 34: cybericebox.brain.v1.ProvideData
-	(*ProvideTask)(nil),           // 35: cybericebox.brain.v1.ProvideTask
-	(*Source)(nil),                // 36: cybericebox.brain.v1.Source
-	(*TaskKey)(nil),               // 37: cybericebox.brain.v1.TaskKey
-	(*RequestAnswer)(nil),         // 38: cybericebox.brain.v1.RequestAnswer
-	(*DeviceResult)(nil),          // 39: cybericebox.brain.v1.DeviceResult
-	(*RequestError)(nil),          // 40: cybericebox.brain.v1.RequestError
-	(*Access_Vpn)(nil),            // 41: cybericebox.brain.v1.Access.Vpn
-	(*Access_None)(nil),           // 42: cybericebox.brain.v1.Access.None
-	nil,                           // 43: cybericebox.brain.v1.Deploy.EnvEntry
-	(*emptypb.Empty)(nil),         // 44: google.protobuf.Empty
-	(*timestamppb.Timestamp)(nil), // 45: google.protobuf.Timestamp
+	(*EnrollRequest)(nil),         // 0: cybericebox.brain.v1.EnrollRequest
+	(*RenewRequest)(nil),          // 1: cybericebox.brain.v1.RenewRequest
+	(*EnrollResponse)(nil),        // 2: cybericebox.brain.v1.EnrollResponse
+	(*Access)(nil),                // 3: cybericebox.brain.v1.Access
+	(*MaterialsChunk)(nil),        // 4: cybericebox.brain.v1.MaterialsChunk
+	(*MaterialsMeta)(nil),         // 5: cybericebox.brain.v1.MaterialsMeta
+	(*FileChunk)(nil),             // 6: cybericebox.brain.v1.FileChunk
+	(*StartRunRequest)(nil),       // 7: cybericebox.brain.v1.StartRunRequest
+	(*Budget)(nil),                // 8: cybericebox.brain.v1.Budget
+	(*Start)(nil),                 // 9: cybericebox.brain.v1.Start
+	(*RunRef)(nil),                // 10: cybericebox.brain.v1.RunRef
+	(*RunEventsRequest)(nil),      // 11: cybericebox.brain.v1.RunEventsRequest
+	(*RunEvent)(nil),              // 12: cybericebox.brain.v1.RunEvent
+	(*VerdictRequest)(nil),        // 13: cybericebox.brain.v1.VerdictRequest
+	(*LabFactsRequest)(nil),       // 14: cybericebox.brain.v1.LabFactsRequest
+	(*GetOpponentRequest)(nil),    // 15: cybericebox.brain.v1.GetOpponentRequest
+	(*OpponentSpec)(nil),          // 16: cybericebox.brain.v1.OpponentSpec
+	(*Deploy)(nil),                // 17: cybericebox.brain.v1.Deploy
+	(*ImagePull)(nil),             // 18: cybericebox.brain.v1.ImagePull
+	(*Resources)(nil),             // 19: cybericebox.brain.v1.Resources
+	(*PushDataRequest)(nil),       // 20: cybericebox.brain.v1.PushDataRequest
+	(*TaskAggregate)(nil),         // 21: cybericebox.brain.v1.TaskAggregate
+	(*PushDataAck)(nil),           // 22: cybericebox.brain.v1.PushDataAck
+	(*ItemRejection)(nil),         // 23: cybericebox.brain.v1.ItemRejection
+	(*ArchiveChunk)(nil),          // 24: cybericebox.brain.v1.ArchiveChunk
+	(*ArchiveMeta)(nil),           // 25: cybericebox.brain.v1.ArchiveMeta
+	(*UploadAck)(nil),             // 26: cybericebox.brain.v1.UploadAck
+	(*ServerFrame)(nil),           // 27: cybericebox.brain.v1.ServerFrame
+	(*StreamHello)(nil),           // 28: cybericebox.brain.v1.StreamHello
+	(*BrainRequest)(nil),          // 29: cybericebox.brain.v1.BrainRequest
+	(*ProvideLab)(nil),            // 30: cybericebox.brain.v1.ProvideLab
+	(*ProvideDevice)(nil),         // 31: cybericebox.brain.v1.ProvideDevice
+	(*ProvideData)(nil),           // 32: cybericebox.brain.v1.ProvideData
+	(*ProvideTask)(nil),           // 33: cybericebox.brain.v1.ProvideTask
+	(*Source)(nil),                // 34: cybericebox.brain.v1.Source
+	(*TaskKey)(nil),               // 35: cybericebox.brain.v1.TaskKey
+	(*RequestAnswer)(nil),         // 36: cybericebox.brain.v1.RequestAnswer
+	(*DeviceResult)(nil),          // 37: cybericebox.brain.v1.DeviceResult
+	(*RequestError)(nil),          // 38: cybericebox.brain.v1.RequestError
+	(*Access_Vpn)(nil),            // 39: cybericebox.brain.v1.Access.Vpn
+	(*Access_None)(nil),           // 40: cybericebox.brain.v1.Access.None
+	nil,                           // 41: cybericebox.brain.v1.Deploy.EnvEntry
+	(*emptypb.Empty)(nil),         // 42: google.protobuf.Empty
+	(*timestamppb.Timestamp)(nil), // 43: google.protobuf.Timestamp
 }
 var file_brain_proto_depIdxs = []int32{
-	41, // 0: cybericebox.brain.v1.Access.vpn:type_name -> cybericebox.brain.v1.Access.Vpn
-	42, // 1: cybericebox.brain.v1.Access.none:type_name -> cybericebox.brain.v1.Access.None
-	6,  // 2: cybericebox.brain.v1.MaterialsChunk.meta:type_name -> cybericebox.brain.v1.MaterialsMeta
-	7,  // 3: cybericebox.brain.v1.MaterialsChunk.file:type_name -> cybericebox.brain.v1.FileChunk
-	4,  // 4: cybericebox.brain.v1.StartRunRequest.access:type_name -> cybericebox.brain.v1.Access
-	9,  // 5: cybericebox.brain.v1.StartRunRequest.budget:type_name -> cybericebox.brain.v1.Budget
-	10, // 6: cybericebox.brain.v1.StartRunRequest.start:type_name -> cybericebox.brain.v1.Start
-	44, // 7: cybericebox.brain.v1.Start.immediate:type_name -> google.protobuf.Empty
-	45, // 8: cybericebox.brain.v1.VerdictRequest.at:type_name -> google.protobuf.Timestamp
-	18, // 9: cybericebox.brain.v1.OpponentSpec.deploy:type_name -> cybericebox.brain.v1.Deploy
-	21, // 10: cybericebox.brain.v1.OpponentSpec.required_inputs:type_name -> cybericebox.brain.v1.RequiredInput
-	43, // 11: cybericebox.brain.v1.Deploy.env:type_name -> cybericebox.brain.v1.Deploy.EnvEntry
-	20, // 12: cybericebox.brain.v1.Deploy.resources:type_name -> cybericebox.brain.v1.Resources
-	19, // 13: cybericebox.brain.v1.Deploy.pull:type_name -> cybericebox.brain.v1.ImagePull
-	45, // 14: cybericebox.brain.v1.ImagePull.expires_at:type_name -> google.protobuf.Timestamp
-	0,  // 15: cybericebox.brain.v1.RequiredInput.kind:type_name -> cybericebox.brain.v1.InputKind
-	23, // 16: cybericebox.brain.v1.PushDataRequest.aggregates:type_name -> cybericebox.brain.v1.TaskAggregate
-	25, // 17: cybericebox.brain.v1.PushDataAck.rejected:type_name -> cybericebox.brain.v1.ItemRejection
-	27, // 18: cybericebox.brain.v1.ArchiveChunk.meta:type_name -> cybericebox.brain.v1.ArchiveMeta
-	30, // 19: cybericebox.brain.v1.ServerFrame.hello:type_name -> cybericebox.brain.v1.StreamHello
-	31, // 20: cybericebox.brain.v1.ServerFrame.request:type_name -> cybericebox.brain.v1.BrainRequest
-	32, // 21: cybericebox.brain.v1.BrainRequest.provide_lab:type_name -> cybericebox.brain.v1.ProvideLab
-	33, // 22: cybericebox.brain.v1.BrainRequest.provide_device:type_name -> cybericebox.brain.v1.ProvideDevice
-	34, // 23: cybericebox.brain.v1.BrainRequest.provide_data:type_name -> cybericebox.brain.v1.ProvideData
-	35, // 24: cybericebox.brain.v1.BrainRequest.provide_task:type_name -> cybericebox.brain.v1.ProvideTask
-	36, // 25: cybericebox.brain.v1.ProvideLab.source:type_name -> cybericebox.brain.v1.Source
-	36, // 26: cybericebox.brain.v1.ProvideDevice.source:type_name -> cybericebox.brain.v1.Source
-	37, // 27: cybericebox.brain.v1.ProvideData.tasks:type_name -> cybericebox.brain.v1.TaskKey
-	37, // 28: cybericebox.brain.v1.Source.task:type_name -> cybericebox.brain.v1.TaskKey
-	39, // 29: cybericebox.brain.v1.RequestAnswer.device:type_name -> cybericebox.brain.v1.DeviceResult
-	40, // 30: cybericebox.brain.v1.RequestAnswer.error:type_name -> cybericebox.brain.v1.RequestError
-	4,  // 31: cybericebox.brain.v1.DeviceResult.access:type_name -> cybericebox.brain.v1.Access
-	1,  // 32: cybericebox.brain.v1.Brain.Enroll:input_type -> cybericebox.brain.v1.EnrollRequest
-	2,  // 33: cybericebox.brain.v1.Brain.Renew:input_type -> cybericebox.brain.v1.RenewRequest
-	5,  // 34: cybericebox.brain.v1.Brain.UploadMaterials:input_type -> cybericebox.brain.v1.MaterialsChunk
-	8,  // 35: cybericebox.brain.v1.Brain.StartRun:input_type -> cybericebox.brain.v1.StartRunRequest
-	12, // 36: cybericebox.brain.v1.Brain.RunEvents:input_type -> cybericebox.brain.v1.RunEventsRequest
-	14, // 37: cybericebox.brain.v1.Brain.PostVerdict:input_type -> cybericebox.brain.v1.VerdictRequest
-	15, // 38: cybericebox.brain.v1.Brain.PostLabFacts:input_type -> cybericebox.brain.v1.LabFactsRequest
-	11, // 39: cybericebox.brain.v1.Brain.StopRun:input_type -> cybericebox.brain.v1.RunRef
-	16, // 40: cybericebox.brain.v1.Brain.GetOpponent:input_type -> cybericebox.brain.v1.GetOpponentRequest
-	22, // 41: cybericebox.brain.v1.Brain.PushData:input_type -> cybericebox.brain.v1.PushDataRequest
-	26, // 42: cybericebox.brain.v1.Brain.UploadTaskArchive:input_type -> cybericebox.brain.v1.ArchiveChunk
-	38, // 43: cybericebox.brain.v1.Brain.Requests:input_type -> cybericebox.brain.v1.RequestAnswer
-	3,  // 44: cybericebox.brain.v1.Brain.Enroll:output_type -> cybericebox.brain.v1.EnrollResponse
-	3,  // 45: cybericebox.brain.v1.Brain.Renew:output_type -> cybericebox.brain.v1.EnrollResponse
-	44, // 46: cybericebox.brain.v1.Brain.UploadMaterials:output_type -> google.protobuf.Empty
-	11, // 47: cybericebox.brain.v1.Brain.StartRun:output_type -> cybericebox.brain.v1.RunRef
-	13, // 48: cybericebox.brain.v1.Brain.RunEvents:output_type -> cybericebox.brain.v1.RunEvent
-	44, // 49: cybericebox.brain.v1.Brain.PostVerdict:output_type -> google.protobuf.Empty
-	44, // 50: cybericebox.brain.v1.Brain.PostLabFacts:output_type -> google.protobuf.Empty
-	44, // 51: cybericebox.brain.v1.Brain.StopRun:output_type -> google.protobuf.Empty
-	17, // 52: cybericebox.brain.v1.Brain.GetOpponent:output_type -> cybericebox.brain.v1.OpponentSpec
-	24, // 53: cybericebox.brain.v1.Brain.PushData:output_type -> cybericebox.brain.v1.PushDataAck
-	28, // 54: cybericebox.brain.v1.Brain.UploadTaskArchive:output_type -> cybericebox.brain.v1.UploadAck
-	29, // 55: cybericebox.brain.v1.Brain.Requests:output_type -> cybericebox.brain.v1.ServerFrame
-	44, // [44:56] is the sub-list for method output_type
-	32, // [32:44] is the sub-list for method input_type
-	32, // [32:32] is the sub-list for extension type_name
-	32, // [32:32] is the sub-list for extension extendee
-	0,  // [0:32] is the sub-list for field type_name
+	39, // 0: cybericebox.brain.v1.Access.vpn:type_name -> cybericebox.brain.v1.Access.Vpn
+	40, // 1: cybericebox.brain.v1.Access.none:type_name -> cybericebox.brain.v1.Access.None
+	5,  // 2: cybericebox.brain.v1.MaterialsChunk.meta:type_name -> cybericebox.brain.v1.MaterialsMeta
+	6,  // 3: cybericebox.brain.v1.MaterialsChunk.file:type_name -> cybericebox.brain.v1.FileChunk
+	3,  // 4: cybericebox.brain.v1.StartRunRequest.access:type_name -> cybericebox.brain.v1.Access
+	8,  // 5: cybericebox.brain.v1.StartRunRequest.budget:type_name -> cybericebox.brain.v1.Budget
+	9,  // 6: cybericebox.brain.v1.StartRunRequest.start:type_name -> cybericebox.brain.v1.Start
+	42, // 7: cybericebox.brain.v1.Start.immediate:type_name -> google.protobuf.Empty
+	43, // 8: cybericebox.brain.v1.VerdictRequest.at:type_name -> google.protobuf.Timestamp
+	17, // 9: cybericebox.brain.v1.OpponentSpec.deploy:type_name -> cybericebox.brain.v1.Deploy
+	41, // 10: cybericebox.brain.v1.Deploy.env:type_name -> cybericebox.brain.v1.Deploy.EnvEntry
+	19, // 11: cybericebox.brain.v1.Deploy.resources:type_name -> cybericebox.brain.v1.Resources
+	18, // 12: cybericebox.brain.v1.Deploy.pull:type_name -> cybericebox.brain.v1.ImagePull
+	43, // 13: cybericebox.brain.v1.ImagePull.expires_at:type_name -> google.protobuf.Timestamp
+	21, // 14: cybericebox.brain.v1.PushDataRequest.aggregates:type_name -> cybericebox.brain.v1.TaskAggregate
+	23, // 15: cybericebox.brain.v1.PushDataAck.rejected:type_name -> cybericebox.brain.v1.ItemRejection
+	25, // 16: cybericebox.brain.v1.ArchiveChunk.meta:type_name -> cybericebox.brain.v1.ArchiveMeta
+	28, // 17: cybericebox.brain.v1.ServerFrame.hello:type_name -> cybericebox.brain.v1.StreamHello
+	29, // 18: cybericebox.brain.v1.ServerFrame.request:type_name -> cybericebox.brain.v1.BrainRequest
+	30, // 19: cybericebox.brain.v1.BrainRequest.provide_lab:type_name -> cybericebox.brain.v1.ProvideLab
+	31, // 20: cybericebox.brain.v1.BrainRequest.provide_device:type_name -> cybericebox.brain.v1.ProvideDevice
+	32, // 21: cybericebox.brain.v1.BrainRequest.provide_data:type_name -> cybericebox.brain.v1.ProvideData
+	33, // 22: cybericebox.brain.v1.BrainRequest.provide_task:type_name -> cybericebox.brain.v1.ProvideTask
+	34, // 23: cybericebox.brain.v1.ProvideLab.source:type_name -> cybericebox.brain.v1.Source
+	34, // 24: cybericebox.brain.v1.ProvideDevice.source:type_name -> cybericebox.brain.v1.Source
+	35, // 25: cybericebox.brain.v1.ProvideData.tasks:type_name -> cybericebox.brain.v1.TaskKey
+	35, // 26: cybericebox.brain.v1.Source.task:type_name -> cybericebox.brain.v1.TaskKey
+	37, // 27: cybericebox.brain.v1.RequestAnswer.device:type_name -> cybericebox.brain.v1.DeviceResult
+	38, // 28: cybericebox.brain.v1.RequestAnswer.error:type_name -> cybericebox.brain.v1.RequestError
+	3,  // 29: cybericebox.brain.v1.DeviceResult.access:type_name -> cybericebox.brain.v1.Access
+	0,  // 30: cybericebox.brain.v1.Brain.Enroll:input_type -> cybericebox.brain.v1.EnrollRequest
+	1,  // 31: cybericebox.brain.v1.Brain.Renew:input_type -> cybericebox.brain.v1.RenewRequest
+	4,  // 32: cybericebox.brain.v1.Brain.UploadMaterials:input_type -> cybericebox.brain.v1.MaterialsChunk
+	7,  // 33: cybericebox.brain.v1.Brain.StartRun:input_type -> cybericebox.brain.v1.StartRunRequest
+	11, // 34: cybericebox.brain.v1.Brain.RunEvents:input_type -> cybericebox.brain.v1.RunEventsRequest
+	13, // 35: cybericebox.brain.v1.Brain.PostVerdict:input_type -> cybericebox.brain.v1.VerdictRequest
+	14, // 36: cybericebox.brain.v1.Brain.PostLabFacts:input_type -> cybericebox.brain.v1.LabFactsRequest
+	10, // 37: cybericebox.brain.v1.Brain.StopRun:input_type -> cybericebox.brain.v1.RunRef
+	15, // 38: cybericebox.brain.v1.Brain.GetOpponent:input_type -> cybericebox.brain.v1.GetOpponentRequest
+	20, // 39: cybericebox.brain.v1.Brain.PushData:input_type -> cybericebox.brain.v1.PushDataRequest
+	24, // 40: cybericebox.brain.v1.Brain.UploadTaskArchive:input_type -> cybericebox.brain.v1.ArchiveChunk
+	36, // 41: cybericebox.brain.v1.Brain.Requests:input_type -> cybericebox.brain.v1.RequestAnswer
+	2,  // 42: cybericebox.brain.v1.Brain.Enroll:output_type -> cybericebox.brain.v1.EnrollResponse
+	2,  // 43: cybericebox.brain.v1.Brain.Renew:output_type -> cybericebox.brain.v1.EnrollResponse
+	42, // 44: cybericebox.brain.v1.Brain.UploadMaterials:output_type -> google.protobuf.Empty
+	10, // 45: cybericebox.brain.v1.Brain.StartRun:output_type -> cybericebox.brain.v1.RunRef
+	12, // 46: cybericebox.brain.v1.Brain.RunEvents:output_type -> cybericebox.brain.v1.RunEvent
+	42, // 47: cybericebox.brain.v1.Brain.PostVerdict:output_type -> google.protobuf.Empty
+	42, // 48: cybericebox.brain.v1.Brain.PostLabFacts:output_type -> google.protobuf.Empty
+	42, // 49: cybericebox.brain.v1.Brain.StopRun:output_type -> google.protobuf.Empty
+	16, // 50: cybericebox.brain.v1.Brain.GetOpponent:output_type -> cybericebox.brain.v1.OpponentSpec
+	22, // 51: cybericebox.brain.v1.Brain.PushData:output_type -> cybericebox.brain.v1.PushDataAck
+	26, // 52: cybericebox.brain.v1.Brain.UploadTaskArchive:output_type -> cybericebox.brain.v1.UploadAck
+	27, // 53: cybericebox.brain.v1.Brain.Requests:output_type -> cybericebox.brain.v1.ServerFrame
+	42, // [42:54] is the sub-list for method output_type
+	30, // [30:42] is the sub-list for method input_type
+	30, // [30:30] is the sub-list for extension type_name
+	30, // [30:30] is the sub-list for extension extendee
+	0,  // [0:30] is the sub-list for field type_name
 }
 
 func init() { file_brain_proto_init() }
@@ -3252,25 +3119,25 @@ func file_brain_proto_init() {
 		(*Start_After)(nil),
 	}
 	file_brain_proto_msgTypes[14].OneofWrappers = []any{}
-	file_brain_proto_msgTypes[25].OneofWrappers = []any{
+	file_brain_proto_msgTypes[24].OneofWrappers = []any{
 		(*ArchiveChunk_Meta)(nil),
 		(*ArchiveChunk_Data)(nil),
 	}
-	file_brain_proto_msgTypes[28].OneofWrappers = []any{
+	file_brain_proto_msgTypes[27].OneofWrappers = []any{
 		(*ServerFrame_Hello)(nil),
 		(*ServerFrame_Request)(nil),
 	}
-	file_brain_proto_msgTypes[30].OneofWrappers = []any{
+	file_brain_proto_msgTypes[29].OneofWrappers = []any{
 		(*BrainRequest_ProvideLab)(nil),
 		(*BrainRequest_ProvideDevice)(nil),
 		(*BrainRequest_ProvideData)(nil),
 		(*BrainRequest_ProvideTask)(nil),
 	}
-	file_brain_proto_msgTypes[35].OneofWrappers = []any{
+	file_brain_proto_msgTypes[34].OneofWrappers = []any{
 		(*Source_Draft)(nil),
 		(*Source_Task)(nil),
 	}
-	file_brain_proto_msgTypes[37].OneofWrappers = []any{
+	file_brain_proto_msgTypes[36].OneofWrappers = []any{
 		(*RequestAnswer_Device)(nil),
 		(*RequestAnswer_DataJson)(nil),
 		(*RequestAnswer_TaskUploaded)(nil),
@@ -3281,14 +3148,13 @@ func file_brain_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_brain_proto_rawDesc), len(file_brain_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   43,
+			NumEnums:      0,
+			NumMessages:   42,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_brain_proto_goTypes,
 		DependencyIndexes: file_brain_proto_depIdxs,
-		EnumInfos:         file_brain_proto_enumTypes,
 		MessageInfos:      file_brain_proto_msgTypes,
 	}.Build()
 	File_brain_proto = out.File

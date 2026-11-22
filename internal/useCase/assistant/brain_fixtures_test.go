@@ -275,9 +275,7 @@ func TestBrainFixturesStartRunOpponent(t *testing.T) {
 	require.Len(t, manifest, 2)
 	r := opponentRig(t, manifest...)
 	r.fake.Opponents.Answer(func(*brainapiv1.GetOpponentRequest) (*brainapiv1.OpponentSpec, error) {
-		return &brainapiv1.OpponentSpec{SpecId: "spec-attack-3", Deploy: &brainapiv1.Deploy{Image: "registry.brain.test/eda/runner:1"}, RequiredInputs: []*brainapiv1.RequiredInput{
-			{Key: "vpn", Kind: brainapiv1.InputKind_VPN_ENTRY}, {Key: "runner", Kind: brainapiv1.InputKind_CONTROL_ADDR}, {Key: "segment", Kind: brainapiv1.InputKind_FOOTHOLD},
-		}}, nil
+		return &brainapiv1.OpponentSpec{SpecId: "spec-attack-3", Deploy: &brainapiv1.Deploy{Image: "registry.brain.test/eda/runner:1"}}, nil
 	})
 	run := r.tryOpponent(t, 1)
 	assert.Equal(t, "attack", run.Role)

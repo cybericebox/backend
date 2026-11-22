@@ -143,7 +143,7 @@ installation the Privacy Policy wording gets its legal review.
    as given, `deploy.resources` as a size hint clamped to the lab's device limits (the run is refused when it cannot fit at half of
    the hint or more), and `deploy.pull` as a pull secret of that lab only (never stored or logged). The tools device sits at the
    foothold switch (attacker) or beside the devices it operates (defender), with the control gateway. `StartRun` carries the
-   `spec_id` and the filled inputs: `access.vpn{entry, addr}` (VPN_ENTRY, CONTROL_ADDR) and `foothold` (FOOTHOLD).
+   `spec_id` and the fixed inputs: `access.vpn{entry, addr}` and `foothold` (an attacker without a foothold is refused before deploy).
    `testdata/brain/wire/start_run_opponent.json` is the exact message. A brain that answers `GetOpponent` with `Unimplemented`
    gets the deprecated fallback: `BRAIN_TOOLS_IMAGE`, no `spec_id`.
 4. A run the brain does not reach, or that outlives `BRAIN_RUN_MAX_DURATION`, ends as failed; the daemon always revokes the run's

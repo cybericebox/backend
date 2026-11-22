@@ -22,9 +22,10 @@
 //
 // The brain<->pad (runner) link is a DIFFERENT gRPC service (internal to Brain + the lab).
 //
-// SUBJECT: the control calls are tenant-scoped (the mTLS client certificate CN) and carry no user subject. User
-// authority travels in-message on the outbox provide_* requests, which the brain originates (provide_lab.subject,
-// provide_device.subject, provide_task.subject); the client authorizes them against that subject.
+// SUBJECT: the gRPC control calls are TENANT-scoped (mTLS CN = tenant), never user-scoped — no
+// "x-subject" metadata. User authority travels IN-MESSAGE on the outbox provide_* requests, which the
+// brain ORIGINATES (provide_lab.subject / provide_task.subject / provide_device.subject); the client authorizes against that. The
+// chat's per-user subject (X-Cib-Subject) rides the SEPARATE HTTP/SSE transport, not here.
 //
 // ERROR MODEL (RPC status): InvalidArgument (bad/oversized/unsupported-media input); Unauthenticated
 // (missing/invalid client cert); PermissionDenied; NotFound (unknown run/session/task; reason="gone"
@@ -85,7 +86,7 @@ type BrainClient interface {
 	Renew(ctx context.Context, in *RenewRequest, opts ...grpc.CallOption) (*EnrollResponse, error)
 	// --- Runs (grader + opponents). The brain drives; the client provisions the lab, follows the event
 	// stream, answers verdicts. Idempotency: StartRun/UploadMaterials/PostLabFacts keyed by run_id;
-	// a verdict by (run_id, answer_seq); StopRun idempotent (NOT_FOUND = success). ---
+	// a verdict by (run_id, answer_seq) or (run_id, subtask_ref) for state; StopRun idempotent (NOT_FOUND = success). ---
 	// UploadMaterials: meta first (with task.json inline + size + sha256), then the binary files. A repeat
 	// for the same run_id => AlreadyExists (success).
 	UploadMaterials(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[MaterialsChunk, emptypb.Empty], error)
@@ -97,8 +98,8 @@ type BrainClient interface {
 	PostVerdict(ctx context.Context, in *VerdictRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	PostLabFacts(ctx context.Context, in *LabFactsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	StopRun(ctx context.Context, in *RunRef, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// --- "Give me an opponent." role+band+task -> a ready-to-deploy spec plus the lab-side inputs the
-	// client must fill and pass back on StartRun (spec_id + the filled inputs). The brain owns the
+	// --- "Give me an opponent." role+band+task -> a ready-to-deploy spec; the client passes spec_id
+	// back on StartRun. The brain owns the
 	// harness; the client owns the lab, so each fills only what it knows. ---
 	GetOpponent(ctx context.Context, in *GetOpponentRequest, opts ...grpc.CallOption) (*OpponentSpec, error)
 	// --- Statistics ingest: per-task aggregates (+ full per-team records) the brain calibrates on. A hard
@@ -277,7 +278,7 @@ type BrainServer interface {
 	Renew(context.Context, *RenewRequest) (*EnrollResponse, error)
 	// --- Runs (grader + opponents). The brain drives; the client provisions the lab, follows the event
 	// stream, answers verdicts. Idempotency: StartRun/UploadMaterials/PostLabFacts keyed by run_id;
-	// a verdict by (run_id, answer_seq); StopRun idempotent (NOT_FOUND = success). ---
+	// a verdict by (run_id, answer_seq) or (run_id, subtask_ref) for state; StopRun idempotent (NOT_FOUND = success). ---
 	// UploadMaterials: meta first (with task.json inline + size + sha256), then the binary files. A repeat
 	// for the same run_id => AlreadyExists (success).
 	UploadMaterials(grpc.ClientStreamingServer[MaterialsChunk, emptypb.Empty]) error
@@ -289,8 +290,8 @@ type BrainServer interface {
 	PostVerdict(context.Context, *VerdictRequest) (*emptypb.Empty, error)
 	PostLabFacts(context.Context, *LabFactsRequest) (*emptypb.Empty, error)
 	StopRun(context.Context, *RunRef) (*emptypb.Empty, error)
-	// --- "Give me an opponent." role+band+task -> a ready-to-deploy spec plus the lab-side inputs the
-	// client must fill and pass back on StartRun (spec_id + the filled inputs). The brain owns the
+	// --- "Give me an opponent." role+band+task -> a ready-to-deploy spec; the client passes spec_id
+	// back on StartRun. The brain owns the
 	// harness; the client owns the lab, so each fills only what it knows. ---
 	GetOpponent(context.Context, *GetOpponentRequest) (*OpponentSpec, error)
 	// --- Statistics ingest: per-task aggregates (+ full per-team records) the brain calibrates on. A hard
