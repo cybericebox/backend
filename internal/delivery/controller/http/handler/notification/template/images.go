@@ -7,11 +7,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/middleware"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	notificationModel "github.com/cybericebox/daemon/internal/model/notification"
-	"github.com/cybericebox/daemon/internal/model/notification/branding"
-	"github.com/cybericebox/daemon/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	notificationModel "github.com/cybericebox/backend/internal/model/notification"
+	"github.com/cybericebox/backend/internal/model/notification/branding"
+	"github.com/cybericebox/backend/internal/model/rbac"
 )
 
 // multipartOverheadSlack is added on top of the use case's raw upload cap when

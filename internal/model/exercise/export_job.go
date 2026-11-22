@@ -6,7 +6,7 @@ import (
 	"github.com/gofrs/uuid"
 )
 
-// ExportJob is a background export of tasks «з образами» (the archive carries the platform images of their
+// ExportJob is a background export of tasks "with images" (the archive carries the platform images of their
 // devices, up to 10 GiB): read only by the user who started it. Running → done (the stored zip, read in chunks like
 // any export) or failed (the error the user sees). It shares the states and the public error shape of ImportJob.
 type ExportJob struct {

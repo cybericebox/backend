@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	yzip "github.com/yeka/zip"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 const (

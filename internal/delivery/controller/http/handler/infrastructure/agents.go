@@ -6,10 +6,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/audit"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	infrastructureUseCase "github.com/cybericebox/daemon/internal/useCase/infrastructure"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/audit"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	infrastructureUseCase "github.com/cybericebox/backend/internal/useCase/infrastructure"
 )
 
 type (
@@ -74,26 +74,45 @@ type (
 		Max      int64  `json:"Max"`
 	}
 
+	// lifecycleResponse is what the agent confirms for the stop and restart of labs.
+	lifecycleResponse struct {
+		PerLabStop       bool `json:"PerLabStop"`
+		RequiredSnapshot bool `json:"RequiredSnapshot"`
+		ConfirmedRuntime bool `json:"ConfirmedRuntime"`
+		RetainedRestart  bool `json:"RetainedRestart"`
+		FullGroupStop    bool `json:"FullGroupStop"`
+	}
+
+	// unavailableResponse says why a feature is held back: a code of the fixed list (for example
+	// CONTAINERD_ROOT_MISSING, NODE_UNCONFIRMED) and how many of the lab nodes do not confirm it. Never a node name or a text.
+	unavailableResponse struct {
+		Code        string `json:"Code"`
+		NodesFailed int    `json:"NodesFailed"`
+		NodesAsked  int    `json:"NodesAsked"`
+	}
+
 	agentFeaturesResponse struct {
-		PersistenceAvailable        bool     `json:"PersistenceAvailable"`
-		PersistenceDefaultDebounce  int64    `json:"PersistenceDefaultDebounceMs"`
-		PersistenceWriteQuotaBytes  int64    `json:"PersistenceWriteQuotaBytes"`
-		PersistenceMaxFileSizeBytes int64    `json:"PersistenceMaxFileSizeBytes"`
-		PersistenceExcludedPaths    []string `json:"PersistenceExcludedPaths"`
-		ImageCacheEnabled           bool     `json:"ImageCacheEnabled"`
-		ImageCacheRegistries        []string `json:"ImageCacheRegistries"`
-		SchedulerEnabled            bool     `json:"SchedulerEnabled"`
+		// Lifecycle is what the agent confirms; LifecycleUnavailable and PersistenceUnavailable name the reason when a
+		// feature the cluster is configured for is held back (absent: nothing is, or it is not configured).
+		Lifecycle                   lifecycleResponse    `json:"Lifecycle"`
+		LifecycleUnavailable        *unavailableResponse `json:"LifecycleUnavailable" extensions:"x-nullable"`
+		PersistenceUnavailable      *unavailableResponse `json:"PersistenceUnavailable" extensions:"x-nullable"`
+		PersistenceAvailable        bool                 `json:"PersistenceAvailable"`
+		PersistenceDefaultDebounce  int64                `json:"PersistenceDefaultDebounceMs"`
+		PersistenceWriteQuotaBytes  int64                `json:"PersistenceWriteQuotaBytes"`
+		PersistenceMaxFileSizeBytes int64                `json:"PersistenceMaxFileSizeBytes"`
+		PersistenceExcludedPaths    []string             `json:"PersistenceExcludedPaths"`
+		ImageCacheEnabled           bool                 `json:"ImageCacheEnabled"`
+		ImageCacheRegistries        []string             `json:"ImageCacheRegistries"`
+		SchedulerEnabled            bool                 `json:"SchedulerEnabled"`
 		// SchedulerMaxPods is the most pods starting at once; 0 = no limit.
 		SchedulerMaxPods int32 `json:"SchedulerMaxPods"`
 		// LabsDomain is the base domain of the lab web endpoints; VPNEndpoint is host:port of WireGuard.
 		LabsDomain  string `json:"LabsDomain"`
 		VPNEndpoint string `json:"VPNEndpoint"`
-		// ProxyAccessTokenMaxTTLSeconds is the longest a web link can be opened; ProxySessionMaxTTLSeconds the
-		// longest a proxy session lives (a longer event window means a new link is opened).
-		ProxyAccessTokenMaxTTLSeconds int64 `json:"ProxyAccessTokenMaxTTLSeconds"`
-		ProxySessionMaxTTLSeconds     int64 `json:"ProxySessionMaxTTLSeconds"`
-		// ProxySessionIdleTTLSeconds is how long a proxy session lives without use (it slides while in use).
-		ProxySessionIdleTTLSeconds int64 `json:"ProxySessionIdleTTLSeconds"`
+		// ProxyGrantMaxTTLSeconds is the longest an access grant (web or console) lives: the proxy accepts no longer one,
+		// and a longer event window means the device is opened again for a new grant.
+		ProxyGrantMaxTTLSeconds int64 `json:"ProxyGrantMaxTTLSeconds"`
 		// DeviceMaxCPUMillicores and DeviceMaxMemoryBytes are the most one device may get; LabMaxDevices the
 		// container devices of one lab. 0 = no limit.
 		DeviceMaxCPUMillicores int64 `json:"DeviceMaxCPUMillicores"`
@@ -104,6 +123,13 @@ type (
 		VPN            groupPodSizingResponse `json:"VPN"`
 		Gateway        groupPodSizingResponse `json:"Gateway"`
 		DeviceProfiles []string               `json:"DeviceProfiles"`
+		// ChecksEnabled: the laboratory runs lab checks (a task with a state check can start there). TerminalEnabled: the
+		// browser terminal is on. BootstrapAvailable: the agent carries the device bootstrap (contract 1.5); false for an
+		// older agent. ChecksMaxPerLab is the most checks of one lab (0 when not reported).
+		ChecksEnabled      bool  `json:"ChecksEnabled"`
+		ChecksMaxPerLab    int32 `json:"ChecksMaxPerLab"`
+		TerminalEnabled    bool  `json:"TerminalEnabled"`
+		BootstrapAvailable bool  `json:"BootstrapAvailable"`
 	}
 
 	groupPodSizingResponse struct {
@@ -170,22 +196,40 @@ func toSizing(s infraModel.GroupPodSizing) groupPodSizingResponse {
 	}
 }
 
+func toUnavailable(r *infraModel.UnavailableReason) *unavailableResponse {
+	if r == nil {
+		return nil
+	}
+	return &unavailableResponse{Code: r.Code, NodesFailed: r.NodesFailed, NodesAsked: r.NodesAsked}
+}
+
 func toFeaturesResponse(f *infraModel.AgentFeatures) *agentFeaturesResponse {
 	if f == nil {
 		return nil
 	}
-	return &agentFeaturesResponse{
-		PersistenceAvailable: f.Persistence.Available, PersistenceDefaultDebounce: f.Persistence.DefaultDebounce,
+	out := agentFeaturesResponse{
+		Lifecycle: lifecycleResponse{
+			PerLabStop: f.Lifecycle.PerLabStop, RequiredSnapshot: f.Lifecycle.RequiredSnapshot, ConfirmedRuntime: f.Lifecycle.ConfirmedRuntime,
+			RetainedRestart: f.Lifecycle.RetainedRestart, FullGroupStop: f.Lifecycle.FullGroupStop,
+		},
+		LifecycleUnavailable:   toUnavailable(f.LifecycleUnavailable),
+		PersistenceUnavailable: toUnavailable(f.PersistenceUnavailable),
+		PersistenceAvailable:   f.Persistence.Available, PersistenceDefaultDebounce: f.Persistence.DefaultDebounce,
 		PersistenceWriteQuotaBytes: f.Persistence.WriteQuotaBytes, PersistenceMaxFileSizeBytes: f.Persistence.MaxFileSizeBytes,
 		PersistenceExcludedPaths: f.Persistence.ExcludedPaths, ImageCacheEnabled: f.ImageCache.Enabled,
 		ImageCacheRegistries: f.ImageCache.Registries, SchedulerEnabled: f.Scheduler.Enabled, SchedulerMaxPods: f.Scheduler.MaxPods,
 		LabsDomain: f.Endpoints.LabsDomain, VPNEndpoint: f.Endpoints.VPNEndpoint,
-		ProxyAccessTokenMaxTTLSeconds: f.Proxy.AccessTokenMaxTTLSeconds, ProxySessionMaxTTLSeconds: f.Proxy.SessionMaxTTLSeconds,
-		ProxySessionIdleTTLSeconds: f.Proxy.SessionIdleTTLSeconds,
-		DeviceMaxCPUMillicores:     f.Limits.DeviceMaxCPUMillicores, DeviceMaxMemoryBytes: f.Limits.DeviceMaxMemoryBytes,
+		ProxyGrantMaxTTLSeconds: f.Proxy.GrantMaxTTLSeconds,
+		DeviceMaxCPUMillicores:  f.Limits.DeviceMaxCPUMillicores, DeviceMaxMemoryBytes: f.Limits.DeviceMaxMemoryBytes,
 		LabMaxDevices: f.Limits.LabMaxDevices, VPN: toSizing(f.Limits.VPN), Gateway: toSizing(f.Limits.Gateway),
 		DeviceProfiles: append([]string{}, f.Limits.DeviceProfiles...),
 	}
+	if f.Checks != nil {
+		out.ChecksEnabled, out.ChecksMaxPerLab = f.Checks.Enabled, f.Checks.MaxChecksPerLab
+	}
+	out.TerminalEnabled = f.ServesAccess("terminal")
+	out.BootstrapAvailable = f.Bootstrap != nil
+	return &out
 }
 
 func parseAgentID(ctx *gin.Context) (uuid.UUID, bool) {

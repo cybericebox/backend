@@ -3,11 +3,11 @@ package platformAnalytics
 import (
 	"github.com/gofrs/uuid"
 
-	platformAnalyticsModel "github.com/cybericebox/daemon/internal/model/platformAnalytics"
+	platformAnalyticsModel "github.com/cybericebox/backend/internal/model/platformAnalytics"
 )
 
 type (
-	// TasksView is the «Каталог завдань» report. Categories and Levels are
+	// TasksView is the "Task catalog" report. Categories and Levels are
 	// the options of the two filters.
 	TasksView struct {
 		Period     platformAnalyticsModel.Period

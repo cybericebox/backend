@@ -9,14 +9,15 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/middleware"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	eventAnalyticsModel "github.com/cybericebox/daemon/internal/model/eventAnalytics"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	eventAnalyticsUseCase "github.com/cybericebox/daemon/internal/useCase/eventAnalytics"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	eventAnalyticsModel "github.com/cybericebox/backend/internal/model/eventAnalytics"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/model/usertext"
+	eventAnalyticsUseCase "github.com/cybericebox/backend/internal/useCase/eventAnalytics"
 )
 
-// IntegrityUseCase is the «Доброчесність» part of IUseCase.
+// IntegrityUseCase is the Integrity part of IUseCase.
 type IntegrityUseCase interface {
 	GetEventAnalyticsIntegrity(ctx context.Context, eventID uuid.UUID, from, to *time.Time, th eventAnalyticsModel.IntegrityThresholds, filter eventAnalyticsUseCase.IntegrityFilter) (eventAnalyticsUseCase.IntegrityView, error)
 	GetEventAnalyticsIntegrityFlags(ctx context.Context, eventID uuid.UUID) ([]eventAnalyticsUseCase.IntegrityFlag, error)
@@ -27,7 +28,7 @@ type IntegrityUseCase interface {
 	RemoveIntegrityDismissal(ctx context.Context, eventID, id uuid.UUID) error
 }
 
-// initIntegrity registers the «Доброчесність» routes. Every one is sensitive
+// initIntegrity registers the Integrity routes. Every one is sensitive
 // (other teams' names): owner, write moderators and platform admins only (§7).
 func (h *Handler) initIntegrity(router *gin.RouterGroup) {
 	analytics := router.Group("events/:id/manage/analytics", h.prot.RequirePermission(rbac.PermSelf))
@@ -179,7 +180,7 @@ type (
 
 // integrity godoc
 // @Summary Flagged solves to review (no IP, no automatic action)
-// @Description §6.6 «Доброчесність». A solve (or a task, for cross_flag) is flagged by signals computed on read: cross_flag (the team submitted another team's flag), no_access (no open, download or hint unlock before the flag), no_lab (a lab task without any VPN session), too_fast (below the level floor), first_try_hard, shared_wrong, burst, brute_force, follows_solve. Most signals first. Hidden teams are excluded. Sensitive.
+// @Description §6.6 Integrity. A solve (or a task, for cross_flag) is flagged by signals computed on read: cross_flag (the team submitted another team's flag), no_access (no open, download or hint unlock before the flag), no_lab (a lab task without any VPN session), too_fast (below the level floor), first_try_hard, shared_wrong, burst, brute_force, follows_solve. Most signals first. Hidden teams are excluded. Sensitive.
 // @Tags event-analytics
 // @Produce json
 // @Param id path string true "event ID"
@@ -470,15 +471,15 @@ func (h *Handler) exportIntegrity(ctx *gin.Context) {
 		return
 	}
 	w := startAnalyticsCSV(ctx, "integrity")
-	_ = w.Write([]string{"Команда", "Завдання", "Рівень", "Здано або підозра (UTC)", "Сигнали", "Перевірено", "Нотатка"})
+	_ = w.Write([]string{usertext.ColTeam, usertext.ColTask, usertext.ColLevel, usertext.ColSubmittedOrSuspectedUTC, usertext.ColSignals, usertext.ColReviewed, usertext.ColNote})
 	for _, item := range v.Items {
 		kinds := make([]string, 0, len(item.Signals))
 		for _, s := range item.Signals {
 			kinds = append(kinds, string(s.Kind))
 		}
-		reviewed, note := "ні", ""
+		reviewed, note := usertext.No, ""
 		if item.Review != nil {
-			reviewed, note = "так", item.Review.Note
+			reviewed, note = usertext.Yes, item.Review.Note
 		}
 		at := item.At
 		_ = w.Write([]string{csvCellText(item.Team.Name), csvCellText(item.ChallengeName), item.Level, csvTimePtr(&at),
@@ -489,7 +490,7 @@ func (h *Handler) exportIntegrity(ctx *gin.Context) {
 
 // integrityDismissals godoc
 // @Summary Dismissed integrity patterns that apply to the event
-// @Description The event's own «не підсвічувати такі випадки» and those of the catalog exercises it uses. Sensitive.
+// @Description The event's own do not highlight such cases and those of the catalog exercises it uses. Sensitive.
 // @Tags event-analytics
 // @Produce json
 // @Param id path string true "event ID"

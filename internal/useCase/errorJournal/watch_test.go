@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	errorJournal "github.com/cybericebox/daemon/internal/model/errorJournal"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
+	errorJournal "github.com/cybericebox/backend/internal/model/errorJournal"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
 )
 
 func openGroups(h *harness, kind errorJournal.Kind) int {

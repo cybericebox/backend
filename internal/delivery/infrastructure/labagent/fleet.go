@@ -6,17 +6,22 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
+	labpb "github.com/cybericebox/laboratory/pkg/agent/protobuf"
+
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	labAccessModel "github.com/cybericebox/daemon/internal/model/labAccess"
-	resourcesModel "github.com/cybericebox/daemon/internal/model/resources"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	labAccessModel "github.com/cybericebox/backend/internal/model/labAccess"
+	resourcesModel "github.com/cybericebox/backend/internal/model/resources"
 )
 
 // Member is one agent of the fleet: its registry identity, whether new groups may be placed on it,
@@ -37,6 +42,8 @@ type Member struct {
 	AccessKey   ed25519.PrivateKey
 	// Features is what the agent last reported it offers the platform; shared by the copies of the member.
 	Features *FeatureCell
+	// Profiles is what the agent last reported about the node profiles it can run; shared by the copies of the member.
+	Profiles *ProfileCell
 }
 
 // PlacementStore remembers which agent holds a lab group. A group lives on exactly one agent for
@@ -208,16 +215,6 @@ func (f *Fleet) locate(ctx context.Context, group string, forCreate bool) (*Memb
 	return nil, fmt.Errorf("lab group %q: %w", group, errNoPlacement)
 }
 
-// routeForCreate is route for a call that creates the group: a group that is not placed yet is
-// placed now by the picker.
-func (f *Fleet) routeForCreate(ctx context.Context, group string) (*Client, error) {
-	m, err := f.memberForCreate(ctx, group)
-	if err != nil {
-		return nil, err
-	}
-	return m.Client, nil
-}
-
 // memberForCreate finds the agent of a group, placing the group when it has none yet.
 func (f *Fleet) memberForCreate(ctx context.Context, group string) (*Member, error) {
 	m, err := f.routeWith(ctx, group, true)
@@ -233,7 +230,15 @@ func (f *Fleet) memberForCreate(ctx context.Context, group string) (*Member, err
 	if len(enabled) == 0 {
 		return nil, infraModel.ErrInfrastructureUnavailable.Err()
 	}
-	if need := infraModel.PlacementNeedFrom(ctx); need.Known() {
+	need := infraModel.PlacementNeedFrom(ctx)
+	// A group lives on one agent for good: it goes only to an agent that can run every node profile the event's
+	// tasks use. None: refuse now, nothing is created.
+	runners, runnersErr := profileRunners(enabled, need.Profiles)
+	if runnersErr != nil {
+		return nil, runnersErr
+	}
+	enabled = runners
+	if need.Known() {
 		var fitting []*Member
 		var worst *infraModel.FitViolation
 		for _, m := range enabled {
@@ -346,8 +351,14 @@ func (f *Fleet) DeployLab(ctx context.Context, group, lab string, meta infraMode
 	if !meta.GroupReservation.Empty() {
 		ctx = infraModel.WithGroupReservation(ctx, meta.GroupReservation)
 	}
+	if err := f.requireProfilesSomewhere(topo); err != nil {
+		return err
+	}
 	m, err := f.memberForCreate(ctx, group)
 	if err != nil {
+		return err
+	}
+	if err = requireProfiles(m, topo); err != nil {
 		return err
 	}
 	// A group that lives on an agent stays there: a lab that passes its maxima is refused here, with the
@@ -357,7 +368,16 @@ func (f *Fleet) DeployLab(ctx context.Context, group, lab string, meta infraMode
 	}
 	// The agent says what it offers: a topology that needs more is refused here, before anything is created.
 	if feat := m.Features.Get(); feat != nil && !feat.Persistence.Available && wantsPersistence(topo) {
-		return infraModel.ErrDevicePersistenceUnavailable.Err()
+		// The cached report may be old: persistence can become available after the agent started. Read it again
+		// (once per window) before refusing.
+		feat = refreshOnRefusal(ctx, m.Features, time.Now(), featuresReader(m))
+		if feat != nil && !feat.Persistence.Available {
+			return infraModel.ErrDevicePersistenceUnavailable.Err()
+		}
+	}
+	// The same for the options of contract 1.5: checks, terminal, bootstrap and their sizes.
+	if err = f.requireLabOptions(ctx, m, exerciseModel.NeedsOf(topo, meta.Checks)); err != nil {
+		return err
 	}
 	if meta.GroupPartID, err = f.partOn(ctx, m, meta.GroupReservation); err != nil {
 		return err
@@ -365,7 +385,73 @@ func (f *Fleet) DeployLab(ctx context.Context, group, lab string, meta infraMode
 	if meta.PartID, err = f.partOn(ctx, m, meta.Reservation); err != nil {
 		return err
 	}
-	return m.Client.DeployLab(f.withSizes(ctx, m), group, lab, meta, topo)
+	// The key that allows connections from the lab to the VPN clients can only be sent to an agent known to accept it, and
+	// without it a capable agent blocks them: a lab whose exercise needs them is not created before the features are known.
+	feat := m.Features.Get()
+	if feat == nil && wantsVPNReverse(topo) {
+		feat = refreshOnRefusal(ctx, m.Features, time.Now(), featuresReader(m))
+		if feat == nil {
+			return status.Error(codes.Unavailable, "the features of the laboratory agent are not known yet")
+		}
+	}
+	if feat != nil {
+		meta.AgentEnforcesVPNReverse = feat.EnforcesVPNReverse()
+	}
+	err = m.Client.DeployLab(f.withSizes(ctx, m), group, lab, meta, topo)
+	if errors.Is(err, infraModel.ErrDevicePersistenceUnavailable.Err()) {
+		// The agent itself refused: what it offers changed since the cached report; the next try sees the truth.
+		refreshOnRefusal(ctx, m.Features, time.Now(), featuresReader(m))
+	}
+	return err
+}
+
+// requireLabOptions refuses a lab that needs an option of the laboratory the agent does not offer. An agent that has not
+// reported is not refused here (it refuses on its own). The cached report may be old (an option can be switched on after
+// the agent started): it is read again, once per window, before a refusal stands.
+func (f *Fleet) requireLabOptions(ctx context.Context, m *Member, needs exerciseModel.LabNeeds) error {
+	feat := m.Features.Get()
+	if feat == nil {
+		return nil
+	}
+	err := feat.RequireLabOptions(needs)
+	if err == nil {
+		return nil
+	}
+	if fresh := refreshOnRefusal(ctx, m.Features, time.Now(), featuresReader(m)); fresh != nil {
+		return fresh.RequireLabOptions(needs)
+	}
+	return err
+}
+
+// requireGroupServers refuses a group whose planned servers the laboratory does not run (contract 2.8). An agent that has not
+// reported is not refused here (it refuses on its own); the cached report may be old, so it is read again once per window.
+func (f *Fleet) requireGroupServers(ctx context.Context, m *Member) error {
+	feat := m.Features.Get()
+	if feat == nil {
+		return nil
+	}
+	needInternet := infraModel.PlacementNeedFrom(ctx).Plan.InternetLabs > 0
+	refuse := func(f infraModel.AgentFeatures) error {
+		var refused []string
+		if !f.ServesVPN() {
+			refused = append(refused, "vpn")
+		}
+		if needInternet && !f.ServesInternet() {
+			refused = append(refused, "internet")
+		}
+		if len(refused) == 0 {
+			return nil
+		}
+		return exerciseModel.ErrLabOptionUnavailable.WithPublicContext("options", strings.Join(refused, "; ")).Err()
+	}
+	err := refuse(*feat)
+	if err == nil {
+		return nil
+	}
+	if fresh := refreshOnRefusal(ctx, m.Features, time.Now(), featuresReader(m)); fresh != nil {
+		return refuse(*fresh)
+	}
+	return err
 }
 
 // EnsureVPNGroup creates a team's group; the reservation it runs under comes with ctx (WithGroupReservation).
@@ -377,6 +463,11 @@ func (f *Fleet) EnsureVPNGroup(ctx context.Context, group string) error {
 	if v := f.fitOf(m, infraModel.PlacementNeedFrom(ctx)); v != nil {
 		return noAgentFits(v)
 	}
+	// The group is made with its VPN on, and with the internet gateway when the plan has internet labs: a laboratory that serves
+	// neither refuses it, so it is not asked.
+	if err = f.requireGroupServers(ctx, m); err != nil {
+		return err
+	}
 	ref, _ := infraModel.GroupReservationFrom(ctx)
 	part, err := f.partOn(ctx, m, ref)
 	if err != nil {
@@ -386,11 +477,21 @@ func (f *Fleet) EnsureVPNGroup(ctx context.Context, group string) error {
 }
 
 func (f *Fleet) LabStatus(ctx context.Context, group, lab string) (exerciseModel.LabDeployStatus, error) {
-	c, err := f.route(ctx, group)
+	m, err := f.memberOf(ctx, group)
 	if err != nil {
 		return exerciseModel.LabDeployStatus{}, err
 	}
-	return c.LabStatus(ctx, group, lab)
+	feat := m.Features.Get()
+	return m.Client.labStatus(ctx, group, lab, feat != nil && feat.EnforcesVPNReverse())
+}
+
+// RunLabChecks asks the agent that holds the group to run checks of a lab now.
+func (f *Fleet) RunLabChecks(ctx context.Context, group, lab string, ids []string) error {
+	c, err := f.route(ctx, group)
+	if err != nil {
+		return err
+	}
+	return c.RunLabChecks(ctx, group, lab, ids)
 }
 
 func (f *Fleet) ListGroupLabs(ctx context.Context, group string) ([]string, error) {
@@ -676,4 +777,14 @@ func (f *Fleet) ReconcileLabGroupAccessRevision(ctx context.Context, group strin
 		return err
 	}
 	return c.ReconcileLabGroupAccessRevision(ctx, group, policies, target)
+}
+
+// featuresReader reads the features of the member's agent again; a member without a client reads nothing.
+func featuresReader(m *Member) func(context.Context) (*labpb.FeaturesResponse, error) {
+	return func(ctx context.Context) (*labpb.FeaturesResponse, error) {
+		if m.Client == nil {
+			return nil, errors.New("the agent has no client")
+		}
+		return m.Client.GetFeatures(ctx, &labpb.Empty{})
+	}
 }

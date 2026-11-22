@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/pkg/email"
+	"github.com/cybericebox/backend/pkg/email"
 )
 
 func writeMessage(t *testing.T, msg email.Message) string {

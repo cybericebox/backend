@@ -3,7 +3,7 @@ package labagent
 import (
 	"context"
 	"fmt"
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
 	labpb "github.com/cybericebox/laboratory/pkg/agent/protobuf"
 	"github.com/gofrs/uuid"
 	"time"
@@ -83,12 +83,15 @@ func groupLifecycleObservation(name string, g *labpb.LabGroup, now time.Time) ev
 	spec := g.GetLifecycle()
 	bootAt := time.UnixMilli(s.GetCurrentVpnBootObservedUnixMs())
 	network := s.GetCurrentVpnBootAvailable() && s.GetCurrentVpnBootId() != "" && !bootAt.After(now) && now.Sub(bootAt) <= 30*time.Second
+	// A group whose VPN is switched off has no VPN server to register or to boot (contract 2.7): there is nothing to wait for.
+	// The switch is read from the group, not its status; a group made before the switches reports it on.
+	vpnOK := !g.GetVpnEnabled() || (s.GetVpnRegistered() && network)
 	// Initial legacy creation may report readiness without a lifecycle command.
 	// It grants no release credit and only revision1 consumes this exception.
 	if spec == nil && (life == nil || (life.GetDesiredState() == "Running" && life.GetOperationId() == "" && life.GetLifecycleRevision() == 0)) {
 		at := now
 		out.ObservedAt = &at
-		out.InitialReady = out.ImmutableSizesKnown && s.GetPhase() == "Ready" && s.GetNamespace() != "" && s.GetVpnRegistered() && !s.GetSuspended() && network
+		out.InitialReady = out.ImmutableSizesKnown && s.GetPhase() == "Ready" && s.GetNamespace() != "" && vpnOK && !s.GetSuspended()
 		out.Ready = out.InitialReady
 		return out
 	}
@@ -101,7 +104,7 @@ func groupLifecycleObservation(name string, g *labpb.LabGroup, now time.Time) ev
 	out.ObservedGeneration = life.GetObservedGeneration()
 	out.DesiredState = life.GetDesiredState()
 	out.ActualState = knownState(life.GetObservedState(), "Running", "Starting", "Stopping", "Stopped", "StopFailed", "Deleted")
-	out.AccessFenced = life.GetAccessFenced() && life.GetAccessFencedUnixMs() > 0 && life.GetAccessFenceVpnBootId() != ""
+	out.AccessFenced = life.GetAccessFenced() && life.GetAccessFencedUnixMs() > 0 && (life.GetAccessFenceVpnBootId() != "" || !g.GetVpnEnabled())
 	out.FailureMessage = life.GetError()
 	if out.FailureMessage != "" || out.ActualState == "StopFailed" {
 		out.FailureCode = life.GetReason()
@@ -127,7 +130,7 @@ func groupLifecycleObservation(name string, g *labpb.LabGroup, now time.Time) ev
 			out.ServiceReleaseCertified = true
 		}
 	}
-	out.Ready = out.ActualState == "Running" && out.DesiredState == "Running" && s.GetPhase() == "Ready" && s.GetVpnRegistered() && !s.GetSuspended() && network
+	out.Ready = out.ActualState == "Running" && out.DesiredState == "Running" && s.GetPhase() == "Ready" && vpnOK && !s.GetSuspended()
 	out.Retirement = retirementObservation(s.GetRetirement())
 	return out
 }

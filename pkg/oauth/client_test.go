@@ -13,7 +13,7 @@ import (
 
 	"golang.org/x/oauth2"
 
-	"github.com/cybericebox/daemon/pkg/oauth"
+	"github.com/cybericebox/backend/pkg/oauth"
 )
 
 func defaultConfig() oauth.Config {

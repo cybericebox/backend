@@ -4,18 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventConfigRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventExerciseRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabAllocationRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabRetentionRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventStageRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventTeamRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/exerciseRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventConfigRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventExerciseRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabAllocationRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabRetentionRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventStageRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventTeamRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/exerciseRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
 	"github.com/gofrs/uuid"
 	"sort"
 	"time"
@@ -262,6 +262,10 @@ func (u *EventUseCase) ReconcileLabRetention(ctx context.Context, now time.Time)
 	}
 	// Labs and their snapshots live until the end of the reservation window (owner decision 2026-10-19): the
 	// cluster deletes them there. A retention deadline never retires a lab or a group; it is kept but ignored.
+	// Owner decision 2026-10-31: the end of the reservation window is the single point of deletion. Neither the
+	// withdrawal nor the teardown delay deletes anything (a deployment without a calendar keeps the older
+	// teardown), and the window may not end later than the withdrawal: the reservation is refused (ErrReservationEndsAfterWithdraw)
+	// and the withdrawal is refused (WithdrawBeforeReservationEnd) when either would leave the labs without an end.
 	retiring, err := repo.Retiring(ctx, u.labLifecycleBatch)
 	if err != nil {
 		return err

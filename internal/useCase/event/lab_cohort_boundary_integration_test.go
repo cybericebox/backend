@@ -2,11 +2,11 @@ package event_test
 
 import (
 	"context"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabRevealRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/resourceCalendarRepo"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	calModel "github.com/cybericebox/daemon/internal/model/resourceCalendar"
-	"github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabRevealRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/resourceCalendarRepo"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	calModel "github.com/cybericebox/backend/internal/model/resourceCalendar"
+	"github.com/cybericebox/backend/internal/useCase/event"
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 	"testing"
@@ -48,11 +48,6 @@ func TestCohortFreezesAtPreparationAfterZeroTeamConfigOrSourceEdit(t *testing.T)
 			require.NoError(t, err)
 			require.Len(t, barrier.EligibleTeamIds, 2)
 			original := append([]uuid.UUID(nil), barrier.EligibleTeamIds...)
-			_, err = f.db.Pool.Exec(ctx, `UPDATE event_teams SET admitted_manually=true,formed_at=$2 WHERE id=$1`, f.smallID, now)
-			require.NoError(t, err)
-			frozen, err := repo.Freeze(ctx, f.eventID, set.exerciseID, now)
-			require.NoError(t, err)
-			require.Equal(t, original, frozen, "actual prepared cohort must remain immutable")
 			// Exact synthetic current-generation receipts exercise the SQL boundary;
 			// this test makes no native readiness/fabric/cgroup assertion.
 			for _, team := range []uuid.UUID{f.blueID, f.redID} {
@@ -65,6 +60,14 @@ func TestCohortFreezesAtPreparationAfterZeroTeamConfigOrSourceEdit(t *testing.T)
 				require.NoError(t, err)
 				require.Equal(t, team == f.redID, barrier.OpenedAt.Valid)
 			}
+
+			// Once the tasks are shown (the barrier is opened) the cohort is frozen: a team admitted later is not in it.
+			f.shiftLifecycle(t, -time.Minute, time.Hour)
+			_, err = f.db.Pool.Exec(ctx, `UPDATE event_teams SET admitted_manually=true,formed_at=$2 WHERE id=$1`, f.smallID, now)
+			require.NoError(t, err)
+			frozen, err := repo.Freeze(ctx, f.eventID, set.exerciseID, now)
+			require.NoError(t, err)
+			require.Equal(t, original, frozen, "after the show the cohort remains immutable")
 		})
 	}
 }

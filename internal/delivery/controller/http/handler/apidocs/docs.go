@@ -32,6 +32,12 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "type": "boolean",
+                        "description": "true: only the caller's own actions (overrides actorID)",
+                        "name": "mine",
+                        "in": "query"
+                    },
+                    {
                         "type": "string",
                         "description": "gating permission (exact), e.g. users.delete",
                         "name": "permission",
@@ -120,6 +126,126 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/audit-log/export": {
+            "get": {
+                "description": "Newest first, at most 100000 rows. Each export is itself recorded in the journal.",
+                "produces": [
+                    "text/csv"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Admin audit journal as CSV (same filters, no paging)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "actor user ID (exact)",
+                        "name": "actorID",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "true: only the caller's own actions (overrides actorID)",
+                        "name": "mine",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "gating permission (exact)",
+                        "name": "permission",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "route template contains this text",
+                        "name": "route",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "HTTP method (exact)",
+                        "name": "method",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "final response status: exact (409) or a class (2xx, 4xx, 5xx)",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "not before (RFC3339)",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "not after (RFC3339)",
+                        "name": "to",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "kind token of the target",
+                        "name": "targetKind",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "an id contained in the target",
+                        "name": "targetID",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/dashboard": {
+            "get": {
+                "description": "One answer with the blocks the caller may see: Attention (what needs the admin, with where to fix it), CurrentAndUpcoming (running events and those starting within 7 days), Trends7d (sign-ups, active users, solves) and Infrastructure (cluster CPU and memory, active stands). A block without the permission is null.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "The platform admin dashboard",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dashboard.dashboardResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/admin/errors": {
             "get": {
                 "produces": [
@@ -156,6 +282,12 @@ const docTemplate = `{
                         "type": "string",
                         "description": "last seen at or before (RFC 3339)",
                         "name": "to",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "only groups first seen at or after this time (RFC 3339); with limit=1 the Total is the new-items counter",
+                        "name": "newSince",
                         "in": "query"
                     },
                     {
@@ -206,6 +338,144 @@ const docTemplate = `{
                         "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/errors/bulk/ignore": {
+            "post": {
+                "description": "1 to 200 groups; one result per group in request order; a group that fails never stops the others; one audit entry per group. The routes are /admin/errors/bulk/resolve, /admin/errors/bulk/ignore and /admin/errors/bulk/reopen.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "error-journal"
+                ],
+                "summary": "Resolve, ignore or reopen many error groups",
+                "parameters": [
+                    {
+                        "description": "groups",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/errorJournal.bulkGroupsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/errorJournal.bulkGroupsResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/errors/bulk/reopen": {
+            "post": {
+                "description": "1 to 200 groups; one result per group in request order; a group that fails never stops the others; one audit entry per group. The routes are /admin/errors/bulk/resolve, /admin/errors/bulk/ignore and /admin/errors/bulk/reopen.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "error-journal"
+                ],
+                "summary": "Resolve, ignore or reopen many error groups",
+                "parameters": [
+                    {
+                        "description": "groups",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/errorJournal.bulkGroupsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/errorJournal.bulkGroupsResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/errors/bulk/resolve": {
+            "post": {
+                "description": "1 to 200 groups; one result per group in request order; a group that fails never stops the others; one audit entry per group. The routes are /admin/errors/bulk/resolve, /admin/errors/bulk/ignore and /admin/errors/bulk/reopen.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "error-journal"
+                ],
+                "summary": "Resolve, ignore or reopen many error groups",
+                "parameters": [
+                    {
+                        "description": "groups",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/errorJournal.bulkGroupsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/errorJournal.bulkGroupsResponse"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -576,6 +846,83 @@ const docTemplate = `{
                         "description": "CSV",
                         "schema": {
                             "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/analytics/events/table": {
+            "get": {
+                "description": "Every event of the period with participants, teams, solves and completion; search over the tag and the name; sortBy start, name, tag, status, participants, teams, solves or teamsSolved. Not cut at the newest N. from/to are RFC 3339.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "platform-analytics"
+                ],
+                "summary": "Platform analytics: the per-event table (searched, sorted, paged)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "period start (RFC 3339); absent = all time",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "period end, exclusive (RFC 3339); absent = now",
+                        "name": "to",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "tag or name",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "start | name | tag | status | participants | teams | solves | teamsSolved",
+                        "name": "sortBy",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "asc | desc",
+                        "name": "sortDir",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "1-based page",
+                        "name": "page",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "page size",
+                        "name": "pageSize",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/pagination.OffsetPage-platformAnalytics_eventRowResponse"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -999,6 +1346,95 @@ const docTemplate = `{
                 }
             }
         },
+        "/analytics/tasks/table": {
+            "get": {
+                "description": "Every catalog task used in the period (not the first 200), filtered by category and level, searched over the exercise and task names; sortBy exercise, task, level, eventsUsed, attempts, teamsTried, solves, solveRate, medianSolveSeconds or hintRate.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "platform-analytics"
+                ],
+                "summary": "Platform analytics: the task usage table (searched, sorted, paged)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "period start (RFC 3339); absent = all time",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "period end, exclusive (RFC 3339); absent = now",
+                        "name": "to",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "exercise tag",
+                        "name": "category",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "difficulty",
+                        "name": "level",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "exercise or task name",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "column",
+                        "name": "sortBy",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "asc | desc",
+                        "name": "sortDir",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "1-based page",
+                        "name": "page",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "page size",
+                        "name": "pageSize",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/pagination.OffsetPage-platformAnalytics_taskRowResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/analytics/users": {
             "get": {
                 "description": "Aggregates of the admin user stats bound to the period (total, blocked, by role, new and active accounts, registrations per day) plus daily and weekly active accounts, the sign-in method split (password, Google, both, none) and how many events accounts joined (1, 2, 3+). Aggregates only; per-user rows are at /analytics/users/people. from/to are RFC 3339; no from means all time.",
@@ -1326,6 +1762,38 @@ const docTemplate = `{
                 }
             }
         },
+        "/auth/account/export": {
+            "get": {
+                "description": "Needs a sign-in from the last minutes (403 ErrAuthReauthRequired otherwise) and is limited to one download per 10 minutes (429 with RetryAfterSeconds). The answer is the file itself, not the usual envelope.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Download everything the platform stores about the current user (JSON file)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/userModel.DataExport"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/account/profile": {
             "patch": {
                 "consumes": [
@@ -1361,6 +1829,140 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/account/table-prefs/{tableKey}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Get the current user's saved view of a table (null when none)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "table key, up to 64 of [a-z0-9._-]",
+                        "name": "tableKey",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/tablePrefsModel.Prefs"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Save the current user's view of a table",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "table key, up to 64 of [a-z0-9._-]",
+                        "name": "tableKey",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "the view",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/tablePrefsModel.Prefs"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/tablePrefsModel.Prefs"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Forget the current user's view of a table (back to the default)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "table key, up to 64 of [a-z0-9._-]",
+                        "name": "tableKey",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/response.Response"
                         }
@@ -1578,6 +2180,166 @@ const docTemplate = `{
                 }
             }
         },
+        "/auth/google/pending": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "The Google link waiting for the owner's confirmation (ticket cookie)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/auth.googleLinkPendingResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Give up the pending Google link",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/google/pending/code": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Mail the one-time code that confirms the pending Google link (60 s apart, 5 per hour; recaptcha action googleLinkCode)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/auth.googleLinkCodeResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/google/pending/confirm": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Confirm the pending Google link with the password or the mailed code, link it and sign in",
+                "parameters": [
+                    {
+                        "description": "exactly one of Password and Code",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/auth.googleLinkConfirmRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/google/register": {
             "get": {
                 "tags": [
@@ -1651,6 +2413,51 @@ const docTemplate = `{
                 }
             }
         },
+        "/auth/last-email": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "The address of the last sign-in in this browser (cookie), for prefilling the sign-in page; empty without functional consent (cib_consent)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/auth.lastEmailResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Forget the remembered sign-in address («not you»)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/me": {
             "get": {
                 "produces": [
@@ -1669,6 +2476,302 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/passkeys": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "List the current user's passkeys",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/auth.passkeyResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/passkeys/registration/begin": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Begin adding a passkey (the owner is confirmed first)",
+                "parameters": [
+                    {
+                        "description": "current password (accounts without a password need a recent sign-in instead)",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/auth.reauthRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/auth.passkeyCeremonyResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/passkeys/registration/finish": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Finish adding a passkey with the authenticator's attestation",
+                "parameters": [
+                    {
+                        "description": "ceremony, name and attestation",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/auth.passkeyRegistrationFinishRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/auth.passkeyResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/passkeys/sign-in/begin": {
+            "post": {
+                "description": "The body carries the captcha token: {\"RecaptchaToken\": \"...\"}.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Begin a usernameless passkey sign-in",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/auth.passkeyCeremonyResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/passkeys/sign-in/finish": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Finish a passkey sign-in with the authenticator's assertion",
+                "parameters": [
+                    {
+                        "description": "ceremony and assertion",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/auth.passkeySignInFinishRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/passkeys/{id}": {
+            "delete": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Remove one of the current user's passkeys (the owner is confirmed first; refused when it is the last way to sign in)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "passkey ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "current password (accounts without a password need a recent sign-in instead)",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/auth.reauthRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/response.Response"
                         }
@@ -2207,6 +3310,128 @@ const docTemplate = `{
                 }
             }
         },
+        "/events/bulk/archive": {
+            "post": {
+                "description": "1 to 200 events; one result per event in request order; an event that fails never stops the others; one audit entry per event.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "events"
+                ],
+                "summary": "Archive many events",
+                "parameters": [
+                    {
+                        "description": "events",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/event.bulkArchiveRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/event.bulkArchiveResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/events/facets": {
+            "get": {
+                "description": "How many events have each value of field (status, infrastructure or organizer) under the same filters as GET /events (search, status, startFrom, startTo, organizer, infrastructure, needsReservation) except the field's own.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "events"
+                ],
+                "summary": "Facet counts of the events table",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "status | infrastructure | organizer",
+                        "name": "field",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/event.facetResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/events/organizers": {
+            "get": {
+                "description": "Feeds the organizer filter of the events table.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "events"
+                ],
+                "summary": "Everyone who manages at least one event",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/event.organizerResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/events/self/answer-files": {
             "post": {
                 "consumes": [
@@ -2218,7 +3443,7 @@ const docTemplate = `{
                 "tags": [
                     "events-self"
                 ],
-                "summary": "Upload a file for a «Файл» question of the participant form or team fields",
+                "summary": "Upload a file for a File question of the participant form or team fields",
                 "parameters": [
                     {
                         "type": "file",
@@ -3269,7 +4494,7 @@ const docTemplate = `{
         },
         "/events/{id}/manage/analytics/communications": {
             "get": {
-                "description": "§6.7 «Комунікації»: emails and in-app notifications sent per type, errors, the in-app read rate, and the completion of every event form. from/to limit the window (open bounds by default).",
+                "description": "§6.7 Communications: emails and in-app notifications sent per type, errors, the in-app read rate, and the completion of every event form. from/to limit the window (open bounds by default).",
                 "produces": [
                     "application/json"
                 ],
@@ -3370,7 +4595,7 @@ const docTemplate = `{
         },
         "/events/{id}/manage/analytics/integrity": {
             "get": {
-                "description": "§6.6 «Доброчесність». A solve (or a task, for cross_flag) is flagged by signals computed on read: cross_flag (the team submitted another team's flag), no_access (no open, download or hint unlock before the flag), no_lab (a lab task without any VPN session), too_fast (below the level floor), first_try_hard, shared_wrong, burst, brute_force, follows_solve. Most signals first. Hidden teams are excluded. Sensitive.",
+                "description": "§6.6 Integrity. A solve (or a task, for cross_flag) is flagged by signals computed on read: cross_flag (the team submitted another team's flag), no_access (no open, download or hint unlock before the flag), no_lab (a lab task without any VPN session), too_fast (below the level floor), first_try_hard, shared_wrong, burst, brute_force, follows_solve. Most signals first. Hidden teams are excluded. Sensitive.",
                 "produces": [
                     "application/json"
                 ],
@@ -3501,7 +4726,7 @@ const docTemplate = `{
         },
         "/events/{id}/manage/analytics/integrity/dismissals": {
             "get": {
-                "description": "The event's own «не підсвічувати такі випадки» and those of the catalog exercises it uses. Sensitive.",
+                "description": "The event's own do not highlight such cases and those of the catalog exercises it uses. Sensitive.",
                 "produces": [
                     "application/json"
                 ],
@@ -3911,7 +5136,7 @@ const docTemplate = `{
         },
         "/events/{id}/manage/analytics/overview": {
             "get": {
-                "description": "§6.1 «Огляд». Without from/to the period is the event's own window (start to finish, or to now while it runs). The series has a point per 5 minutes; values are cached for a few seconds.",
+                "description": "§6.1 Overview. Without from/to the period is the event's own window (start to finish, or to now while it runs). The series has a point per 5 minutes; values are cached for a few seconds.",
                 "produces": [
                     "application/json"
                 ],
@@ -4004,7 +5229,7 @@ const docTemplate = `{
         },
         "/events/{id}/manage/analytics/participants": {
             "get": {
-                "description": "§6.2 «Учасники й реєстрація»: the participation funnel, registrations per day and channel, team fill, registration form answer distributions and the drop-off list. from/to limit only the registrations per day (open bounds by default); the rest is the current state.",
+                "description": "§6.2 Participants and registration: the participation funnel, registrations per day and channel, team fill, registration form answer distributions and the drop-off list. from/to limit only the registrations per day (open bounds by default); the rest is the current state.",
                 "produces": [
                     "application/json"
                 ],
@@ -4292,7 +5517,7 @@ const docTemplate = `{
         },
         "/events/{id}/manage/analytics/progress/matrix/export.csv": {
             "get": {
-                "description": "One row per team, one column per task: the solve time (UTC), \"спроб: N\" for tried, empty for untouched.",
+                "description": "One row per team, one column per task: the solve time (UTC), an attempts count (\"attempts: N\" in Ukrainian) for tried, empty for untouched.",
                 "produces": [
                     "text/csv"
                 ],
@@ -4468,7 +5693,7 @@ const docTemplate = `{
         },
         "/events/{id}/manage/analytics/stands": {
             "get": {
-                "description": "§6.5 «Стенди». Empty (Available=false) for an event without infrastructure. The period bounds the telemetry and VPN figures; deploy and failure history is the event's.",
+                "description": "§6.5 Stands. Empty (Available=false) for an event without infrastructure. The period bounds the telemetry and VPN figures; deploy and failure history is the event's.",
                 "produces": [
                     "application/json"
                 ],
@@ -4559,9 +5784,79 @@ const docTemplate = `{
                 }
             }
         },
+        "/events/{id}/manage/analytics/submissions": {
+            "get": {
+                "description": "One row per solved task of a visible team: the participant whose submission was the first correct one, the minute from the event start and from the team's first open of the task, and the wrong attempts before it. It counts submissions, not solutions (Note).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "event-analytics"
+                ],
+                "summary": "Who submitted the flag of each solved task",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "event ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/eventAnalytics.submissionsResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/events/{id}/manage/analytics/submissions/export.csv": {
+            "get": {
+                "description": "The first line is a note that the rows count flag submissions, not solutions.",
+                "produces": [
+                    "text/csv"
+                ],
+                "tags": [
+                    "event-analytics"
+                ],
+                "summary": "Export the submissions per participant as CSV (UTF-8 with BOM)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "event ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "CSV",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/events/{id}/manage/analytics/tasks": {
             "get": {
-                "description": "§6.3 «Завдання». Attempts, solves, solve rate (solvers ÷ teams that tried), median time to solve from the start and from the first open, first blood, hints and points spent, over the period (default: the event's window).",
+                "description": "§6.3 Tasks. Attempts, solves, solve rate (solvers ÷ teams that tried), median time to solve from the start and from the first open, first blood, hints and points spent, over the period (default: the event's window).",
                 "produces": [
                     "application/json"
                 ],
@@ -4774,7 +6069,7 @@ const docTemplate = `{
         },
         "/events/{id}/manage/analytics/usage": {
             "get": {
-                "description": "«Використання». Online is true when the last WireGuard handshake is at most 3 minutes old; it is never derived from traffic. VPN figures (sessions, online seconds, bytes) follow the period; the lab counters are cumulative over the whole event. Counts and times only, no addresses. Empty (Available=false) for an event without infrastructure. Not cached.",
+                "description": "Usage. Online is true when the last WireGuard handshake is at most 3 minutes old; it is never derived from traffic. VPN figures (sessions, online seconds, bytes) follow the period; the lab counters are cumulative over the whole event. Counts and times only, no addresses. Empty (Available=false) for an event without infrastructure. Not cached.",
                 "produces": [
                     "application/json"
                 ],
@@ -4888,7 +6183,7 @@ const docTemplate = `{
                 "tags": [
                     "events"
                 ],
-                "summary": "Upload a file for a team «Файл» question on behalf of a team",
+                "summary": "Upload a file for a team File question on behalf of a team",
                 "parameters": [
                     {
                         "type": "string",
@@ -5149,6 +6444,42 @@ const docTemplate = `{
                         "description": "last broadcast ID from the previous page",
                         "name": "cursor",
                         "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "page number: switches to the page-number mode (OffsetPage answer)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "page size of the page-number mode (default 50)",
+                        "name": "pageSize",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "subject, in-app title or event name (page-number mode)",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "sending | done | failed | canceled (page-number mode)",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "subject | channels | audience | recipients | delivered | failed | status | author | created (page-number mode)",
+                        "name": "sortBy",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "asc | desc (page-number mode)",
+                        "name": "sortDir",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -5307,6 +6638,58 @@ const docTemplate = `{
                 }
             }
         },
+        "/events/{id}/manage/broadcasts/{broadcastID}/cancel": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notification-broadcasts"
+                ],
+                "summary": "Stop a broadcast that is still being sent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "broadcast ID",
+                        "name": "broadcastID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/messaging.broadcastResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/events/{id}/manage/broadcasts/{broadcastID}/deliveries": {
             "get": {
                 "produces": [
@@ -5325,15 +6708,21 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "type": "integer",
-                        "description": "page size (default 50)",
-                        "name": "limit",
+                        "type": "string",
+                        "description": "error | done | waiting",
+                        "name": "status",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "offset",
-                        "name": "offset",
+                        "description": "page number (default 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "page size (default 50)",
+                        "name": "pageSize",
                         "in": "query"
                     }
                 ],
@@ -5349,14 +6738,45 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/messaging.deliveryResponse"
-                                            }
+                                            "$ref": "#/definitions/pagination.OffsetPage-messaging_deliveryResponse"
                                         }
                                     }
                                 }
                             ]
+                        }
+                    }
+                }
+            }
+        },
+        "/events/{id}/manage/broadcasts/{broadcastID}/deliveries/export": {
+            "get": {
+                "produces": [
+                    "text/csv"
+                ],
+                "tags": [
+                    "notification-broadcasts"
+                ],
+                "summary": "Recipients of a broadcast with their outcome as CSV",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "broadcast ID",
+                        "name": "broadcastID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "error | done | waiting",
+                        "name": "status",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
                         }
                     }
                 }
@@ -6009,7 +7429,7 @@ const docTemplate = `{
                 "tags": [
                     "events"
                 ],
-                "summary": "Turn the first screen's link off («Вимкнути»)",
+                "summary": "Turn the first screen's link off (Turn off)",
                 "parameters": [
                     {
                         "type": "string",
@@ -6548,7 +7968,7 @@ const docTemplate = `{
                 "tags": [
                     "events"
                 ],
-                "summary": "Turn a screen's link off («Вимкнути»)",
+                "summary": "Turn a screen's link off (Turn off)",
                 "parameters": [
                     {
                         "type": "string",
@@ -7529,7 +8949,7 @@ const docTemplate = `{
                 "tags": [
                     "events"
                 ],
-                "summary": "«Налаштувати під захід»: switch to the event's own copy of the catalog exercise",
+                "summary": "Customize for the event: switch to the event's own copy of the catalog exercise",
                 "parameters": [
                     {
                         "type": "string",
@@ -7647,7 +9067,7 @@ const docTemplate = `{
                 "tags": [
                     "events"
                 ],
-                "summary": "«Повернути оригінал»: switch a fork attachment back to its catalog source",
+                "summary": "Restore the original: switch a fork attachment back to its catalog source",
                 "parameters": [
                     {
                         "type": "string",
@@ -7754,9 +9174,105 @@ const docTemplate = `{
                 }
             }
         },
+        "/events/{id}/manage/exercises/{exerciseID}/team-copies": {
+            "get": {
+                "description": "Compares every team copy with the task of the version the set is pinned to (for the variant the team plays) and lists the copies that differ: text, attachments, hints.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "events"
+                ],
+                "summary": "Team copies of a set's tasks that differ from the task now",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "event ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "event exercise attachment ID",
+                        "name": "exerciseID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/event.teamCopiesResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/events/{id}/manage/exercises/{exerciseID}/team-copies/sync": {
+            "post": {
+                "description": "Refreshes text, attachments and hints of the differing copies from the pinned version and marks them updated on the board. The variant and the flag stay; solved copies are left alone. Returns what was updated.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "events"
+                ],
+                "summary": "Bring the differing team copies of a set up to date",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "event ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "event exercise attachment ID",
+                        "name": "exerciseID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/event.teamCopiesResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/events/{id}/manage/exercises/{exerciseID}/update": {
             "post": {
-                "description": "On a running event whose lab task would ask for more per team (a version with larger devices, an event copy that is larger), the reservation must hold the new size for all teams, else 409 (72508) \"Not enough reserved resources, request an extension\" and nothing is switched. A change that does not grow the task is not checked.\nTeams that were already prepared move to the new version: their assignments are re-pinned and their stand Labs recreated from it. Labs of a stage that is not running yet (or of an event that has not started) are recreated silently. If the set's stage is running, nothing is changed and 409 (71813) lists the affected teams (ID, Name) in status.context.teams; repeat with RecreateStands=true to recreate their Labs (teams lose lab access until the new Labs are ready). A finished event keeps its Labs.",
+                "description": "On a running event whose lab task would ask for more per team (a version with larger devices, an event copy that is larger), the reservation must hold the new size for all teams, else 409 (72508) \"Not enough reserved resources, request an extension\" and nothing is switched. A change that does not grow the task is not checked.\nBoard challenges keep their rows (id, group, order, points, publication, team copies): a task is the same by id or, when a re-import re-issued the ids, by name. Only labs whose content the new version changes are recreated (topology of the team variant, flag links); labs not started yet are re-prepared in place; the rest is kept. Recreating labs that exist needs RecreateStands=true at any time: otherwise nothing is changed and 409 (71813) lists the affected teams (ID, Name) in status.context.teams. Call .../update/preview first for the dry run. A finished event keeps its Labs.",
                 "consumes": [
                     "application/json"
                 ],
@@ -7766,7 +9282,7 @@ const docTemplate = `{
                 "tags": [
                     "events"
                 ],
-                "summary": "«Оновити»: switch the attachment in place to the latest (or given) published version, keeping event overrides",
+                "summary": "Update: switch the attachment in place to the latest (or given) published version, keeping event overrides",
                 "parameters": [
                     {
                         "type": "string",
@@ -7804,6 +9320,65 @@ const docTemplate = `{
                                     "properties": {
                                         "data": {
                                             "$ref": "#/definitions/event.eventExerciseResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/events/{id}/manage/exercises/{exerciseID}/update/preview": {
+            "post": {
+                "description": "Returns how many stands of how many teams would be recreated (StandsRecreated, TeamsAffected, Teams), how many labs are re-prepared in place because they have not started (StandsReset) or are kept as they are (StandsKept), the tasks added, removed or kept under a new task id, removed tasks with attempts that block the update, and whether the reservation is short. RequiresConfirmation is true when the update recreates running stands: repeat the update with RecreateStands=true only after the organizer confirmed.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "events"
+                ],
+                "summary": "Dry run of Update to a new version: what the update would do, nothing is changed",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "event ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "event exercise attachment ID",
+                        "name": "exerciseID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "target version (default: latest published)",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/event.updateEventExerciseRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/event.eventExerciseUpdatePreviewResponse"
                                         }
                                     }
                                 }
@@ -8216,7 +9791,7 @@ const docTemplate = `{
                 "tags": [
                     "events"
                 ],
-                "summary": "List team stands (moderator «Стенди»)",
+                "summary": "List team stands (moderator Stands)",
                 "parameters": [
                     {
                         "type": "string",
@@ -8431,7 +10006,7 @@ const docTemplate = `{
         },
         "/events/{id}/manage/labs/moderators/challenges/{challengeID}/lab/link": {
             "post": {
-                "description": "Returns https://\u003cdevice\u003e-\u003ccode\u003e.\u003cbase\u003e/_auth?t=... for the event owner and write moderators testing tasks as the hidden moderators team. The link lives about two minutes and is single use; the page fetches it on every click. The laboratory proxy sets its own session cookie; the platform sets none.",
+                "description": "Returns URL (https://\u003cdevice\u003e-\u003ccode\u003e\u003cletter\u003e.\u003cbase\u003e/_auth, no query) and Grant (a signed JWS) for the event owner and write moderators testing tasks as the hidden moderators team; the page posts Grant to URL in a form. The page fetches a new grant on every click. The laboratory proxy sets its own session cookie; the platform sets none.",
                 "consumes": [
                     "application/json"
                 ],
@@ -8441,7 +10016,7 @@ const docTemplate = `{
                 "tags": [
                     "events"
                 ],
-                "summary": "Get the link that opens one web device of a moderators team task's lab",
+                "summary": "Get the access grant that opens one web device of a moderators team task's lab",
                 "parameters": [
                     {
                         "type": "string",
@@ -9096,6 +10671,50 @@ const docTemplate = `{
                         "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/events/{id}/manage/lifecycle/changes": {
+            "get": {
+                "description": "The latest 200 recorded changes of the schedule (publication, start, finish, withdrawal, manual finish, join policy), newest first. Every change is recorded, including one made outside the application.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "events"
+                ],
+                "summary": "Who changed the event schedule, when, and from what to what",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "event ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/event.scheduleChangeResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -12175,6 +13794,96 @@ const docTemplate = `{
                 }
             }
         },
+        "/events/{id}/manage/participants/{userID}/invitation/accept": {
+            "post": {
+                "description": "Organizers are not time-limited: the registration window, publication and a formed team do not stop it; the team size still applies.",
+                "tags": [
+                    "events"
+                ],
+                "summary": "Accept a pending participant invitation on behalf of the invited person",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "event ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "invited user ID",
+                        "name": "userID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/events/{id}/manage/participants/{userID}/invitation/email": {
+            "put": {
+                "description": "Moves the pending invitation (team, captaincy and prefilled answers included) to the account of the new address and sends a new email with a new link; the old link stops working. The same address just re-sends.",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "events"
+                ],
+                "summary": "Correct the email of a pending participant invitation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "event ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "invited user ID",
+                        "name": "userID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "new email",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/event.changeInvitationEmailRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/event.ParticipantInvitationResult"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/events/{id}/manage/participants/{userID}/invitation/resend": {
             "post": {
                 "tags": [
@@ -12323,6 +14032,46 @@ const docTemplate = `{
                 }
             }
         },
+        "/events/{id}/manage/participants/{userID}/team/{teamID}": {
+            "put": {
+                "description": "The participant leaves their current team for teamID. Organizers are not time-limited (formed teams and a started event do not stop it). The captain must hand over the captaincy first; the target team needs a free seat.",
+                "tags": [
+                    "events"
+                ],
+                "summary": "Move a team member to another team",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "event ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "participant user ID",
+                        "name": "userID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "target team ID",
+                        "name": "teamID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/events/{id}/manage/participants/{userID}/visibility": {
             "put": {
                 "consumes": [
@@ -12362,6 +14111,47 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/events/{id}/manage/readiness": {
+            "get": {
+                "description": "One look before the start: the tasks participants still do not see and the stands that are not ready, with what each lab waits for.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "events"
+                ],
+                "summary": "Readiness of the event: unpublished tasks and stands that are not ready",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "event ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/event.readinessResponse"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -12945,7 +14735,7 @@ const docTemplate = `{
                 "tags": [
                     "events"
                 ],
-                "summary": "Open the results («Відкрити підсумки») or restore the freeze",
+                "summary": "Open the results (Open results) or restore the freeze",
                 "parameters": [
                     {
                         "type": "string",
@@ -15237,7 +17027,7 @@ const docTemplate = `{
         },
         "/events/{id}/teams/challenges/{challengeID}/lab/link": {
             "post": {
-                "description": "Returns https://\u003cdevice\u003e-\u003ccode\u003e.\u003cbase\u003e/_auth?t=..., signed for the caller's team lab group and client. The link lives about two minutes. It is a stateless signed token (no jti, by the proxy protocol), so it is NOT single use within that time: treat it like a password and do not share it. The page fetches it on every click and opens it. The laboratory proxy turns it into its own session cookie; the platform sets no cookie. expires_at is the end of the session the link grants.",
+                "description": "Returns URL (https://\u003cdevice\u003e-\u003ccode\u003e\u003cletter\u003e.\u003cbase\u003e/_auth, no query) and Grant, a JWS signed for the caller's team lab group, lab, device and client; the page posts Grant to URL in a form (field grant, optional next). A grant is a bearer without replay memory: treat it like a password, never put it in an address. It lasts until the event ends (plus a buffer), capped by the laboratory's limit; the page fetches a new one on every click. The laboratory proxy turns it into its own session cookie; the platform sets no cookie. ExpiresAt is the end of the grant.",
                 "consumes": [
                     "application/json"
                 ],
@@ -15247,7 +17037,7 @@ const docTemplate = `{
                 "tags": [
                     "events-self"
                 ],
-                "summary": "Get the link that opens one web device of a task's lab",
+                "summary": "Get the access grant that opens one web device of a task's lab",
                 "parameters": [
                     {
                         "type": "string",
@@ -15321,6 +17111,66 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/events/{id}/teams/challenges/{challengeID}/run-checks": {
+            "post": {
+                "description": "Only for a task checked by the state of the lab that allows a manual check. A task that waits for other tasks answers 409 with the names of what it waits for (public context waits_for). At most 3 asks a minute per team and task (429 with Retry-After). The answer only says the request was recorded.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "events-self"
+                ],
+                "summary": "Ask for a check of the caller's own task now",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "event ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "event challenge ID",
+                        "name": "challengeID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/eventself.runChecksResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
                     }
                 }
             }
@@ -16853,7 +18703,7 @@ const docTemplate = `{
         },
         "/exercises/deploys/{deployID}/link": {
             "post": {
-                "description": "Returns https://\u003cdevice\u003e-\u003ccode\u003e.\u003cbase\u003e/_auth?t=... for the author of the deploy. The link lives about two minutes and is single use; the page fetches it on every click. The laboratory proxy sets its own session cookie, which lasts until the deploy's lease ends; the platform sets none. Test traffic is never counted for an event.",
+                "description": "Returns URL (https://\u003cdevice\u003e-\u003ccode\u003e\u003cletter\u003e.\u003cbase\u003e/_auth, no query) and Grant (a signed JWS) for the author of the deploy; the page posts Grant to URL in a form (field grant, optional next). The grant lasts until the deploy's lease ends, capped by the laboratory's limit; the page fetches a new one on every click. The laboratory proxy sets its own cookie; the platform sets none. Test traffic is never counted for an event.",
                 "consumes": [
                     "application/json"
                 ],
@@ -16863,7 +18713,7 @@ const docTemplate = `{
                 "tags": [
                     "exercises"
                 ],
-                "summary": "Get the link that opens one web device of a ready test deploy",
+                "summary": "Get the access grant that opens one device of a ready test deploy",
                 "parameters": [
                     {
                         "type": "string",
@@ -16903,6 +18753,72 @@ const docTemplate = `{
                     },
                     "409": {
                         "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/exercises/deploys/{deployID}/tasks/{taskID}/run-checks": {
+            "post": {
+                "description": "Asks the laboratory to run the checks of one task checked by the state of the lab. Only a task that allows a manual run; at most 3 asks a minute per task (429 with Retry-After). The answer only says the request was recorded: read the result from the deploy status. Author of the deploy only.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "exercises"
+                ],
+                "summary": "Run the checks of a state task of a test deploy now",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "test deployment id",
+                        "name": "deployID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "task id",
+                        "name": "taskID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/exercise.deployRunChecksResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
                         "schema": {
                             "$ref": "#/definitions/response.Response"
                         }
@@ -17001,6 +18917,12 @@ const docTemplate = `{
                         "description": "pending | decided (approved or rejected) | approved | rejected; empty lists all",
                         "name": "status",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "user ID: only the requests this person made (their history)",
+                        "name": "author",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -17028,16 +18950,47 @@ const docTemplate = `{
                 }
             }
         },
-        "/exercises/elevations/{elevationID}": {
+        "/exercises/elevations/pending-count": {
             "get": {
-                "description": "Requires exercises.elevations.read (super_admin only).",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "exercises"
                 ],
-                "summary": "One resource elevation request (platform admin)",
+                "summary": "How many resource elevation requests wait for a decision (the menu badge)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/exercise.pendingElevationCountResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/exercises/elevations/{elevationID}": {
+            "get": {
+                "description": "Requires exercises.elevations.read (super_admin only). Capacity is null when it cannot be read.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "exercises"
+                ],
+                "summary": "One resource elevation request with the free cluster capacity beside it (platform admin)",
                 "parameters": [
                     {
                         "type": "string",
@@ -17252,7 +19205,7 @@ const docTemplate = `{
                 "tags": [
                     "exercises"
                 ],
-                "summary": "State of a background export «з образами»",
+                "summary": "State of a background export with images",
                 "parameters": [
                     {
                         "type": "string",
@@ -17607,14 +19560,14 @@ const docTemplate = `{
         },
         "/exercises/import/jobs": {
             "get": {
-                "description": "So a page on another device, or with cleared storage, can follow them (GET /exercises/import/jobs/{jobID}).",
+                "description": "So a page on another device, or with cleared storage, can follow them (GET /exercises/import/jobs/{jobID}).\nA running import without a heartbeat for 2 minutes is listed as failed (interrupted).",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "exercises"
                 ],
-                "summary": "The caller's background task imports that still run",
+                "summary": "The caller's open background task imports: running, or failed and not closed",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -17685,11 +19638,47 @@ const docTemplate = `{
                         }
                     }
                 }
+            },
+            "delete": {
+                "description": "The import is no longer listed (GET /exercises/import/jobs); running it again shows it again. A\nrunning import cannot be closed (409). Only the user who started it (404 otherwise).",
+                "tags": [
+                    "exercises"
+                ],
+                "summary": "Close the row of a failed background task import",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "import job ID",
+                        "name": "jobID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
             }
         },
         "/exercises/import/preview": {
             "post": {
-                "description": "Omitted Targets are nonbinding editable-ID suggestions. Explicit choices must name every item exactly once. FixedExerciseID forces one item into that editable target. Revisions bind the exact immutable source/item and current target content. Summary never returns flags or device secrets.",
+                "description": "This is the dry run of an import: nothing is written. Omitted Targets are nonbinding editable-ID suggestions (a document without an exercise id is suggested as a new exercise, with the warning no_exercise_id). Explicit choices must name every item exactly once. FixedExerciseID forces one item into that editable target. Revisions bind the exact immutable source/item and current target content. Each item carries Summary (counts) and Report: Diff (per variant, tasks and devices kept/added/removed by identity), Issues (errors that would stop the result being published, with Path), Publishable, Warnings and Usage (events and labs using the exercise). Neither returns flags or device secrets. The apply call returns the same Report per result.",
                 "consumes": [
                     "application/json"
                 ],
@@ -19087,6 +21076,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/response.Response"
                         }
+                    },
+                    "409": {
+                        "description": "the working copy was changed by someone else (Revision, SavedBy, SavedAt in the context)",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
                     }
                 }
             },
@@ -19105,6 +21100,12 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Revision of the working copy the editor saw, sent back unchanged (empty: it saw none)",
+                        "name": "revision",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -19116,6 +21117,59 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "the working copy was changed by someone else",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/exercises/{id}/draft/document": {
+            "get": {
+                "description": "Same access as reading the draft. The working copy (the draft, else the published content, else an empty copy) written as the exercise document of the archive: schema cib-exercise/1.0, one version, the keys in the order of the specification, files as their archive paths (files/...). Secret env values are empty (secret: true stays); a reader who may not see flags gets no answer values and no conditions. Content-Type application/yaml; charset=utf-8, at most 8 MiB (413 above). It is a view: nothing is written. Not wrapped in the response envelope.",
+                "produces": [
+                    "application/yaml"
+                ],
+                "tags": [
+                    "exercises"
+                ],
+                "summary": "The working copy as the exercise document (YAML)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "exercise ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "the document",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
                         "schema": {
                             "$ref": "#/definitions/response.Response"
                         }
@@ -19633,6 +21687,74 @@ const docTemplate = `{
                                             "type": "array",
                                             "items": {
                                                 "$ref": "#/definitions/exercise.imageAvailabilityResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/exercises/{id}/images/service": {
+            "post": {
+                "description": "Same access as saving the draft; the same body as images/check. The editor shows these as the default of a device's command, arguments and terminal user. One entry per distinct non-empty image, in the order sent. Known is true only for a platform image (platform:\u003cname\u003e@sha256:...) whose start configuration was read when it was published, so an image the author just uploaded is known as soon as its reference is returned. Known is false (the other fields empty) for an image by reference to an external registry (nothing reads its config), for a platform image published before the configuration was kept, and when the read fails; then the device needs its own command when it has bootstrap files or a script. No registry call is made, the answer is immediate.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "exercises"
+                ],
+                "summary": "What the images themselves run (entrypoint, cmd, user, working directory)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "exercise ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "images",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/exercise.checkImagesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/exercise.imageServiceResponse"
                                             }
                                         }
                                     }
@@ -20188,6 +22310,280 @@ const docTemplate = `{
                         "description": "Service Unavailable",
                         "schema": {
                             "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/exercises/{id}/versions/{versionID}/variants/{variantID}/measure": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "exercises"
+                ],
+                "summary": "The grader runs of a variant, newest first",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/assistant.runResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "exercises"
+                ],
+                "summary": "Start a grader run on a variant",
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/assistant.runResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/exercises/{id}/versions/{versionID}/variants/{variantID}/measure/{runID}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "exercises"
+                ],
+                "summary": "One grader run with its judged answers",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/assistant.runDetailResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/exercises/{id}/versions/{versionID}/variants/{variantID}/measure/{runID}/events": {
+            "get": {
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "exercises"
+                ],
+                "summary": "The events of a grader run, from storage (resume with ?after= or Last-Event-ID)",
+                "responses": {}
+            }
+        },
+        "/exercises/{id}/versions/{versionID}/variants/{variantID}/measure/{runID}/stop": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "exercises"
+                ],
+                "summary": "Stop a grader run; its lab is torn down",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/assistant.runResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/exercises/{id}/versions/{versionID}/variants/{variantID}/opponents/{index}/try": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "exercises"
+                ],
+                "summary": "The runs of an opponent of a variant, newest first",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/assistant.runResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "exercises"
+                ],
+                "summary": "Try an opponent of a variant against its test lab",
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/assistant.runResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/exercises/{id}/versions/{versionID}/variants/{variantID}/opponents/{index}/try/{runID}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "exercises"
+                ],
+                "summary": "One run of an opponent with its judged answers",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/assistant.runDetailResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/exercises/{id}/versions/{versionID}/variants/{variantID}/opponents/{index}/try/{runID}/events": {
+            "get": {
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "exercises"
+                ],
+                "summary": "The events of a run of an opponent, from storage (resume with ?after= or Last-Event-ID)",
+                "responses": {}
+            }
+        },
+        "/exercises/{id}/versions/{versionID}/variants/{variantID}/opponents/{index}/try/{runID}/stop": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "exercises"
+                ],
+                "summary": "Stop a run of an opponent; its lab and tools device are torn down",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/assistant.runResponse"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -21387,6 +23783,18 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "type": "string",
+                        "description": "event | team | status | reason | cpu | memory | updatedAt | statusChangedAt | generation",
+                        "name": "sortBy",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "asc | desc",
+                        "name": "sortDir",
+                        "in": "query"
+                    },
+                    {
                         "type": "integer",
                         "description": "1-based page",
                         "name": "page",
@@ -21412,6 +23820,52 @@ const docTemplate = `{
                                     "properties": {
                                         "data": {
                                             "$ref": "#/definitions/pagination.OffsetPage-infrastructure_standResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/infrastructure/stands/bulk/recreate": {
+            "post": {
+                "description": "1 to 50 stands; each gets the checks of the single recreation; one result and one audit entry per stand in request order, a refusal never stops the others. Requires infrastructure.write (super_admin only).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "infrastructure"
+                ],
+                "summary": "Recreate many team stands",
+                "parameters": [
+                    {
+                        "description": "stands",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/infrastructure.bulkRecreateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/infrastructure.bulkResponse"
                                         }
                                     }
                                 }
@@ -21447,6 +23901,47 @@ const docTemplate = `{
                                             "items": {
                                                 "$ref": "#/definitions/infrastructure.standEventResponse"
                                             }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/infrastructure/stands/facets": {
+            "get": {
+                "description": "How many stands have each value of field (status, kind or event) under the same filters as GET /infrastructure/stands (search, eventId, status, kind) except the field's own. Status keys are creating, ready, failed, removed and active (creating + ready). Requires infrastructure.read (super_admin only).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "infrastructure"
+                ],
+                "summary": "Facet counts of the stand table",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "status | kind | event",
+                        "name": "field",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/infrastructure.facetResponse"
                                         }
                                     }
                                 }
@@ -21746,6 +24241,36 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "type": "string",
+                        "description": "active | expired",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "author user ID",
+                        "name": "author",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "exercise ID",
+                        "name": "exercise",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "exercise | author | variant | status | createdAt | expiresAt",
+                        "name": "sortBy",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "asc | desc",
+                        "name": "sortDir",
+                        "in": "query"
+                    },
+                    {
                         "type": "integer",
                         "description": "1-based page",
                         "name": "page",
@@ -21771,6 +24296,93 @@ const docTemplate = `{
                                     "properties": {
                                         "data": {
                                             "$ref": "#/definitions/pagination.OffsetPage-infrastructure_testLabResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/infrastructure/test-labs/bulk/terminate": {
+            "post": {
+                "description": "1 to 100 labs; each gets the checks of the single termination; one result and one audit entry per lab in request order. Requires infrastructure.write (super_admin only).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "infrastructure"
+                ],
+                "summary": "End many catalog test labs",
+                "parameters": [
+                    {
+                        "description": "test labs",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/infrastructure.bulkTerminateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/infrastructure.bulkResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/infrastructure/test-labs/facets": {
+            "get": {
+                "description": "How many test labs have each value of field (status, author or exercise) under the same filters as GET /infrastructure/test-labs (search, status, author, exercise) except the field's own. Requires infrastructure.read (super_admin only).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "infrastructure"
+                ],
+                "summary": "Facet counts of the test laboratory table",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "status | author | exercise",
+                        "name": "field",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/infrastructure.facetResponse"
                                         }
                                     }
                                 }
@@ -22546,6 +25158,42 @@ const docTemplate = `{
                         "description": "last broadcast ID from the previous page",
                         "name": "cursor",
                         "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "page number: switches to the page-number mode (OffsetPage answer)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "page size of the page-number mode (default 50)",
+                        "name": "pageSize",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "subject, in-app title or event name (page-number mode)",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "sending | done | failed | canceled (page-number mode)",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "subject | channels | audience | recipients | delivered | failed | status | author | created (page-number mode)",
+                        "name": "sortBy",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "asc | desc (page-number mode)",
+                        "name": "sortDir",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -22704,6 +25352,58 @@ const docTemplate = `{
                 }
             }
         },
+        "/notifications/broadcasts/{broadcastID}/cancel": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notification-broadcasts"
+                ],
+                "summary": "Stop a broadcast that is still being sent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "broadcast ID",
+                        "name": "broadcastID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/messaging.broadcastResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/notifications/broadcasts/{broadcastID}/deliveries": {
             "get": {
                 "produces": [
@@ -22722,15 +25422,21 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "type": "integer",
-                        "description": "page size (default 50)",
-                        "name": "limit",
+                        "type": "string",
+                        "description": "error | done | waiting",
+                        "name": "status",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "offset",
-                        "name": "offset",
+                        "description": "page number (default 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "page size (default 50)",
+                        "name": "pageSize",
                         "in": "query"
                     }
                 ],
@@ -22746,14 +25452,45 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/messaging.deliveryResponse"
-                                            }
+                                            "$ref": "#/definitions/pagination.OffsetPage-messaging_deliveryResponse"
                                         }
                                     }
                                 }
                             ]
+                        }
+                    }
+                }
+            }
+        },
+        "/notifications/broadcasts/{broadcastID}/deliveries/export": {
+            "get": {
+                "produces": [
+                    "text/csv"
+                ],
+                "tags": [
+                    "notification-broadcasts"
+                ],
+                "summary": "Recipients of a broadcast with their outcome as CSV",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "broadcast ID",
+                        "name": "broadcastID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "error | done | waiting",
+                        "name": "status",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
                         }
                     }
                 }
@@ -22812,6 +25549,24 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "type": "string",
+                        "description": "part of the recipient email or name",
+                        "name": "recipient",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "created at or after (RFC 3339)",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "created before (RFC 3339)",
+                        "name": "to",
+                        "in": "query"
+                    },
+                    {
                         "type": "integer",
                         "description": "page size (default 50)",
                         "name": "limit",
@@ -22821,6 +25576,30 @@ const docTemplate = `{
                         "type": "string",
                         "description": "last dispatch ID from the previous cursor page",
                         "name": "cursor",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "page number: switches to the page-number mode (OffsetPage answer)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "page size of the page-number mode (default 50)",
+                        "name": "pageSize",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "type | recipient | event | status | created (page-number mode)",
+                        "name": "sortBy",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "asc | desc (page-number mode)",
+                        "name": "sortDir",
                         "in": "query"
                     }
                 ],
@@ -22837,6 +25616,93 @@ const docTemplate = `{
                                     "properties": {
                                         "data": {
                                             "$ref": "#/definitions/pagination.CursorPage-stats_dispatchDetailResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/notifications/dispatches/facets": {
+            "get": {
+                "description": "How many dispatches have each value of field under the same filters as the list (type, status, event, channel, result, transport, user, recipient, from, to) except the field's own.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notification-stats"
+                ],
+                "summary": "Facet counts of the notification log",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "type | status | event | channel | result | transport",
+                        "name": "field",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/stats.dispatchFacetResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/notifications/dispatches/resend": {
+            "post": {
+                "description": "1 to 200 dispatches; the failed channels of each are queued again from the stored content; one result per dispatch in request order; a dispatch that cannot be resent never stops the others; one audit entry per dispatch.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notification-stats"
+                ],
+                "summary": "Send the failed deliveries of many dispatches again",
+                "parameters": [
+                    {
+                        "description": "dispatches",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/stats.resendRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/stats.resendResponse"
                                         }
                                     }
                                 }
@@ -25568,6 +28434,115 @@ const docTemplate = `{
                 }
             }
         },
+        "/settings/node-profiles": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "Get the node profiles the platform supports (default: the container only), with, per profile, whether a connected laboratory agent can run it now",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/platformSettings.nodeProfilesResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "Save the supported node profiles (Container, MicroVM, VM: 1 or 0 each); a missing or unknown field, a value other than 0 or 1 or no profile at all is a 400 (Context.field)",
+                "parameters": [
+                    {
+                        "description": "Container, MicroVM and VM, 1 or 0",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/platformSettings.saveTypedRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/platformSettings.nodeProfilesResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "Remove the saved node profiles: the container only applies again",
+                "responses": {
+                    "200": {
+                        "description": "the defaults",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/platformSettings.nodeProfilesResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/settings/participant-preview": {
             "get": {
                 "produces": [
@@ -26110,6 +29085,228 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/bulk/block": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Block many users",
+                "parameters": [
+                    {
+                        "description": "users",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/user.bulkUsersRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/user.bulkUsersResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/users/bulk/end-sessions": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "End the sessions of many users",
+                "parameters": [
+                    {
+                        "description": "users",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/user.bulkUsersRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/user.bulkUsersResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/users/bulk/resend-invitation": {
+            "post": {
+                "description": "1 to 200 users; one result per user in request order; a refusal for one never stops the others. Same for /users/bulk/block, /users/bulk/unblock and /users/bulk/end-sessions.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Send the invitations of many unfinished registrations again",
+                "parameters": [
+                    {
+                        "description": "users",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/user.bulkUsersRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/user.bulkUsersResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/users/bulk/unblock": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Unblock many users",
+                "parameters": [
+                    {
+                        "description": "users",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/user.bulkUsersRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/user.bulkUsersResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/users/facets": {
+            "get": {
+                "description": "How many users have each value of field (role, status, emailConfirmed or signIn) under the same filters as GET /users (search, role, status, emailConfirmed, signIn, inactiveDays) except the field's own.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Facet counts of the users table",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "role | status | emailConfirmed | signIn",
+                        "name": "field",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/user.userFacetResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/users/invite": {
             "post": {
                 "consumes": [
@@ -26294,6 +29491,78 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/{userID}/invitation/resend": {
+            "post": {
+                "description": "Only for status incomplete; the old link stops working.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Send the invitation of an unfinished registration again",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "user UUID",
+                        "name": "userID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/{userID}/participations": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "The events a user takes part in or manages",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "user UUID",
+                        "name": "userID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/user.userParticipationResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/users/{userID}/role": {
             "patch": {
                 "consumes": [
@@ -26345,6 +29614,34 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/{userID}/sessions/end": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Sign a user out everywhere",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "user UUID",
+                        "name": "userID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/response.Response"
                         }
@@ -26412,11 +29709,31 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "adminAudit.Change": {
+            "type": "object",
+            "properties": {
+                "After": {},
+                "Before": {},
+                "Field": {
+                    "type": "string"
+                },
+                "Redacted": {
+                    "type": "boolean"
+                }
+            }
+        },
         "adminAudit.auditItem": {
             "type": "object",
             "properties": {
                 "ActorID": {
                     "type": "string"
+                },
+                "Changes": {
+                    "description": "Changes are the fields the action changed, before and after; secrets carry Redacted and no value.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/adminAudit.Change"
+                    }
                 },
                 "CreatedAt": {
                     "type": "string"
@@ -26452,6 +29769,141 @@ const docTemplate = `{
                 },
                 "NextCursor": {
                     "description": "NextCursor continues the list after the last item; empty on the last page.",
+                    "type": "string"
+                },
+                "Total": {
+                    "description": "Total is how many entries the filters match; set on the first page (no cursor) only.",
+                    "type": "integer"
+                }
+            }
+        },
+        "assistant.answerResponse": {
+            "type": "object",
+            "properties": {
+                "At": {
+                    "type": "string"
+                },
+                "Correct": {
+                    "type": "boolean"
+                },
+                "Seq": {
+                    "type": "integer"
+                },
+                "SubtaskRef": {
+                    "type": "string"
+                }
+            }
+        },
+        "assistant.runDetailResponse": {
+            "type": "object",
+            "properties": {
+                "Answers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/assistant.answerResponse"
+                    }
+                },
+                "CreatedAt": {
+                    "type": "string"
+                },
+                "DeployID": {
+                    "description": "DeployID is the test lab of the run (it shows with the author's other test labs).",
+                    "type": "string"
+                },
+                "ExpiresAt": {
+                    "type": "string"
+                },
+                "FailureReason": {
+                    "type": "string"
+                },
+                "FinishedAt": {
+                    "type": "string"
+                },
+                "ID": {
+                    "type": "string"
+                },
+                "LastSeq": {
+                    "type": "integer"
+                },
+                "Measurement": {
+                    "description": "Measurement is the brain's final aggregate, as it sent it.",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "Opponent": {
+                    "description": "Opponent is the 1-based position of the opponent in the variant's manifest (an opponent run only), Role its role.",
+                    "type": "integer"
+                },
+                "Role": {
+                    "type": "string"
+                },
+                "StartedAt": {
+                    "type": "string"
+                },
+                "State": {
+                    "description": "State is starting, running, closing, finished, failed or stopped.",
+                    "type": "string"
+                },
+                "VariantID": {
+                    "type": "string"
+                },
+                "VersionID": {
+                    "type": "string"
+                }
+            }
+        },
+        "assistant.runResponse": {
+            "type": "object",
+            "properties": {
+                "CreatedAt": {
+                    "type": "string"
+                },
+                "DeployID": {
+                    "description": "DeployID is the test lab of the run (it shows with the author's other test labs).",
+                    "type": "string"
+                },
+                "ExpiresAt": {
+                    "type": "string"
+                },
+                "FailureReason": {
+                    "type": "string"
+                },
+                "FinishedAt": {
+                    "type": "string"
+                },
+                "ID": {
+                    "type": "string"
+                },
+                "LastSeq": {
+                    "type": "integer"
+                },
+                "Measurement": {
+                    "description": "Measurement is the brain's final aggregate, as it sent it.",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "Opponent": {
+                    "description": "Opponent is the 1-based position of the opponent in the variant's manifest (an opponent run only), Role its role.",
+                    "type": "integer"
+                },
+                "Role": {
+                    "type": "string"
+                },
+                "StartedAt": {
+                    "type": "string"
+                },
+                "State": {
+                    "description": "State is starting, running, closing, finished, failed or stopped.",
+                    "type": "string"
+                },
+                "VariantID": {
+                    "type": "string"
+                },
+                "VersionID": {
                     "type": "string"
                 }
             }
@@ -26508,6 +29960,13 @@ const docTemplate = `{
         "auth.completeRegistrationRequest": {
             "type": "object",
             "properties": {
+                "AcceptedDocuments": {
+                    "description": "AcceptedDocuments lists the documents the page showed and the person accepted: \"terms\", \"privacy\". It must\ncover the documents the installation requires; empty when it requires none.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "FirstName": {
                     "type": "string"
                 },
@@ -26522,9 +29981,6 @@ const docTemplate = `{
                 },
                 "Token": {
                     "type": "string"
-                },
-                "TosVersion": {
-                    "type": "integer"
                 }
             }
         },
@@ -26536,10 +29992,155 @@ const docTemplate = `{
                 }
             }
         },
+        "auth.googleLinkCodeResponse": {
+            "type": "object",
+            "properties": {
+                "ResendAfterSeconds": {
+                    "description": "ResendAfterSeconds is how long to wait before asking for the next code.",
+                    "type": "integer"
+                }
+            }
+        },
+        "auth.googleLinkConfirmRequest": {
+            "type": "object",
+            "properties": {
+                "Code": {
+                    "type": "string"
+                },
+                "Password": {
+                    "description": "Exactly one of Password and Code.",
+                    "type": "string"
+                }
+            }
+        },
+        "auth.googleLinkPendingResponse": {
+            "type": "object",
+            "properties": {
+                "CodeSentAt": {
+                    "description": "CodeSentAt is when the last code was mailed, null if none was.",
+                    "type": "string"
+                },
+                "Email": {
+                    "description": "Email is the address of the account, masked (a***@example.org).",
+                    "type": "string"
+                },
+                "ExpiresAt": {
+                    "type": "string"
+                },
+                "GoogleEmail": {
+                    "description": "GoogleEmail and GoogleName are the Google account that will be linked; show them on the confirmation screen.",
+                    "type": "string"
+                },
+                "GoogleName": {
+                    "type": "string"
+                },
+                "HasPassword": {
+                    "description": "HasPassword: confirm with the password or the mailed code; false: only the code.",
+                    "type": "boolean"
+                }
+            }
+        },
         "auth.googleLinkResponse": {
             "type": "object",
             "properties": {
                 "Url": {
+                    "type": "string"
+                }
+            }
+        },
+        "auth.lastEmailResponse": {
+            "type": "object",
+            "properties": {
+                "Email": {
+                    "description": "Email is the remembered address, \"\" when the browser has none.",
+                    "type": "string"
+                }
+            }
+        },
+        "auth.passkeyCeremonyResponse": {
+            "type": "object",
+            "properties": {
+                "CeremonyID": {
+                    "type": "string"
+                },
+                "Options": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "auth.passkeyRegistrationFinishRequest": {
+            "type": "object",
+            "properties": {
+                "CeremonyID": {
+                    "type": "string"
+                },
+                "Credential": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "Name": {
+                    "type": "string"
+                }
+            }
+        },
+        "auth.passkeyResponse": {
+            "type": "object",
+            "properties": {
+                "AAGUID": {
+                    "type": "string"
+                },
+                "BackedUp": {
+                    "type": "boolean"
+                },
+                "BackupEligible": {
+                    "type": "boolean"
+                },
+                "Compromised": {
+                    "description": "Compromised is true once the key's counter went backwards; CompromisedAt says when. Such a key cannot sign in.",
+                    "type": "boolean"
+                },
+                "CompromisedAt": {
+                    "type": "string"
+                },
+                "CreatedAt": {
+                    "type": "string"
+                },
+                "ID": {
+                    "type": "string"
+                },
+                "LastUsedAt": {
+                    "type": "string"
+                },
+                "Name": {
+                    "type": "string"
+                },
+                "Transports": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "auth.passkeySignInFinishRequest": {
+            "type": "object",
+            "properties": {
+                "CeremonyID": {
+                    "type": "string"
+                },
+                "Credential": {
+                    "description": "Credential is the PublicKeyCredential the browser returned, as its toJSON() form.",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "Redirect": {
                     "type": "string"
                 }
             }
@@ -26729,6 +30330,156 @@ const docTemplate = `{
                 }
             }
         },
+        "dashboard.attentionItemResponse": {
+            "type": "object",
+            "properties": {
+                "At": {
+                    "type": "string"
+                },
+                "Count": {
+                    "type": "integer"
+                },
+                "ID": {
+                    "type": "string"
+                },
+                "Label": {
+                    "type": "string"
+                }
+            }
+        },
+        "dashboard.attentionResponse": {
+            "type": "object",
+            "properties": {
+                "Count": {
+                    "type": "integer"
+                },
+                "Items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dashboard.attentionItemResponse"
+                    }
+                },
+                "Kind": {
+                    "type": "string"
+                },
+                "Target": {
+                    "type": "string"
+                }
+            }
+        },
+        "dashboard.currentEventResponse": {
+            "type": "object",
+            "properties": {
+                "EventID": {
+                    "type": "string"
+                },
+                "FinishAt": {
+                    "type": "string"
+                },
+                "Name": {
+                    "type": "string"
+                },
+                "Participants": {
+                    "type": "integer"
+                },
+                "Running": {
+                    "type": "boolean"
+                },
+                "StandsReady": {
+                    "type": "integer"
+                },
+                "StandsTotal": {
+                    "type": "integer"
+                },
+                "StartAt": {
+                    "type": "string"
+                },
+                "Tag": {
+                    "type": "string"
+                },
+                "Teams": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dashboard.dashboardResponse": {
+            "type": "object",
+            "properties": {
+                "Attention": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dashboard.attentionResponse"
+                    }
+                },
+                "CurrentAndUpcoming": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dashboard.currentEventResponse"
+                    }
+                },
+                "Infrastructure": {
+                    "$ref": "#/definitions/dashboard.infrastructureResponse"
+                },
+                "Trends7d": {
+                    "$ref": "#/definitions/dashboard.trendsResponse"
+                }
+            }
+        },
+        "dashboard.infrastructureResponse": {
+            "type": "object",
+            "properties": {
+                "ActiveStands": {
+                    "type": "integer"
+                },
+                "Agents": {
+                    "type": "integer"
+                },
+                "CPUAllocatableMillicores": {
+                    "type": "integer"
+                },
+                "CPUReservedMillicores": {
+                    "type": "integer"
+                },
+                "FailedStands": {
+                    "type": "integer"
+                },
+                "MemoryAllocatableBytes": {
+                    "type": "integer"
+                },
+                "MemoryReservedBytes": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dashboard.trendsResponse": {
+            "type": "object",
+            "properties": {
+                "ActiveUsers": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "Days": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "Registrations": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "Solves": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
         "dispatchModel.ApplicationFunnel": {
             "type": "object",
             "properties": {
@@ -26800,6 +30551,46 @@ const docTemplate = `{
                 },
                 "Started": {
                     "type": "integer"
+                }
+            }
+        },
+        "errorJournal.bulkGroupResultResponse": {
+            "type": "object",
+            "properties": {
+                "Code": {
+                    "description": "Code is the catalog code of the refusal (empty when Ok); Error its English text.",
+                    "type": "string"
+                },
+                "Error": {
+                    "type": "string"
+                },
+                "GroupID": {
+                    "type": "string"
+                },
+                "Ok": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "errorJournal.bulkGroupsRequest": {
+            "type": "object",
+            "properties": {
+                "GroupIDs": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "errorJournal.bulkGroupsResponse": {
+            "type": "object",
+            "properties": {
+                "Results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/errorJournal.bulkGroupResultResponse"
+                    }
                 }
             }
         },
@@ -27019,6 +30810,10 @@ const docTemplate = `{
                     "additionalProperties": {
                         "type": "string"
                     }
+                },
+                "DispatchID": {
+                    "description": "DispatchID is the notification dispatch behind a mail failure (GET /notifications/dispatches/{id}); null\nwhen the occurrence has none.",
+                    "type": "string"
                 },
                 "HTTPStatus": {
                     "type": "integer"
@@ -27908,6 +31703,46 @@ const docTemplate = `{
                 }
             }
         },
+        "event.bulkArchiveRequest": {
+            "type": "object",
+            "properties": {
+                "EventIDs": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "event.bulkArchiveResponse": {
+            "type": "object",
+            "properties": {
+                "Results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/event.bulkEventResultResponse"
+                    }
+                }
+            }
+        },
+        "event.bulkEventResultResponse": {
+            "type": "object",
+            "properties": {
+                "Code": {
+                    "description": "Code is the catalog code of the refusal (empty when Ok); Error its English text.",
+                    "type": "string"
+                },
+                "Error": {
+                    "type": "string"
+                },
+                "EventID": {
+                    "type": "string"
+                },
+                "Ok": {
+                    "type": "boolean"
+                }
+            }
+        },
         "event.bulkExerciseDetachRequest": {
             "type": "object",
             "properties": {
@@ -28055,6 +31890,21 @@ const docTemplate = `{
                 }
             }
         },
+        "event.changeInvitationEmailRequest": {
+            "type": "object",
+            "required": [
+                "Email"
+            ],
+            "properties": {
+                "Email": {
+                    "type": "string"
+                },
+                "SendEmails": {
+                    "description": "SendEmails false moves the invitation without sending any email. Omitted means send (the default).",
+                    "type": "boolean"
+                }
+            }
+        },
         "event.configResponse": {
             "type": "object",
             "properties": {
@@ -28180,6 +32030,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "AvailableFrom": {
+                    "type": "string"
+                },
+                "CopyFromEventID": {
+                    "description": "CopyFromEventID copies the settings, theme, pages, organizers and task sets (unpublished) of that event; never\nparticipants, teams, invitations, results, stands, the reservation or analytics.",
                     "type": "string"
                 },
                 "InfrastructureAllowed": {
@@ -28320,7 +32174,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "Name": {
-                    "description": "Name empty = «Екран N».",
+                    "description": "Name empty = Screen N.",
                     "type": "string"
                 }
             }
@@ -28403,6 +32257,24 @@ const docTemplate = `{
                 "Variables": {
                     "type": "object",
                     "additionalProperties": {}
+                }
+            }
+        },
+        "event.eventCountsResponse": {
+            "type": "object",
+            "properties": {
+                "Participants": {
+                    "type": "integer"
+                },
+                "StandsReady": {
+                    "description": "StandsReady of StandsTotal: the stands of the teams (the moderators team excluded).",
+                    "type": "integer"
+                },
+                "StandsTotal": {
+                    "type": "integer"
+                },
+                "Teams": {
+                    "type": "integer"
                 }
             }
         },
@@ -28648,7 +32520,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "Scope": {
-                    "description": "W4: «версія N» is the catalog version ordinal, not the event revision.",
+                    "description": "W4: version N is the catalog version ordinal, not the event revision.",
                     "type": "string"
                 },
                 "StageID": {
@@ -28680,6 +32552,10 @@ const docTemplate = `{
                 "UpdateAvailable": {
                     "type": "boolean"
                 },
+                "UsesConsole": {
+                    "description": "UsesConsole: some device of the pinned version has a console (terminal access) in the participant's browser. Not\nmeant for events; nothing bans it.",
+                    "type": "boolean"
+                },
                 "VariantCount": {
                     "type": "integer"
                 },
@@ -28688,6 +32564,73 @@ const docTemplate = `{
                 },
                 "VersionNumber": {
                     "type": "integer"
+                }
+            }
+        },
+        "event.eventExerciseUpdatePreviewResponse": {
+            "type": "object",
+            "properties": {
+                "RequiresConfirmation": {
+                    "type": "boolean"
+                },
+                "ReservationShort": {
+                    "type": "boolean"
+                },
+                "StandsKept": {
+                    "type": "integer"
+                },
+                "StandsRecreated": {
+                    "type": "integer"
+                },
+                "StandsReset": {
+                    "type": "integer"
+                },
+                "TargetVersionID": {
+                    "type": "string"
+                },
+                "TasksAdded": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "TasksBlocking": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "TasksRemoved": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "TasksRepointed": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "Teams": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/event.eventExerciseUpdateTeamResponse"
+                    }
+                },
+                "TeamsAffected": {
+                    "type": "integer"
+                }
+            }
+        },
+        "event.eventExerciseUpdateTeamResponse": {
+            "type": "object",
+            "properties": {
+                "ID": {
+                    "type": "string"
+                },
+                "Name": {
+                    "type": "string"
                 }
             }
         },
@@ -28986,7 +32929,18 @@ const docTemplate = `{
                 "AvailableFrom": {
                     "type": "string"
                 },
+                "Counts": {
+                    "description": "Counts is set in the page (offset) list only.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/event.eventCountsResponse"
+                        }
+                    ]
+                },
                 "CreatedAt": {
+                    "type": "string"
+                },
+                "FinishAt": {
                     "type": "string"
                 },
                 "ID": {
@@ -29000,6 +32954,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "Name": {
+                    "type": "string"
+                },
+                "StartAt": {
+                    "description": "StartAt / FinishAt: the schedule (null until it is configured; FinishAt null without a finish).",
                     "type": "string"
                 },
                 "Status": {
@@ -29055,6 +33013,19 @@ const docTemplate = `{
                 "State": {
                     "description": "State is computed from time: upcoming | open | closed.",
                     "type": "string"
+                }
+            }
+        },
+        "event.facetResponse": {
+            "type": "object",
+            "properties": {
+                "Counts": {
+                    "description": "Counts maps a value of the field to the number of events with it under the other filters; values with no\nevents are absent.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
                 }
             }
         },
@@ -29261,6 +33232,14 @@ const docTemplate = `{
                 },
                 "PublishAt": {
                     "type": "string"
+                },
+                "ReservationShortenedTo": {
+                    "description": "ReservationShortenedTo is set only in the answer to a schedule change that ended the event's reservation\nearlier (the withdrawal is before the old end): the new end of the reservation, where the labs are stopped and\ndeleted. RunningLabs is how many labs ran at that moment. The UI confirms before saving.",
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "RunningLabs": {
+                    "type": "integer"
                 },
                 "StartAt": {
                     "type": "string"
@@ -29655,7 +33634,11 @@ const docTemplate = `{
                 "expiresAt": {
                     "type": "string"
                 },
+                "grant": {
+                    "type": "string"
+                },
                 "url": {
+                    "description": "URL is https://\u003chost\u003e/_auth, without a query or a fragment; Grant is posted to it in the form field ` + "`" + `grant` + "`" + `.",
                     "type": "string"
                 }
             }
@@ -29817,6 +33800,20 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "Name": {
+                    "type": "string"
+                }
+            }
+        },
+        "event.organizerResponse": {
+            "type": "object",
+            "properties": {
+                "Email": {
+                    "type": "string"
+                },
+                "Name": {
+                    "type": "string"
+                },
+                "UserID": {
                     "type": "string"
                 }
             }
@@ -30256,6 +34253,66 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                },
+                "UsesConsole": {
+                    "description": "UsesConsole: some device of the published version has a console (terminal access). Not meant for events.",
+                    "type": "boolean"
+                }
+            }
+        },
+        "event.readinessResponse": {
+            "type": "object",
+            "properties": {
+                "Ready": {
+                    "description": "Ready: nothing to warn about (every task is published and every stand is ready).",
+                    "type": "boolean"
+                },
+                "Stands": {
+                    "description": "Stands are the stands that are not ready, with their labs (Status, Reason, WaitReason, WaitSince).",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/event.standTeamResponse"
+                    }
+                },
+                "StandsApplicable": {
+                    "description": "StandsApplicable: the event uses stands; StandsTotal / StandsReady count every team stand.",
+                    "type": "boolean"
+                },
+                "StandsReady": {
+                    "type": "integer"
+                },
+                "StandsTotal": {
+                    "type": "integer"
+                },
+                "StartAt": {
+                    "type": "string"
+                },
+                "Started": {
+                    "type": "boolean"
+                },
+                "UnpublishedTasks": {
+                    "description": "UnpublishedTasks are the tasks of the active sets that participants do not see.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/event.readinessTaskResponse"
+                    }
+                }
+            }
+        },
+        "event.readinessTaskResponse": {
+            "type": "object",
+            "properties": {
+                "ChallengeID": {
+                    "type": "string"
+                },
+                "ExerciseID": {
+                    "type": "string"
+                },
+                "Name": {
+                    "type": "string"
+                },
+                "StageID": {
+                    "type": "string"
                 }
             }
         },
@@ -30333,7 +34390,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "RecreateStands": {
-                    "description": "RecreateStands confirms recreating the stand Labs of teams whose stage is already running.",
+                    "description": "RecreateStands confirms recreating running stand Labs (the preview says whether the update does).",
                     "type": "boolean"
                 }
             }
@@ -30546,6 +34603,59 @@ const docTemplate = `{
                 },
                 "ScoreboardVisibility": {
                     "$ref": "#/definitions/eventConfigModel.Visibility"
+                }
+            }
+        },
+        "event.scheduleChangeResponse": {
+            "type": "object",
+            "properties": {
+                "After": {
+                    "$ref": "#/definitions/event.scheduleResponse"
+                },
+                "Before": {
+                    "$ref": "#/definitions/event.scheduleResponse"
+                },
+                "ByApplication": {
+                    "type": "boolean"
+                },
+                "ChangedAt": {
+                    "type": "string"
+                },
+                "ChangedBy": {
+                    "type": "string"
+                },
+                "ChangedByName": {
+                    "description": "ChangedByName is the manager's name or email. ByApplication false: the schedule changed outside the\napplication (a hand edit in the database); DBRole is then the database role that did it.",
+                    "type": "string"
+                },
+                "DBRole": {
+                    "type": "string"
+                },
+                "ID": {
+                    "type": "string"
+                }
+            }
+        },
+        "event.scheduleResponse": {
+            "type": "object",
+            "properties": {
+                "FinishAt": {
+                    "type": "string"
+                },
+                "JoinPolicy": {
+                    "type": "integer"
+                },
+                "ManualFinishedAt": {
+                    "type": "string"
+                },
+                "PublishAt": {
+                    "type": "string"
+                },
+                "StartAt": {
+                    "type": "string"
+                },
+                "WithdrawAt": {
+                    "type": "string"
                 }
             }
         },
@@ -30787,7 +34897,26 @@ const docTemplate = `{
                 "Reason": {
                     "type": "string"
                 },
+                "RetryAttempts": {
+                    "description": "RetryAttempts counts the automatic retries after failures.",
+                    "type": "integer"
+                },
                 "Status": {
+                    "type": "string"
+                },
+                "Wait": {
+                    "description": "Wait is what the lab needs and what the event's reservation has left; null when none was recorded.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/event.standWaitResponse"
+                        }
+                    ]
+                },
+                "WaitReason": {
+                    "description": "WaitReason is the code of what a pending lab waits for (cluster_reservation, snapshot_quota,\npersistence_unavailable, ...), \"\" when nothing; WaitSince since when.",
+                    "type": "string"
+                },
+                "WaitSince": {
                     "type": "string"
                 }
             }
@@ -30807,13 +34936,17 @@ const docTemplate = `{
                         "$ref": "#/definitions/labview.DeviceResponse"
                     }
                 },
+                "Gateways": {
+                    "description": "Gateways are the VPN entries and Internet exits of the lab with their /24 and state (each VPN gateway has its own\nreverse-connection state); empty for a lab without any.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/labview.GatewayResponse"
+                    }
+                },
                 "GroupImageWarning": {
                     "type": "string"
                 },
                 "ImageWarning": {
-                    "type": "string"
-                },
-                "InternetCIDR": {
                     "type": "string"
                 },
                 "Phase": {
@@ -30829,9 +34962,6 @@ const docTemplate = `{
                 },
                 "Ready": {
                     "type": "boolean"
-                },
-                "VPNCIDR": {
-                    "type": "string"
                 }
             }
         },
@@ -30970,6 +35100,29 @@ const docTemplate = `{
                 }
             }
         },
+        "event.standWaitResponse": {
+            "type": "object",
+            "properties": {
+                "HaveCPUMillicores": {
+                    "type": "integer"
+                },
+                "HaveMemoryBytes": {
+                    "type": "integer"
+                },
+                "HaveStorageBytes": {
+                    "type": "integer"
+                },
+                "NeedCPUMillicores": {
+                    "type": "integer"
+                },
+                "NeedMemoryBytes": {
+                    "type": "integer"
+                },
+                "NeedStorageBytes": {
+                    "type": "integer"
+                }
+            }
+        },
         "event.standsResponse": {
             "type": "object",
             "properties": {
@@ -31014,6 +35167,52 @@ const docTemplate = `{
                 }
             }
         },
+        "event.teamCopiesResponse": {
+            "type": "object",
+            "properties": {
+                "Items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/event.teamCopyDiffResponse"
+                    }
+                },
+                "Outdated": {
+                    "type": "integer"
+                },
+                "Total": {
+                    "description": "Total counts the team copies of the set, Outdated those that differ from the task now.",
+                    "type": "integer"
+                }
+            }
+        },
+        "event.teamCopyDiffResponse": {
+            "type": "object",
+            "properties": {
+                "ChallengeID": {
+                    "type": "string"
+                },
+                "ChallengeName": {
+                    "type": "string"
+                },
+                "Differs": {
+                    "description": "Differs lists what differs: name, description, difficulty, attachments, placeholders, hints.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "Solved": {
+                    "description": "Solved copies keep their pinned content and are not synced.",
+                    "type": "boolean"
+                },
+                "TeamID": {
+                    "type": "string"
+                },
+                "TeamName": {
+                    "type": "string"
+                }
+            }
+        },
         "event.teamInvitationResponse": {
             "type": "object",
             "properties": {
@@ -31022,6 +35221,13 @@ const docTemplate = `{
                 },
                 "Email": {
                     "type": "string"
+                },
+                "InvitationAwaitingPublication": {
+                    "type": "boolean"
+                },
+                "InvitationExpired": {
+                    "description": "InvitationExpired: the person can no longer accept it; InvitationAwaitingPublication: the event is not\npublished yet and the invitation becomes acceptable at publication (not expired).",
+                    "type": "boolean"
                 },
                 "InvitationSentAt": {
                     "type": "string"
@@ -31254,7 +35460,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "RecreateStands": {
-                    "description": "RecreateStands confirms recreating the stand Labs of teams whose stage is already running.",
+                    "description": "RecreateStands confirms recreating running stand Labs (the preview says whether the update does).",
                     "type": "boolean"
                 }
             }
@@ -31303,7 +35509,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "CloseNow": {
-                    "description": "CloseNow ends an open stage now («Закрити зараз»).",
+                    "description": "CloseNow ends an open stage now (Close now).",
                     "type": "boolean"
                 },
                 "ClosesAt": {
@@ -31461,7 +35667,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "People": {
-                    "description": "People: per-person rows of «Використання» (names, visits, VPN sessions).",
+                    "description": "People: per-person rows of Usage (names, visits, VPN sessions).",
                     "type": "boolean"
                 },
                 "Sections": {
@@ -33204,6 +37410,68 @@ const docTemplate = `{
                 }
             }
         },
+        "eventAnalytics.submissionResponse": {
+            "type": "object",
+            "properties": {
+                "ChallengeID": {
+                    "type": "string"
+                },
+                "ChallengeName": {
+                    "type": "string"
+                },
+                "Email": {
+                    "type": "string"
+                },
+                "MinutesFromOpen": {
+                    "type": "integer"
+                },
+                "MinutesFromStart": {
+                    "description": "MinutesFromStart counts from the event start (0 before it); MinutesFromOpen from the team's first open of\nthe task, null when none was recorded.",
+                    "type": "integer"
+                },
+                "ParticipantName": {
+                    "type": "string"
+                },
+                "ParticipantWrong": {
+                    "description": "ParticipantWrong / TeamWrong are the wrong attempts before the correct one.",
+                    "type": "integer"
+                },
+                "SubmittedAt": {
+                    "type": "string"
+                },
+                "TeamID": {
+                    "type": "string"
+                },
+                "TeamName": {
+                    "type": "string"
+                },
+                "TeamWrong": {
+                    "type": "integer"
+                },
+                "UserID": {
+                    "type": "string"
+                }
+            }
+        },
+        "eventAnalytics.submissionsResponse": {
+            "type": "object",
+            "properties": {
+                "Items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/eventAnalytics.submissionResponse"
+                    }
+                },
+                "Note": {
+                    "description": "Note is the caveat that goes with the numbers: they count who SUBMITTED a correct flag, not who solved\nthe task (code submissions_not_solutions).",
+                    "type": "string"
+                },
+                "PeopleHidden": {
+                    "description": "PeopleHidden: the caller may not see people (a read-only moderator): the participant names and ids are\nempty and the addresses masked.",
+                    "type": "boolean"
+                }
+            }
+        },
         "eventAnalytics.taskDetailResponse": {
             "type": "object",
             "properties": {
@@ -34529,6 +38797,9 @@ const docTemplate = `{
                 "ExpiresAt": {
                     "type": "string"
                 },
+                "Grant": {
+                    "type": "string"
+                },
                 "LabID": {
                     "type": "string"
                 },
@@ -34536,6 +38807,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "URL": {
+                    "description": "URL is https://\u003chost\u003e/_auth, without a query or a fragment; Grant is posted to it in the form field ` + "`" + `grant` + "`" + `.",
                     "type": "string"
                 }
             }
@@ -34549,8 +38821,12 @@ const docTemplate = `{
                         "$ref": "#/definitions/eventself.labAccessResponse"
                     }
                 },
-                "InternetCIDR": {
-                    "type": "string"
+                "Gateways": {
+                    "description": "Gateways are the VPN entries and Internet exits of the lab with their /24 and readiness; empty for a lab without any.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/labview.GatewayResponse"
+                    }
                 },
                 "Lab": {
                     "$ref": "#/definitions/labview.ParticipantLabResponse"
@@ -34561,7 +38837,8 @@ const docTemplate = `{
                 "Ready": {
                     "type": "boolean"
                 },
-                "VPNCIDR": {
+                "State": {
+                    "description": "State: ready | starting | restarting | unavailable | failed | closed. Access holds addresses only when ready.",
                     "type": "string"
                 }
             }
@@ -35357,6 +39634,15 @@ const docTemplate = `{
                 }
             }
         },
+        "eventself.runChecksResponse": {
+            "type": "object",
+            "properties": {
+                "Asked": {
+                    "description": "Asked: the laboratory was asked to check the task now. The result is not in this answer: the task is marked solved by\nitself once its checks pass (read the board). Nothing of what is checked, expected or found is ever returned.",
+                    "type": "boolean"
+                }
+            }
+        },
         "eventself.scoreboardEntryResponse": {
             "type": "object",
             "properties": {
@@ -35537,6 +39823,14 @@ const docTemplate = `{
                 },
                 "ReplacesDraft": {
                     "type": "boolean"
+                },
+                "Report": {
+                    "description": "Report is the dry-run answer: what stays, comes and goes by identity, the errors that would stop the result\nbeing published, who uses the exercise and the warnings. The apply call returns the same report per item.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/exerciseModel.ImportReport"
+                        }
+                    ]
                 },
                 "SourceExerciseID": {
                     "type": "string"
@@ -35741,6 +40035,36 @@ const docTemplate = `{
                 }
             }
         },
+        "exercise.accessDTO": {
+            "type": "object",
+            "properties": {
+                "Command": {
+                    "type": "string"
+                },
+                "Kind": {
+                    "type": "string",
+                    "enum": [
+                        "http",
+                        "terminal",
+                        "vnc",
+                        "rdp"
+                    ]
+                },
+                "Port": {
+                    "type": "integer"
+                },
+                "Protocol": {
+                    "type": "string",
+                    "enum": [
+                        "http",
+                        "https"
+                    ]
+                },
+                "User": {
+                    "type": "string"
+                }
+            }
+        },
         "exercise.accessEventResponse": {
             "type": "object",
             "properties": {
@@ -35789,6 +40113,33 @@ const docTemplate = `{
                 },
                 "IsAdmin": {
                     "type": "boolean"
+                }
+            }
+        },
+        "exercise.answerDTO": {
+            "type": "object",
+            "properties": {
+                "IgnoreCase": {
+                    "type": "boolean"
+                },
+                "InputHint": {
+                    "type": "string"
+                },
+                "Trim": {
+                    "type": "boolean"
+                },
+                "Type": {
+                    "type": "string",
+                    "enum": [
+                        "flag",
+                        "text"
+                    ]
+                },
+                "Values": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -35881,6 +40232,57 @@ const docTemplate = `{
                 }
             }
         },
+        "exercise.bootstrapDTO": {
+            "type": "object",
+            "properties": {
+                "Env": {
+                    "type": "array",
+                    "maxItems": 64,
+                    "items": {
+                        "$ref": "#/definitions/exercise.envVarDTO"
+                    }
+                },
+                "Files": {
+                    "type": "array",
+                    "maxItems": 32,
+                    "items": {
+                        "$ref": "#/definitions/exercise.bootstrapFileDTO"
+                    }
+                },
+                "Interpreter": {
+                    "type": "string"
+                },
+                "Script": {
+                    "type": "string"
+                },
+                "Timeout": {
+                    "type": "string"
+                }
+            }
+        },
+        "exercise.bootstrapFileDTO": {
+            "type": "object",
+            "properties": {
+                "Content": {
+                    "type": "string"
+                },
+                "Group": {
+                    "type": "string"
+                },
+                "Mode": {
+                    "type": "string"
+                },
+                "Owner": {
+                    "type": "string"
+                },
+                "Path": {
+                    "type": "string"
+                },
+                "Source": {
+                    "$ref": "#/definitions/exercise.attachmentDTO"
+                }
+            }
+        },
         "exercise.bulkAccessRequest": {
             "type": "object",
             "required": [
@@ -35966,6 +40368,17 @@ const docTemplate = `{
                 }
             }
         },
+        "exercise.checkDTO": {
+            "type": "object",
+            "properties": {
+                "Answer": {
+                    "$ref": "#/definitions/exercise.answerDTO"
+                },
+                "State": {
+                    "$ref": "#/definitions/exercise.stateDTO"
+                }
+            }
+        },
         "exercise.checkImagesRequest": {
             "type": "object",
             "required": [
@@ -35999,6 +40412,46 @@ const docTemplate = `{
             "properties": {
                 "SHA256": {
                     "description": "SHA256 is the hex digest of the whole file, computed by the client.",
+                    "type": "string"
+                }
+            }
+        },
+        "exercise.conditionDTO": {
+            "type": "object",
+            "properties": {
+                "Custom": {
+                    "description": "Custom runs a command of the author in the device; User empty = nobody (applied by the laboratory, not stored).",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/exercise.customCheckDTO"
+                        }
+                    ]
+                },
+                "DeviceID": {
+                    "type": "string"
+                },
+                "Directory": {
+                    "$ref": "#/definitions/exercise.directoryCheckDTO"
+                },
+                "File": {
+                    "$ref": "#/definitions/exercise.fileCheckDTO"
+                },
+                "KernelParam": {
+                    "$ref": "#/definitions/exercise.kernelParamCheckDTO"
+                },
+                "Permission": {
+                    "$ref": "#/definitions/exercise.permissionCheckDTO"
+                },
+                "Port": {
+                    "$ref": "#/definitions/exercise.portCheckDTO"
+                },
+                "Process": {
+                    "$ref": "#/definitions/exercise.processCheckDTO"
+                },
+                "Request": {
+                    "$ref": "#/definitions/exercise.requestCheckDTO"
+                },
+                "Timeout": {
                     "type": "string"
                 }
             }
@@ -36070,6 +40523,26 @@ const docTemplate = `{
                 }
             }
         },
+        "exercise.customCheckDTO": {
+            "type": "object",
+            "properties": {
+                "Interpreter": {
+                    "type": "string"
+                },
+                "OutputContains": {
+                    "type": "string"
+                },
+                "OutputMatches": {
+                    "type": "string"
+                },
+                "Run": {
+                    "type": "string"
+                },
+                "User": {
+                    "type": "string"
+                }
+            }
+        },
         "exercise.decideElevationRequest": {
             "type": "object",
             "properties": {
@@ -36102,6 +40575,32 @@ const docTemplate = `{
                 }
             }
         },
+        "exercise.deployCheckDetailResponse": {
+            "type": "object",
+            "properties": {
+                "ChangedAt": {
+                    "type": "string"
+                },
+                "Detail": {
+                    "type": "string"
+                },
+                "FirstPassedAt": {
+                    "type": "string"
+                },
+                "ID": {
+                    "type": "string"
+                },
+                "Known": {
+                    "type": "boolean"
+                },
+                "Passed": {
+                    "type": "boolean"
+                },
+                "Value": {
+                    "type": "string"
+                }
+            }
+        },
         "exercise.deployCheckRequest": {
             "type": "object",
             "required": [
@@ -36127,6 +40626,18 @@ const docTemplate = `{
         "exercise.deployDeviceResponse": {
             "type": "object",
             "properties": {
+                "Bootstrap": {
+                    "description": "Bootstrap is the device's bootstrap (Phase pending, done or failed, its attempts and the author's reason); absent for a\ndevice without one.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/labview.BootstrapResponse"
+                        }
+                    ]
+                },
+                "Limit": {
+                    "description": "Limit is the code of a resource limit the device hits (\"device_cpu_limit\": more than half of its CPU periods\nare throttled; the frontend says «device hits the CPU limit»); absent when none. Only the test run reports it.",
+                    "type": "string"
+                },
                 "Name": {
                     "type": "string"
                 },
@@ -36161,10 +40672,19 @@ const docTemplate = `{
                 "Device"
             ],
             "properties": {
+                "Access": {
+                    "description": "Access is http (default) or terminal: the console of the device. For terminal Port is ignored and the link opens the\ndevice's own console host (the url of its terminal access entry). 404 (33518) when the lab cannot give a console link.",
+                    "type": "string",
+                    "enum": [
+                        "http",
+                        "terminal"
+                    ]
+                },
                 "Device": {
                     "type": "string"
                 },
                 "Port": {
+                    "description": "Port is the web port from the deploy status (access http).",
                     "type": "integer"
                 }
             }
@@ -36175,7 +40695,12 @@ const docTemplate = `{
                 "ExpiresAt": {
                     "type": "string"
                 },
+                "Grant": {
+                    "description": "Grant is the signed access grant the frontend posts to URL in the form field ` + "`" + `grant` + "`" + `; never put it in an address.",
+                    "type": "string"
+                },
                 "URL": {
+                    "description": "URL is https://\u003chost\u003e/_auth, without a query or a fragment.",
                     "type": "string"
                 }
             }
@@ -36267,6 +40792,50 @@ const docTemplate = `{
                 }
             }
         },
+        "exercise.deployRunChecksResponse": {
+            "type": "object",
+            "properties": {
+                "Asked": {
+                    "description": "Asked: the laboratory was asked to run the checks of the task now. The result comes with the next status.",
+                    "type": "boolean"
+                }
+            }
+        },
+        "exercise.deployStateTaskResponse": {
+            "type": "object",
+            "properties": {
+                "Checks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/exercise.deployCheckDetailResponse"
+                    }
+                },
+                "FirstSolvedAt": {
+                    "type": "string"
+                },
+                "Key": {
+                    "type": "string"
+                },
+                "Known": {
+                    "type": "boolean"
+                },
+                "Manual": {
+                    "type": "boolean"
+                },
+                "Mode": {
+                    "type": "string"
+                },
+                "Solved": {
+                    "type": "boolean"
+                },
+                "SolvedAt": {
+                    "type": "string"
+                },
+                "TaskID": {
+                    "type": "string"
+                }
+            }
+        },
         "exercise.deployStatusResponse": {
             "type": "object",
             "properties": {
@@ -36293,14 +40862,18 @@ const docTemplate = `{
                     "description": "ExpiresAt is the end of the lease; Expired: it is over but the lab is not removed yet (it can only be ended).",
                     "type": "string"
                 },
+                "Gateways": {
+                    "description": "Gateways are the VPN entries and Internet exits of the lab with their /24 and state; empty for a lab without any.\nEach VPN gateway carries its own reverse-connection state.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/labview.GatewayResponse"
+                    }
+                },
                 "GroupImageWarning": {
                     "type": "string"
                 },
                 "ImageWarning": {
                     "description": "ImageWarning lists the lab images pulled by tag (not pinned to a digest); GroupImageWarning is the same for\nthe VPN or gateway image. Empty when fine.",
-                    "type": "string"
-                },
-                "InternetCIDR": {
                     "type": "string"
                 },
                 "Phase": {
@@ -36322,14 +40895,18 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "SolvedTaskIDs": {
-                    "description": "SolvedTaskIDs are the tasks the author has already checked correctly.",
+                    "description": "SolvedTaskIDs are the tasks the author has already checked correctly, and the state tasks whose checks pass.",
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
                 },
-                "VPNCIDR": {
-                    "type": "string"
+                "StateTasks": {
+                    "description": "StateTasks is where every task checked by the state of the lab stands (author only, with the details of the checks);\nabsent for a variant without such tasks.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/exercise.deployStateTaskResponse"
+                    }
                 },
                 "VPNConfig": {
                     "type": "string"
@@ -36384,15 +40961,53 @@ const docTemplate = `{
         "exercise.deviceDTO": {
             "type": "object",
             "properties": {
-                "EnvVars": {
+                "Access": {
+                    "description": "Access replaces the former External and Terminal keys.",
                     "type": "array",
-                    "maxItems": 64,
                     "items": {
-                        "$ref": "#/definitions/exercise.envVarDTO"
+                        "$ref": "#/definitions/exercise.accessDTO"
                     }
                 },
-                "External": {
-                    "$ref": "#/definitions/exercise.externalDTO"
+                "Args": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "Bootstrap": {
+                    "description": "Bootstrap is what happens to a clean device before its service starts; its Env are the variables of the\nservice process. Absent when the device has none.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/exercise.bootstrapDTO"
+                        }
+                    ]
+                },
+                "Command": {
+                    "description": "Command and Args replace the entrypoint and arguments of the image (up to 32 and 64 entries).",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "DHCP": {
+                    "description": "The settings of a gateway (Type vpn_gateway or internet_gateway); no other device has them. A gateway has no image,\ninterfaces, access or bootstrap, and one port, eth0, that a connection endpoint names. DHCP switches the DHCP server of the\ngateway's network on and needs DHCPRanges. DNS (one IPv4 address, internet_gateway only) is what that server advertises.\nReverseConnections (vpn_gateway only): devices of the lab may start connections to the participants' machines (default false).",
+                    "type": "boolean"
+                },
+                "DHCPRanges": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/exercise.dhcpRangeDTO"
+                    }
+                },
+                "DNS": {
+                    "type": "string"
+                },
+                "Hardware": {
+                    "type": "string",
+                    "enum": [
+                        "fast",
+                        "compatible"
+                    ]
                 },
                 "ID": {
                     "type": "string"
@@ -36417,6 +41032,15 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "Profile": {
+                    "description": "Profile (a node only) is container, microvm or vm; empty is the container. Only the profiles the platform\nsupports can be saved.",
+                    "type": "string",
+                    "enum": [
+                        "container",
+                        "microvm",
+                        "vm"
+                    ]
+                },
                 "ResourcePreset": {
                     "description": "ResourcePreset is a platform preset id (a whole number of blocks, see the capabilities Resources); when empty\nthe device gets the default preset. There is no custom size.",
                     "type": "string"
@@ -36429,11 +41053,23 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "ReverseConnections": {
+                    "type": "boolean"
+                },
                 "SecurityPreset": {
                     "description": "SecurityPreset is the device security profile: standard (the default when empty) or extended (raw sockets,\nNET_ADMIN and /dev/net/tun). Any other value is refused.",
                     "type": "string"
                 },
+                "System": {
+                    "description": "System (linux|windows) and Hardware (fast|compatible) are reserved for the vm profile.",
+                    "type": "string",
+                    "enum": [
+                        "linux",
+                        "windows"
+                    ]
+                },
                 "Type": {
+                    "description": "Type is node, unmanaged-switch, hub, vpn_gateway or internet_gateway; the former value container is still read as a\nnode with the container profile.",
                     "type": "string"
                 },
                 "WaitReadyFile": {
@@ -36482,6 +41118,71 @@ const docTemplate = `{
                 }
             }
         },
+        "exercise.directoryCheckDTO": {
+            "type": "object",
+            "properties": {
+                "Exists": {
+                    "type": "boolean"
+                },
+                "Group": {
+                    "type": "string"
+                },
+                "HasEntries": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "LacksEntries": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "Mode": {
+                    "type": "string"
+                },
+                "Owner": {
+                    "type": "string"
+                },
+                "Path": {
+                    "type": "string"
+                }
+            }
+        },
+        "exercise.elevationCapacityResponse": {
+            "type": "object",
+            "properties": {
+                "AskedCPUMillicores": {
+                    "type": "integer"
+                },
+                "AskedMemoryBytes": {
+                    "type": "integer"
+                },
+                "CPUUnlimited": {
+                    "type": "boolean"
+                },
+                "CapacityCPUMillicores": {
+                    "type": "integer"
+                },
+                "CapacityMemoryBytes": {
+                    "type": "integer"
+                },
+                "Fits": {
+                    "description": "Fits: the free room covers what the request asks.",
+                    "type": "boolean"
+                },
+                "FreeCPUMillicores": {
+                    "type": "integer"
+                },
+                "FreeMemoryBytes": {
+                    "type": "integer"
+                },
+                "MemoryUnlimited": {
+                    "type": "boolean"
+                }
+            }
+        },
         "exercise.elevationDeviceResponse": {
             "type": "object",
             "properties": {
@@ -36510,6 +41211,14 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/exercise.elevationDeviceResponse"
                     }
+                },
+                "Capacity": {
+                    "description": "Capacity is the room the cluster has now beside what the request asks; only the single-request read fills it.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/exercise.elevationCapacityResponse"
+                        }
+                    ]
                 },
                 "DecidedAt": {
                     "type": "string"
@@ -36663,6 +41372,10 @@ const docTemplate = `{
                 "HasDraft": {
                     "type": "boolean"
                 },
+                "HasMissingSecrets": {
+                    "description": "HasMissingSecrets: the visible version has secret variables with no value yet (a task made automatically declares\nthem empty): the catalog marks it as created automatically, with values still needed. The version lists them.",
+                    "type": "boolean"
+                },
                 "HasPublished": {
                     "type": "boolean"
                 },
@@ -36738,6 +41451,10 @@ const docTemplate = `{
                 "UpdatedAt": {
                     "type": "string"
                 },
+                "UsesConsole": {
+                    "description": "UsesConsole: some device of the published version has a terminal access entry (a console in the browser). A console\nis not meant for events; the event side shows it.",
+                    "type": "boolean"
+                },
                 "VariantCount": {
                     "description": "VariantCount is how many variants the visible snapshot has; null without one (offset pages only).",
                     "type": "integer"
@@ -36804,6 +41521,19 @@ const docTemplate = `{
                 "Description": {
                     "type": "string"
                 },
+                "DraftRevision": {
+                    "description": "DraftRevision is the opaque revision of the working copy (\"\" when there is none): send it back, unchanged and\nunparsed, with the next write of the working copy. DraftUpdatedAt/By/ByName say when and by whom it was last saved.",
+                    "type": "string"
+                },
+                "DraftUpdatedAt": {
+                    "type": "string"
+                },
+                "DraftUpdatedBy": {
+                    "type": "string"
+                },
+                "DraftUpdatedByName": {
+                    "type": "string"
+                },
                 "DraftVersionID": {
                     "type": "string"
                 },
@@ -36811,6 +41541,10 @@ const docTemplate = `{
                     "$ref": "#/definitions/exercise.forkSourceResponse"
                 },
                 "HasChanges": {
+                    "type": "boolean"
+                },
+                "HasMissingSecrets": {
+                    "description": "HasMissingSecrets: the visible version has secret variables with no value yet (a task made automatically declares\nthem empty): the catalog marks it as created automatically, with values still needed. The version lists them.",
                     "type": "boolean"
                 },
                 "ID": {
@@ -36871,6 +41605,10 @@ const docTemplate = `{
                 },
                 "UpdatedByName": {
                     "type": "string"
+                },
+                "UsesConsole": {
+                    "description": "UsesConsole: some device of the published version has a terminal access entry (a console in the browser). A console\nis not meant for events; the event side shows it.",
+                    "type": "boolean"
                 }
             }
         },
@@ -36914,7 +41652,7 @@ const docTemplate = `{
                     }
                 },
                 "IncludeImages": {
-                    "description": "IncludeImages writes the platform images of the devices into the archive («з образами», up to 10 GiB): the export\nthen runs in the background, 202 {JobID}.",
+                    "description": "IncludeImages writes the platform images of the devices into the archive (with images, up to 10 GiB): the export\nthen runs in the background, 202 {JobID}.",
                     "type": "boolean"
                 },
                 "IncludeSecrets": {
@@ -36945,7 +41683,7 @@ const docTemplate = `{
                     ]
                 },
                 "State": {
-                    "description": "State is running, done or failed.",
+                    "description": "State is queued (no worker has started it yet), running, done or failed.",
                     "type": "string"
                 }
             }
@@ -36980,14 +41718,40 @@ const docTemplate = `{
                 }
             }
         },
-        "exercise.externalDTO": {
+        "exercise.fileCheckDTO": {
             "type": "object",
             "properties": {
-                "Port": {
-                    "type": "integer"
-                },
-                "Protocol": {
+                "Checksum": {
                     "type": "string"
+                },
+                "Contains": {
+                    "type": "string"
+                },
+                "Exists": {
+                    "type": "boolean"
+                },
+                "Group": {
+                    "type": "string"
+                },
+                "Matches": {
+                    "type": "string"
+                },
+                "Mode": {
+                    "type": "string"
+                },
+                "Owner": {
+                    "type": "string"
+                },
+                "Path": {
+                    "type": "string"
+                },
+                "Type": {
+                    "type": "string",
+                    "enum": [
+                        "file",
+                        "directory",
+                        "symlink"
+                    ]
                 }
             }
         },
@@ -37107,6 +41871,36 @@ const docTemplate = `{
                 },
                 "Image": {
                     "description": "Image: a registry reference (nginx:1.28) or a platform image (platform:\u003cname\u003e@sha256:…); checked on publish.",
+                    "type": "string"
+                }
+            }
+        },
+        "exercise.imageServiceResponse": {
+            "type": "object",
+            "properties": {
+                "Cmd": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "Entrypoint": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "Image": {
+                    "type": "string"
+                },
+                "Known": {
+                    "description": "Known is false when the platform has no start configuration for the image (see imageServices); the rest is then empty.",
+                    "type": "boolean"
+                },
+                "User": {
+                    "type": "string"
+                },
+                "WorkingDir": {
                     "type": "string"
                 }
             }
@@ -37336,6 +42130,20 @@ const docTemplate = `{
                 }
             }
         },
+        "exercise.kernelParamCheckDTO": {
+            "type": "object",
+            "properties": {
+                "Equals": {
+                    "type": "string"
+                },
+                "Matches": {
+                    "type": "string"
+                },
+                "Name": {
+                    "type": "string"
+                }
+            }
+        },
         "exercise.missingBlobsRequest": {
             "type": "object",
             "required": [
@@ -37365,42 +42173,97 @@ const docTemplate = `{
                 }
             }
         },
-        "exercise.networkDTO": {
+        "exercise.missingSecretResponse": {
             "type": "object",
             "properties": {
-                "DHCP": {
-                    "type": "boolean"
-                },
-                "DHCPRanges": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/exercise.dhcpRangeDTO"
-                    }
-                },
-                "DNS": {
+                "Device": {
                     "type": "string"
                 },
-                "Enabled": {
-                    "type": "boolean"
+                "Key": {
+                    "type": "string"
+                },
+                "Variant": {
+                    "type": "integer"
                 }
             }
         },
         "exercise.networkIPRefDTO": {
             "type": "object",
             "properties": {
+                "Gateway": {
+                    "type": "string"
+                },
                 "Host": {
                     "type": "integer"
-                },
-                "Network": {
-                    "type": "string"
                 }
             }
         },
         "exercise.networkSubnetRefDTO": {
             "type": "object",
             "properties": {
-                "Network": {
+                "Gateway": {
                     "type": "string"
+                }
+            }
+        },
+        "exercise.opponentDTO": {
+            "type": "object",
+            "properties": {
+                "Band": {
+                    "type": "integer"
+                },
+                "Brief": {
+                    "type": "string"
+                },
+                "Foothold": {
+                    "description": "Foothold is a switch or hub of the topology: the opponent's first position (attack, attack-defense).",
+                    "type": "string"
+                },
+                "Goal": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "Operates": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "Role": {
+                    "type": "string"
+                },
+                "StartAfter": {
+                    "type": "string"
+                }
+            }
+        },
+        "exercise.pendingElevationCountResponse": {
+            "type": "object",
+            "properties": {
+                "Pending": {
+                    "type": "integer"
+                }
+            }
+        },
+        "exercise.permissionCheckDTO": {
+            "type": "object",
+            "properties": {
+                "Execute": {
+                    "type": "boolean"
+                },
+                "Path": {
+                    "type": "string"
+                },
+                "Read": {
+                    "type": "boolean"
+                },
+                "User": {
+                    "type": "string"
+                },
+                "Write": {
+                    "type": "boolean"
                 }
             }
         },
@@ -37418,19 +42281,35 @@ const docTemplate = `{
         "exercise.placeholderDTO": {
             "type": "object",
             "properties": {
+                "Access": {
+                    "description": "Access (external.link only): the access entry of the device the link points to, http | terminal | vnc | rdp; empty =\nhttp. The device must have an entry of that kind. vnc and rdp are accepted and resolve to nothing yet.",
+                    "type": "string",
+                    "enum": [
+                        "http",
+                        "terminal",
+                        "vnc",
+                        "rdp"
+                    ]
+                },
                 "AsLink": {
                     "type": "boolean"
                 },
                 "DeviceName": {
                     "type": "string"
                 },
+                "Gateway": {
+                    "description": "Gateway names the gateway device of a gateway.subnet or of an ip with IPReference gateway.",
+                    "type": "string"
+                },
                 "IPReference": {
+                    "description": "IPReference (ip only): gateway (the address is in the /24 of the gateway named by Gateway) or static.",
                     "type": "string"
                 },
                 "Key": {
                     "type": "string"
                 },
                 "Kind": {
+                    "description": "Kind: ip, external.link or gateway.subnet (the /24 of the gateway device named by Gateway).",
                     "type": "string"
                 },
                 "LastOctet": {
@@ -37450,6 +42329,47 @@ const docTemplate = `{
                 },
                 "ShowMask": {
                     "type": "boolean"
+                }
+            }
+        },
+        "exercise.portCheckDTO": {
+            "type": "object",
+            "properties": {
+                "Address": {
+                    "type": "string"
+                },
+                "Listening": {
+                    "type": "boolean"
+                },
+                "Port": {
+                    "type": "integer"
+                },
+                "Process": {
+                    "type": "string"
+                },
+                "Protocol": {
+                    "type": "string",
+                    "enum": [
+                        "tcp",
+                        "udp"
+                    ]
+                }
+            }
+        },
+        "exercise.processCheckDTO": {
+            "type": "object",
+            "properties": {
+                "Matches": {
+                    "type": "string"
+                },
+                "Name": {
+                    "type": "string"
+                },
+                "Running": {
+                    "type": "boolean"
+                },
+                "User": {
+                    "type": "string"
                 }
             }
         },
@@ -37532,6 +42452,44 @@ const docTemplate = `{
             "properties": {
                 "Note": {
                     "type": "string"
+                }
+            }
+        },
+        "exercise.requestCheckDTO": {
+            "type": "object",
+            "properties": {
+                "BodyContains": {
+                    "type": "string"
+                },
+                "BodyMatches": {
+                    "type": "string"
+                },
+                "Host": {
+                    "type": "string"
+                },
+                "Method": {
+                    "type": "string",
+                    "enum": [
+                        "GET",
+                        "HEAD"
+                    ]
+                },
+                "Path": {
+                    "type": "string"
+                },
+                "Port": {
+                    "type": "integer"
+                },
+                "Protocol": {
+                    "type": "string",
+                    "enum": [
+                        "tcp",
+                        "http",
+                        "https"
+                    ]
+                },
+                "Status": {
+                    "type": "integer"
                 }
             }
         },
@@ -37624,6 +42582,14 @@ const docTemplate = `{
                 "BytesTotal": {
                     "type": "integer"
                 },
+                "Error": {
+                    "description": "Error is why it failed (failed only; an interrupted import has the interrupted code).",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/exercise.importJobError"
+                        }
+                    ]
+                },
                 "ImagesDone": {
                     "type": "integer"
                 },
@@ -37634,6 +42600,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "Stage": {
+                    "type": "string"
+                },
+                "State": {
+                    "description": "State is queued, running or failed; a failed one says why in Error and is closed with DELETE.",
                     "type": "string"
                 },
                 "TasksDone": {
@@ -37650,8 +42620,12 @@ const docTemplate = `{
                 "AdminNote": {
                     "type": "string"
                 },
+                "Revision": {
+                    "description": "Revision is the Revision of the working copy the editor started from, sent back unchanged (\"\" when it had none).\nA stale one is refused with 409 and the current revision, who saved it and when.",
+                    "type": "string"
+                },
                 "Variants": {
-                    "description": "Variants is the full snapshot; a variant Weight outside 0..100 is refused with 400.",
+                    "description": "Variants is the full snapshot; a variant Weight outside 1..100 (0 included) is refused with 400.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/exercise.variantDTO"
@@ -37709,6 +42683,30 @@ const docTemplate = `{
                 }
             }
         },
+        "exercise.stateDTO": {
+            "type": "object",
+            "properties": {
+                "Conditions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/exercise.conditionDTO"
+                    }
+                },
+                "Interval": {
+                    "type": "string"
+                },
+                "Manual": {
+                    "type": "boolean"
+                },
+                "Mode": {
+                    "type": "string",
+                    "enum": [
+                        "once",
+                        "continuous"
+                    ]
+                }
+            }
+        },
         "exercise.taskDTO": {
             "type": "object",
             "properties": {
@@ -37718,21 +42716,19 @@ const docTemplate = `{
                         "$ref": "#/definitions/exercise.attachmentDTO"
                     }
                 },
+                "Check": {
+                    "description": "Check is what makes the task done: exactly one of Answer and State.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/exercise.checkDTO"
+                        }
+                    ]
+                },
                 "Description": {
                     "type": "object"
                 },
-                "DeviceFlagVar": {
-                    "type": "string"
-                },
                 "Difficulty": {
                     "type": "string"
-                },
-                "Flag": {
-                    "description": "Flag holds the candidate flag values: empty → random at deploy time; one\nvalue → fixed; several → one picked at random at deploy time. Mirrors\nexerciseModel.Task.Flag 1:1 (no FlagSource/FlagMode wrapper).",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
                 },
                 "Hints": {
                     "description": "Hints a team may unlock: IDs and levels match across variants, the\ntext may differ per variant. The price is set per event.",
@@ -37744,7 +42740,8 @@ const docTemplate = `{
                 "ID": {
                     "type": "string"
                 },
-                "LinkedDeviceID": {
+                "Key": {
+                    "description": "Key names the task inside its variant (the task substitution of a bootstrap and Requires use it): lowercase a-z, 0-9 and _,\nstarting with a letter, up to 32. Empty on save: the backend gives the task a stable one (task_\u003cposition\u003e).",
                     "type": "string"
                 },
                 "Name": {
@@ -37754,6 +42751,13 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/exercise.placeholderDTO"
+                    }
+                },
+                "Requires": {
+                    "description": "Requires are the keys of the tasks of the same variant this one waits for.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
                     }
                 }
             }
@@ -37803,11 +42807,11 @@ const docTemplate = `{
                         "$ref": "#/definitions/exercise.deviceDTO"
                     }
                 },
-                "Internet": {
-                    "$ref": "#/definitions/exercise.networkDTO"
-                },
-                "VPN": {
-                    "$ref": "#/definitions/exercise.networkDTO"
+                "Variables": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/exercise.variableDTO"
+                    }
                 },
                 "VisualRender": {
                     "type": "object"
@@ -37821,6 +42825,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "Name": {
+                    "type": "string"
+                },
+                "Revision": {
+                    "description": "Revision is the DraftRevision of the card the editor started from, sent back unchanged (\"\" when the card had no\nworking copy). A stale one is refused with 409.",
                     "type": "string"
                 },
                 "Tags": {
@@ -37862,6 +42870,20 @@ const docTemplate = `{
                 }
             }
         },
+        "exercise.variableDTO": {
+            "type": "object",
+            "properties": {
+                "Name": {
+                    "type": "string"
+                },
+                "Template": {
+                    "type": "string"
+                },
+                "Value": {
+                    "type": "string"
+                }
+            }
+        },
         "exercise.variantDTO": {
             "type": "object",
             "properties": {
@@ -37889,6 +42911,13 @@ const docTemplate = `{
                 "Note": {
                     "type": "string"
                 },
+                "Opponents": {
+                    "description": "Opponents are the Academy's automated attackers and defenders of the variant: author content, in the responses\nfor the authors of the exercise only (a request that omits them removes them). A linked variant takes its base's.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/exercise.opponentDTO"
+                    }
+                },
                 "Tasks": {
                     "type": "array",
                     "items": {
@@ -37899,10 +42928,10 @@ const docTemplate = `{
                     "$ref": "#/definitions/exercise.topologyDTO"
                 },
                 "Weight": {
-                    "description": "Weight is how often the variant is given out relative to the others (2 = twice as often); absent or 0 = 1.",
+                    "description": "Weight is how often the variant is given out relative to the others (2 = twice as often): 1 to 100, absent = 1.\n0 is refused with 400; to stop giving a variant out, delete it.",
                     "type": "integer",
                     "maximum": 100,
-                    "minimum": 0
+                    "minimum": 1
                 }
             }
         },
@@ -38043,11 +43072,21 @@ const docTemplate = `{
                 "ExerciseID": {
                     "type": "string"
                 },
+                "HasMissingSecrets": {
+                    "type": "boolean"
+                },
                 "ID": {
                     "type": "string"
                 },
                 "Label": {
                     "type": "string"
+                },
+                "MissingSecrets": {
+                    "description": "MissingSecrets lists the secret variables that have no value yet (variant 1-based, device, key); HasMissingSecrets is\nwhether there are any. The version cannot be published while there are; entering the value in the editor clears the entry.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/exercise.missingSecretResponse"
+                    }
                 },
                 "Name": {
                     "type": "string"
@@ -38063,6 +43102,10 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "Revision": {
+                    "description": "Revision is the opaque revision of the version: for the working copy, send it back unchanged (never parse it)\nwith the next save. UpdatedAt/UpdatedBy(Name) are when and by whom it was last saved.",
+                    "type": "string"
+                },
                 "Status": {
                     "type": "string"
                 },
@@ -38071,6 +43114,15 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                },
+                "UpdatedAt": {
+                    "type": "string"
+                },
+                "UpdatedBy": {
+                    "type": "string"
+                },
+                "UpdatedByName": {
+                    "type": "string"
                 },
                 "Variants": {
                     "type": "array",
@@ -38103,6 +43155,48 @@ const docTemplate = `{
                 }
             }
         },
+        "exerciseModel.CheckDetail": {
+            "type": "object",
+            "properties": {
+                "changedAt": {
+                    "type": "string"
+                },
+                "detail": {
+                    "type": "string"
+                },
+                "firstPassedAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "known": {
+                    "type": "boolean"
+                },
+                "passed": {
+                    "description": "Passed is the current state; Known is false until the check has a result.",
+                    "type": "boolean"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "exerciseModel.DeviceBootstrapStatus": {
+            "type": "object",
+            "properties": {
+                "attempts": {
+                    "type": "integer",
+                    "format": "int32"
+                },
+                "phase": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                }
+            }
+        },
         "exerciseModel.DeviceSnapshot": {
             "type": "object",
             "properties": {
@@ -38126,6 +43220,134 @@ const docTemplate = `{
                 }
             }
         },
+        "exerciseModel.ImportChanges": {
+            "type": "object",
+            "properties": {
+                "Added": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/exerciseModel.ImportItem"
+                    }
+                },
+                "Kept": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/exerciseModel.ImportItem"
+                    }
+                },
+                "Removed": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/exerciseModel.ImportItem"
+                    }
+                }
+            }
+        },
+        "exerciseModel.ImportDiff": {
+            "type": "object",
+            "properties": {
+                "Variants": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/exerciseModel.ImportVariantDiff"
+                    }
+                }
+            }
+        },
+        "exerciseModel.ImportIssue": {
+            "type": "object",
+            "properties": {
+                "Code": {
+                    "type": "integer"
+                },
+                "Context": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "Message": {
+                    "type": "string"
+                },
+                "Path": {
+                    "type": "string"
+                }
+            }
+        },
+        "exerciseModel.ImportItem": {
+            "type": "object",
+            "properties": {
+                "ID": {
+                    "description": "ID is the stored id a kept or removed item has. An added item gets its id when the draft is written.",
+                    "type": "string"
+                },
+                "Key": {
+                    "description": "Key is the task key (tasks only): the stored one for a kept task, the document's otherwise.",
+                    "type": "string"
+                },
+                "KeyChanged": {
+                    "description": "KeyChanged: a task matched by id keeps the stored key; this is true only when it could not (another task of\nthe document uses that key), so the document's key stays.",
+                    "type": "boolean"
+                },
+                "MatchedBy": {
+                    "description": "MatchedBy is set on kept items: the stored item keeps its id (and a task its key).",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/exerciseModel.ImportMatch"
+                        }
+                    ]
+                },
+                "Name": {
+                    "description": "Name is the name in the document (kept, added) or in the stored copy (removed).",
+                    "type": "string"
+                },
+                "PreviousName": {
+                    "description": "PreviousName is the stored name of a kept task whose name changed.",
+                    "type": "string"
+                }
+            }
+        },
+        "exerciseModel.ImportMatch": {
+            "type": "string",
+            "enum": [
+                "id",
+                "key",
+                "name",
+                "order"
+            ],
+            "x-enum-varnames": [
+                "ImportMatchID",
+                "ImportMatchKey",
+                "ImportMatchName",
+                "ImportMatchOrder"
+            ]
+        },
+        "exerciseModel.ImportReport": {
+            "type": "object",
+            "properties": {
+                "Diff": {
+                    "$ref": "#/definitions/exerciseModel.ImportDiff"
+                },
+                "Issues": {
+                    "description": "Issues are the errors of the result (draft validation and the publish checks). Errors of the document itself\nrefuse the request instead.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/exerciseModel.ImportIssue"
+                    }
+                },
+                "Publishable": {
+                    "description": "Publishable: the result passes every publish check.",
+                    "type": "boolean"
+                },
+                "Usage": {
+                    "$ref": "#/definitions/exerciseModel.ImportUsage"
+                },
+                "Warnings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/exerciseModel.ImportWarning"
+                    }
+                }
+            }
+        },
         "exerciseModel.ImportResult": {
             "type": "object",
             "properties": {
@@ -38137,6 +43359,128 @@ const docTemplate = `{
                 },
                 "Mode": {
                     "type": "string"
+                },
+                "Report": {
+                    "description": "Report is what the item did to the exercise; set for an import into an existing exercise and for a new one alike.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/exerciseModel.ImportReport"
+                        }
+                    ]
+                }
+            }
+        },
+        "exerciseModel.ImportUsage": {
+            "type": "object",
+            "properties": {
+                "Events": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/exerciseModel.ImportUsageEvent"
+                    }
+                },
+                "TestDeploys": {
+                    "description": "TestDeploys are the test labs of the exercise that are leased now (any author).",
+                    "type": "integer"
+                }
+            }
+        },
+        "exerciseModel.ImportUsageEvent": {
+            "type": "object",
+            "properties": {
+                "Added": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/exerciseModel.ImportUsageTask"
+                    }
+                },
+                "Archived": {
+                    "type": "boolean"
+                },
+                "Blocked": {
+                    "description": "Blocked: the event could not move to the result as it is: a removed task has recorded answers.",
+                    "type": "boolean"
+                },
+                "EventID": {
+                    "type": "string"
+                },
+                "Name": {
+                    "type": "string"
+                },
+                "Removed": {
+                    "description": "Removed and Added are the tasks of the event's challenge variant that would go and come, by the rule the\nevent itself applies when it moves to a new version (by task id, else by name).",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/exerciseModel.ImportUsageTask"
+                    }
+                },
+                "RunningLabs": {
+                    "description": "RunningLabs are the event's team laboratories of this exercise that are running now.",
+                    "type": "integer"
+                },
+                "VariantMissing": {
+                    "description": "VariantMissing: the event's fixed variant would not exist in the result.",
+                    "type": "boolean"
+                },
+                "VersionPublished": {
+                    "description": "VersionPublished: the event runs the version published now; otherwise it is pinned to an older one.",
+                    "type": "boolean"
+                }
+            }
+        },
+        "exerciseModel.ImportUsageTask": {
+            "type": "object",
+            "properties": {
+                "Attempts": {
+                    "description": "Attempts and Solves are the recorded answers of the event's challenge (removed tasks only).",
+                    "type": "integer"
+                },
+                "Name": {
+                    "type": "string"
+                },
+                "Solves": {
+                    "type": "integer"
+                }
+            }
+        },
+        "exerciseModel.ImportVariantDiff": {
+            "type": "object",
+            "properties": {
+                "Devices": {
+                    "$ref": "#/definitions/exerciseModel.ImportChanges"
+                },
+                "MatchedBy": {
+                    "$ref": "#/definitions/exerciseModel.ImportMatch"
+                },
+                "Position": {
+                    "description": "Position is the 1-based position in the document (0 for a removed variant); StoredPosition the position in\nthe stored copy (0 for an added variant).",
+                    "type": "integer"
+                },
+                "Status": {
+                    "type": "string"
+                },
+                "StoredPosition": {
+                    "type": "integer"
+                },
+                "Tasks": {
+                    "description": "Tasks of an added variant that match a stored task (by id or key) are listed as kept: they take its identity.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/exerciseModel.ImportChanges"
+                        }
+                    ]
+                }
+            }
+        },
+        "exerciseModel.ImportWarning": {
+            "type": "object",
+            "properties": {
+                "Code": {
+                    "type": "string"
+                },
+                "Context": {
+                    "type": "object",
+                    "additionalProperties": {}
                 }
             }
         },
@@ -38189,14 +43533,18 @@ const docTemplate = `{
                     "description": "ExpiresAt is the end of the lease and Expired says it is over while the lab is not removed yet; filled by the use case.",
                     "type": "string"
                 },
+                "gateways": {
+                    "description": "Gateways are the gateways of the lab (VPN entries and Internet exits) in the order of the lab's spec, each with its /24\nand state (the laboratory's status.gateways, contract 2.0).",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/exerciseModel.LabDeployedGateway"
+                    }
+                },
                 "groupImageWarning": {
                     "type": "string"
                 },
                 "imageWarning": {
                     "description": "ImageWarning lists the lab images that could not be pinned to a digest (pulled by tag);\nGroupImageWarning is the same for the group's VPN or gateway image. Empty when fine.",
-                    "type": "string"
-                },
-                "internetCIDR": {
                     "type": "string"
                 },
                 "labGeneration": {
@@ -38231,17 +43579,21 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "solvedTasks": {
-                    "description": "SolvedTasks are the tasks the author has already checked correctly; filled by the use case.",
+                    "description": "SolvedTasks are the tasks the author has already checked correctly, and the state tasks whose checks pass (see\nStateTasks); filled by the use case.",
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
                 },
+                "stateTasks": {
+                    "description": "StateTasks is where every task checked by the state of the lab stands, for the author of the test only; filled by the\nuse case from the recorded check results. Absent for a variant without state tasks.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/exerciseModel.TaskCheckState"
+                    }
+                },
                 "usageAvailable": {
                     "type": "boolean"
-                },
-                "vpncidr": {
-                    "type": "string"
                 },
                 "vpnconfig": {
                     "description": "VPNConfig is the author's WireGuard config, present once a VPN-enabled lab\nhas provisioned its client. Empty for labs without VPN or before it is ready.",
@@ -38263,6 +43615,19 @@ const docTemplate = `{
         "exerciseModel.LabDeployedDevice": {
             "type": "object",
             "properties": {
+                "bootstrap": {
+                    "description": "Bootstrap is where the device's bootstrap is; nil for a device without one. For staff and the task author only.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/exerciseModel.DeviceBootstrapStatus"
+                        }
+                    ]
+                },
+                "cputhrottledPercent": {
+                    "description": "CPUThrottledPercent is the share of CPU periods the device was throttled in the agent's window (0: no data).",
+                    "type": "integer",
+                    "format": "int32"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -38287,6 +43652,37 @@ const docTemplate = `{
                             "$ref": "#/definitions/exerciseModel.DeviceSnapshot"
                         }
                     ]
+                }
+            }
+        },
+        "exerciseModel.LabDeployedGateway": {
+            "type": "object",
+            "properties": {
+                "cidr": {
+                    "description": "CIDR is the /24 of the gateway; empty until it has one.",
+                    "type": "string"
+                },
+                "kind": {
+                    "description": "Kind is \"vpn\" or \"internet\".",
+                    "type": "string"
+                },
+                "labInitiatedBlocked": {
+                    "description": "LabInitiatedBlocked is the laboratory's confirmation that this VPN gateway blocks those connections.",
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "ready": {
+                    "type": "boolean"
+                },
+                "reverse": {
+                    "description": "Reverse (a VPN gateway only) is what is in force for connections the lab starts to the VPN clients through this\ngateway: \"blocked\", \"allowed\", or \"not_enforced\" (the exercise forbids them but the agent of this node cannot enforce the\nblock, so they are possible). Empty for an Internet gateway or when the state is not known.",
+                    "type": "string"
+                },
+                "reverseConnections": {
+                    "description": "ReverseConnections (a VPN gateway only) says the exercise lets devices of the lab start connections to the VPN clients\nthrough this gateway (false: forbidden).",
+                    "type": "boolean"
                 }
             }
         },
@@ -38379,6 +43775,53 @@ const docTemplate = `{
                     "description": "Withdrawals is how often in a row the pod's group was withdrawn (not every pod got a node in time); RetryAfter is when\nthe cluster sends it again (zero: no wait).",
                     "type": "integer",
                     "format": "int32"
+                }
+            }
+        },
+        "exerciseModel.StateMode": {
+            "type": "string",
+            "enum": [
+                "once",
+                "continuous"
+            ],
+            "x-enum-varnames": [
+                "StateModeOnce",
+                "StateModeContinuous"
+            ]
+        },
+        "exerciseModel.TaskCheckState": {
+            "type": "object",
+            "properties": {
+                "checks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/exerciseModel.CheckDetail"
+                    }
+                },
+                "firstSolvedAt": {
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "known": {
+                    "description": "Known: every check of the task has a result.",
+                    "type": "boolean"
+                },
+                "manual": {
+                    "type": "boolean"
+                },
+                "mode": {
+                    "$ref": "#/definitions/exerciseModel.StateMode"
+                },
+                "solved": {
+                    "type": "boolean"
+                },
+                "solvedAt": {
+                    "type": "string"
+                },
+                "taskID": {
+                    "type": "string"
                 }
             }
         },
@@ -38684,7 +44127,7 @@ const docTemplate = `{
                     ]
                 },
                 "Resolvable": {
-                    "description": "Resolvable is true when the recipient may close this open request by hand (the resolve endpoint accepts it).\nClients show «Вирішено» from it instead of keeping their own list of types.",
+                    "description": "Resolvable is true when the recipient may close this open request by hand (the resolve endpoint accepts it).\nClients show Resolved from it instead of keeping their own list of types.",
                     "type": "boolean"
                 },
                 "ResolvedAt": {
@@ -38868,6 +44311,16 @@ const docTemplate = `{
         "infrastructure.agentFeaturesResponse": {
             "type": "object",
             "properties": {
+                "BootstrapAvailable": {
+                    "type": "boolean"
+                },
+                "ChecksEnabled": {
+                    "description": "ChecksEnabled: the laboratory runs lab checks (a task with a state check can start there). TerminalEnabled: the\nbrowser terminal is on. BootstrapAvailable: the agent carries the device bootstrap (contract 1.5); false for an\nolder agent. ChecksMaxPerLab is the most checks of one lab (0 when not reported).",
+                    "type": "boolean"
+                },
+                "ChecksMaxPerLab": {
+                    "type": "integer"
+                },
                 "DeviceMaxCPUMillicores": {
                     "description": "DeviceMaxCPUMillicores and DeviceMaxMemoryBytes are the most one device may get; LabMaxDevices the\ncontainer devices of one lab. 0 = no limit.",
                     "type": "integer"
@@ -38900,6 +44353,22 @@ const docTemplate = `{
                     "description": "LabsDomain is the base domain of the lab web endpoints; VPNEndpoint is host:port of WireGuard.",
                     "type": "string"
                 },
+                "Lifecycle": {
+                    "description": "Lifecycle is what the agent confirms; LifecycleUnavailable and PersistenceUnavailable name the reason when a\nfeature the cluster is configured for is held back (absent: nothing is, or it is not configured).",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/infrastructure.lifecycleResponse"
+                        }
+                    ]
+                },
+                "LifecycleUnavailable": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/infrastructure.unavailableResponse"
+                        }
+                    ],
+                    "x-nullable": true
+                },
                 "PersistenceAvailable": {
                     "type": "boolean"
                 },
@@ -38915,18 +44384,19 @@ const docTemplate = `{
                 "PersistenceMaxFileSizeBytes": {
                     "type": "integer"
                 },
+                "PersistenceUnavailable": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/infrastructure.unavailableResponse"
+                        }
+                    ],
+                    "x-nullable": true
+                },
                 "PersistenceWriteQuotaBytes": {
                     "type": "integer"
                 },
-                "ProxyAccessTokenMaxTTLSeconds": {
-                    "description": "ProxyAccessTokenMaxTTLSeconds is the longest a web link can be opened; ProxySessionMaxTTLSeconds the\nlongest a proxy session lives (a longer event window means a new link is opened).",
-                    "type": "integer"
-                },
-                "ProxySessionIdleTTLSeconds": {
-                    "description": "ProxySessionIdleTTLSeconds is how long a proxy session lives without use (it slides while in use).",
-                    "type": "integer"
-                },
-                "ProxySessionMaxTTLSeconds": {
+                "ProxyGrantMaxTTLSeconds": {
+                    "description": "ProxyGrantMaxTTLSeconds is the longest an access grant (web or console) lives: the proxy accepts no longer one,\nand a longer event window means the device is opened again for a new grant.",
                     "type": "integer"
                 },
                 "SchedulerEnabled": {
@@ -38935,6 +44405,9 @@ const docTemplate = `{
                 "SchedulerMaxPods": {
                     "description": "SchedulerMaxPods is the most pods starting at once; 0 = no limit.",
                     "type": "integer"
+                },
+                "TerminalEnabled": {
+                    "type": "boolean"
                 },
                 "VPN": {
                     "description": "VPN and Gateway size the pods of a lab group: base plus per user (VPN) or per lab with internet\n(gateway), at most Max; 0 in all three = the agent did not report it.",
@@ -38990,6 +44463,73 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/infrastructure.agentAdminResponse"
+                    }
+                }
+            }
+        },
+        "infrastructure.bulkRecreateRequest": {
+            "type": "object",
+            "properties": {
+                "Items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/infrastructure.bulkStandItem"
+                    }
+                }
+            }
+        },
+        "infrastructure.bulkResponse": {
+            "type": "object",
+            "properties": {
+                "Results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/infrastructure.bulkResult"
+                    }
+                }
+            }
+        },
+        "infrastructure.bulkResult": {
+            "type": "object",
+            "properties": {
+                "Code": {
+                    "type": "string"
+                },
+                "Error": {
+                    "type": "string"
+                },
+                "EventID": {
+                    "type": "string"
+                },
+                "ID": {
+                    "type": "string"
+                },
+                "Ok": {
+                    "type": "boolean"
+                },
+                "TeamID": {
+                    "type": "string"
+                }
+            }
+        },
+        "infrastructure.bulkStandItem": {
+            "type": "object",
+            "properties": {
+                "EventID": {
+                    "type": "string"
+                },
+                "TeamID": {
+                    "type": "string"
+                }
+            }
+        },
+        "infrastructure.bulkTerminateRequest": {
+            "type": "object",
+            "properties": {
+                "IDs": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
                     }
                 }
             }
@@ -39116,6 +44656,18 @@ const docTemplate = `{
                 }
             }
         },
+        "infrastructure.facetResponse": {
+            "type": "object",
+            "properties": {
+                "Counts": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                }
+            }
+        },
         "infrastructure.groupPodSizingResponse": {
             "type": "object",
             "properties": {
@@ -39168,6 +44720,26 @@ const docTemplate = `{
                 },
                 "NextCursor": {
                     "type": "string"
+                }
+            }
+        },
+        "infrastructure.lifecycleResponse": {
+            "type": "object",
+            "properties": {
+                "ConfirmedRuntime": {
+                    "type": "boolean"
+                },
+                "FullGroupStop": {
+                    "type": "boolean"
+                },
+                "PerLabStop": {
+                    "type": "boolean"
+                },
+                "RequiredSnapshot": {
+                    "type": "boolean"
+                },
+                "RetainedRestart": {
+                    "type": "boolean"
                 }
             }
         },
@@ -39538,6 +45110,20 @@ const docTemplate = `{
                 }
             }
         },
+        "infrastructure.unavailableResponse": {
+            "type": "object",
+            "properties": {
+                "Code": {
+                    "type": "string"
+                },
+                "NodesAsked": {
+                    "type": "integer"
+                },
+                "NodesFailed": {
+                    "type": "integer"
+                }
+            }
+        },
         "infrastructure.updateAgentRequest": {
             "type": "object",
             "properties": {
@@ -39572,22 +45158,36 @@ const docTemplate = `{
         "labaccess.Link": {
             "type": "object",
             "properties": {
-                "expiresAt": {
-                    "description": "ExpiresAt is the end of the session the proxy will grant.",
+                "ExpiresAt": {
+                    "description": "ExpiresAt is the end of the grant (its exp).",
                     "type": "string"
                 },
-                "labID": {
+                "Grant": {
+                    "description": "Grant is the signed JWS, posted in the form field ` + "`" + `grant` + "`" + `.",
                     "type": "string"
                 },
-                "revision": {
+                "LabID": {
                     "type": "string"
                 },
-                "token": {
-                    "description": "Token is the signed JWT inside the link.",
+                "Revision": {
                     "type": "string"
                 },
-                "url": {
-                    "description": "URL is the full link to open in the browser.",
+                "URL": {
+                    "description": "URL is https://\u003chost\u003e/_auth, never with a query or a fragment: the grant must not be in a URL.",
+                    "type": "string"
+                }
+            }
+        },
+        "labview.BootstrapResponse": {
+            "type": "object",
+            "properties": {
+                "Attempts": {
+                    "type": "integer"
+                },
+                "Phase": {
+                    "type": "string"
+                },
+                "Reason": {
                     "type": "string"
                 }
             }
@@ -39595,6 +45195,14 @@ const docTemplate = `{
         "labview.DeviceResponse": {
             "type": "object",
             "properties": {
+                "Bootstrap": {
+                    "description": "Bootstrap is the device's bootstrap: absent for a device without one. Organizers and the task author only.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/labview.BootstrapResponse"
+                        }
+                    ]
+                },
                 "LogicalName": {
                     "description": "LogicalName is the device name in the exercise topology; empty when unknown.",
                     "type": "string"
@@ -39639,6 +45247,33 @@ const docTemplate = `{
                 },
                 "RestartCount": {
                     "type": "integer"
+                }
+            }
+        },
+        "labview.GatewayResponse": {
+            "type": "object",
+            "properties": {
+                "CIDR": {
+                    "description": "CIDR is the /24 of the gateway; empty until it has one.",
+                    "type": "string"
+                },
+                "Kind": {
+                    "description": "Kind: vpn | internet.",
+                    "type": "string"
+                },
+                "Name": {
+                    "type": "string"
+                },
+                "Ready": {
+                    "type": "boolean"
+                },
+                "Reverse": {
+                    "description": "Reverse (a VPN gateway, organizers and authors only): what is in force for connections the lab starts to the VPN clients\nthrough this gateway: blocked, allowed, or not_enforced (the exercise forbids them but the agent of the node cannot\nenforce the block: show a warning, never \"blocked\"). Absent when unknown.",
+                    "type": "string"
+                },
+                "ReverseConnections": {
+                    "description": "ReverseConnections (a VPN gateway, organizers and authors only): the exercise lets devices of the lab start connections\nto the VPN clients through this gateway.",
+                    "type": "boolean"
                 }
             }
         },
@@ -39864,6 +45499,13 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/labview.DeviceResponse"
+                    }
+                },
+                "Gateways": {
+                    "description": "Gateways are the VPN entries and Internet exits of the lab, in the order of its spec; empty for a lab without any.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/labview.GatewayResponse"
                     }
                 },
                 "GroupImageWarning": {
@@ -40956,6 +46598,66 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/infrastructure.testLabResponse"
+                    }
+                },
+                "Page": {
+                    "type": "integer"
+                },
+                "PageSize": {
+                    "type": "integer"
+                },
+                "Total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "pagination.OffsetPage-messaging_deliveryResponse": {
+            "type": "object",
+            "properties": {
+                "Items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/messaging.deliveryResponse"
+                    }
+                },
+                "Page": {
+                    "type": "integer"
+                },
+                "PageSize": {
+                    "type": "integer"
+                },
+                "Total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "pagination.OffsetPage-platformAnalytics_eventRowResponse": {
+            "type": "object",
+            "properties": {
+                "Items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/platformAnalytics.eventRowResponse"
+                    }
+                },
+                "Page": {
+                    "type": "integer"
+                },
+                "PageSize": {
+                    "type": "integer"
+                },
+                "Total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "pagination.OffsetPage-platformAnalytics_taskRowResponse": {
+            "type": "object",
+            "properties": {
+                "Items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/platformAnalytics.taskRowResponse"
                     }
                 },
                 "Page": {
@@ -42103,6 +47805,35 @@ const docTemplate = `{
                 }
             }
         },
+        "platformSettings.nodeProfilesResponse": {
+            "type": "object",
+            "properties": {
+                "Custom": {
+                    "description": "Custom: a value is saved; false: the defaults apply.",
+                    "type": "boolean"
+                },
+                "Fields": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/platformSettings.typedFieldResponse"
+                    }
+                },
+                "Ignored": {
+                    "description": "Ignored: a value is saved but does not apply (it no longer validates or does not parse), so the defaults are\nin force; reset or save again.",
+                    "type": "boolean"
+                },
+                "RunnableNow": {
+                    "description": "RunnableNow is keyed by field (Container, MicroVM, VM). A ticked profile with false here is the one to warn\nabout; it changes nothing else.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "boolean"
+                    }
+                },
+                "UpdatedAt": {
+                    "type": "string"
+                }
+            }
+        },
         "platformSettings.saveTypedRequest": {
             "type": "object",
             "properties": {
@@ -42120,6 +47851,14 @@ const docTemplate = `{
             "properties": {
                 "CreatedAt": {
                     "type": "string"
+                },
+                "Description": {
+                    "description": "Description explains the key in each interface language; null for a key the platform does not know.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/platformSettingsModel.Description"
+                        }
+                    ]
                 },
                 "ID": {
                     "type": "string"
@@ -42201,6 +47940,17 @@ const docTemplate = `{
                 },
                 "Value": {
                     "type": "object"
+                }
+            }
+        },
+        "platformSettingsModel.Description": {
+            "type": "object",
+            "properties": {
+                "En": {
+                    "type": "string"
+                },
+                "Uk": {
+                    "type": "string"
                 }
             }
         },
@@ -42668,6 +48418,16 @@ const docTemplate = `{
                 },
                 "To": {
                     "type": "string"
+                },
+                "Units": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/resourceCalendar.organizerUnitDTO"
+                    }
+                },
+                "Unplaced": {
+                    "description": "Unplaced counts the units no agent could take; Units has the state of every team that has a place (no\nlaboratory is named): Ended after its labs were deleted, EndsAt while the ending notice runs.",
+                    "type": "integer"
                 }
             }
         },
@@ -42774,6 +48534,20 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "WindowStart": {
+                    "type": "string"
+                }
+            }
+        },
+        "resourceCalendar.organizerUnitDTO": {
+            "type": "object",
+            "properties": {
+                "Ended": {
+                    "type": "boolean"
+                },
+                "EndsAt": {
+                    "type": "string"
+                },
+                "TeamID": {
                     "type": "string"
                 }
             }
@@ -42942,6 +48716,10 @@ const docTemplate = `{
                     "type": "string",
                     "example": ""
                 },
+                "PlacedTeams": {
+                    "description": "PlacedTeams is the number of teams that have an agent; UnplacedReason says why the others have none\n(no_agents, device_too_large, no_capacity); empty when every team is placed.",
+                    "type": "integer"
+                },
                 "Placement": {
                     "type": "array",
                     "items": {
@@ -42970,6 +48748,9 @@ const docTemplate = `{
                 },
                 "Unplaced": {
                     "type": "integer"
+                },
+                "UnplacedReason": {
+                    "type": "string"
                 },
                 "Used": {
                     "description": "Used is what the event's running objects request now.",
@@ -43483,6 +49264,19 @@ const docTemplate = `{
                 }
             }
         },
+        "stats.dispatchFacetResponse": {
+            "type": "object",
+            "properties": {
+                "Counts": {
+                    "description": "Counts maps a value of the field to the number of dispatches with it; values with none are absent.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                }
+            }
+        },
         "stats.keyCountResponse": {
             "type": "object",
             "properties": {
@@ -43491,6 +49285,46 @@ const docTemplate = `{
                 },
                 "Key": {
                     "type": "string"
+                }
+            }
+        },
+        "stats.resendRequest": {
+            "type": "object",
+            "properties": {
+                "DispatchIDs": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "stats.resendResponse": {
+            "type": "object",
+            "properties": {
+                "Results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/stats.resendResultResponse"
+                    }
+                }
+            }
+        },
+        "stats.resendResultResponse": {
+            "type": "object",
+            "properties": {
+                "Code": {
+                    "description": "Code is the catalog code of the refusal (empty when Ok); Error its English text.",
+                    "type": "string"
+                },
+                "DispatchID": {
+                    "type": "string"
+                },
+                "Error": {
+                    "type": "string"
+                },
+                "Ok": {
+                    "type": "boolean"
                 }
             }
         },
@@ -43566,6 +49400,46 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "UpdatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "tablePrefsModel.Prefs": {
+            "type": "object",
+            "properties": {
+                "ColumnOrder": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "ColumnWidths": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
+                },
+                "Hidden": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "PageSize": {
+                    "type": "integer"
+                },
+                "Sort": {
+                    "$ref": "#/definitions/tablePrefsModel.Sort"
+                }
+            }
+        },
+        "tablePrefsModel.Sort": {
+            "type": "object",
+            "properties": {
+                "Dir": {
+                    "type": "string"
+                },
+                "Key": {
                     "type": "string"
                 }
             }
@@ -43952,6 +49826,46 @@ const docTemplate = `{
                 }
             }
         },
+        "user.bulkUserResultResponse": {
+            "type": "object",
+            "properties": {
+                "Code": {
+                    "description": "Code is the catalog code of the refusal (empty when Ok); Error its English text.",
+                    "type": "string"
+                },
+                "Error": {
+                    "type": "string"
+                },
+                "Ok": {
+                    "type": "boolean"
+                },
+                "UserID": {
+                    "type": "string"
+                }
+            }
+        },
+        "user.bulkUsersRequest": {
+            "type": "object",
+            "properties": {
+                "UserIDs": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "user.bulkUsersResponse": {
+            "type": "object",
+            "properties": {
+                "Results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/user.bulkUserResultResponse"
+                    }
+                }
+            }
+        },
         "user.dayCountResponse": {
             "type": "object",
             "properties": {
@@ -44100,6 +50014,47 @@ const docTemplate = `{
                 }
             }
         },
+        "user.userFacetResponse": {
+            "type": "object",
+            "properties": {
+                "Counts": {
+                    "description": "Counts maps a value of the field to the number of users with it under the other filters; values with no\nusers are absent. signIn counts a user once per method (email, google).",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                }
+            }
+        },
+        "user.userParticipationResponse": {
+            "type": "object",
+            "properties": {
+                "EventID": {
+                    "type": "string"
+                },
+                "EventName": {
+                    "type": "string"
+                },
+                "EventTag": {
+                    "type": "string"
+                },
+                "Role": {
+                    "description": "Role: participant (no team yet), captain, member, or owner / manager / viewer of the event.",
+                    "type": "string"
+                },
+                "Status": {
+                    "description": "Status of the participation: 1 pending, 2 approved, 3 rejected; 2 for an event the user manages.",
+                    "type": "integer"
+                },
+                "TeamID": {
+                    "type": "string"
+                },
+                "TeamName": {
+                    "type": "string"
+                }
+            }
+        },
         "user.userResponse": {
             "type": "object",
             "properties": {
@@ -44124,8 +50079,18 @@ const docTemplate = `{
                 "LastSeen": {
                     "type": "string"
                 },
+                "Picture": {
+                    "type": "string"
+                },
                 "Role": {
                     "$ref": "#/definitions/rbac.Role"
+                },
+                "SignInMethods": {
+                    "description": "SignInMethods: email (a password) and the linked providers; filled in the offset (page) list.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "Status": {
                     "$ref": "#/definitions/userModel.UserStatus"
@@ -44161,6 +50126,327 @@ const docTemplate = `{
                 },
                 "Total": {
                     "type": "integer"
+                }
+            }
+        },
+        "userModel.DataExport": {
+            "type": "object",
+            "properties": {
+                "ExportedAt": {
+                    "type": "string"
+                },
+                "eventStaffRoles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/userModel.ExportEventRole"
+                    }
+                },
+                "flagSubmissions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/userModel.ExportFlagSubmission"
+                    }
+                },
+                "formAnswers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/userModel.ExportFormAnswer"
+                    }
+                },
+                "inbox": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/userModel.ExportInboxItem"
+                    }
+                },
+                "notificationSettings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/userModel.ExportNotificationSetting"
+                    }
+                },
+                "participations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/userModel.ExportParticipation"
+                    }
+                },
+                "profile": {
+                    "$ref": "#/definitions/userModel.ExportProfile"
+                },
+                "sessions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/userModel.ExportSession"
+                    }
+                },
+                "signInMethods": {
+                    "description": "SignInMethods lists how the person can sign in: the kind, the name they gave it, and dates.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/userModel.ExportSignInMethod"
+                    }
+                },
+                "tableViews": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/userModel.ExportTableView"
+                    }
+                }
+            }
+        },
+        "userModel.ExportEventRole": {
+            "type": "object",
+            "properties": {
+                "eventID": {
+                    "type": "string"
+                },
+                "eventName": {
+                    "type": "string"
+                },
+                "grantedAt": {
+                    "type": "string"
+                },
+                "role": {
+                    "type": "integer",
+                    "format": "int32"
+                }
+            }
+        },
+        "userModel.ExportFlagSubmission": {
+            "type": "object",
+            "properties": {
+                "answer": {
+                    "type": "string"
+                },
+                "challengeName": {
+                    "type": "string"
+                },
+                "correct": {
+                    "type": "boolean"
+                },
+                "eventID": {
+                    "type": "string"
+                },
+                "eventName": {
+                    "type": "string"
+                },
+                "practice": {
+                    "type": "boolean"
+                },
+                "receivedAt": {
+                    "type": "string"
+                },
+                "teamName": {
+                    "type": "string"
+                }
+            }
+        },
+        "userModel.ExportFormAnswer": {
+            "type": "object",
+            "properties": {
+                "answers": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "eventID": {
+                    "type": "string"
+                },
+                "eventName": {
+                    "type": "string"
+                },
+                "formVersionID": {
+                    "type": "string"
+                },
+                "submittedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "userModel.ExportInboxItem": {
+            "type": "object",
+            "properties": {
+                "body": {
+                    "type": "string"
+                },
+                "category": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "eventName": {
+                    "type": "string"
+                },
+                "link": {
+                    "type": "string"
+                },
+                "readAt": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "userModel.ExportNotificationSetting": {
+            "type": "object",
+            "properties": {
+                "channel": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "userModel.ExportParticipation": {
+            "type": "object",
+            "properties": {
+                "decidedAt": {
+                    "type": "string"
+                },
+                "eventID": {
+                    "type": "string"
+                },
+                "eventName": {
+                    "type": "string"
+                },
+                "eventTag": {
+                    "type": "string"
+                },
+                "invitationSent": {
+                    "type": "string"
+                },
+                "invited": {
+                    "type": "boolean"
+                },
+                "invitedTeamName": {
+                    "type": "string"
+                },
+                "invitedToTeam": {
+                    "type": "boolean"
+                },
+                "isCaptain": {
+                    "type": "boolean"
+                },
+                "joinedAt": {
+                    "type": "string"
+                },
+                "pseudonym": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "integer",
+                    "format": "int32"
+                },
+                "teamName": {
+                    "type": "string"
+                },
+                "teamRole": {
+                    "type": "integer"
+                }
+            }
+        },
+        "userModel.ExportProfile": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "emailConfirmed": {
+                    "type": "boolean"
+                },
+                "firstName": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "lastName": {
+                    "type": "string"
+                },
+                "lastSeen": {
+                    "type": "string"
+                },
+                "legalDocuments": {
+                    "description": "LegalDocuments lists the documents accepted at TosAcceptedAt (empty when none was required).",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "role": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "tosAcceptedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "userModel.ExportSession": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "ip": {
+                    "type": "string"
+                },
+                "lastSeen": {
+                    "type": "string"
+                },
+                "userAgent": {
+                    "type": "string"
+                }
+            }
+        },
+        "userModel.ExportSignInMethod": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "lastUsedAt": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "description": "Type is \"password\", \"google\" or \"passkey\".",
+                    "type": "string"
+                }
+            }
+        },
+        "userModel.ExportTableView": {
+            "type": "object",
+            "properties": {
+                "prefs": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "table": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
                 }
             }
         },

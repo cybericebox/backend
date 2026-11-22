@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -13,20 +14,19 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	mailModel "github.com/cybericebox/daemon/internal/model/mail"
-	"github.com/cybericebox/daemon/pkg/email"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	mailModel "github.com/cybericebox/backend/internal/model/mail"
+	"github.com/cybericebox/backend/pkg/email"
 )
 
 func requireFooter(t *testing.T, msg email.Message, supportEmail string) {
 	t.Helper()
 	require.Contains(t, msg.HTML, `href="mailto:`+supportEmail+`"`)
-	require.Contains(t, msg.HTML, `href="https://cybericebox.com/privacy"`)
 	require.True(t, strings.HasSuffix(msg.Text,
 		"Цей лист надіслано автоматично. Звʼязатися з нами (mailto:"+supportEmail+")\n"+
-			"Cyber\u00a0ICE\u00a0Box (https://cybericebox.com) · Політика конфіденційності (https://cybericebox.com/privacy)"), msg.Text)
-	require.Equal(t, 1, strings.Count(msg.HTML, `href="https://cybericebox.com/privacy"`), "footer appended once")
+			"Cyber\u00a0ICE\u00a0Box"), msg.Text)
+	require.Equal(t, 1, strings.Count(msg.HTML, `href="mailto:`+supportEmail+`"`), "footer appended once")
 }
 
 func TestDeliver_PlatformMailEndsWithFooter(t *testing.T) {
@@ -34,11 +34,11 @@ func TestDeliver_PlatformMailEndsWithFooter(t *testing.T) {
 	repo.EXPECT().ListPlatformSMTPProviders(gomock.Any()).Return([]postgres.MailSmtpConfig{platformRow}, nil)
 	expectPlatformIdentity(repo, &platformIdentityRow)
 
-	require.NoError(t, uc.Deliver(context.Background(), nil, email.Message{To: "u@example.org", HTML: "<p>Привіт</p>", Text: "Привіт"}))
+	require.NoError(t, uc.Deliver(context.Background(), nil, email.Message{To: "u@example.org", HTML: "<p>Hello</p>", Text: "Hello"}))
 	require.Len(t, smtp.sends, 1)
 	sent := smtp.sends[0].msg
-	require.True(t, strings.HasPrefix(sent.HTML, "<p>Привіт</p>"))
-	require.True(t, strings.HasPrefix(sent.Text, "Привіт\n\nЦей лист надіслано автоматично."))
+	require.True(t, strings.HasPrefix(sent.HTML, "<p>Hello</p>"))
+	require.True(t, strings.HasPrefix(sent.Text, "Hello\n\nЦей лист надіслано автоматично."))
 	requireFooter(t, sent, "support@cybericebox.com")
 }
 
@@ -51,14 +51,14 @@ func TestDeliver_BrandNameNeverBreaksInSentParts(t *testing.T) {
 	expectPlatformIdentity(repo, &platformIdentityRow)
 
 	require.NoError(t, uc.Deliver(context.Background(), nil, email.Message{
-		To: "u@example.org", HTML: "<p>Ласкаво просимо до Cyber ICE Box</p>", Text: "Ласкаво просимо до Cyber ICE Box",
+		To: "u@example.org", HTML: "<p>Welcome to Cyber ICE Box</p>", Text: "Welcome to Cyber ICE Box",
 	}))
 	sent := smtp.sends[0].msg
 	breakable := regexp.MustCompile(`Cyber\s+(ICE|Ice)\s+Box`)
 	require.False(t, breakable.MatchString(sent.HTML), sent.HTML)
 	require.False(t, breakable.MatchString(sent.Text), sent.Text)
-	require.Contains(t, sent.HTML, "до Cyber&nbsp;ICE&nbsp;Box</p>")
-	require.Contains(t, sent.Text, "до Cyber\u00a0ICE\u00a0Box")
+	require.Contains(t, sent.HTML, "to Cyber&nbsp;ICE&nbsp;Box</p>")
+	require.Contains(t, sent.Text, "to Cyber\u00a0ICE\u00a0Box")
 }
 
 func TestDeliver_EventMailFooterUsesEventReplyTo(t *testing.T) {
@@ -71,7 +71,7 @@ func TestDeliver_EventMailFooterUsesEventReplyTo(t *testing.T) {
 	require.NoError(t, uc.Deliver(context.Background(), &eventID, email.Message{To: "p@example.org", HTML: "<p>x</p>", Text: "x"}))
 	require.Len(t, smtp.sends, 1)
 	sent := smtp.sends[0].msg
-	require.Equal(t, email.Address{Name: "Кібер Олімпіада", Email: "olymp@mail.cybericebox.com"}, sent.From)
+	require.Equal(t, email.Address{Name: "Cyber Olympiad", Email: "olymp@mail.cybericebox.com"}, sent.From)
 	require.Equal(t, "org@uni.edu", sent.ReplyTo.Email)
 	requireFooter(t, sent, "org@uni.edu")
 }
@@ -167,7 +167,7 @@ func TestFooter_WithoutPlatformTransportStillUsesSupport(t *testing.T) {
 }
 
 const savedFooterDoc = `{"root":{"type":"root","children":[{"type":"paragraph","children":[` +
-	`{"type":"text","text":"Дякуємо! ","format":1},{"type":"variable","varName":"reply_to"},` +
+	`{"type":"text","text":"Thanks! ","format":1},{"type":"variable","varName":"reply_to"},` +
 	`{"type":"text","text":" · "},{"type":"variable","varName":"site_url"}]}]}}`
 
 func TestDeliver_SavedFooterReplacesTheDefault(t *testing.T) {
@@ -179,8 +179,8 @@ func TestDeliver_SavedFooterReplacesTheDefault(t *testing.T) {
 
 	require.NoError(t, uc.Deliver(context.Background(), nil, email.Message{To: "u@example.org", HTML: "<p>x</p>", Text: "x"}))
 	sent := smtp.sends[0].msg
-	require.True(t, strings.HasSuffix(sent.Text, "Дякуємо! support@cybericebox.com · cybericebox.com"), sent.Text)
-	require.Contains(t, sent.HTML, "<strong>Дякуємо! </strong>", "formatting comes through the body renderer")
+	require.True(t, strings.HasSuffix(sent.Text, "Thanks! support@cybericebox.com · cybericebox.com"), sent.Text)
+	require.Contains(t, sent.HTML, "<strong>Thanks! </strong>", "formatting comes through the body renderer")
 	require.Contains(t, sent.HTML, `href="mailto:support@cybericebox.com"`)
 	require.NotContains(t, sent.HTML, "Політика")
 }
@@ -189,12 +189,13 @@ func TestDeliver_FooterSavedAsTextIsStillRendered(t *testing.T) {
 	uc, repo, smtp := newTestUseCase(t, config.SMTPConfig{}, nil)
 	repo.EXPECT().ListPlatformSMTPProviders(gomock.Any()).Return([]postgres.MailSmtpConfig{platformRow}, nil)
 	row := platformIdentityRow
-	row.FooterText = "Дякуємо! {reply_to} · [Політика]({privacy_url})"
+	row.FooterText = "Thanks! {reply_to} · [Policy]({privacy_url})"
+	uc.privacyURL = "https://cybericebox.com/privacy"
 	expectPlatformIdentity(repo, &row)
 
 	require.NoError(t, uc.Deliver(context.Background(), nil, email.Message{To: "u@example.org", HTML: "<p>x</p>", Text: "x"}))
 	sent := smtp.sends[0].msg
-	require.True(t, strings.HasSuffix(sent.Text, "Дякуємо! support@cybericebox.com · Політика (https://cybericebox.com/privacy)"), sent.Text)
+	require.True(t, strings.HasSuffix(sent.Text, "Thanks! support@cybericebox.com · Policy (https://cybericebox.com/privacy)"), sent.Text)
 	require.Contains(t, sent.HTML, `href="https://cybericebox.com/privacy"`)
 }
 
@@ -210,7 +211,7 @@ func TestDeliver_CorruptSavedFooterFallsBackToTheDefault(t *testing.T) {
 }
 
 func TestFooterHTML_NoShadowsAndEscapesValues(t *testing.T) {
-	footer := renderFooter(nil, `a"<b>@x.y`, "https://x.y")
+	footer := renderFooter(nil, `a"<b>@x.y`, "https://x.y", "")
 	require.NotContains(t, footer.HTML, "shadow")
 	require.NotContains(t, footer.HTML, `a"<b>`)
 	require.NotContains(t, footer.HTML, ">—</p>", "the footer needs no extra decorative line")
@@ -219,7 +220,7 @@ func TestFooterHTML_NoShadowsAndEscapesValues(t *testing.T) {
 
 func TestRenderFooter_NothingToShowIsEmpty(t *testing.T) {
 	only := []byte(`{"root":{"type":"root","children":[{"type":"paragraph","children":[{"type":"variable","varName":"reply_to"}]}]}}`)
-	require.Equal(t, mailModel.Footer{}, renderFooter(only, "", "https://x.y"), "the only paragraph needs a Reply-To that is missing")
+	require.Equal(t, mailModel.Footer{}, renderFooter(only, "", "https://x.y", ""), "the only paragraph needs a Reply-To that is missing")
 }
 
 func TestUpdatePlatformFooter_ValidatesSavesAndReturnsSettings(t *testing.T) {
@@ -265,12 +266,12 @@ func TestUpdatePlatformFooter_DefaultContentIsStoredAsNull(t *testing.T) {
 func TestGetPlatformMailSettings_LegacyTextFooterIsConverted(t *testing.T) {
 	uc, repo, _ := newTestUseCase(t, config.SMTPConfig{}, nil)
 	repo.EXPECT().ListPlatformSMTPProviders(gomock.Any()).Return([]postgres.MailSmtpConfig{}, nil).AnyTimes()
-	expectPlatformIdentity(repo, &postgres.MailIdentity{FooterText: "Дякуємо! {site_url}"})
+	expectPlatformIdentity(repo, &postgres.MailIdentity{FooterText: "Thanks! {site_url}"})
 
 	view, err := uc.GetPlatformMailSettings(context.Background())
 	require.NoError(t, err)
 	require.Contains(t, string(view.Footer.Content), `"varName":"site_url"`)
-	require.Contains(t, string(view.Footer.Content), "Дякуємо! ")
+	require.Contains(t, string(view.Footer.Content), "Thanks! ")
 }
 
 func TestPreviewPlatformFooter_RendersUnsavedDocWithPlatformValues(t *testing.T) {
@@ -279,7 +280,7 @@ func TestPreviewPlatformFooter_RendersUnsavedDocWithPlatformValues(t *testing.T)
 
 	preview, err := uc.PreviewPlatformFooter(context.Background(), []byte(savedFooterDoc))
 	require.NoError(t, err)
-	require.Equal(t, "Дякуємо! support@cybericebox.com · cybericebox.com", preview.Text)
+	require.Equal(t, "Thanks! support@cybericebox.com · cybericebox.com", preview.Text)
 	require.Contains(t, preview.HTML, `href="mailto:support@cybericebox.com"`)
 
 	_, err = uc.PreviewPlatformFooter(context.Background(), []byte(`{"root":{"type":"root","children":[{"type":"paragraph","children":[{"type":"variable","varName":"nope"}]}]}}`))
@@ -287,7 +288,23 @@ func TestPreviewPlatformFooter_RendersUnsavedDocWithPlatformValues(t *testing.T)
 
 	preview, err = uc.PreviewPlatformFooter(context.Background(), nil)
 	require.NoError(t, err)
-	require.Contains(t, preview.Text, "Політика конфіденційності")
+	require.NotContains(t, preview.Text, "Політика")
+	require.NotContains(t, preview.Text, "http")
+}
+
+// {site_url} is the address the use case was given (MAIN_SITE_URL, or the ID site when it is not set), shown without the scheme.
+func TestPreviewPlatformFooter_UsesTheGivenSiteURL(t *testing.T) {
+	for siteURL, want := range map[string]string{
+		"https://example.org":     "Thanks! support@cybericebox.com · example.org",
+		"https://id.example.test": "Thanks! support@cybericebox.com · id.example.test",
+	} {
+		uc, repo, _ := newTestUseCase(t, config.SMTPConfig{}, nil)
+		uc.siteURL = siteURL
+		expectPlatformIdentity(repo, &platformIdentityRow)
+		preview, err := uc.PreviewPlatformFooter(context.Background(), []byte(savedFooterDoc))
+		require.NoError(t, err)
+		require.Equal(t, want, preview.Text)
+	}
 }
 
 func TestPreviewPlatformFooterKeepsRootAlignment(t *testing.T) {
@@ -302,14 +319,11 @@ func TestPreviewPlatformFooterKeepsRootAlignment(t *testing.T) {
 }
 
 func TestFooter_ShortLinksStayTogetherWithoutChangingAddresses(t *testing.T) {
-	footer := renderFooter(nil, "support@cybericebox.com", "https://cybericebox.com")
+	footer := renderFooter(nil, "support@cybericebox.com", "https://cybericebox.com", "")
 	require.Contains(t, footer.HTML, "Звʼязатися&nbsp;з&nbsp;нами")
-	require.Contains(t, footer.HTML, "Політика&nbsp;конфіденційності")
 	require.Contains(t, footer.HTML, `href="mailto:support@cybericebox.com"`)
-	require.Contains(t, footer.HTML, `href="https://cybericebox.com/privacy"`)
-	en := renderFooter(mailModel.DefaultFooterDoc(mailModel.LanguageEN), "support@example.org", "https://example.org")
+	en := renderFooter(mailModel.DefaultFooterDoc(mailModel.LanguageEN), "support@example.org", "https://example.org", "")
 	require.Contains(t, en.HTML, "Contact&nbsp;us")
-	require.Contains(t, en.HTML, "Privacy&nbsp;Policy")
 	require.Contains(t, en.Text, "Contact us", "plain-text content stays readable")
 }
 
@@ -319,4 +333,45 @@ func TestFooterLinkWords_DoesNotRewriteURLsOrMakeLongCustomLinksUnbreakable(t *t
 	require.Contains(t, got, `href="https://example.org/Contact us"`)
 	require.Contains(t, got, ">Contact&nbsp;us</a>")
 	require.Contains(t, got, "A long custom footer link with many words")
+}
+
+// golden: a stored footer document equal to the former default, rendered with the owner's values, gives exactly what the
+// code rendered before the default became neutral (captured from the code before this change, domain example.org).
+func TestRenderFooter_StoredFormerDefaultStaysIdentical(t *testing.T) {
+	raw, err := os.ReadFile("testdata/footer_golden_develop.json")
+	require.NoError(t, err)
+	var golden map[string]struct {
+		Doc  json.RawMessage `json:"doc"`
+		HTML string          `json:"html"`
+		Text string          `json:"text"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &golden))
+	require.Len(t, golden, 2)
+	for lang, want := range golden {
+		got := renderFooter(want.Doc, "support@example.org", "https://example.org", "https://example.org/privacy")
+		require.Equal(t, want.HTML, got.HTML, lang)
+		require.Equal(t, want.Text, got.Text, lang)
+	}
+}
+
+func TestRenderFooter_DefaultHasNoLinkToASiteOrPolicy(t *testing.T) {
+	for _, lang := range []mailModel.Language{mailModel.LanguageUK, mailModel.LanguageEN} {
+		footer := renderFooter(mailModel.DefaultFooterDoc(lang), "support@example.org", "https://example.org", "https://example.org/privacy")
+		require.Equal(t, 1, strings.Count(footer.HTML, "<a "), string(lang))
+		require.Contains(t, footer.HTML, `href="mailto:support@example.org"`)
+		require.NotContains(t, footer.HTML, "http")
+		require.NotContains(t, footer.Text, "http")
+	}
+}
+
+// {site_url} is the address the caller passes (MAIN_SITE_URL or the ID site); {privacy_url} is empty without PRIVACY_URL.
+func TestRenderFooter_SiteAndPrivacyVariables(t *testing.T) {
+	doc := []byte(`{"root":{"type":"root","children":[` +
+		`{"type":"paragraph","children":[{"type":"variable","varName":"site_url"}]},` +
+		`{"type":"paragraph","children":[{"type":"variable","varName":"privacy_url"}]}]}}`)
+	both := renderFooter(doc, "", "https://id.example.test", "https://example.org/privacy")
+	require.Equal(t, "id.example.test\nexample.org/privacy", both.Text)
+	siteOnly := renderFooter(doc, "", "https://id.example.test", "")
+	require.Equal(t, "id.example.test", siteOnly.Text)
+	require.NotContains(t, siteOnly.HTML, "privacy")
 }

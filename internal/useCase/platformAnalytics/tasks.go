@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/platformAnalyticsRepo"
-	eventAnalyticsModel "github.com/cybericebox/daemon/internal/model/eventAnalytics"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	platformAnalyticsModel "github.com/cybericebox/daemon/internal/model/platformAnalytics"
+	"github.com/cybericebox/backend/internal/delivery/repository/platformAnalyticsRepo"
+	eventAnalyticsModel "github.com/cybericebox/backend/internal/model/eventAnalytics"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	platformAnalyticsModel "github.com/cybericebox/backend/internal/model/platformAnalytics"
 )
 
 const (
@@ -35,7 +35,7 @@ var taskLevels = []exerciseModel.Difficulty{
 	exerciseModel.DifficultyHard, exerciseModel.DifficultyInsane,
 }
 
-// GetTasks is the «Каталог завдань» report: how catalog tasks are used and
+// GetTasks is the "Task catalog" report: how catalog tasks are used and
 // how they behave across the events that started in the period. category is an
 // exercise tag, level a task difficulty; empty means no filter.
 func (u *PlatformAnalyticsUseCase) GetTasks(ctx context.Context, from, to *time.Time, category, level string) (TasksView, error) {

@@ -2,9 +2,9 @@ package event_test
 
 import (
 	"context"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabRevealRepo"
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabRevealRepo"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
 	"github.com/stretchr/testify/require"
 	"testing"
 	"time"

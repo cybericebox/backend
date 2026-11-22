@@ -2,10 +2,10 @@ package event_test
 
 import (
 	"context"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	"github.com/cybericebox/daemon/internal/useCase/event"
-	"github.com/cybericebox/daemon/pkg/labaccess"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	"github.com/cybericebox/backend/internal/useCase/event"
+	"github.com/cybericebox/backend/pkg/labaccess"
 	"github.com/gofrs/uuid"
 	"testing"
 	"time"
@@ -23,7 +23,7 @@ func (s *waitingIssuer) Issue(ctx context.Context, _ labaccess.Session, _ time.T
 	close(s.entered)
 	select {
 	case <-s.release:
-		return labaccess.Link{URL: "https://web.example/_auth?t=secret"}, nil
+		return labaccess.Link{URL: "https://web.example/_auth", Grant: "secret"}, nil
 	case <-ctx.Done():
 		return labaccess.Link{}, ctx.Err()
 	}

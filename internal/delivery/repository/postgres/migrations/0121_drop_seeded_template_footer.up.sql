@@ -1,5 +1,5 @@
 -- The platform now appends its own footer to every email, so the seeded
--- «Cyber ICE Box · Автоматичне повідомлення платформи.» closing line (seeded
+-- closing line ("Cyber ICE Box · automatic platform message", Ukrainian text) (seeded
 -- by 0062 after a divider, renamed by 0094, and copied into the event
 -- reminder/finished templates by 0083) is a duplicate. Remove the line, and
 -- the divider right before it, only where the line is still exactly the

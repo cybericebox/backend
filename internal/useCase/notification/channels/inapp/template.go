@@ -7,14 +7,14 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/inAppTemplateRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/notificationSettingsRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	notificationModel "github.com/cybericebox/daemon/internal/model/notification"
-	inAppModel "github.com/cybericebox/daemon/internal/model/notification/inapp"
-	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
-	_ "github.com/cybericebox/daemon/internal/model/notification/types/payloads"
+	"github.com/cybericebox/backend/internal/delivery/repository/inAppTemplateRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/notificationSettingsRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	notificationModel "github.com/cybericebox/backend/internal/model/notification"
+	inAppModel "github.com/cybericebox/backend/internal/model/notification/inapp"
+	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
+	_ "github.com/cybericebox/backend/internal/model/notification/types/payloads"
 )
 
 type NotificationInAppTemplateUseCase struct {

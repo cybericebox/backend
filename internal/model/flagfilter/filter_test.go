@@ -6,8 +6,8 @@ import (
 	mrand "math/rand/v2"
 	"testing"
 
-	"github.com/cybericebox/daemon/internal/model/flagfilter"
-	"github.com/cybericebox/daemon/internal/model/flagpattern"
+	"github.com/cybericebox/backend/internal/model/flagfilter"
+	"github.com/cybericebox/backend/internal/model/flagpattern"
 )
 
 func seeded(seed byte) *mrand.ChaCha8 {

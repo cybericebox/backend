@@ -8,8 +8,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/model"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
+	"github.com/cybericebox/backend/internal/model"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
 )
 
 // readAheadBytes is how much one range request fetches at most: a zip reader reads a few KiB at a time, and a
@@ -26,9 +26,10 @@ func (u *MediaUseCase) OpenUploadAt(ctx context.Context, id uuid.UUID) (io.Reade
 	}
 	parts := make([]objectPart, upload.ChunkCount())
 	for i := range parts {
-		parts[i] = objectPart{key: mediaModel.ChunkKey(upload.ID, i), size: upload.ChunkSize(i)}
+		o := u.chunkObject(upload, i)
+		parts[i] = objectPart{key: o.key, size: o.size, open: u.rangeOpener(o)}
 	}
-	return newObjectReaderAt(ctx, u.storage, parts), upload, nil
+	return newObjectReaderAt(ctx, parts), upload, nil
 }
 
 // OpenFileAt gives random access to a stored file's bytes (range requests on its blob). No owner check: callers
@@ -41,32 +42,42 @@ func (u *MediaUseCase) OpenFileAt(ctx context.Context, id uuid.UUID) (io.ReaderA
 	if err != nil {
 		return nil, mediaModel.File{}, err
 	}
-	parts := []objectPart{{key: mediaModel.BlobKey(f.ContentHash), size: f.SizeBytes}}
-	return newObjectReaderAt(ctx, u.storage, parts), f, nil
+	o, err := u.objectOf(ctx, f)
+	if err != nil {
+		return nil, mediaModel.File{}, err
+	}
+	return newObjectReaderAt(ctx, []objectPart{{key: o.key, size: o.size, open: u.rangeOpener(o)}}), f, nil
 }
 
-// objectPart is one stored object of a byte sequence.
+// objectPart is one stored object of a byte sequence; open reads a range of its plain bytes (decrypting when it is stored
+// encrypted).
 type objectPart struct {
 	key  string
 	size int64
+	open func(ctx context.Context, offset, length int64) (io.ReadCloser, error)
+}
+
+func (u *MediaUseCase) rangeOpener(o object) func(context.Context, int64, int64) (io.ReadCloser, error) {
+	return func(ctx context.Context, offset, length int64) (io.ReadCloser, error) {
+		return u.openRange(ctx, o, offset, length)
+	}
 }
 
 // objectReaderAt is io.ReaderAt over objects laid end to end. It keeps one read-ahead window (within one object)
 // so sequential small reads cost one range request per readAheadBytes. Safe for concurrent use.
 type objectReaderAt struct {
-	ctx     context.Context
-	storage IStorage
-	parts   []objectPart
-	starts  []int64
-	size    int64
+	ctx    context.Context
+	parts  []objectPart
+	starts []int64
+	size   int64
 
 	mu     sync.Mutex
 	window []byte
 	from   int64 // offset of window[0] in the whole sequence
 }
 
-func newObjectReaderAt(ctx context.Context, storage IStorage, parts []objectPart) *objectReaderAt {
-	r := &objectReaderAt{ctx: ctx, storage: storage, parts: parts, starts: make([]int64, len(parts))}
+func newObjectReaderAt(ctx context.Context, parts []objectPart) *objectReaderAt {
+	r := &objectReaderAt{ctx: ctx, parts: parts, starts: make([]int64, len(parts))}
 	for i, p := range parts {
 		r.starts[i] = r.size
 		r.size += p.size
@@ -105,7 +116,7 @@ func (r *objectReaderAt) fill(off, want int64) error {
 	}
 	within := off - r.starts[i]
 	length := min(max(want, readAheadBytes), r.parts[i].size-within)
-	rc, err := r.storage.GetRange(r.ctx, r.parts[i].key, within, length)
+	rc, err := r.parts[i].open(r.ctx, within, length)
 	if err != nil {
 		return storedReadFailure(r.parts[i].key, err)
 	}

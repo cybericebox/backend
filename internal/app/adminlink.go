@@ -7,10 +7,10 @@ import (
 	"io"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/repository"
-	authUseCase "github.com/cybericebox/daemon/internal/useCase/auth"
-	"github.com/cybericebox/daemon/pkg/token"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/repository"
+	authUseCase "github.com/cybericebox/backend/internal/useCase/auth"
+	"github.com/cybericebox/backend/pkg/token"
 )
 
 // adminLinkIssuer is the part of the auth use case the admin-link command needs.
@@ -29,7 +29,7 @@ func RunAdminLink(ctx context.Context, cfg *config.Config, out io.Writer) error 
 	}
 	uc := authUseCase.NewAuthUseCase(authUseCase.Dependencies{
 		Repo:   repo,
-		Token:  token.MustNew(token.Config{TokenSignature: cfg.Auth.TokenSignature, SetupTokenTTL: cfg.Auth.SetupTokenTTL}),
+		Token:  token.MustNew(token.Config{Keys: cfg.Auth.SetupTokenKeys, TokenSignature: cfg.Auth.TokenSignature, SetupTokenTTL: cfg.Auth.SetupTokenTTL}),
 		Config: cfg.Auth,
 	})
 	return printAdminLink(ctx, uc, out)

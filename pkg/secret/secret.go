@@ -19,6 +19,7 @@ import (
 	"io"
 	"regexp"
 	"strings"
+	"unicode"
 )
 
 // versionPrefix marks a ciphertext that names its key. A value without it is the older plain base64 form,
@@ -27,6 +28,16 @@ const versionPrefix = "v1:"
 
 // defaultKeyID names a key given without an id (the single hex key of the old configuration).
 const defaultKeyID = "default"
+
+// The classes of a failed open. Messages carry no value, only the class (and a key id for the first).
+var (
+	// ErrUnknownKey: the key that sealed the value is not in the ring.
+	ErrUnknownKey = errors.New("secret: the key that sealed this value is not in the keyring")
+	// ErrCorrupt: the stored text is not a ciphertext of this package (bad encoding, too short).
+	ErrCorrupt = errors.New("secret: stored value is not a valid ciphertext")
+	// ErrAuth: the key is right or tried, but authentication failed (other context, wrong key, damaged value).
+	ErrAuth = errors.New("secret: authentication failed")
+)
 
 var keyIDPattern = regexp.MustCompile(`^[a-z0-9_-]{1,16}$`)
 
@@ -121,6 +132,58 @@ func (c *Cipher) Destroy() {
 // CurrentKeyID is the id of the key that encrypts.
 func (c *Cipher) CurrentKeyID() string { return c.keys[0].id }
 
+// KeyIDs lists the ids of the keys of the ring, the sealing key first.
+func (c *Cipher) KeyIDs() []string {
+	ids := make([]string, len(c.keys))
+	for i, k := range c.keys {
+		ids[i] = k.id
+	}
+	return ids
+}
+
+// HasKey reports whether the ring holds the key with this id.
+func (c *Cipher) HasKey(id string) bool {
+	for _, k := range c.keys {
+		if k.id == id {
+			return true
+		}
+	}
+	return false
+}
+
+// SafeKeyID returns the key id for display: an id read from stored data that does not have the shape of a key id is
+// replaced, so nothing from the database can put control characters or long text into an operator's terminal.
+func SafeKeyID(id string) string {
+	if keyIDPattern.MatchString(id) {
+		return id
+	}
+	return "invalid-id"
+}
+
+// Printable returns s for display, with every non-printable rune replaced and the text cut to max runes. Stored text
+// (names inside a document) goes through it before it reaches output.
+func Printable(s string, max int) string {
+	out := make([]rune, 0, len(s))
+	for _, r := range s {
+		if len(out) == max {
+			out = append(out, '…')
+			break
+		}
+		if r < 0x20 || r == 0x7f || (r >= 0x80 && r < 0xa0) || !unicode.IsPrint(r) {
+			r = '?'
+		}
+		out = append(out, r)
+	}
+	return string(out)
+}
+
+// KeyID reads which key sealed a stored ciphertext without opening it. legacy is true for the older form that names
+// no key (and for anything that is not a ciphertext of this package).
+func KeyID(encoded string) (id string, legacy bool) {
+	id, _, ok := splitCiphertext(encoded)
+	return id, !ok
+}
+
 // NeedsRotation reports whether a stored ciphertext was not sealed by the current key (an older key, or the
 // older form without a key id): it still opens, and sealing it again moves it to the current key.
 func (c *Cipher) NeedsRotation(encoded string) bool {
@@ -128,14 +191,17 @@ func (c *Cipher) NeedsRotation(encoded string) bool {
 	return !ok || id != c.keys[0].id
 }
 
-// Encrypt returns v1:<key id>:base64( [nonce | ciphertext | tag] ).
-func (c *Cipher) Encrypt(plaintext string) (string, error) {
-	return c.EncryptWithContext([]byte(plaintext), nil)
-}
+// ErrNoContext: a value was sealed or opened without a context. Every secret is bound to the row or purpose it belongs to
+// (see internal/secretctx), so there is no way to seal without one.
+var ErrNoContext = errors.New("secret: a context is required")
 
-// EncryptWithContext seals plaintext with the current key, bound to authenticated context. A different context
-// cannot decrypt the result.
+// EncryptWithContext seals plaintext with the current key, bound to authenticated context, as
+// v1:<key id>:base64( [nonce | ciphertext | tag] ). A different context cannot decrypt the result, and an empty one is
+// refused (ErrNoContext).
 func (c *Cipher) EncryptWithContext(plaintext, context []byte) (string, error) {
+	if len(context) == 0 {
+		return "", ErrNoContext
+	}
 	gcm, err := newGCM(c.keys[0].key)
 	if err != nil {
 		return "", err
@@ -148,26 +214,20 @@ func (c *Cipher) EncryptWithContext(plaintext, context []byte) (string, error) {
 	return versionPrefix + c.keys[0].id + ":" + base64.StdEncoding.EncodeToString(sealed), nil
 }
 
-// Decrypt reverses Encrypt.
-func (c *Cipher) Decrypt(encoded string) (string, error) {
-	plain, err := c.DecryptWithContext(encoded, nil)
-	if err != nil {
-		return "", err
-	}
-	return string(plain), nil
-}
-
 // DecryptWithContext reverses EncryptWithContext when the same authenticated
 // context is provided. A ciphertext that names its key is opened with that key; an older one is tried against
 // each key of the ring.
 func (c *Cipher) DecryptWithContext(encoded string, context []byte) ([]byte, error) {
+	if len(context) == 0 {
+		return nil, ErrNoContext
+	}
 	if id, body, ok := splitCiphertext(encoded); ok {
 		for _, k := range c.keys {
 			if k.id == id {
 				return open(k.key, body, context)
 			}
 		}
-		return nil, fmt.Errorf("secret: the key %q that sealed this value is not in the keyring", id)
+		return nil, fmt.Errorf("%w: %q", ErrUnknownKey, id)
 	}
 	var lastErr error
 	for _, k := range c.keys {
@@ -201,7 +261,7 @@ func newGCM(key [32]byte) (cipher.AEAD, error) {
 func open(key [32]byte, encoded string, context []byte) ([]byte, error) {
 	data, err := base64.StdEncoding.DecodeString(encoded)
 	if err != nil {
-		return nil, err
+		return nil, ErrCorrupt
 	}
 	gcm, err := newGCM(key)
 	if err != nil {
@@ -209,7 +269,11 @@ func open(key [32]byte, encoded string, context []byte) ([]byte, error) {
 	}
 	ns := gcm.NonceSize()
 	if len(data) < ns+gcm.Overhead() {
-		return nil, errors.New("secret: ciphertext too short")
+		return nil, ErrCorrupt
 	}
-	return gcm.Open(nil, data[:ns], data[ns:], context)
+	plain, err := gcm.Open(nil, data[:ns], data[ns:], context)
+	if err != nil {
+		return nil, ErrAuth
+	}
+	return plain, nil
 }

@@ -3,14 +3,14 @@ package notification
 import (
 	"github.com/gin-gonic/gin"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/handler/notification/catalog"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/handler/notification/inbox"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/handler/notification/pulse"
-	notificationSettings "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/notification/settings"
-	statsHandler "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/notification/stats"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/handler/notification/template"
-	testHandler "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/notification/test"
-	"github.com/cybericebox/daemon/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/handler/notification/catalog"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/handler/notification/inbox"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/handler/notification/pulse"
+	notificationSettings "github.com/cybericebox/backend/internal/delivery/controller/http/handler/notification/settings"
+	statsHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/notification/stats"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/handler/notification/template"
+	testHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/notification/test"
+	"github.com/cybericebox/backend/internal/model/rbac"
 )
 
 type (

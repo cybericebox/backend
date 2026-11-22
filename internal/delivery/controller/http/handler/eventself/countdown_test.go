@@ -10,17 +10,17 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/middleware"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 func TestPublicInfoExposesCountdownPolicy(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	eventID := uuid.Must(uuid.NewV7())
 	view := eventUseCase.EventInfoView{
-		EventID: eventID, Name: "Подія", Status: eventModel.LifecyclePublished,
+		EventID: eventID, Name: "Event", Status: eventModel.LifecyclePublished,
 		Theme:     eventConfigModel.DefaultTheme(),
 		Countdown: eventConfigModel.CountdownSettings{ShowStart: false, ShowFinish: true, FinishMinutes: 15},
 	}

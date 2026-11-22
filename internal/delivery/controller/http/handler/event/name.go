@@ -3,8 +3,8 @@ package event
 import (
 	"github.com/gin-gonic/gin"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	"github.com/cybericebox/daemon/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	"github.com/cybericebox/backend/internal/model/rbac"
 )
 
 type eventPublicNameRequest struct {

@@ -2,7 +2,7 @@ package eventConfigModel
 
 import (
 	"encoding/json"
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
 	"github.com/gofrs/uuid"
 	"time"
 )

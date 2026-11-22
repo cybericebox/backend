@@ -10,9 +10,9 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
 )
 
 func eventContentImageURL(eventID, fileID uuid.UUID) string {
@@ -44,7 +44,7 @@ func (u *EventUseCase) UploadEventContentImage(ctx context.Context, eventID, use
 	if err = mediaModel.CheckImagePixels(data); err != nil {
 		return "", err
 	}
-	file, err := u.brandMedia.UploadFile(ctx, "event-content-image", contentType, bytes.NewReader(data), userID)
+	file, err := u.brandMedia.UploadPublicImage(ctx, mediaModel.RefTypeEventContentImage, "event-content-image", contentType, bytes.NewReader(data), userID)
 	if err != nil {
 		return "", err
 	}

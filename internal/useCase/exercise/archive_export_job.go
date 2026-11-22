@@ -16,16 +16,17 @@ import (
 	"github.com/rs/zerolog/log"
 	yzip "github.com/yeka/zip"
 
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	imageRegistryModel "github.com/cybericebox/daemon/internal/model/imageRegistry"
-	jobsModel "github.com/cybericebox/daemon/internal/model/jobs"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	"github.com/cybericebox/daemon/pkg/secret"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	imageRegistryModel "github.com/cybericebox/backend/internal/model/imageRegistry"
+	jobsModel "github.com/cybericebox/backend/internal/model/jobs"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	"github.com/cybericebox/backend/internal/secretctx"
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
-// Background export of tasks «з образами». The platform images of the devices make an archive of up to 512 MiB +
+// Background export of tasks "with images". The platform images of the devices make an archive of up to 512 MiB +
 // 10 GiB, so the export never runs inside a request: the request records an export job and queues it; the job
 // (RunArchiveExport) lays the tasks out, then streams the zip (small files from memory, every image straight from the
 // registry) into storage without holding it whole, and records done (the stored file, read in chunks like any export)
@@ -80,11 +81,9 @@ func (u *ExerciseUseCase) SetArchiveExport(deps ArchiveExportDependencies) {
 }
 
 // exportPasswordContext binds a sealed archive password to its job.
-func exportPasswordContext(jobID uuid.UUID) []byte {
-	return []byte("exercise-export:password:" + jobID.String())
-}
+func exportPasswordContext(jobID uuid.UUID) []byte { return secretctx.ArchiveExportPassword(jobID) }
 
-// StartArchiveExport records the background export of the tasks «з образами» and queues it; it returns the job id.
+// StartArchiveExport records the background export of the tasks "with images" and queues it; it returns the job id.
 func (u *ExerciseUseCase) StartArchiveExport(ctx context.Context, in StartExportInput) (uuid.UUID, error) {
 	if u.imageExporter == nil || u.exportFiles == nil || u.exportQueue == nil {
 		return uuid.Nil, model.ErrPlatform.WithMessage("Image export is not wired").Err()

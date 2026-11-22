@@ -10,20 +10,20 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	"github.com/cybericebox/daemon/internal/model/notification/branding"
-	emailModel "github.com/cybericebox/daemon/internal/model/notification/email"
-	"github.com/cybericebox/daemon/internal/useCase/notification/channels/render"
-	appErr "github.com/cybericebox/daemon/pkg/err"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	"github.com/cybericebox/backend/internal/model/notification/branding"
+	emailModel "github.com/cybericebox/backend/internal/model/notification/email"
+	"github.com/cybericebox/backend/internal/useCase/notification/channels/render"
+	appErr "github.com/cybericebox/backend/pkg/err"
 )
 
 // TemplateMedia is the narrow media port of the email template use cases
 // (platform and Event): image upload/stream, file lookups for validation and
 // ownership references so the media GC keeps referenced images.
 type TemplateMedia interface {
-	UploadFile(ctx context.Context, name, contentType string, r io.Reader, createdBy uuid.UUID) (mediaModel.File, error)
+	UploadPublicImage(ctx context.Context, refType, name, contentType string, r io.Reader, createdBy uuid.UUID) (mediaModel.File, error)
 	StreamFile(ctx context.Context, id uuid.UUID) (io.ReadCloser, mediaModel.File, error)
 	GetFile(ctx context.Context, id uuid.UUID) (mediaModel.File, error)
 	ReplaceReferences(ctx context.Context, refType string, refID uuid.UUID, fileIDs []uuid.UUID) error
@@ -70,7 +70,7 @@ func (t *TemplateImages) UploadForTemplate(ctx context.Context, templateID uuid.
 	if name == "" {
 		name = templateImageName
 	}
-	file, err := t.media.UploadFile(ctx, name, contentType, bytes.NewReader(data), userID)
+	file, err := t.media.UploadPublicImage(ctx, mediaModel.RefTypeEmailTemplate, name, contentType, bytes.NewReader(data), userID)
 	if err != nil {
 		return mediaModel.File{}, err
 	}

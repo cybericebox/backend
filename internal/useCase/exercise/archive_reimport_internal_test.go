@@ -3,15 +3,16 @@ package exercise
 import (
 	"bytes"
 	"testing"
+	"time"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 )
 
 func TestReimportSourceIDIsSeparateFromTheNewIdentity(t *testing.T) {
 	source := uuid.Must(uuid.NewV7())
-	data, err := BuildArchiveV1(map[string][]byte{"exercise.json": []byte(`{"schema":"cib-exercise/1","exercise":{"id":"` + source.String() + `","name":"Portable"},"versions":[{"status":"draft","variants":[]}]}`)})
+	data, err := BuildArchiveV1(map[string][]byte{"exercise.json": []byte(`{"schema":"cib-exercise/1.0","exercise":{"id":"` + source.String() + `","name":"Portable"},"versions":[{"status":"draft","variants":[]}]}`)})
 	require.NoError(t, err)
 	parsed, err := ParseExerciseArchive(data, "", DefaultLimits())
 	require.NoError(t, err)
@@ -22,7 +23,7 @@ func TestReimportSourceIDIsSeparateFromTheNewIdentity(t *testing.T) {
 
 func TestReimportItemsKeepStableFolderKeysEvenWithRepeatedSourceIDs(t *testing.T) {
 	source := uuid.Must(uuid.NewV7())
-	doc := []byte(`{"schema":"cib-exercise/1","exercise":{"id":"` + source.String() + `","name":"Portable"},"versions":[{"status":"draft","variants":[]}]}`)
+	doc := []byte(`{"schema":"cib-exercise/1.0","exercise":{"id":"` + source.String() + `","name":"Portable"},"versions":[{"status":"draft","variants":[]}]}`)
 	data, err := BuildArchiveV1(map[string][]byte{"z/exercise.json": doc, "a/nested/exercise.json": doc})
 	require.NoError(t, err)
 	entries, protected, err := openZipAt(bytes.NewReader(data), int64(len(data)), "", DefaultLimits())
@@ -41,7 +42,7 @@ func TestReimportItemsKeepStableFolderKeysEvenWithRepeatedSourceIDs(t *testing.T
 func TestReimportSourceIDMissingOrMalformedKeepsLegacyNewImportCompatibility(t *testing.T) {
 	for _, source := range []string{"", "foreign-non-uuid-id"} {
 		t.Run(source, func(t *testing.T) {
-			data, err := BuildArchiveV1(map[string][]byte{"exercise.json": []byte(`{"schema":"cib-exercise/1","exercise":{"id":"` + source + `","name":"Portable"},"versions":[{"status":"draft","variants":[]}]}`)})
+			data, err := BuildArchiveV1(map[string][]byte{"exercise.json": []byte(`{"schema":"cib-exercise/1.0","exercise":{"id":"` + source + `","name":"Portable"},"versions":[{"status":"draft","variants":[]}]}`)})
 			require.NoError(t, err)
 			parsed, err := ParseExerciseArchive(data, "", DefaultLimits())
 			require.NoError(t, err)
@@ -73,8 +74,12 @@ func TestReimportWorkingVersionChoosesDraftThenPublishedThenFirstHistory(t *test
 
 func TestReimportParsesEveryItemBeforeReturningAny(t *testing.T) {
 	data, err := BuildArchiveV1(map[string][]byte{
-		"a/exercise.json": []byte(`{"schema":"cib-exercise/1","exercise":{"name":"Valid"},"versions":[{"status":"draft","variants":[]}]}`),
-		"z/exercise.json": []byte(`{"schema":"cib-exercise/1","exercise":{"name":"Invalid"},"versions":[{"variants":[]}]}`),
+		"a/exercise.json": []byte(
+			`{"schema":"cib-exercise/1.0","exercise":{"name":"Valid"},"versions":[{"status":"draft","variants":[]}]}`,
+		),
+		"z/exercise.json": []byte(
+			`{"schema":"cib-exercise/1.0","exercise":{"name":"Invalid"},"versions":[{"status":"bogus","variants":[]}]}`,
+		),
 	})
 	require.NoError(t, err)
 	entries, protected, err := openZipAt(bytes.NewReader(data), int64(len(data)), "", DefaultLimits())
@@ -84,4 +89,20 @@ func TestReimportParsesEveryItemBeforeReturningAny(t *testing.T) {
 	items, err := parseArchiveRead(read)
 	require.Error(t, err)
 	require.Nil(t, items)
+}
+
+// A confirmation is bound to the revision of the working copy it was made against: a save after the preview, even one that
+// leaves the content as it was, is a different revision and the old confirmation is stale.
+func TestPreviewRevisionChangesWithTheRevisionOfTheWorkingCopy(t *testing.T) {
+	e := exerciseModel.Exercise{ID: uuid.Must(uuid.NewV7())}
+	v := exerciseModel.ExerciseVersion{ID: uuid.Must(uuid.NewV7()), ExerciseID: e.ID, Status: exerciseModel.VersionStatusDraft, AdminNote: "same"}
+	target := ImportTarget{ItemKey: ".", Mode: "update", ExerciseID: e.ID}
+	at := time.Date(2026, 11, 16, 10, 0, 0, 0, time.UTC)
+
+	v.UpdatedAt = at
+	before := previewRevision(PreviewArchiveInput{}, "hash", ".", 0, target, e, v)
+	v.UpdatedAt = at.Add(time.Microsecond)
+	after := previewRevision(PreviewArchiveInput{}, "hash", ".", 0, target, e, v)
+
+	require.NotEqual(t, before, after)
 }

@@ -8,7 +8,7 @@ import (
 	"github.com/riverqueue/river"
 	"github.com/stretchr/testify/require"
 
-	jobsModel "github.com/cybericebox/daemon/internal/model/jobs"
+	jobsModel "github.com/cybericebox/backend/internal/model/jobs"
 )
 
 type fakeUseCase struct {

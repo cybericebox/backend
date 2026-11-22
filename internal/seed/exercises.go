@@ -9,7 +9,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	exerciseUseCase "github.com/cybericebox/daemon/internal/useCase/exercise"
+	exerciseUseCase "github.com/cybericebox/backend/internal/useCase/exercise"
 )
 
 // publishedExercise is a catalog exercise the seeder keeps published.

@@ -1,20 +1,20 @@
 package app
 
 import (
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/download"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/sse"
-	challengeAttempt "github.com/cybericebox/daemon/internal/model/challengeAttempt"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
-	eventStandModel "github.com/cybericebox/daemon/internal/model/eventStand"
-	mailModel "github.com/cybericebox/daemon/internal/model/mail"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	authUseCase "github.com/cybericebox/daemon/internal/useCase/auth"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
-	mailUseCase "github.com/cybericebox/daemon/internal/useCase/mail"
-	emailUseCase "github.com/cybericebox/daemon/internal/useCase/notification/channels/email"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/download"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/sse"
+	challengeAttempt "github.com/cybericebox/backend/internal/model/challengeAttempt"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
+	eventStandModel "github.com/cybericebox/backend/internal/model/eventStand"
+	mailModel "github.com/cybericebox/backend/internal/model/mail"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	authUseCase "github.com/cybericebox/backend/internal/useCase/auth"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
+	mailUseCase "github.com/cybericebox/backend/internal/useCase/mail"
+	emailUseCase "github.com/cybericebox/backend/internal/useCase/notification/channels/email"
 )
 
 // applyTunables hands the operator-set limits and timings to the packages that own them. It runs once

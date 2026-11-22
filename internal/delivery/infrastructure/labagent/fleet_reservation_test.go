@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
 )
 
 // fakeResolver places every unit on agent, and answers the part of each ref by its unit (or its test ids).

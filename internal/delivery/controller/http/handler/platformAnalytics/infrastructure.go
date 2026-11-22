@@ -7,11 +7,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	labMonitoringModel "github.com/cybericebox/daemon/internal/model/labMonitoring"
-	platformAnalyticsModel "github.com/cybericebox/daemon/internal/model/platformAnalytics"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	platformAnalyticsUseCase "github.com/cybericebox/daemon/internal/useCase/platformAnalytics"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	labMonitoringModel "github.com/cybericebox/backend/internal/model/labMonitoring"
+	platformAnalyticsModel "github.com/cybericebox/backend/internal/model/platformAnalytics"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/model/usertext"
+	platformAnalyticsUseCase "github.com/cybericebox/backend/internal/useCase/platformAnalytics"
 )
 
 // InfrastructureUseCase is the port of the infrastructure section.
@@ -193,12 +194,10 @@ func (h *Handler) infrastructure(ctx *gin.Context) {
 	if !ok {
 		return
 	}
-	view, err := h.useCase.GetInfrastructure(ctx.Request.Context(), from, to)
-	if err != nil {
-		response.AbortWithError(ctx, err)
-		return
-	}
-	response.AbortWithData(ctx, toInfrastructureResponse(view))
+	answer(ctx, from, to, func(from, to *time.Time) (infrastructureResponse, error) {
+		view, err := h.useCase.GetInfrastructure(ctx.Request.Context(), from, to)
+		return toInfrastructureResponse(view), err
+	})
 }
 
 // exportInfrastructure godoc
@@ -236,27 +235,27 @@ func (h *Handler) exportInfrastructure(ctx *gin.Context) {
 func writeInfrastructureCSV(write func([]string) error, table string, v platformAnalyticsUseCase.InfrastructureView) {
 	switch table {
 	case "stand_hours":
-		_ = write([]string{"Захід", "Стенд-годин", "Стендів"})
+		_ = write([]string{usertext.ColEvent, usertext.ColStandHours, usertext.ColStands})
 		for _, e := range v.StandHours.Events {
 			_ = write([]string{csvText(e.EventName), csvFloat(e.Hours), csvInt(e.Stands)})
 		}
 	case "kinds":
-		_ = write([]string{"Тип", "Годин", "Лабораторій"})
+		_ = write([]string{usertext.ColType, usertext.ColHours, usertext.ColLabs})
 		for _, k := range v.StandHours.Kinds {
 			_ = write([]string{csvText(k.Kind), csvFloat(k.Hours), csvInt(k.Labs)})
 		}
 	case "failures":
-		_ = write([]string{"Причина (код)", "Лабораторій", "Стендів", "Заходів", "Останній збій"})
+		_ = write([]string{usertext.ColReasonCode, usertext.ColLabs, usertext.ColStands, usertext.ColEvents, usertext.ColLastFailure})
 		for _, f := range v.Failures {
 			_ = write([]string{csvText(f.Code), csvInt(f.Labs), csvInt(f.Stands), csvInt(f.Events), csvTime(f.LastAt)})
 		}
 	case "capacity":
-		_ = write([]string{"Час", "CPU доступно (мілі-ядер)", "CPU зарезервовано (мілі-ядер)", "Памʼять доступно (байт)", "Памʼять зарезервовано (байт)", "Агентів"})
+		_ = write([]string{usertext.ColTime, usertext.ColCPUAvailable, usertext.ColCPUReserved, usertext.ColMemoryAvailable, usertext.ColMemoryReserved, usertext.ColAgents})
 		for _, c := range v.Capacity {
 			_ = write([]string{csvTime(c.At), csvInt(c.AllocatableCPUMillicores), csvInt(c.RequestedCPUMillicores), csvInt(c.AllocatableMemoryBytes), csvInt(c.RequestedMemoryBytes), csvInt(c.Agents)})
 		}
 	case "peaks":
-		_ = write([]string{"Час", "Пік активних стендів", "Пік тестових лабораторій", "Пік усіх лабораторій"})
+		_ = write([]string{usertext.ColTime, usertext.ColPeakActiveStands, usertext.ColPeakTestLabs, usertext.ColPeakAllLabs})
 		tests, all := peakByTime(v.TestLabPeaks), peakByTime(v.AllPeaks)
 		for _, p := range v.Peaks {
 			_ = write([]string{csvTime(p.At), csvInt(p.Peak), csvInt(tests[p.At.UnixNano()]), csvInt(all[p.At.UnixNano()])})

@@ -7,7 +7,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	eventManagerModel "github.com/cybericebox/daemon/internal/model/eventManager"
+	eventManagerModel "github.com/cybericebox/backend/internal/model/eventManager"
 )
 
 var managerNow = time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC)

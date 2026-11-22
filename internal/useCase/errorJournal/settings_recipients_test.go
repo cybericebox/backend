@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	errorJournal "github.com/cybericebox/daemon/internal/model/errorJournal"
+	errorJournal "github.com/cybericebox/backend/internal/model/errorJournal"
 )
 
 // Existing journal fixtures represent registered, confirmed operators.

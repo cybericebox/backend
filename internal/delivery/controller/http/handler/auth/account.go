@@ -8,8 +8,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	"github.com/cybericebox/daemon/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	"github.com/cybericebox/backend/internal/model/rbac"
 )
 
 type accountResponse struct {
@@ -223,5 +223,6 @@ func (h *Handler) deleteAccount(ctx *gin.Context) {
 		response.AbortWithError(ctx, err)
 		return
 	}
+	clearLastEmail(ctx)        // the address of a deleted account is not remembered
 	h.prot.DeAuthenticate(ctx) // clears cookies + returns success
 }

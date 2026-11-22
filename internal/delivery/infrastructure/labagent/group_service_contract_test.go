@@ -2,11 +2,12 @@ package labagent
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	eventLab "github.com/cybericebox/daemon/internal/model/eventLab"
-	exercise "github.com/cybericebox/daemon/internal/model/exercise"
-	infra "github.com/cybericebox/daemon/internal/model/infrastructure"
-	resources "github.com/cybericebox/daemon/internal/model/resources"
+	eventLab "github.com/cybericebox/backend/internal/model/eventLab"
+	exercise "github.com/cybericebox/backend/internal/model/exercise"
+	infra "github.com/cybericebox/backend/internal/model/infrastructure"
+	resources "github.com/cybericebox/backend/internal/model/resources"
 	labpb "github.com/cybericebox/laboratory/pkg/agent/protobuf"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -43,8 +44,21 @@ func TestFleetDeployUsesExactSelectedServiceSizes(t *testing.T) {
 		t.Fatalf("published default must be accepted by producer: %v", err)
 	}
 	item := f.a.createGroup.Items[0]
-	if item.VpnSize.CpuMillicores != 100 || item.VpnSize.MemoryBytes != 320<<20 || item.GatewaySize.CpuMillicores != 10 || item.GatewaySize.MemoryBytes != 32<<20 {
+	if item.VpnSize.CpuMillicores != 100 || item.VpnSize.MemoryBytes != 320<<20 {
 		t.Fatalf("service sizes were device-preset rounded: %+v", item)
+	}
+	if item.GatewaySize != nil || item.GetInternetEnabled() {
+		t.Fatalf("a plan without internet labs has no gateway and asks for no gateway size: %+v", item)
+	}
+
+	// with an internet lab the gateway is on and sized
+	withInternet := infra.WithPlacementNeed(context.Background(), infra.PlacementNeed{Plan: infra.GroupPlan{MaxUsers: 1, InternetLabs: 1}})
+	if err := f.fleet.DeployLab(withInternet, "initial-internet", "lab", infra.LabMeta{}, exercise.Topology{}); err != nil {
+		t.Fatal(err)
+	}
+	item = f.a.createGroup.Items[0]
+	if item.GatewaySize.CpuMillicores != 10 || item.GatewaySize.MemoryBytes != 32<<20 || !item.GetInternetEnabled() {
+		t.Fatalf("gateway sizes were device-preset rounded: %+v", item)
 	}
 }
 
@@ -103,13 +117,18 @@ type absenceClient struct {
 	pingClient
 	tenant     string
 	featureErr error
+	lifecycle  *labpb.LifecycleFeature
 }
 
 func (c absenceClient) GetFeatures(context.Context, *labpb.Empty, ...grpc.CallOption) (*labpb.FeaturesResponse, error) {
 	if c.featureErr != nil {
 		return nil, c.featureErr
 	}
-	return &labpb.FeaturesResponse{Tenant: c.tenant, Lifecycle: &labpb.LifecycleFeature{ConfirmedRuntime: true, RetainedRestart: true}}, nil
+	lifecycle := c.lifecycle
+	if lifecycle == nil {
+		lifecycle = &labpb.LifecycleFeature{ConfirmedRuntime: true, RetainedRestart: true}
+	}
+	return &labpb.FeaturesResponse{Tenant: c.tenant, Lifecycle: lifecycle}, nil
 }
 func TestInitialAbsenceChecksDisabledHistoricalOwners(t *testing.T) {
 	f := newFleetFixture(t)
@@ -156,5 +175,27 @@ func TestInitialAbsenceUnavailableClientFailsClosed(t *testing.T) {
 	f.am.Client = nil
 	if absent, e := f.fleet.InitialDeploymentAbsent(context.Background(), eventLab.Ref{Group: "unknown", Lab: "lab"}); e == nil || absent {
 		t.Fatal("missing client certified absence")
+	}
+}
+
+// An agent that does not report what the absence check needs is refused with a coded error that names the missing
+// feature, not a bare failure.
+func TestInitialAbsenceNamesTheMissingAgentFeature(t *testing.T) {
+	for feature, lifecycle := range map[string]*labpb.LifecycleFeature{
+		"retained_restart":  {ConfirmedRuntime: true},
+		"confirmed_runtime": {RetainedRestart: true},
+	} {
+		f := newFleetFixture(t)
+		f.am.Tenant = "a"
+		f.bm.Enabled = false
+		f.am.Client.Client = absenceClient{pingClient: pingClient{pingAgent{fakeAgent: f.a}}, tenant: "a", lifecycle: lifecycle}
+		absent, e := f.fleet.InitialDeploymentAbsent(context.Background(), eventLab.Ref{Group: "g", Lab: "lab"})
+		if absent || !errors.Is(e, infra.ErrAgentFeatureUnavailable.Err()) {
+			t.Fatalf("%s: absent=%v err=%v", feature, absent, e)
+		}
+		var withContext interface{ PublicContext() map[string]any }
+		if !errors.As(e, &withContext) || withContext.PublicContext()["feature"] != feature {
+			t.Fatalf("%s: context %v", feature, e)
+		}
 	}
 }

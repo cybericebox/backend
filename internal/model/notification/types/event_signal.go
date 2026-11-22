@@ -3,7 +3,8 @@ package notificationTypes
 import (
 	"encoding/json"
 
-	signalModel "github.com/cybericebox/daemon/internal/model/signal"
+	signalModel "github.com/cybericebox/backend/internal/model/signal"
+	"github.com/cybericebox/backend/internal/model/usertext"
 )
 
 // eventSignalPayload is the code-owned variable contract for every initial
@@ -34,7 +35,7 @@ type eventManagerSignalPayload struct {
 	EventName     string `var:"event_name" desc:"Event public name" default:"Cyber ICE Box CTF"`
 	EventURL      string `var:"event_url" desc:"Event site link, ends with a slash (the staff pages are under manage/)" default:"https://ctf-2026.example.org/"`
 	ManagerRole   string `var:"manager_role" desc:"Assigned event role code" default:"moderator"`
-	RoleName      string `var:"role_name" desc:"Assigned event role label" default:"модератором"`
+	RoleName      string `var:"role_name" desc:"Assigned event role label"`
 	UserID        string `var:"user_id" desc:"Recipient identifier" default:"01900000-0000-7000-8000-000000000003"`
 	UserEmail     string `var:"user_email" desc:"Recipient email" default:"participant@example.org"`
 	UserFirstName string `var:"user_first_name" desc:"Recipient first name" default:"Jane"`
@@ -44,7 +45,7 @@ type eventManagerSignalPayload struct {
 }
 
 // eventLabFailedSignalPayload is the variable contract of the moderator-facing
-// laboratory failure signal «Лабораторія впала» (platform templates only).
+// laboratory failure signal "Laboratory failed" (platform templates only).
 type eventLabFailedSignalPayload struct {
 	ScopeEventID  string `var:"scope_event_id" desc:"Event identifier" default:"01900000-0000-7000-8000-000000000000"`
 	SubjectUserID string `var:"subject_user_id" desc:"Notified event manager" default:"01900000-0000-7000-8000-000000000002"`
@@ -89,6 +90,8 @@ func (eventSignalPayload) Marshal() (json.RawMessage, error) { return json.RawMe
 
 func init() {
 	Register(eventManagerSignalPayload{})
+	// The role label placeholder is Ukrainian text: it comes from the text module, not from a struct tag.
+	setDescriptorDefault(NotificationType(signalModel.TypeEventManagerAssigned), "role_name", usertext.RoleModerator)
 	Register(eventLabFailedSignalPayload{})
 	for _, typ := range eventScopedSignals {
 		Register(eventSignalPayload{Type: NotificationType(typ)})
@@ -120,4 +123,14 @@ func init() {
 		VariableDescriptor{Name: "team_name", Description: "Invited team name", Default: "Blue Team"},
 		VariableDescriptor{Name: "team_url", Description: "Event team page link", Default: "https://ctf-2026.example.org/participation?tab=team"},
 	)
+}
+
+// setDescriptorDefault sets the preview placeholder of one registered variable.
+func setDescriptorDefault(t NotificationType, name, value string) {
+	ds := descriptorsByType[t]
+	for i := range ds {
+		if ds[i].Name == name {
+			ds[i].Default = value
+		}
+	}
 }

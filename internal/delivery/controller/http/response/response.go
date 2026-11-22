@@ -8,8 +8,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
-	"github.com/cybericebox/daemon/pkg/err"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
+	"github.com/cybericebox/backend/pkg/err"
 )
 
 // StreamRetryAfter is the wait a refused live-stream connection is told: a slot frees when the reader's

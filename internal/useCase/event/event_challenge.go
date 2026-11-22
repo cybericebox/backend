@@ -5,16 +5,16 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventChallengeGroupRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventChallengeRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventExerciseRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventChallengeModel "github.com/cybericebox/daemon/internal/model/eventChallenge"
-	eventChallengeGroupModel "github.com/cybericebox/daemon/internal/model/eventChallengeGroup"
-	eventExerciseModel "github.com/cybericebox/daemon/internal/model/eventExercise"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventChallengeGroupRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventChallengeRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventExerciseRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventChallengeModel "github.com/cybericebox/backend/internal/model/eventChallenge"
+	eventChallengeGroupModel "github.com/cybericebox/backend/internal/model/eventChallengeGroup"
+	eventExerciseModel "github.com/cybericebox/backend/internal/model/eventExercise"
 )
 
 // ListEventChallenges returns the immutable board snapshot for one explicit

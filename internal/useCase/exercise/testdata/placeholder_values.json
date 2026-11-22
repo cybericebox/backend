@@ -1,0 +1,317 @@
+{
+  "source": "event-frontend/src/components/event/challenges/descriptionValues.test.ts (the cases of descriptionValues); the page fills the values in the browser, this file pins the same rules for the server side renderer",
+  "cases": [
+    {
+      "name": "subnets and plain IPs as text",
+      "lab": {
+        "ready": true,
+        "gateways": [
+          {
+            "name": "vpn",
+            "cidr": "10.128.1.0/24"
+          },
+          {
+            "name": "internet",
+            "cidr": "10.9.4.0/24"
+          }
+        ]
+      },
+      "placeholders": [
+        {
+          "key": "s",
+          "kind": "gateway.subnet",
+          "show_mask": true,
+          "gateway": "vpn"
+        },
+        {
+          "key": "i",
+          "kind": "gateway.subnet",
+          "gateway": "internet"
+        },
+        {
+          "key": "a",
+          "kind": "ip",
+          "ip_reference": "gateway",
+          "last_octet": 5,
+          "gateway": "vpn"
+        },
+        {
+          "key": "b",
+          "kind": "ip",
+          "ip_reference": "gateway",
+          "last_octet": 12,
+          "show_mask": true,
+          "gateway": "internet"
+        },
+        {
+          "key": "c",
+          "kind": "ip",
+          "ip_reference": "static",
+          "octets_1to3": "10.0.0",
+          "last_octet": 7
+        }
+      ],
+      "want": {
+        "s": "10.128.1.0/24",
+        "i": "10.9.4.0/24",
+        "a": "10.128.1.5",
+        "b": "10.9.4.12/24",
+        "c": "10.0.0.7"
+      }
+    },
+    {
+      "name": "a subnet is a CIDR whatever show_mask says",
+      "lab": {
+        "ready": true,
+        "gateways": [
+          {
+            "name": "vpn",
+            "cidr": "10.128.1.0/24"
+          },
+          {
+            "name": "internet",
+            "cidr": "10.9.4.0/24"
+          }
+        ]
+      },
+      "placeholders": [
+        {
+          "key": "a",
+          "kind": "gateway.subnet",
+          "gateway": "vpn"
+        },
+        {
+          "key": "b",
+          "kind": "gateway.subnet",
+          "show_mask": false,
+          "gateway": "vpn"
+        },
+        {
+          "key": "c",
+          "kind": "gateway.subnet",
+          "show_mask": false,
+          "gateway": "internet"
+        },
+        {
+          "key": "d",
+          "kind": "gateway.subnet",
+          "gateway": "internet"
+        }
+      ],
+      "want": {
+        "a": "10.128.1.0/24",
+        "b": "10.128.1.0/24",
+        "c": "10.9.4.0/24",
+        "d": "10.9.4.0/24"
+      }
+    },
+    {
+      "name": "a link form builds scheme://ip[:port][path] and never a mask",
+      "lab": {
+        "ready": true,
+        "gateways": [
+          {
+            "name": "vpn",
+            "cidr": "10.128.1.0/24"
+          },
+          {
+            "name": "internet",
+            "cidr": "10.9.4.0/24"
+          }
+        ]
+      },
+      "placeholders": [
+        {
+          "key": "l1",
+          "kind": "ip",
+          "ip_reference": "gateway",
+          "last_octet": 5,
+          "as_link": true,
+          "scheme": "http",
+          "gateway": "vpn"
+        },
+        {
+          "key": "l2",
+          "kind": "ip",
+          "ip_reference": "gateway",
+          "last_octet": 12,
+          "as_link": true,
+          "scheme": "https",
+          "port": 8443,
+          "path": "/admin",
+          "gateway": "internet"
+        },
+        {
+          "key": "l3",
+          "kind": "ip",
+          "ip_reference": "gateway",
+          "last_octet": 5,
+          "as_link": true,
+          "scheme": "http",
+          "show_mask": true,
+          "gateway": "vpn"
+        }
+      ],
+      "want": {
+        "l1": "http://10.128.1.5",
+        "l2": "https://10.9.4.12:8443/admin",
+        "l3": "http://10.128.1.5"
+      }
+    },
+    {
+      "name": "an external link is the lab's access entry of the named device",
+      "lab": {
+        "ready": true,
+        "access": [
+          {
+            "device": "web",
+            "port": 80,
+            "protocol": "http",
+            "url": "https://web.example.com"
+          }
+        ],
+        "gateways": [
+          {
+            "name": "vpn",
+            "cidr": "10.128.1.0/24"
+          }
+        ]
+      },
+      "placeholders": [
+        {
+          "key": "w",
+          "kind": "external.link",
+          "device_name": "web"
+        },
+        {
+          "key": "x",
+          "kind": "external.link",
+          "device_name": "db"
+        }
+      ],
+      "want": {
+        "w": "https://web.example.com",
+        "x": "—"
+      }
+    },
+    {
+      "name": "a dash until the lab supplies the address",
+      "lab": {
+        "ready": false
+      },
+      "placeholders": [
+        {
+          "key": "ph_a",
+          "kind": "ip",
+          "ip_reference": "gateway",
+          "last_octet": 5,
+          "as_link": true,
+          "scheme": "http",
+          "gateway": "vpn"
+        },
+        {
+          "key": "ph_x",
+          "kind": "external.link",
+          "device_name": "web"
+        }
+      ],
+      "want": {
+        "ph_a": "—",
+        "ph_x": "—"
+      }
+    },
+    {
+      "name": "a ready lab without the address gives a dash too",
+      "lab": {
+        "ready": true,
+        "gateways": [
+          {
+            "name": "vpn",
+            "cidr": ""
+          }
+        ]
+      },
+      "placeholders": [
+        {
+          "key": "ph_a",
+          "kind": "ip",
+          "ip_reference": "gateway",
+          "last_octet": 5,
+          "as_link": true,
+          "scheme": "http",
+          "gateway": "vpn"
+        },
+        {
+          "key": "ph_x",
+          "kind": "external.link",
+          "device_name": "web"
+        }
+      ],
+      "want": {
+        "ph_a": "—",
+        "ph_x": "—"
+      }
+    },
+    {
+      "name": "a static address needs no lab, and a link of it keeps its scheme",
+      "lab": {
+        "ready": false
+      },
+      "placeholders": [
+        {
+          "key": "ph_a",
+          "kind": "ip",
+          "ip_reference": "static",
+          "octets_1to3": "192.0.2",
+          "last_octet": 5
+        },
+        {
+          "key": "ph_b",
+          "kind": "ip",
+          "ip_reference": "static",
+          "octets_1to3": "192.0.2",
+          "last_octet": 5,
+          "as_link": true
+        },
+        {
+          "key": "ph_c",
+          "kind": "ip",
+          "ip_reference": "static",
+          "octets_1to3": "192.0.2",
+          "last_octet": 5,
+          "show_mask": true
+        }
+      ],
+      "want": {
+        "ph_a": "192.0.2.5",
+        "ph_b": "http://192.0.2.5",
+        "ph_c": "192.0.2.5"
+      }
+    },
+    {
+      "name": "the mask is the CIDR's own",
+      "lab": {
+        "ready": true,
+        "gateways": [
+          {
+            "name": "vpn",
+            "cidr": "10.1.2.0/28"
+          }
+        ]
+      },
+      "placeholders": [
+        {
+          "key": "m",
+          "kind": "ip",
+          "ip_reference": "gateway",
+          "last_octet": 3,
+          "show_mask": true,
+          "gateway": "vpn"
+        }
+      ],
+      "want": {
+        "m": "10.1.2.3/28"
+      }
+    }
+  ]
+}

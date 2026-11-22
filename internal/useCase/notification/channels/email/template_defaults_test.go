@@ -9,10 +9,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/model/notification/emaildefaults"
-	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
-	_ "github.com/cybericebox/daemon/internal/model/notification/types/payloads"
-	emailUseCase "github.com/cybericebox/daemon/internal/useCase/notification/channels/email"
+	"github.com/cybericebox/backend/internal/model/notification/emaildefaults"
+	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
+	_ "github.com/cybericebox/backend/internal/model/notification/types/payloads"
+	emailUseCase "github.com/cybericebox/backend/internal/useCase/notification/channels/email"
 )
 
 var (
@@ -85,7 +85,7 @@ func TestDefaultTemplates_BrandNameNeverBreaks(t *testing.T) {
 
 // Minimal variables: everything the subject and preheader do not need is
 // blank. The mail still renders, and an empty variable drops its paragraph,
-// facts row or button instead of leaving «Вітаємо, !» or a dead link.
+// facts row or button instead of leaving "Welcome, !" (a greeting with an empty name) or a dead link.
 func TestDefaultTemplates_RenderWithMinimalVariables(t *testing.T) {
 	eachDefault(t, func(t *testing.T, _ emaildefaults.Lang, tpl emaildefaults.Template) {
 		blank := map[string]string{}

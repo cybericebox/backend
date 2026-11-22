@@ -11,9 +11,9 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	eventChallengeGroupModel "github.com/cybericebox/daemon/internal/model/eventChallengeGroup"
-	event "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	eventChallengeGroupModel "github.com/cybericebox/backend/internal/model/eventChallengeGroup"
+	event "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 func TestReorderChallengeGroups_VacatesBeforeSwapping(t *testing.T) {

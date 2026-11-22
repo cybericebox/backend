@@ -2,7 +2,8 @@ package app
 
 import (
 	"context"
-	"github.com/cybericebox/daemon/internal/useCase/notification/startupdefaults"
+	"github.com/cybericebox/backend/internal/useCase/keyrotation"
+	"github.com/cybericebox/backend/internal/useCase/notification/startupdefaults"
 	"os"
 	"os/signal"
 	"sync"
@@ -11,35 +12,42 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/controller"
-	"github.com/cybericebox/daemon/internal/delivery/infrastructure/agentfleet"
-	"github.com/cybericebox/daemon/internal/delivery/infrastructure/labagent"
-	"github.com/cybericebox/daemon/internal/delivery/repository"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabObservationRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/infrastructureAgentRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/labPlacementRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/labTrafficRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	"github.com/cybericebox/daemon/internal/delivery/repository/sessionRepo"
-	jobsRegistry "github.com/cybericebox/daemon/internal/jobs"
-	errorjournalJob "github.com/cybericebox/daemon/internal/jobs/errorjournal"
-	"github.com/cybericebox/daemon/internal/leader"
-	"github.com/cybericebox/daemon/internal/limits"
-	challengeAttempt "github.com/cybericebox/daemon/internal/model/challengeAttempt"
-	errorJournal "github.com/cybericebox/daemon/internal/model/errorJournal"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	labMonitoringModel "github.com/cybericebox/daemon/internal/model/labMonitoring"
-	labMonitoring "github.com/cybericebox/daemon/internal/monitoring/lab"
-	"github.com/cybericebox/daemon/internal/session"
-	"github.com/cybericebox/daemon/internal/useCase"
-	inboxUseCase "github.com/cybericebox/daemon/internal/useCase/notification/inbox"
-	calendarUseCase "github.com/cybericebox/daemon/internal/useCase/resourceCalendar"
-	"github.com/cybericebox/daemon/pkg/labaccess"
-	"github.com/cybericebox/daemon/pkg/secret"
-	"github.com/cybericebox/daemon/pkg/telegram"
-	"github.com/cybericebox/daemon/pkg/worker"
+	"github.com/cybericebox/backend/internal/advisory"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/controller"
+	"github.com/cybericebox/backend/internal/delivery/infrastructure/agentfleet"
+	"github.com/cybericebox/backend/internal/delivery/infrastructure/labagent"
+	"github.com/cybericebox/backend/internal/delivery/repository"
+	"github.com/cybericebox/backend/internal/delivery/repository/agentProfileRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabObservationRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/infrastructureAgentRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/keyRotationRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/labCheckRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/labPlacementRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/labTrafficRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/delivery/repository/sessionRepo"
+	jobsRegistry "github.com/cybericebox/backend/internal/jobs"
+	errorjournalJob "github.com/cybericebox/backend/internal/jobs/errorjournal"
+	"github.com/cybericebox/backend/internal/leader"
+	"github.com/cybericebox/backend/internal/limits"
+	challengeAttempt "github.com/cybericebox/backend/internal/model/challengeAttempt"
+	errorJournal "github.com/cybericebox/backend/internal/model/errorJournal"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	labMonitoringModel "github.com/cybericebox/backend/internal/model/labMonitoring"
+	resourcesModel "github.com/cybericebox/backend/internal/model/resources"
+	labMonitoring "github.com/cybericebox/backend/internal/monitoring/lab"
+	"github.com/cybericebox/backend/internal/session"
+	"github.com/cybericebox/backend/internal/useCase"
+	calendarUseCase "github.com/cybericebox/backend/internal/useCase/resourceCalendar"
+	"github.com/cybericebox/backend/internal/useCase/secretkeys"
+	"github.com/cybericebox/backend/pkg/labaccess"
+	"github.com/cybericebox/backend/pkg/secret"
+	"github.com/cybericebox/backend/pkg/telegram"
+	"github.com/cybericebox/backend/pkg/worker"
 	labpb "github.com/cybericebox/laboratory/pkg/agent/protobuf"
+	"github.com/gofrs/uuid"
 )
 
 func Run(cfg *config.Config) {
@@ -52,6 +60,8 @@ func Run(cfg *config.Config) {
 		repository.Dependencies{PostgresConfig: &cfg.Infrastructure.Postgres},
 	)
 	defer repo.Close()
+	// The busy state of the connection pools: a warning while a pool is nearly full or statements wait for a connection.
+	go repo.WatchPools(ctx, postgres.PoolWatchInterval, advisory.HeldCount)
 
 	// Migrations are a deliberate, separate step owned by the repository — not
 	// pulled directly from postgres in the bootstrap.
@@ -61,6 +71,13 @@ func Run(cfg *config.Config) {
 
 	// ── clients ──
 	cls := setupClients(cfg)
+
+	// A key that was dropped while values sealed with it remain is otherwise silent: see SECRETS_GUARD.
+	if err := guardSecrets(ctx, cfg.Keys.SecretsGuard, newSecretKeys(repo, secretkeys.Ciphers{
+		Platform: cls.platformCipher, VPN: cls.vpnCipher, Exercise: cls.exerciseCipher, Files: cls.filesCipher,
+	})); err != nil {
+		log.Fatal().Err(err).Msg("Secrets guard: refusing to start")
+	}
 
 	// job worker client
 	// Every failed attempt, discard and panic of a job goes to the error journal. River runs on the job pool;
@@ -80,6 +97,8 @@ func Run(cfg *config.Config) {
 	if err != nil {
 		log.Fatal().Err(err).Msg("Invalid device resources settings")
 	}
+	// The agents report what a node profile adds to a pod; the policy (shared by value) reads it.
+	resourcesPolicy.Overheads = resourcesModel.NewProfileOverheads()
 
 	// ── sessions ──
 	// The cookie is the session: it is decrypted with this key and trusted while its session is not in the
@@ -119,15 +138,16 @@ func Run(cfg *config.Config) {
 		ExerciseCipher:     cls.exerciseCipher,
 		VPNCipher:          cls.vpnCipher,
 		PlatformCipher:     cls.platformCipher,
+		FilesCipher:        cls.filesCipher,
 		ErrorJournal:       errorJournalConfig(cfg),
 		Telegram:           telegram.New(cfg.Telegram.BotToken),
 	}
 	applyTunables(cfg.Tunables)
 	labIssuer, err := labaccess.New(labaccess.Config{
-		TokenTTL: cfg.LabAccess.TokenTTL, SessionTTL: cfg.LabSession.TTL,
+		SessionTTL: cfg.LabSession.TTL,
 	})
 	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to configure the lab access token issuer")
+		log.Fatal().Err(err).Msg("Failed to configure the lab access grant issuer")
 	}
 	var ucs *useCase.UseCase // set below; the monitors start only after it exists
 	// The infrastructure port is the agent fleet: every enrolled agent in the database. It reports
@@ -136,12 +156,25 @@ func Run(cfg *config.Config) {
 	fleet.SetPolicy(resourcesPolicy)
 	trafficIngest := labMonitoring.NewTrafficIngest(labTrafficRepo.New(repo.Queries))
 	observations := eventLabObservationRepo.New(repo.Queries)
+	featureGaps := newFeatureGapReporter()
+	agentProfiles := agentProfileRepo.New(repo.Pool())
+	profileCells := labagent.NewProfileCells(
+		func(agent uuid.UUID, v map[exerciseModel.NodeProfile]labagent.ProfileCapacity) {
+			overheads := make(map[exerciseModel.NodeProfile]resourcesModel.Amount, len(v))
+			for profile, reported := range v {
+				overheads[profile] = reported.Overhead
+			}
+			resourcesPolicy.Overheads.Set(agent, overheads)
+		},
+	)
 	agentManager := agentfleet.New(agentfleet.Config{
-		Instance: cfg.Infrastructure.Agent.InstanceID,
-		Registry: infrastructureAgentRepo.New(repo.Queries),
-		Cipher:   cipherOrNil(cls.platformCipher),
-		Fleet:    fleet,
-		Enroll:   labagent.Enroll,
+		Profiles:      profileCells,
+		ProfileSource: agentProfiles,
+		Instance:      cfg.Infrastructure.Agent.InstanceID,
+		Registry:      infrastructureAgentRepo.New(repo.Queries),
+		Cipher:        cipherOrNil(cls.platformCipher),
+		Fleet:         fleet,
+		Enroll:        labagent.Enroll,
 		Monitor: func(ctx context.Context, member *labagent.Member) error {
 			runner := labMonitoring.NewRunner(repo.Pool(), func(ctx context.Context, request *labpb.MonitoringRequest) (labMonitoring.Stream, error) {
 				return member.Client.Monitoring(ctx, request)
@@ -159,6 +192,11 @@ func Run(cfg *config.Config) {
 					v := capacity.GetMemoryQuotaBytes()
 					memory = &v
 				}
+				profiles := labagent.ProfilesOf(capacity)
+				profileCells.Update(member.ID, profiles, observedAt)
+				if saveErr := agentProfiles.Save(ctx, member.ID, labagent.EncodeProfiles(profiles), observedAt); saveErr != nil {
+					log.Warn().Err(saveErr).Str("agent", member.Name).Msg("Failed to store the node profile report of the agent")
+				}
 				if err := ucs.AgentsUseCase.RecordAgentCapacity(ctx, member.ID, cpu, memory, observedAt); err != nil {
 					return err
 				}
@@ -173,15 +211,26 @@ func Run(cfg *config.Config) {
 			})
 			// What the agent offers (persistence, image cache, scheduler, endpoints): the live member gets it at
 			// once, the registry keeps the last report.
-			runner = runner.WithFeaturesSink(func(ctx context.Context, features *labpb.FeaturesResponse, observedAt time.Time) error {
+			applyFeatures := func(ctx context.Context, features *labpb.FeaturesResponse, observedAt time.Time) error {
 				f := labagent.FeaturesOf(features)
 				member.Features.Set(f)
+				featureGaps.report(ucs.Journal, member.ID, member.Name, f)
 				return ucs.AgentsUseCase.RecordAgentFeatures(ctx, member.ID, f, observedAt)
-			})
+			}
+			runner = runner.WithFeaturesSink(applyFeatures)
 			// The maintenance windows the cluster operator announces are read once a minute (the agent has no change
 			// feed) while the agent is monitored; the calendar gives the agent no capacity inside them.
 			pollCtx, stopPolling := context.WithCancel(ctx)
 			defer stopPolling()
+			// What the agent offers is live (persistence can become available after it started): read it again every
+			// minute, not only when the agent pushes a change.
+			go labagent.PollFeatures(pollCtx, member.Name, labagent.FeaturesInterval,
+				func(ctx context.Context) (*labpb.FeaturesResponse, error) {
+					return member.Client.GetFeatures(ctx, &labpb.Empty{})
+				},
+				func(ctx context.Context, features *labpb.FeaturesResponse) error {
+					return applyFeatures(ctx, features, time.Now().UTC())
+				})
 			go labagent.PollMaintenance(pollCtx, member.Name, labagent.MaintenanceInterval,
 				func(ctx context.Context) (*labpb.MaintenanceWindowList, error) {
 					return member.Client.ListMaintenanceWindows(ctx, &labpb.ListMaintenanceWindowsRequest{})
@@ -197,22 +246,17 @@ func Run(cfg *config.Config) {
 			runner = runner.WithWithdrawalSink(func(ctx context.Context, withdrawals []labMonitoringModel.Withdrawal) {
 				ucs.AgentsUseCase.ReportWithdrawals(ctx, member.ID, member.Name, withdrawals)
 			})
+			// The results of the checks of the labs (contract 1.5) are recorded per lab; the task state is read from them.
+			runner = runner.WithChecksSink(labMonitoring.NewChecksRecorder(labCheckRepo.New(repo.Pool()), time.Now))
 			runner = runner.WithLinkSink(agentLink{journal: ucs.Journal, id: member.ID, name: member.Name})
 			// The agent's reservations: their phase, the ending notice and the usage drive the calendar's parts.
 			runner = runner.WithReservationsSink(func(ctx context.Context, snapshot bool, reservations []*labpb.Reservation, deleted []string) error {
 				listed, gone := labagent.ReservationsOf(reservations, deleted)
 				return ucs.ObserveClusterReservations(ctx, member.ID, snapshot, listed, gone)
 			})
-			// A device that its CPU limit starves is reported to the platform admins, once per device per lab run;
-			// the request closes by itself when the lab run is gone.
-			runner = runner.WithThrottleWatcher(labMonitoring.NewThrottleWatcher(member.ID.String(), func(ctx context.Context, a labMonitoring.ThrottleAlert) error {
-				return ucs.InboxRequests.CPUThrottled(ctx, inboxUseCase.CPUThrottle{
-					AgentID: a.AgentID, LabRun: a.Run, LabName: a.LabName, LabGroupName: a.LabGroupName,
-					Device: a.Device, Percent: a.Percent, WindowSeconds: a.WindowSeconds, RaisedAt: time.Now().UTC(),
-				})
-			}).WithGone(func(ctx context.Context, run, device string) error {
-				return ucs.InboxRequests.CPUThrottleGone(ctx, run, device)
-			}))
+			// A device that its CPU limit starves is written to the error journal (super admins only), once per device
+			// per window: the limit is the task author's, no organizer or admin on duty can fix it.
+			runner = runner.WithThrottleWatcher(labMonitoring.NewThrottleWatcher(member.ID.String(), labMonitoring.ThrottleJournal(errorJournal.Report, time.Now)))
 			return runner.WithAgentID(member.ID.String()).Run(ctx)
 		},
 	})
@@ -222,12 +266,15 @@ func Run(cfg *config.Config) {
 	// Web links are signed with the access key of the agent that holds the lab group.
 	deps.LabSessions = labagent.SessionIssuer{Fleet: fleet, Issuer: labIssuer}
 	ucs = useCase.NewUseCase(deps)
+	// The pass that encrypts older objects shows its counts next to the key re-encryption in `keys status`.
+	ucs.MediaUseCase.SetProgressStore(keyRotationRepo.New(repo.Pool(), keyrotation.Contexts()))
 	// The error journal: capture points anywhere in the process report to it without waiting; its writer and its
 	// periodic checks (job queue, agent certificates) run until shutdown.
 	errorJournal.SetReporter(ucs.Journal)
 	journalDone := make(chan struct{})
 
 	bootstrapAgent(ctx, cfg.Infrastructure.Agent, ucs.AgentsUseCase)
+	bootstrapBrain(ctx, cfg.Brain, ucs.Assistant)
 
 	if err := startupdefaults.Seed(ctx, repo.Queries); err != nil {
 		log.Error().Err(err).Msg("Failed to seed the startup notification defaults")
@@ -286,6 +333,21 @@ func Run(cfg *config.Config) {
 			go func() {
 				defer loops.Done()
 				ucs.Journal.Watch(ctx)
+			}()
+			// cyber-brain: the certificate upkeep, the saves and statistics, the outbox, and the runs with their labs. All
+			// of them keep their state in the database, so the next leader resumes them; each is a no-op without a brain.
+			for _, loop := range []func(context.Context){ucs.Assistant.MaintainBrain, ucs.Assistant.WatchOutbox, ucs.Assistant.DriveRuns} {
+				loops.Add(1)
+				go func() {
+					defer loops.Done()
+					loop(ctx)
+				}()
+			}
+			// the laboratory's activity reports, pulled for the statistics (a no-op without an agent that serves them)
+			loops.Add(1)
+			go func() {
+				defer loops.Done()
+				ucs.LabActivity.Run(ctx)
 			}()
 			agentManager.Lead(ctx)
 			loops.Wait()

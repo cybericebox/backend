@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	mailModel "github.com/cybericebox/daemon/internal/model/mail"
+	mailModel "github.com/cybericebox/backend/internal/model/mail"
 )
 
 var platform = mailModel.Identity{
@@ -15,10 +15,10 @@ var platform = mailModel.Identity{
 }
 
 func TestEventIdentity_DefaultsAreTagAtSendingDomainAndPlatformReplyTo(t *testing.T) {
-	id, err := mailModel.EventIdentity(platform, "mail.cybericebox.com", "Кібер Олімпіада", "olymp", mailModel.Identity{})
+	id, err := mailModel.EventIdentity(platform, "mail.cybericebox.com", "Cyber Olympiad", "olymp", mailModel.Identity{})
 	require.NoError(t, err)
 	require.Equal(t, mailModel.Identity{
-		FromName: "Кібер Олімпіада", FromAddress: "olymp@mail.cybericebox.com",
+		FromName: "Cyber Olympiad", FromAddress: "olymp@mail.cybericebox.com",
 		ReplyToName: "Support", ReplyToAddress: "support@cybericebox.com",
 	}, id)
 
@@ -31,16 +31,16 @@ func TestEventIdentity_DefaultsAreTagAtSendingDomainAndPlatformReplyTo(t *testin
 }
 
 func TestEventIdentity_OwnValuesOverrideFieldByField(t *testing.T) {
-	id, err := mailModel.EventIdentity(platform, "mail.cybericebox.com", "CTF", "ctf", mailModel.Identity{FromName: "Оргкомітет", ReplyToAddress: "org@uni.edu"})
+	id, err := mailModel.EventIdentity(platform, "mail.cybericebox.com", "CTF", "ctf", mailModel.Identity{FromName: "Organizers", ReplyToAddress: "org@uni.edu"})
 	require.NoError(t, err)
-	require.Equal(t, "Оргкомітет", id.FromName)
+	require.Equal(t, "Organizers", id.FromName)
 	require.Equal(t, "ctf@mail.cybericebox.com", id.FromAddress, "empty address inherits")
 	require.Equal(t, "org@uni.edu", id.ReplyToAddress)
 	require.Empty(t, id.ReplyToName, "an own Reply-To address does not inherit the platform name")
 
-	id, err = mailModel.EventIdentity(platform, "mail.cybericebox.com", "CTF", "ctf", mailModel.Identity{ReplyToName: "Штаб"})
+	id, err = mailModel.EventIdentity(platform, "mail.cybericebox.com", "CTF", "ctf", mailModel.Identity{ReplyToName: "Staff"})
 	require.NoError(t, err)
-	require.Equal(t, mailModel.Identity{FromName: "CTF", FromAddress: "ctf@mail.cybericebox.com", ReplyToName: "Штаб", ReplyToAddress: "support@cybericebox.com"}, id)
+	require.Equal(t, mailModel.Identity{FromName: "CTF", FromAddress: "ctf@mail.cybericebox.com", ReplyToName: "Staff", ReplyToAddress: "support@cybericebox.com"}, id)
 }
 
 func TestOverlay_EmptyInheritsEverything(t *testing.T) {
@@ -56,10 +56,10 @@ func TestIdentity_Normalize(t *testing.T) {
 	_, err = mailModel.Identity{}.Normalize()
 	require.NoError(t, err, "every field is optional")
 
-	_, err = mailModel.Identity{FromName: strings.Repeat("я", 64)}.Normalize()
+	_, err = mailModel.Identity{FromName: strings.Repeat("é", 64)}.Normalize()
 	require.NoError(t, err, "64 characters, not bytes")
 	for _, bad := range []mailModel.Identity{
-		{FromName: strings.Repeat("я", 65)},
+		{FromName: strings.Repeat("é", 65)},
 		{ReplyToName: strings.Repeat("x", 65)},
 		{FromName: "a\r\nBcc: x@y.z"},
 		{FromAddress: "not-an-address"},

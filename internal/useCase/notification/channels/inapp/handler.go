@@ -5,18 +5,18 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/inAppTemplateRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/inboxRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	mailModel "github.com/cybericebox/daemon/internal/model/mail"
-	notificationModel "github.com/cybericebox/daemon/internal/model/notification"
-	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
-	inAppModel "github.com/cybericebox/daemon/internal/model/notification/inapp"
-	inboxModel "github.com/cybericebox/daemon/internal/model/notification/inbox"
-	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
-	"github.com/cybericebox/daemon/internal/useCase/notification/channels/render"
+	"github.com/cybericebox/backend/internal/delivery/repository/inAppTemplateRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/inboxRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	mailModel "github.com/cybericebox/backend/internal/model/mail"
+	notificationModel "github.com/cybericebox/backend/internal/model/notification"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
+	inAppModel "github.com/cybericebox/backend/internal/model/notification/inapp"
+	inboxModel "github.com/cybericebox/backend/internal/model/notification/inbox"
+	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
+	userModel "github.com/cybericebox/backend/internal/model/user"
+	"github.com/cybericebox/backend/internal/useCase/notification/channels/render"
 )
 
 // handlerPort composes the aggregate-repository query slices the delivery

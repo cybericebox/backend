@@ -12,7 +12,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	labBindingModel "github.com/cybericebox/daemon/internal/model/labBinding"
+	labBindingModel "github.com/cybericebox/backend/internal/model/labBinding"
 )
 
 type Surface string

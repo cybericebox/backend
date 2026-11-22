@@ -3,25 +3,25 @@ package event
 import (
 	"context"
 	"encoding/json"
-	challengeAttempt "github.com/cybericebox/daemon/internal/model/challengeAttempt"
+	challengeAttempt "github.com/cybericebox/backend/internal/model/challengeAttempt"
 	"io"
 	"time"
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventStandRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/teamChallengeRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventActivityModel "github.com/cybericebox/daemon/internal/model/eventActivity"
-	eventChallengeModel "github.com/cybericebox/daemon/internal/model/eventChallenge"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	eventStandModel "github.com/cybericebox/daemon/internal/model/eventStand"
-	eventTeamModel "github.com/cybericebox/daemon/internal/model/eventTeam"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	participantModel "github.com/cybericebox/daemon/internal/model/participant"
-	teamChallengeModel "github.com/cybericebox/daemon/internal/model/teamChallenge"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventStandRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/teamChallengeRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventActivityModel "github.com/cybericebox/backend/internal/model/eventActivity"
+	eventChallengeModel "github.com/cybericebox/backend/internal/model/eventChallenge"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	eventStandModel "github.com/cybericebox/backend/internal/model/eventStand"
+	eventTeamModel "github.com/cybericebox/backend/internal/model/eventTeam"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
+	teamChallengeModel "github.com/cybericebox/backend/internal/model/teamChallenge"
 )
 
 // ListOwnChallenges returns the caller team's board: published assignments
@@ -294,7 +294,45 @@ func (u *EventUseCase) ListModeratorsBoard(ctx context.Context, eventID uuid.UUI
 	if err = u.fillSolveAwards(ctx, teamID, views); err != nil {
 		return nil, err
 	}
-	return views, nil
+	config, err := u.configs.Get(ctx, eventID)
+	if err != nil {
+		return nil, model.ErrPlatform.WithError(err).WithMessage("Failed to get event config").Err()
+	}
+	return applyBoardPresentation(views, config.ShowDifficulty, config.HintsDisabled), nil
+}
+
+// applyBoardPresentation makes the moderators board show what the participants' board shows: "show difficulty"
+// off hides the difficulty of every task, "hints" off hides the hints.
+func applyBoardPresentation(
+	views []OwnChallengeView,
+	showDifficulty, hintsDisabled bool,
+) []OwnChallengeView {
+	for i := range views {
+		if !showDifficulty {
+			views[i].Snapshot = withoutDifficulty(views[i].Snapshot)
+		}
+		if hintsDisabled {
+			views[i].HintsEnabled = false
+			views[i].Hints = nil
+		}
+	}
+	return views
+}
+
+func withoutDifficulty(snapshot json.RawMessage) json.RawMessage {
+	var fields map[string]json.RawMessage
+	if json.Unmarshal(snapshot, &fields) != nil {
+		return snapshot
+	}
+	if _, has := fields["difficulty"]; !has {
+		return snapshot
+	}
+	delete(fields, "difficulty")
+	out, err := json.Marshal(fields)
+	if err != nil {
+		return snapshot
+	}
+	return out
 }
 
 // StreamModeratorsChallengeAttachment opens a file of a moderators board

@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/model/notification/branding"
-	"github.com/cybericebox/daemon/internal/useCase/notification/channels/render"
+	"github.com/cybericebox/backend/internal/model/notification/branding"
+	"github.com/cybericebox/backend/internal/useCase/notification/channels/render"
 )
 
 // cidContext is the dispatch-style render context: platform brand, cid: srcs.
@@ -525,12 +525,12 @@ func TestRenderBlocks_VariableFormats(t *testing.T) {
 
 func TestRenderBlocks_Facts(t *testing.T) {
 	body := json.RawMessage(`[{"type":"facts","items":[
-	  {"label":"Захід","value":"{{event_name}}"},{"label":"Команда","value":"{{team}}"}]}]`)
+	  {"label":"Event","value":"{{event_name}}"},{"label":"Team","value":"{{team}}"}]}]`)
 	out, err := renderBlocks(body, json.RawMessage(`{}`), nil, map[string]any{"event_name": "CTF <1>", "team": ""})
 	require.NoError(t, err)
-	assert.Contains(t, out, "Захід")
+	assert.Contains(t, out, "Event")
 	assert.Contains(t, out, "CTF &lt;1&gt;")
-	assert.NotContains(t, out, "Команда", "a row with an empty value is dropped")
+	assert.NotContains(t, out, "Team", "a row with an empty value is dropped")
 
 	out, err = renderBlocks(body, json.RawMessage(`{}`), nil, map[string]any{})
 	require.NoError(t, err)
@@ -539,14 +539,14 @@ func TestRenderBlocks_Facts(t *testing.T) {
 
 func TestRenderBlocks_EmptyVariableDropsParagraph(t *testing.T) {
 	body := json.RawMessage(`[{"type":"rich_text","content":{"root":{"type":"root","children":[
-	  {"type":"paragraph","children":[{"type":"text","text":"Вітаємо, ","format":0},{"type":"variable","varName":"Name"}]},
-	  {"type":"paragraph","children":[{"type":"link","url":"{{url}}","children":[{"type":"text","text":"ЛІНК","format":0}]}]},
-	  {"type":"paragraph","children":[{"type":"text","text":"Кінець","format":0}]}]}}}]`)
+	  {"type":"paragraph","children":[{"type":"text","text":"Welcome, ","format":0},{"type":"variable","varName":"Name"}]},
+	  {"type":"paragraph","children":[{"type":"link","url":"{{url}}","children":[{"type":"text","text":"LINK","format":0}]}]},
+	  {"type":"paragraph","children":[{"type":"text","text":"End","format":0}]}]}}}]`)
 	out, err := renderBlocks(body, json.RawMessage(`{}`), nil, map[string]any{"Name": "", "url": ""})
 	require.NoError(t, err)
-	assert.NotContains(t, out, "Вітаємо")
-	assert.NotContains(t, out, "ЛІНК")
-	assert.Contains(t, out, "Кінець")
+	assert.NotContains(t, out, "Welcome")
+	assert.NotContains(t, out, "LINK")
+	assert.Contains(t, out, "End")
 }
 
 func TestRenderBlocks_ButtonWithoutURLIsSkipped(t *testing.T) {

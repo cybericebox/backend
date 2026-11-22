@@ -9,12 +9,12 @@ import (
 	"github.com/gofrs/uuid" //nolint:depguard // the uuid package of the whole repository
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventAnalyticsRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/retentionRepo"
-	eventAnalyticsModel "github.com/cybericebox/daemon/internal/model/eventAnalytics"
-	labBindingModel "github.com/cybericebox/daemon/internal/model/labBinding"
-	"github.com/cybericebox/daemon/internal/testhelpers"
-	"github.com/cybericebox/daemon/internal/useCase/retention"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventAnalyticsRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/retentionRepo"
+	eventAnalyticsModel "github.com/cybericebox/backend/internal/model/eventAnalytics"
+	labBindingModel "github.com/cybericebox/backend/internal/model/labBinding"
+	"github.com/cybericebox/backend/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/useCase/retention"
 )
 
 func archiveUpTo(t *testing.T, repo *eventAnalyticsRepo.Repository, event uuid.UUID, closedBefore time.Time) eventAnalyticsRepo.VPNCursor {

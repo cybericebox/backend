@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	imageRegistryModel "github.com/cybericebox/daemon/internal/model/imageRegistry"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	imageRegistryModel "github.com/cybericebox/backend/internal/model/imageRegistry"
 )
 
 // BlobPushes is the state of the background image blob pushes (one row per digest, removed on success).

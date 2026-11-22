@@ -10,8 +10,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/pkg/ociregistry"
-	"github.com/cybericebox/daemon/pkg/ociregistry/archivetest"
+	"github.com/cybericebox/backend/pkg/ociregistry"
+	"github.com/cybericebox/backend/pkg/ociregistry/archivetest"
 )
 
 // maxArchive is the platform cap of one image archive (10 GiB).

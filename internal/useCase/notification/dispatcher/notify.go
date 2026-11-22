@@ -5,15 +5,15 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/dispatchRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	"github.com/cybericebox/daemon/internal/delivery/repository/temporalCodeRepo"
-	"github.com/cybericebox/daemon/internal/model"
-	jobsModel "github.com/cybericebox/daemon/internal/model/jobs"
-	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
-	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
-	"github.com/cybericebox/daemon/pkg/tools"
-	"github.com/cybericebox/daemon/pkg/worker"
+	"github.com/cybericebox/backend/internal/delivery/repository/dispatchRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/delivery/repository/temporalCodeRepo"
+	"github.com/cybericebox/backend/internal/model"
+	jobsModel "github.com/cybericebox/backend/internal/model/jobs"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
+	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
+	"github.com/cybericebox/backend/pkg/tools"
+	"github.com/cybericebox/backend/pkg/worker"
 )
 
 // Notify creates the dispatch row and enqueues the job. The template vars are

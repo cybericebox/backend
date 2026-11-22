@@ -1,0 +1,135 @@
+# mise: the pinned tools of this repository and its commands. One entry point for developers, agents and CI.
+#   mise install            install exactly these tool versions (once, and after this file changes)
+#   mise tasks              list the commands
+#   mise run <task> ...     run one; extra arguments go to the command
+
+[tools]
+gitleaks = "8.30.1"   # lint:leaks: the secret scan of the whole history (.gitleaks.toml)
+actionlint = "1.7.12"   # lint:leaks: the GitHub workflows
+shellcheck = "0.11.0"   # actionlint checks the run: scripts with it; lint:ci checks the release helpers and dev.sh
+python = "3.14.10"   # the release helpers of .github/scripts (standard library only; mise run test-scripts)
+go = "1.27.4"      # the same as the toolchain line of go.mod and the builder image of the Dockerfile
+sqlc = "1.31.1"
+gh = "2.104.0"     # dev-push
+"github:mokevnin/heavy" = "0.1.2"   # a machine-wide semaphore: heavy commands of every checkout and agent take turns (heavy --status)
+
+[tasks.cache-guard]
+hide = true
+description = "Local caches stay under a size limit (the workspace script of infrastructure; does nothing in CI or without it)"
+run = 'd="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"; for up in .. ../..; do g="$d/$up/infrastructure/scripts/cache-guard.sh"; [ -x "$g" ] && break; done; if [ -z "${CI:-}" ] && [ -x "$g" ]; then "$g"; fi'
+
+[tasks.build]
+description = "Compile all packages"
+depends = ["cache-guard"]
+run = "heavy -- go build ./..."
+
+[tasks."lint:ci"]
+description = "shellcheck: the release helpers (.github/scripts), dev.sh and its test, the file tasks (actionlint runs in lint:leaks)"
+run = "shellcheck -x -P SCRIPTDIR .github/scripts/*.sh scripts/dev.sh scripts/dev.test.sh scripts/dev-pre-push.sh mise-tasks/test-scripts"
+
+[tasks."lint:leaks"]
+description = "gitleaks over the whole history (.gitleaks.toml) and actionlint over the workflows"
+run = ["gitleaks git --redact --no-banner --log-level warn", "actionlint"]
+
+[tasks.lint]
+description = "go vet plus the project lints (error codes, layer imports, route gates, secret contexts, Cyrillic outside the text modules)"
+depends = ["lint:leaks", "lint:ci", "cache-guard"]
+run = [
+  "heavy -- go vet ./...",
+  "go run ./tools/checkerrorcodes internal pkg",
+  "go run ./tools/checklayers internal/model",
+  "go run ./tools/checkroutes",
+  "go run ./tools/checksecretctx",
+  "go run ./tools/checkcyrillic",
+]
+
+[tasks."lint:errors"]
+description = "Fail on duplicate error DetailCodes within one object code"
+run = "go run ./tools/checkerrorcodes internal pkg"
+
+[tasks."lint:layers"]
+description = "Fail when internal/model imports application or delivery packages"
+run = "go run ./tools/checklayers internal/model"
+
+[tasks."lint:routes"]
+description = "Fail on handler routes lacking a RequirePermission gate"
+run = "go run ./tools/checkroutes"
+
+[tasks."lint:secretctx"]
+description = "Fail when a secret context is built outside internal/secretctx or a seal has none"
+run = "go run ./tools/checksecretctx"
+
+[tasks."lint:cyrillic"]
+description = "Fail on Cyrillic text in non-test Go and SQL code outside the text modules (internal/model/usertext and the notification defaults)"
+run = "go run ./tools/checkcyrillic"
+
+[tasks.test]
+description = "Run the full test suite (the database tests need Docker and skip themselves without it). Usage: mise run test [-- <go test args>]"
+depends = ["cache-guard"]
+run = "heavy -- go test ./..."
+
+[tasks.check]
+description = "Everything the CI check runs: build, lint, test, test-scripts"
+run = [{ task = "build" }, { task = "lint" }, { task = "test" }, { task = "test-scripts" }]
+
+[tasks.tidy]
+description = "go mod tidy"
+run = "go mod tidy"
+
+[tasks.run]
+description = "Start the daemon"
+run = "go run ./cmd/daemon"
+
+[tasks.run-local]
+description = "Load ./.env into the environment, then start the daemon (host development; the daemon reads the process environment only)"
+run = "set -a; . ./.env; set +a; go run ./cmd/daemon"
+
+[tasks.seed]
+description = "Fill the development database with test data, or remove it. Dev only: refuses ENV=production. Usage: mise run seed [-- --delete]"
+run = 'set -a; . ./.env; set +a; go run ./cmd/seed "$@"'
+
+[tasks.sqlc]
+description = "Regenerate the Go code of the SQL queries"
+dir = "internal/delivery/repository/postgres"
+run = "sqlc generate"
+
+[tasks.swagger]
+description = "Regenerate the OpenAPI spec from the handler annotations"
+run = """
+# go run, not a prebuilt swag: the parser must be the one of the pinned Go (a prebuilt binary cannot read newer syntax of the standard library)
+go run github.com/swaggo/swag/cmd/swag@v1.16.6 init -g doc.go \
+  -d ./internal/delivery/controller/http/handler,./internal/delivery/controller/http/response,./internal/model/rbac,./internal/model/user,./internal/useCase/auth,./pkg/pagination \
+  -o ./internal/delivery/controller/http/handler/apidocs \
+  --parseInternal --parseDependency --parseDependencyLevel 1
+"""
+
+[tasks.error-catalog]
+description = "Regenerate error-catalog/errors.en.json (code to English message) after a domain error was added or renamed; then add the Ukrainian text to errors.uk.json"
+run = "GOWORK=off go run ./tools/errorcatalog > error-catalog/errors.en.json.tmp && mv error-catalog/errors.en.json.tmp error-catalog/errors.en.json && echo 'error-catalog/errors.en.json regenerated'"
+
+[tasks.error-catalog-check]
+description = "Fail when the committed error catalog drifts from the code"
+run = "GOWORK=off go test ./tools/errorcatalog"
+
+# Branch cycle (scripts/dev.sh, the same in every repository), see CONTRIBUTING.md.
+[tasks.dev-start]
+description = "feature/<name> from the fresh develop; with --line X.Y, fix/X.Y/<name> from release/X.Y. Usage: mise run dev-start <name> [--line X.Y]"
+run = "scripts/dev.sh start"
+
+[tasks.dev-push]
+description = "Push, open or update the PR into its base: develop (auto-merge when green) or release/X.Y for a fix branch (merged by hand, no auto-merge). LAB= pins the commit ../../laboratory is on, LAB=<commit|branch|vX.Y.Z> pins that, LAB absent keeps go.mod"
+run = 'LAB_SET="${LAB+1}" scripts/dev.sh push'
+
+[tasks.dev-done]
+description = "Back to develop, pull, delete the merged local branch"
+run = "scripts/dev.sh done"
+
+[tasks.work]
+description = "Write ../../go.work: build against the local ../../laboratory (gitignored; CI never uses it)"
+run = """
+test -d ../../laboratory || { echo "../../laboratory is not checked out" >&2; exit 1; }
+test ! -e ../../go.work || { echo "../../go.work already exists" >&2; exit 1; }
+v=$(.github/scripts/lab-pin.sh version)
+cd ../.. && go work init ./platform/backend ./laboratory && go work edit -replace "github.com/cybericebox/laboratory@$v=./laboratory"
+echo "../../go.work created: the backend builds against ../../laboratory (rerun after changing the pin: rm ../../go.work && mise run work)"
+"""

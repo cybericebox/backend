@@ -3,9 +3,9 @@ package controller
 import (
 	"context"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/errjournal"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/controller/http"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/errjournal"
 )
 
 type (

@@ -8,14 +8,14 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/retentionRepo"
-	eventAnalyticsModel "github.com/cybericebox/daemon/internal/model/eventAnalytics"
+	"github.com/cybericebox/backend/internal/delivery/repository/retentionRepo"
+	eventAnalyticsModel "github.com/cybericebox/backend/internal/model/eventAnalytics"
 
-	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
-	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
-	notificationPayloads "github.com/cybericebox/daemon/internal/model/notification/types/payloads"
-	retentionModel "github.com/cybericebox/daemon/internal/model/retention"
-	"github.com/cybericebox/daemon/internal/useCase/retention"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
+	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
+	notificationPayloads "github.com/cybericebox/backend/internal/model/notification/types/payloads"
+	retentionModel "github.com/cybericebox/backend/internal/model/retention"
+	"github.com/cybericebox/backend/internal/useCase/retention"
 )
 
 var now = time.Date(2026, 9, 29, 3, 0, 0, 0, time.UTC)

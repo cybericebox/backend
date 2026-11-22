@@ -1,6 +1,6 @@
 package notificationTypes
 
-import signalModel "github.com/cybericebox/daemon/internal/model/signal"
+import signalModel "github.com/cybericebox/backend/internal/model/signal"
 
 // eventScopedSignals are the participant-facing signals an Event may list,
 // preview and override. Everything else (account flows, manager assignment,

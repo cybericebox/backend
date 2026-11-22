@@ -8,11 +8,12 @@ import (
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
 
-	"github.com/cybericebox/daemon/internal/model"
+	"github.com/cybericebox/backend/internal/model"
 )
 
 type (
-	jobArgs interface {
+	// jobArgs is an alias so tests outside the package can implement IEnqueuer with interface{ Kind() string }.
+	jobArgs = interface {
 		Kind() string
 	}
 

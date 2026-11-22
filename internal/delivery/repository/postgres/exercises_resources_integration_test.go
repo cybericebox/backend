@@ -8,10 +8,10 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/exerciseRepo"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	resourcesModel "github.com/cybericebox/daemon/internal/model/resources"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/exerciseRepo"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	resourcesModel "github.com/cybericebox/backend/internal/model/resources"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 // The resource totals read only the size fields of the devices of the published version (or of the pinned
@@ -25,12 +25,25 @@ func TestPublishedAndPinnedVariantsCarryOnlyWhatTheTotalsNeed(t *testing.T) {
 	variants := itVariants()
 	deviceA, deviceB := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 	variants[0].Topology.Devices = []exerciseModel.Device{
-		{ID: deviceA, Name: "web", Type: exerciseModel.DeviceTypeContainer, Image: "secret-registry/img", ResourcePreset: "medium",
-			EnvVars: []exerciseModel.EnvVar{{Name: "PASS", Value: "ciphertext", Secret: true}}},
-		{ID: deviceB, Name: "db", Type: exerciseModel.DeviceTypeContainer, ResourcePreset: "xlarge"},
+		{
+			ID:             deviceA,
+			Name:           "web",
+			Type:           exerciseModel.DeviceTypeContainer,
+			Image:          "secret-registry/img",
+			ResourcePreset: "medium",
+			Bootstrap: exerciseModel.Bootstrap{
+				Env: []exerciseModel.EnvVar{{Name: "PASS", Value: "ciphertext", Secret: true}},
+			},
+		},
+		{
+			ID:             deviceB,
+			Name:           "db",
+			Type:           exerciseModel.DeviceTypeContainer,
+			ResourcePreset: "xlarge",
+		},
 		{ID: uuid.Must(uuid.NewV7()), Name: "sw", Type: exerciseModel.DeviceTypeUnmanagedSwitch},
 	}
-	_, err := repo.UpsertDraft(ctx, ex.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{Variants: variants}, itNow, uuid.NullUUID{})
+	_, err := repo.ForceUpsertDraft(ctx, ex.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{Variants: variants}, itNow, uuid.NullUUID{})
 	require.NoError(t, err)
 
 	none, err := repo.PublishedVariants(ctx, []uuid.UUID{ex.ID})
@@ -47,7 +60,7 @@ func TestPublishedAndPinnedVariantsCarryOnlyWhatTheTotalsNeed(t *testing.T) {
 	require.Len(t, devices, 3)
 	require.Equal(t, "medium", devices[0].ResourcePreset)
 	require.Empty(t, devices[0].Image, "images are not read")
-	require.Empty(t, devices[0].EnvVars, "secrets are not read")
+	require.Empty(t, devices[0].Bootstrap.Env, "secrets are not read")
 	require.Equal(t, "xlarge", devices[1].ResourcePreset)
 
 	policy := resourcesModel.DefaultPolicy()

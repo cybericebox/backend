@@ -7,10 +7,10 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventFormRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	eventFormModel "github.com/cybericebox/daemon/internal/model/eventForm"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventFormRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	eventFormModel "github.com/cybericebox/backend/internal/model/eventForm"
 )
 
 // Organizers may prefill participant form answers when they invite people

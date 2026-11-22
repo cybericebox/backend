@@ -7,9 +7,9 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	calModel "github.com/cybericebox/daemon/internal/model/resourceCalendar"
-	inboxUseCase "github.com/cybericebox/daemon/internal/useCase/notification/inbox"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	calModel "github.com/cybericebox/backend/internal/model/resourceCalendar"
+	inboxUseCase "github.com/cybericebox/backend/internal/useCase/notification/inbox"
 )
 
 // Ending reasons the agent gives.

@@ -29,7 +29,7 @@ WHERE notification_type = 'event.lab.failed'
   AND NOT action_required;
 
 -- 4. participant.event.results_published: a moderator opened the results
---    («Відкрити підсумки»). In-app on for participants (managers get an
+--    (the "open results" action). In-app on for participants (managers get an
 --    in-app copy from the planner), email off by default.
 INSERT INTO platform_signal_notification_defaults (signal_type, channel, enabled, audience)
 VALUES ('participant.event.results_published', 'in_app', true, '{"kind":"all_participants"}'::jsonb),

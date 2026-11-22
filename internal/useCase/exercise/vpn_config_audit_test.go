@@ -9,12 +9,12 @@ import (
 	"github.com/gofrs/uuid"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	eventActivityModel "github.com/cybericebox/daemon/internal/model/eventActivity"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	vpnModel "github.com/cybericebox/daemon/internal/model/vpn"
-	"github.com/cybericebox/daemon/internal/useCase/exercise"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	eventActivityModel "github.com/cybericebox/backend/internal/model/eventActivity"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	vpnModel "github.com/cybericebox/backend/internal/model/vpn"
+	"github.com/cybericebox/backend/internal/useCase/exercise"
 )
 
 type auditSpy struct {

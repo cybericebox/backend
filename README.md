@@ -1,488 +1,165 @@
-# daemon
+# Backend
 
-The backend of the Cyber ICE Box platform: one Go service behind `api.<domain>` that serves the HTTP API of every frontend (main, ID, admin, exercises, event) and drives the laboratory infrastructure through enrolled agents.
+The backend (the `daemon` program, `cmd/daemon`) is the server of the Cyber&nbsp;ICE&nbsp;Box platform. It is one Go service that keeps users, events,
+tasks and the task catalog, and serves the HTTP API for every platform frontend. It drives the
+laboratory through one gRPC API: the platform runs on top of the
+laboratory, while the laboratory also works on its own.
+
+## Contents
+
+- [What it does](#what-it-does)
+- [How it is built](#how-it-is-built)
+- [Requirements](#requirements)
+- [Run locally](#run-locally)
+- [Configuration](#configuration)
+- [Development](#development)
+- [Releases](#releases)
+- [License](#license)
 
 ## What it does
 
-- Accounts and sessions: registration, sign-in (password and Google OAuth), bot check (Cloudflare Turnstile or reCAPTCHA), roles and permissions (RBAC).
-- Exercise catalog and events: exercises, challenges and flags, stands, teams, participants, scoring, submissions, event pages and forms.
-- Mail and notifications: SMTP providers, templates, broadcasts, the inbox, signals and delivery journals.
-- Analytics: platform and per-event analytics with PDF and CSV reports.
-- Lab infrastructure: enrolls laboratory agents, deploys stands and test labs, issues lab access links and VPN configs, collects lab monitoring and traffic.
-- Background jobs (River): stand launch, mail delivery, data retention, garbage collection of media and test labs, and more (`internal/jobs`).
+| Area | What you get |
+|---|---|
+| Accounts and sign-in | Registration, password and Google sign-in, passkeys, sessions, bot check (Turnstile or reCAPTCHA), roles and permissions |
+| Task catalog | Tasks with files, hints and flags; import and export of task archives; test labs for authors |
+| Events | Events with their own address, pages, forms, teams, participants, stages, task groups and managers |
+| Labs and stands | Starts labs for events and test runs through the laboratory; VPN configs and access links; lab checks and monitoring |
+| Scoring | Flag submissions, attempts, hints, scoreboards, results and live screens |
+| Mail and notifications | SMTP providers, templates, broadcasts, site banners, the in-app inbox, signals and delivery journals |
+| Analytics | Platform and per-event analytics with PDF and CSV reports |
+| Resource planning | Calendar of lab capacity and reservations for events |
+| Administration | Platform settings, image registry, laboratory agents, audit log, error journal, key rotation, data retention |
+| Authoring assistant | Optional link to an external AI service that helps authors build tasks |
 
-## Architecture
+Background work (lab start and cleanup, mail delivery, retention, import and export, garbage collection) runs as
+River jobs on the same PostgreSQL database (`internal/jobs`).
 
-Domain-driven layers; the rules are enforced by convention and by lint tools (see [CLAUDE.md](CLAUDE.md) for the full set).
+## How it is built
 
-| Layer | Path | Responsibility |
-| --- | --- | --- |
-| Model (domain) | `internal/model/*` | Entities, value objects, domain errors, every mutation as an entity method. Must not import `internal/delivery` or `internal/useCase`. |
-| Use case (application) | `internal/useCase/*` | Orchestration only: fetch, call an entity method, persist. Produces the read models (views) for delivery. |
-| Delivery | `internal/delivery/*` | HTTP controllers and handlers (DTOs), PostgreSQL repositories and sqlc queries, infrastructure clients (laboratory agents), middleware and protection. |
-| Jobs | `internal/jobs/*` | River background workers and their registry. |
-| Config, app | `internal/config`, `internal/app` | Environment parsing and validation; wiring and start-up. |
-| Shared packages | `pkg/*` | Errors, pagination, password, token, secret sealing, storage, and other small libraries. |
+| Part | Path | Role |
+|---|---|---|
+| Model | `internal/model` | Entities, domain rules and domain errors. It imports nothing from the layers above. |
+| Use cases | `internal/useCase` | Orchestration: load an entity, change it through its methods, save it. |
+| Delivery | `internal/delivery` | HTTP controllers and handlers, PostgreSQL repositories, clients for the laboratory agents and the assistant. |
+| Jobs | `internal/jobs` | River workers and their registry. |
+| Config and start-up | `internal/config`, `internal/app` | Environment parsing and validation; wiring. |
+| Shared packages | `pkg` | Errors, pagination, passwords, tokens, secret sealing, storage, mail, OAuth and other small libraries. |
+| Commands | `cmd/daemon`, `cmd/seed`, `cmd/loadtest-users` | The service, the test-data seeder, a load-test helper. |
+| Checks | `tools` | Lint tools for error codes, layer imports, route gates and secret contexts; the error-catalog generator. |
 
-Conventions worth knowing:
-
-- One whole-entity repository per aggregate; sqlc rows and JSON (de)serialization stay inside it.
-- Authorization is a single point: every route is gated with `RequirePermission(perm)`; `make vet` fails on a route without a gate.
-- Request identity travels as one `rbac.Claims` bundle in the context.
-- Time is always a parameter (`now time.Time`), so tests control the clock.
-
-Stack: Gin, pgx/v5 with sqlc, golang-migrate, River, gomock, testcontainers, zerolog.
+- **Storage.** PostgreSQL holds all state. Queries are SQL files turned into Go by sqlc. Migrations are numbered pairs
+  in `internal/delivery/repository/postgres/migrations`, applied on start. Files and images go to an S3-compatible
+  object store.
+- **Frontends.** One REST API under `/api`, an OpenAPI spec generated from handler annotations, and server-sent
+  events for live pages. Every route sits behind a permission check (`mise run lint` fails on a route without one). Errors
+  carry numeric codes; the English and Ukrainian texts are in `error-catalog`.
+- **Laboratory.** Laboratory agents are enrolled and then called over gRPC with mutual TLS. The agent contract comes
+  from the laboratory Go module pinned in `go.mod`.
+- **Replicas.** Any number of replicas can run; they share only the database. One of them, chosen with a PostgreSQL
+  advisory lock (`internal/leader`), runs the polling loops.
 
 ## Requirements
 
-- Go 1.27 (see `go.mod`).
 - PostgreSQL.
-- Docker, for the integration tests (they use testcontainers and skip themselves when Docker is unavailable) and for `make sqlcGenerate`.
-- The backend imports the agent contract and a few shared packages from the [laboratory](https://github.com/cybericebox/laboratory) repository. `go.mod` pins its version (there is no `replace`). To build against a checkout at `../laboratory` run `make work`, which writes `../go.work` (gitignored; CI never uses it). See [CONTRIBUTING.md](CONTRIBUTING.md) for the pin.
+- An S3-compatible object store and an SMTP server, if you need uploads and mail.
+- [mise](https://mise.jdx.dev): `mise install` puts the pinned tools (Go, sqlc, gh) in place; `mise tasks` lists the commands.
+- Docker, for the integration tests (they skip themselves when Docker is missing).
 
-```
-cybericebox/
-  daemon/
-  laboratory/
-```
+## Run locally
 
-The statistics-contract work on `feat/proxy-traffic-contract` is validated against
-the local laboratory revision `8f55694c66dbc18abe9022cd4928e62e1189f2e8` using this
-workspace workflow. The remote module pin still predates its new protobuf fields;
-standalone CI and release builds need that producer revision published and the
-pin updated first. No local-path replacement is committed.
-
-In the existing event Usage API, `Labs[].LabInitiatedAttempts` counts permitted
-VPN flows started by the laboratory separately from participant `Attempts`.
-`FirstAt` and `LastAt` are nullable participant observations. Per-lab byte totals
-cover the whole event: inner IP packets for VPN, HTTP bodies or relayed WebSocket
-data payloads for proxy. They are separate from period-based WireGuard session
-totals. Explicit coverage preserves collector gaps; incomplete observations do
-not prove per-lab absence. Raw coverage and collector identities remain private.
-
-## Running locally
-
-1. Start PostgreSQL (and, if you need them, an S3-compatible store and a mail catcher). The infrastructure repository has a local stand for this.
-2. Create `./.env` from the table below. It is git-ignored; never commit it.
-3. Run:
+1. Start PostgreSQL, plus an object store and a mail catcher if you need them.
+2. Create a git-ignored `.env` in the repository root with the settings below. Never commit it.
+3. Start the daemon:
 
 ```bash
-make run-local   # sources ./.env, then go run ./cmd/daemon
+mise run run-local   # loads ./.env, then runs go run ./cmd/daemon
 ```
 
-The daemon reads configuration from the process environment only (there is no `.env` loader in the binary), so `make run-local` sources the file first. Migrations are applied on boot with golang-migrate. In `ENV=development` (set it in `.env` for a local run; the default is `production`) they are read from `internal/delivery/repository/postgres/migrations`; in any other environment from `migrations` next to the binary.
+The daemon reads settings from the process environment only, which is why `mise run run-local` loads the file first.
+Set `ENV=development` for a local run; the default is `production`. The service answers on `api.<DOMAIN>`, so route
+that host to the process or send the `Host` header. `GET /api/health` is a public liveness probe. Outside
+`production` the Swagger UI is served at `/docs`.
 
-The service answers only on the `API_HOST` host. For local work route that host to the process (for example with a hosts entry or the local edge proxy), or send the `Host` header explicitly. `GET /api/health` is a public liveness probe.
+`mise run seed` fills a development database with a test event, teams and tasks (`mise run seed -- --delete` removes
+them). It refuses to run with `ENV=production`.
 
 ## Configuration
 
-All settings are environment variables. Values below are placeholders; durations use Go syntax (`30s`, `24h`). A bot check is mandatory in production (`CAPTCHA_PROVIDER` other than `none`).
-
-The image takes the minimum: `DOMAIN`, `SUPPORT_EMAIL`, `POSTGRES_PASSWORD` and the secret keys (plus the external endpoints, the first admin and the bot check keys). Every other variable below is optional with the default shown: it can be overridden without a rebuild, and our deployment templates do not list it. The test lab lease has one setting, `EXERCISE_TEST_DEPLOY_TTL` (the former `CALENDAR_TEST_LAB_LEASE` is gone). The contact, privacy and security mailboxes belong to the frontends; the daemon needs none of them.
-
-### General and HTTP server
-
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `ENV` | `production` | `production`, `stage` or `development`. Development (set it in the local `.env`) runs Gin in debug mode with console logs; other values run release mode with JSON logs (debug level on stage, info on production). Swagger UI is served unless `production`. |
-| `DOMAIN` | required | The one base domain (`cybericebox.com`), a bare lower case host name. Every host derives from it; there are no per-host settings: landing and mail footer links `DOMAIN`, API `api.<DOMAIN>` (the host this service answers on; the OAuth redirect URI is `https://api.<DOMAIN>/api/auth/<provider>/callback`), sign-in app `id.<DOMAIN>`, `admin.<DOMAIN>`, `exercises.<DOMAIN>`, event sites `<tag>.<DOMAIN>`. |
-| `SUPPORT_EMAIL` | required | Default Reply-To of all mail and the contact in the mail footer (`support@cybericebox.com`). |
-
-The daemon refuses to start without a valid `DOMAIN`. The labels `api`, `id`, `admin`, `exercises` and `www` are reserved in code, and `EVENT_RESERVED_TAGS_EXTRA` (comma-separated lower case DNS labels, default empty; the deployment passes `labs,vpn,ctl`, which belong to the laboratory) adds more; a bad label stops the start. Creating or renaming an event to a reserved tag is refused with error code `21142` (`Event tag is reserved for a platform address`). CORS allows exactly the frontend hosts, the landing host and `https://<tag>.<DOMAIN>`. The same rule is in the frontends (`deploy/base-domain.sh`, `hosts.ts`) and in infrastructure (`cibconf.py`); `internal/config/testdata/base-domain-vectors.json` holds the shared test vectors, and its copies in the other repositories must stay identical.
-
-| `HTTP_SERVER_HOST` | `0.0.0.0` | Listen host. |
-| `HTTP_SERVER_PORT` | `8080`, none when TLS is on | Plain-HTTP listener. Unset it is off when TLS is on (the standard container: HTTPS only) and `8080` otherwise (unprivileged). Set to an empty value to turn it off; with it empty and TLS off the daemon refuses to start. |
-| `HTTP_SERVER_READ_TIMEOUT` | `10s` | Read timeout. |
-| `HTTP_SERVER_WRITE_TIMEOUT` | `10s` | Write timeout. |
-| `HTTP_SERVER_IDLE_TIMEOUT` | `300s` | Idle keep-alive timeout; keep it under the load balancer's 350 s idle timeout. |
-| `HTTP_SERVER_MAX_HEADER_MB` | `1` | Max header size in MiB. |
-| `MAX_REQUEST_BODY_BYTES` | `10485760` | Cap of every request body (10 MiB); an upload route states its own larger cap. |
-| `TRUSTED_PROXIES` | none | Comma-separated CIDRs or addresses of the proxies in front of the daemon (ingress, CDN). The client address is read from `X-Forwarded-For` only for requests from them; with none listed the connection address is used and the header is ignored. Behind a proxy set it, or every client shares the proxy address in the per-address limits. |
-| `HTTP_SERVER_HTTPS_PORT` | `8443` | TLS listener (HTTP/2); runs only when both `HTTP_SERVER_TLS_CERT_FILE` and `HTTP_SERVER_TLS_KEY_FILE` are set. |
-| `HTTP_SERVER_TLS_CERT_FILE` | `/tls/tls.crt` when it and the key exist | PEM server certificate chain. Both cert and key set: TLS on; exactly one set: the daemon refuses to start. |
-| `HTTP_SERVER_TLS_KEY_FILE` | `/tls/tls.key` when it and the certificate exist | PEM server key. The certificate, key and client CA are reread when a file changes (a renewal needs no restart); a broken renewal keeps the previous one in service. |
-| `HTTP_SERVER_TLS_MIN_VERSION` | `1.2` | Lowest TLS version: `1.2` or `1.3`. |
-| `HTTP_SERVER_TLS_CLIENT_CA_FILE` | `/aop/ca.crt` when TLS is on and it exists | PEM bundle of the roots (and intermediates) that signed the client certificates (for example the Cloudflare Authenticated Origin Pulls CA). |
-| `HTTP_SERVER_TLS_CLIENT_AUTH` | `require` when the default CA file was found, else `off` | `off`, `optional` (a presented certificate is verified, none is fine; a presented one that does not verify is refused) or `require` (no valid certificate: the handshake is refused). `optional` and `require` need TLS on and `HTTP_SERVER_TLS_CLIENT_CA_FILE`, else the daemon refuses to start. |
-| `HTTP_SERVER_HEALTH_PORT` | `8081` in the image, none (off) otherwise | When set, an extra plain-HTTP listener on `HEALTH_BIND` that serves only `GET /api/health` (the kubelet cannot present a client certificate). Never route it. |
-| `HEALTH_BIND` | `0.0.0.0` | Address of the health listener and of the internal listener; the deploy sets the pod IP. |
-| `HTTP_SERVER_INTERNAL_PORT` | none (off) | When set, a second plain-HTTP listener on `HEALTH_BIND` with the same API handler, for in-cluster callers (the event-frontend server rendering, `INTERNAL_API_ORIGIN`). Restrict who reaches it with a NetworkPolicy. |
-| `HTTP_SERVER_HTTP3_ENABLED` | `false` | HTTP/3 (QUIC over UDP) next to HTTPS: the same certificate, handler and middleware chain, the same read, write, idle and header limits. Needs TLS. On, every HTTPS response carries `Alt-Svc: h3=":<advertised port>"; ma=86400`. UDP flood posture: 0-RTT off, handshake timeout 5 s, 100 request streams per connection, and a Retry (source address validation) for new connections once more than 100 per second arrive (burst 200), so spoofed floods cost one small packet each and no state. |
-| `HTTP_SERVER_HTTP3_PORT` | the HTTPS port | UDP port the daemon listens on (a Service/NLB UDP listener forwards to it). |
-| `HTTP_SERVER_HTTP3_ADVERTISED_PORT` | `443` | Port in `Alt-Svc`: the one clients reach outside the load balancer, which differs from the pod port (`8443`). |
-
-Client address: the only use is the session IP (login session, visible to the user only). A request whose client certificate was verified (`HTTP_SERVER_TLS_CLIENT_AUTH` `require`, or `optional` with a presented and verified certificate) takes it from `CF-Connecting-IP` (a missing or invalid value falls back to the connection address); the header is never trusted on any other connection (plain, internal listener, no or unverified certificate), where `TRUSTED_PROXIES` / `X-Forwarded-For` apply as before.
-
-Removed with no alias: `HTTP_SERVER_TLS_ENABLED`, `HTTP_SERVER_TLS_PORT` (now `HTTP_SERVER_HTTPS_PORT`), `HTTP_SERVER_TLS_CLIENT_AUTH` as a boolean (now `off|optional|require`), `HTTP_SERVER_TLS_CA_FILE` (now `HTTP_SERVER_TLS_CLIENT_CA_FILE`), and the built-in `/certificates/*` and `/aop/ca.crt` defaults; `HTTP_SERVER_HEALTH_PORT` is `8081` in the image (a local run has none). The TLS paths and client auth now default as the table says, so the deploy passes none of the listener settings; the settings stay overridable (an explicitly set value, even an empty one, always wins). A certificate or key path that is set but missing, or `optional`/`require` client auth without the CA file, stops the start with an error; the start-up log names the active mode (`http`, `https`, `https+client-auth-<mode>`).
-
-### Database
-
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `POSTGRES_HOST` | `localhost` | Host. |
-| `POSTGRES_PORT` | `5432` | Port. |
-| `POSTGRES_USER` | `postgres` | User. |
-| `POSTGRES_PASSWORD` | required | Password; there is no default and the daemon does not start without it. |
-| `POSTGRES_DB` | `cybericebox` | Database name (the one the deploy creates; a local run sets its own). |
-| `POSTGRES_SSL_MODE` | `verify-full` | pgx `sslmode`. The default encrypts and checks the server certificate and name; set another mode (for example `disable` for a local development database) only for a trusted network. |
-| `POSTGRES_MAX_CONNS` | `32` | Size of the main pool (requests and use cases, job handlers included). |
-| `POSTGRES_ACQUIRE_TIMEOUT` | `3s` | Longest a statement waits for a free connection of the main pool; past it the request is answered 503 with `Retry-After: 1`. A statement that got a connection runs as long as it needs. 100ms to 30s. |
-| `POSTGRES_MAX_CONN_LIFETIME` / `POSTGRES_MAX_CONN_IDLE_TIME` | `30m` / `5m` | A connection of either pool is replaced after this age / closed after this long unused. |
-| `POSTGRES_JOB_MAX_CONNS` | `8` | Size of the separate pool of the job queue (River: fetching, notifications, maintenance) and the session revocation poll, so request queries cannot starve them and they cannot starve requests. Not fully isolated: a job enqueued by a request outside a transaction (a broadcast, a notification, an import) is inserted on this pool too, with no acquire bound; those inserts are short and the in-flight cap bounds how many run at once. An enqueue inside a unit of work uses its transaction on the main pool. At least 4, like `POSTGRES_MAX_CONNS`. |
-
-Connection budget: one replica opens up to `POSTGRES_MAX_CONNS` + `POSTGRES_JOB_MAX_CONNS` (40 by default), so N replicas need N × 40 + 20 (reserved for administration; the leader also holds one connection of its own outside the pools for the leadership lock, and a push to an agent holds one more while it runs) ≤ the server's `max_connections`. The daemon logs this arithmetic at startup and warns when a single replica already does not fit.
-
-### Authentication and secrets
-
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `JWT_TOKEN_SIGNATURE` | none | Signing secret of the user tokens: random, at least 32 bytes (`openssl rand -hex 32`); weaker is fatal in production, a warning elsewhere. |
-| `OAUTH_STATE_SIGNATURE` | none | Signing secret of the OAuth state: random, at least 32 bytes, different from the JWT secret. With `GOOGLE_CLIENT_ID` set, an empty value is fatal in production (Google would otherwise be silently disabled). |
-| `OAUTH_STATE_TTL` | `15m` | OAuth state lifetime; also the life of the OAuth state cookies. |
-| `SETUP_TOKEN_TTL` | `168h` | Life of an invitation link. |
-| `SIGNUP_SETUP_TOKEN_TTL` | `24h` | Life of the setup link of someone who signed up (or came through Google) by themselves. |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_SECRET` | none | Google OAuth client. |
-| `SUPER_ADMIN_EMAIL` | none | Email of the account that is promoted to super admin (at sign-up and at start-up; compared case-insensitively). Every start sets the role back, so a demotion made in the admin lasts only until the next restart: unset the variable to demote for good. |
-| `SESSION_IDLE_TTL` | `12h` | The cookie lives this long after it was issued; a cookie in use is re-issued (once 1% of this time has passed since it was issued, with no Set-Cookie on other responses), so a session unused for this long ends. |
-| `SESSION_MAX_PER_USER` | `10` | Sessions one account keeps at once; signing in over the cap ends the oldest (0 = no cap). |
-| `SESSION_ABSOLUTE_TTL` | `168h` | A session ends this long after sign-in however busy it is (it caps every re-issued expiry). |
-| `SESSION_ENCRYPTION_KEY` | required | Secret. Seals the session cookie (AES-256-GCM): one 64-hex-char key, or a keyring of `id:hex` entries whose first key seals and every key opens (a rotation signs nobody out). Every replica must hold the same key. |
-| `RENDER_SECRET` | required | Secret, at least 32 characters. Shared with the event frontend server, the only caller of `/api/render/*` (event pages for server rendering). Without the `X-Render-Secret` header carrying it those routes answer 404. Every replica must hold the same value. |
-| `SESSION_REVOCATION_STALE_AFTER` | `30s` | How long the poll of the revoked-session list may keep failing before the replica refuses signed-in requests (503) rather than trust a stale list. |
-| `TEMPORAL_CODE_TTL` | `1h` | Lifetime of one-time codes (confirmation, reset). |
-| `PASSWORD_MIN_LENGTH`, `PASSWORD_MAX_LENGTH` | `8`, `72` | Password length bounds (bcrypt ignores bytes past 72). |
-| `PASSWORD_MIN_CAPITAL_LETTERS`, `PASSWORD_MIN_SMALL_LETTERS`, `PASSWORD_MIN_DIGITS`, `PASSWORD_MIN_SPECIAL_CHARACTERS` | `1`, `1`, `1`, `0` | Complexity policy, published at `GET /api/auth/password/policy`. |
-| `PLATFORM_SECRETS_KEY` | none | One 64-hex-character key (AES-256), or a keyring `id:hex,id:hex` (see below). Seals platform secrets: SMTP provider passwords, the private keys of enrolled agents and the variables of queued notifications (River job arguments carry ids only; the names, addresses and links wait in sealed rows until the mail is sent). Empty disables them and notifications cannot be queued; an invalid value is fatal. |
-| `EXERCISE_SECRETS_KEY` | none | One 64-hex-character key or a keyring. Seals exercise secret env vars. Empty disables them (saving one answers 409). |
-| `VPN_SECRETS_KEY` | none | One 64-hex-character key or a keyring. Seals stored VPN client configs. Empty disables their storage. |
-
-Generate a key with `openssl rand -hex 32`. Keep every key stable: changing one makes data sealed with it unreadable.
-
-### Sessions
-
-The cookie is the session: `__Host-session` (HttpOnly, Secure, SameSite=Strict, host-only on the API host) holds the session id, the user id, the sign-in time and the expiry, encrypted and authenticated with `SESSION_ENCRYPTION_KEY`. No role and no name. While the session is not revoked, no database read is needed to trust it. The earlier HMAC-signed cookies are not accepted: everyone signs in again after the upgrade.
-
-Per request, in this order: (1) decrypt the cookie and check its expiry, (2) look the session id up in the in-memory revocation set, (3) the per-user rate limit, (4) one query for the caller's global role and blocked flag. A garbage, expired or revoked cookie is a 401 that never touches the database. Event roles stay in the handlers.
-
-`last_seen` is written per session: the first request of a 30 s window writes it at once (asynchronously), later ones only update memory, and at the end of the window the latest time is written (`GREATEST`, never backward). The replica flushes what it holds on SIGTERM.
-
-Every end of a session (sign-out, "end this session", sign-out everywhere, password change, block, eviction beyond `SESSION_MAX_PER_USER`) deletes the session row and writes a row in `session_revocations` in one statement: `seq`, `session_id`, `user_id`, `revoked_at` (database time) and `expires_at` (when the cookie would die by itself: the smaller of sign-in + `SESSION_ABSOLUTE_TTL` and `last_seen` + `SESSION_IDLE_TTL` + 1 min). Every replica loads the unexpired rows before it serves and polls the table every second (`WHERE revoked_at > watermark - 10 s`; the overlap covers late commits, the session id dedupes). Revocation therefore reaches every replica within about a second. A replica whose poll fails for longer than 30 s answers signed-in requests with 503 until the poll recovers. A worker deletes rows past `expires_at`.
-
-### Bot check (CAPTCHA_PROVIDER)
-
-One provider for the whole platform: the sign-in, sign-up and password-reset forms use it. The token travels in the JSON body as `RecaptchaToken` whichever provider issued it. A token must have been solved on a platform frontend host. The frontends take the same choice from `NEXT_PUBLIC_CAPTCHA_PROVIDER` and `NEXT_PUBLIC_CAPTCHA_SITE_KEY`.
-
-| `CAPTCHA_PROVIDER` | Variables | Notes |
-| --- | --- | --- |
-| `turnstile` | `TURNSTILE_SECRET` | Cloudflare Turnstile, verified with siteverify. Free. |
-| `recaptcha` (default) | classic v3: `RECAPTCHA_SECRET`; Enterprise (selected by `RECAPTCHA_PROJECT`): `RECAPTCHA_PROJECT`, `RECAPTCHA_API_KEY`, `RECAPTCHA_SITE_KEY` | Exactly one mode must be configured. |
-| `none` | none | Accepts every token: local development and tests only. Fatal in production. |
-
-Only the chosen provider's keys are required; any other value, or missing keys, stops the start. `RECAPTCHA_SCORE` (default `0.5`) is the minimum accepted reCAPTCHA score; below `0.3` (0 accepts every bot) is fatal in production.
-
-### Mail
-
-**Rotating a secrets key.** Each `*_SECRETS_KEY` may be a keyring of `id:hex` entries (an id is 1 to 16 characters of `a-z`, `0-9`, `_`, `-`), for example `2026b:<hex>,2025a:<hex>`. The first key encrypts; every key opens. A ciphertext names the key that sealed it (`v1:<id>:...`), and values written before keyrings (no id) open with the keys of the ring in turn. To rotate: put the new key first and keep the old one after it; remove the old one when nothing is sealed with it any more (a value whose key is missing from the ring fails with the missing key id). Secrets are also bound to their row (a VPN config to its user and scope, an exercise secret to its variant, device and variable), so a ciphertext copied elsewhere does not open.
-
-Sender and transport settings live in the database: SMTP providers are managed in the admin (Mail settings) and their passwords are sealed with `PLATFORM_SECRETS_KEY`. The environment transport is only a bootstrap fallback.
-
-**Fallback rule:** providers saved in the database always win. The `SMTP_*` environment transport is used only while no provider is enabled.
-
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `SMTP_HOST` | none | SMTP server. |
-| `SMTP_PORT` | `587` | SMTP port. |
-| `SMTP_INSECURE` | `false` | Let the env transport continue without TLS when the server does not offer STARTTLS (development mail catcher only). |
-| `SMTP_USERNAME`, `SMTP_PASSWORD` | none | SMTP credentials. |
-| `SMTP_SENDER_NAME`, `SMTP_SENDER_EMAIL` | none | Default sender. |
-| `SMTP_REPLY_TO_NAME`, `SMTP_REPLY_TO_EMAIL` | none | Reply-To of the env provider (a provider saved in the admin mail settings has its own); empty falls back to `SUPPORT_EMAIL`. |
-| `SMTP_MAX_PER_SECOND` | `0` | Provider send rate limit; 0 is unlimited. |
-| `SMTP_DAILY_QUOTA` | `0` | Provider daily quota; 0 is unlimited. |
-
-### Object storage
-
-S3-compatible store (MinIO, AWS S3) for user avatars. An empty `STORAGE_ENDPOINT` disables storage; avatar upload and serving then become unavailable.
-
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `STORAGE_ENDPOINT` | none | Store endpoint. |
-| `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY` | none | Credentials. |
-| `STORAGE_BUCKET` | `cybericebox` | Bucket. |
-| `STORAGE_REGION` | `us-east-1` | Region. |
-| `STORAGE_USE_SSL` | `false` | Use TLS to the store. |
-| `MEDIA_MAX_UPLOAD_BYTES` | `536870912` | Upload size limit of one file (512 MiB); one task archive entry may not be larger. |
-| `MEDIA_UPLOAD_CHUNK_BYTES` | `52428800` | Chunk of a resumable upload and the most one request may carry; between 1 MiB and 50 MiB (the edge allows a 100 MB body). |
-| `MEDIA_UPLOAD_TTL` | `24h` | How long an unfinished upload waits for its next chunk. |
-| `MEDIA_GC_GRACE` | `24h` | How long an unreferenced file is kept before garbage collection. |
-
-### Laboratory agents
-
-Lab infrastructure is served by one or more laboratory agents. Agents live in the database and are enrolled, never configured with certificate files.
-
-- **In the admin** (Infrastructure, Agents): add an agent with its endpoint and the one-time enrollment token from the cluster administrator. The platform generates its own mutual-TLS key and the signing key pair of the lab access tokens; the agent signs the client certificate (the tenant identity is its CN). Both private keys are stored encrypted with `PLATFORM_SECRETS_KEY`. Certificates are renewed automatically after two thirds of their lifetime; the access key can be rotated.
-- **Bootstrap from the environment**: with `AGENT_ENDPOINT` and `AGENT_ENROLLMENT_TOKEN` set and no live agent with that endpoint, the daemon enrolls it once at start-up and stores it like any other agent. The token is ignored afterwards (remove it). A failed enrollment is logged and the daemon still starts.
-- Without any agent the daemon runs fine (catalog, event setup, exercise authoring); whatever needs to deploy a lab fails with `ErrInfrastructureUnavailable`.
-
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `AGENT_ENDPOINT` | none | `host:443` of the agent to bootstrap. |
-| `AGENT_ENROLLMENT_TOKEN` | none | One-time enrollment token (used once). |
-| `AGENT_NAME` | `default` | Label of the bootstrapped agent. |
-| `AGENT_CA_FILE` | none | CA of the agent's server certificate; only for a self-signed development stand (empty means system roots). |
-| `AGENT_INSTANCE_ID` | `cybericebox` | Immutable platform-instance label put on every object created in the infrastructure, so two platform instances can share one cluster. Must be a valid Kubernetes label value. Never change it for a running deployment. |
-| `LAB_ACCESS_TOKEN_TTL` | `1m` | How long a web access link (`/_auth`) can be opened, up to the limit the agent's proxy reports. Tokens are signed with the access key of the agent that holds the lab, never with a platform-wide key. |
-| `LAB_SESSION_TTL` | `24h` | Lab web session length when the caller names no end. |
-
-What a laboratory offers is not configured here: each agent reports it (device state persistence and its limits, the image cache, the scheduler, the lab and VPN endpoints, its certificate) and the platform keeps the last report per agent (shown in the admin agent list). The exercise editor offers state persistence when some enabled agent offers it, and a deploy is refused when the agent that holds the team's group does not. A client certificate is renewed after two thirds of its own lifetime, and a rotated-out access key stays at the agent for three times the longest link its proxy accepts (at least 15 minutes). The proxy limits (longest link, longest session) come from the agent too: a web link never promises more than the proxy allows (a warning is logged once per agent when `LAB_ACCESS_TOKEN_TTL` or `LAB_SESSION_TTL` is above them), and image prewarm skips an agent that reports its image cache is off. The agents also describe their hardware (the most CPU and memory per device, devices per lab, the sizing of a lab group's own pods: the VPN by its users, the gateway by its internet labs) and the product rules are the platform's (`RESOURCES_*` below): an agent whose device maxima are below the frame or that allows fewer than 32 devices per lab is flagged "does not meet the platform requirements" in the admin agent list (`MeetsRequirements`, `Unmet`) and is not used for planning or placement. A device carries a preset (one of the sizes above; there is no custom size) and the agent is always sent explicit, equal requests and limits; the VPN and gateway sizes of a group are rounded up to the next preset size (its CPU by the same rule; when that CPU is below what the formula needs, the next size up) before they are sent and reserved, and the largest device an agent can place is mapped down to the largest allowed size. A draft always saves and its response lists the devices outside the frame; publishing needs every device inside the frame or covered by an approved elevation (a platform admin approves per exercise the requested block or a smaller allowed one, up to the ceiling; a later version keeps the approval while every device stays at or below the approved block). The event plan (`GET /events/:id/manage/resource-plan`) counts the devices of the tasks (the largest variant of each) plus each group's VPN, sized by the event's maximum team size, and its gateway, sized by the group's internet labs, with the agents' formula; the group is created with those sizes, and an elevated task is placed only on an agent whose maxima fit it.
-
-The variables `AGENT_TLS_*`, `AGENT_ACCESS_PRIVATE_KEY`, `AGENT_ACCESS_KEY_ID` and `LAB_ACCESS_PRIVATE_KEY` were removed and have no replacement: keys are per agent and stored in the database.
-
-### Exercises and stands
-
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `EXERCISE_FLAG_RANDOM_BYTES` | `20` | Random bytes per generated flag (1 to 1024). |
-| `EXERCISE_FLAG_WARNING_BITS` | `20` | Entropy warning threshold (1 to 1024). |
-| `EXERCISE_MAX_ACTIVE_TEST_DEPLOYS` | `3` | Test labs one user may run at the same time (1 to 20). |
-| `EXERCISE_STAND_DEPLOY_BUDGET` | `200` | Lab deploy calls to an agent per event and pass (1 to 5000). Only protects the agent API from a burst; launch pacing is done by the laboratory operator. |
-| `EXERCISE_STAND_PREWARM_LEAD` | `30m` | How long before the stand deploy time the images are prewarmed in the platform image cache; `0` turns it off (max 24h). |
-| `EXERCISE_LAB_SWEEP_INTERVAL` / `_GRACE` | `30s` / `15m` | The sweep that deletes orphan stand and test lab groups (event, team or test deploy gone) runs this often; a group younger than the grace is never judged (interval 10s to 24h, grace 1m to 24h). |
-| `EXERCISE_TEST_DEPLOY_TTL` / `_MAX` | `2h` / `8h` | Lease of a test lab, and the longest it lives from its start however often extended. Defaults: the leases saved in the platform panel override them on the next deploy, extension or room check (the calendar's room check without a lease takes the lease in force too). |
-| `RESOURCES_PRESETS` | `nano=32Mi,micro=64Mi,small=128Mi,standard=256Mi,medium=512Mi,large=1Gi,xlarge=2Gi,max=4Gi` | The allowed device sizes an author picks (`id=memory`, Kubernetes quantities). The ids are translated by the frontends. Memory is binary and is the packing dimension: every size divides the next larger one, so packing leaves no hole. The CPU of a size follows from its memory, 1000m per 4Gi rounded down (32Mi gets 7m, 64Mi 15m, 1Gi 250m, 4Gi 1000m); it is not configured. A block is the smallest size, and `Blocks` counts in it. There is no custom size. |
-| `RESOURCES_DEFAULT_PRESET` | `micro` | The size of a device that picked none. |
-| `RESOURCES_FRAME_PRESET` | `large` | The largest size a device gets without an approval. A laboratory whose device maximum is below it, or that allows fewer than 32 devices per lab, does not meet the platform requirements and is not used. |
-| `RESOURCES_CEILING_PRESET` | `max` | The largest size an approved elevation may give a device. |
-| `EVENT_STAND_DEPLOY_TIMEOUT` | `20m` | A Lab the agent accepted but never reported ready fails after this. |
-| `EVENT_DEFAULT_MAX_TEAM_SIZE` | `5` | Team size limit of a new event. |
-| `VPN_SECRETS_KEY` | none | See above. |
-
-### Resource calendar
-
-The backend owns a calendar of lab resources (`internal/useCase/resourceCalendar`, `internal/model/resourceCalendar`). The calendar owns the reservations; the agents hold them as cluster reservations, split per agent (see below).
-
-- Time is cut into 15-minute slots. The capacity is the recorded capacity of the agents that are used (enabled, meeting the platform requirements, with a recorded capacity; no tenant quota means no limit on that resource). Feasibility is checked by packing, never by adding free room: a team (its lab group) stays whole on one agent, the fewest agents are used first, then agent priority, elevated tasks only go to agents whose device maxima fit them. Agents do not report per-node room yet, so an agent counts as one node (`PerNodeRoomReported: false`); they do not report maintenance windows either, so the calendar shows none.
-- An event reservation is set by a platform admin only: size = the event's resource plan per team x teams + the buffer + the organizer's estimate for future dynamic tasks; window = from the stand deploy lead (plus `CALENDAR_LEAD_MARGIN`) to the event end + the tail gap (`CALENDAR_TAIL_GAP`, never shorter, the admin may set more). A reservation that does not fit by packing is refused (409) unless the admin allows the conflict; it is then kept, shown as not covered, and an alarm is raised. Conflicts are resolved by hand: a changed reservation keeps every team that still fits where it is, and nothing is moved automatically.
-- An organizer sees allocated vs used (never an agent) and sends change requests (size, window, estimate, with a reason) that the admin approves or rejects; approving extends the existing reservation. A new task of a running event deploys only if its reservation holds it for all teams, otherwise it is refused with "not enough reserved resources, request an extension" (72508).
-- Readiness alarms are real entities (`not_placed`, `agent_lost`, `agent_shrunk`, `not_connected`; the last escalates 24 h and 2 h before the deploy lead and at it). Raising one notifies the super admins through the inbox and writes the error journal (`lab_readiness`). A periodic job (`resource_calendar_check`, every minute) re-evaluates them and only adds the teams that had no agent when capacity appears.
-- Test labs: a guaranteed minimum pool (an admin setting, always on, never reserved by events); above it any room no event has reserved; otherwise the author gets the nearest free window ("no free resources now, the nearest window is from HH:MM") and can book it (15 minutes to 8 hours, at most 14 days ahead, 3 at once). The booking reserves room in the calendar and covers the lab started inside it.
-- Cluster reservations: every calendar reservation is split into parts, one per agent of its placement (`ceil(size x units / teams)`, the calendar window), kept in `cluster_reservations` with stable ids; a test lab started by the pool or free room gets its own run part (the run length the author chose: 15/30/45 min, 1/2 h up to the lease maximum, `GET /api/exercises/test-runs/lengths`, `LeaseMinutes` on the deploy and on the event preview start), and each author one group part on the agent of their `tu-` group. Every change is sent to the agents' reservation API after its commit; a River job (`cluster_reservations_reconcile`, every 5 min) retries what failed and deletes orphans of this instance. While labs run in a part, a shrink never goes below what they use nor ends earlier than the agent's ending notice (`cluster_shrink_held`), unless the admin forced it; a part not sent for 15 min raises `cluster_sync_failed`. Every group and lab carries its part id, and a new group goes to the agent of its team's part. The agent's monitoring drives the rest: the ending notice of a test run is shown to the author (`EndingAt`), of an event part during the event tells the admins and organizers; at the end the test lab ends like at its lease and the stands release their labs, without a failure. An agent without the reservation API is marked incompatible (no new groups). A held retire (a part with groups dropped from the placement without force) stays alive and raises the same alarm (`retire_held`); a part never starts after its window, and the units of destroyed team groups are released.
-- Rollout of the reservations (one release): first the laboratory agents with the reservation API, then the backend. Groups made before the release carry no part: a group whose reservation part is on another agent fails with a placement mismatch and is recreated on the right agent (stands at the next deploy, test groups with the author's next lab); the backend never pins a unit to an agent where it has no part.
-- Admin API (super admin, `infrastructure.read` / `infrastructure.write`): `/api/infrastructure/calendar/*` (timeline, capacity, stats, settings, alarms, change requests, event reservation; every reservation lists its `Parts`). Organizer: `/api/events/:id/manage/resources`. Author: `/api/exercises/test-labs/*`, `/api/exercises/test-runs/lengths`. See the swagger.
-
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `CALENDAR_BUFFER_PERCENT` | `0` | Optional buffer added to the size of an event reservation (0 to 200). Off by default: the agent keeps its own hidden 15% packing reserve, so a reservation is the plan x teams plus the dynamic estimate. |
-| `CALENDAR_TAIL_GAP` | `1h` | Gap kept after the event end (15m to 168h); the admin may set more per event, never less. |
-| `CALENDAR_LEAD_MARGIN` | `30m` | Added before the stand deploy lead: the capacity must be connected that much earlier (0 to 24h). |
-| `CALENDAR_SEARCH_HORIZON` | `168h` | How far ahead the nearest free window of a test lab is looked for (1h to 2160h). |
-| `CALENDAR_AGENT_FRESH` | `15m` | How recent an agent's capacity read must be for it to count as connected (6m to 24h). |
-
-### Outgoing mail security
-
-- An event SMTP (set by an organizer) can only name a public host: an IP literal or a name in a loopback, private, link-local (cloud metadata), carrier-grade NAT or other special range is refused when saved, and again at connect time after the name is resolved (a name that later resolves inside is never connected). Ports are limited to `SMTP_ALLOWED_PORTS` (default `25,465,587,2525`).
-- The stored SMTP password is used only for the stored connection: when the host, port, username or TLS mode changes, the password has to be entered again (error 22109); a test never sends the stored password to a changed host.
-- STARTTLS is required: a server that does not offer it is refused before any credential is sent. `SMTP_INSECURE=true` lifts this for the env transport only (a development mail catcher). Every send has connection and conversation deadlines. Send errors are reported as one fixed line per kind (connection failed, TLS failed, a reply code); the raw error is logged, never returned.
-
-### Limits and timings
-
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `JOB_COMPLETED_RETENTION` / `JOB_FAILED_RETENTION` | `1h` / `24h` | How long the job queue keeps finished jobs (succeeded; cancelled or discarded). Notification job arguments hold addresses, names and links. |
-| `JOB_DEFAULT_WORKERS` | `6` | Jobs of the default queue one replica runs at once (1 to 64); the durable notice and image queues run 2 each. |
-| `SMTP_ALLOWED_PORTS` | `25,465,587,2525` | Ports an organizer may use for an event SMTP. |
-| `SSE_MAX_LIFETIME` | `30m` | Longest life of one event stream; the client reconnects. |
-| `LIVE_SCREEN_LINK_MAX_TTL` | `1440h` | Cap of «until the event ends» for a live screen link. |
-| `MAIL_MAX_RATE_WAIT` | `20s` | Longest a mail worker waits for its turn before the message is deferred. |
-| `MAIL_QUOTA_RETRY_AFTER` | `10m` | How long a message waits when the daily quota is used. |
-| `MAIL_QUOTA_RECHECK` | `30s` | How often the delivered count is re-read. |
-| `MAIL_QUOTA_WINDOW` | `24h` | Window of the daily quota. |
-| `MAIL_MAX_PER_SECOND_LIMIT` / `MAIL_DAILY_QUOTA_LIMIT` | `10000` / `1000000000` | Upper bounds an admin may set for a provider limit. |
-| `AVATAR_MAX_BYTES` | `5242880` | Avatar size. |
-| `IMAGE_MAX_PIXELS` | `16000000` | Most pixels (width times height) of an uploaded picture; a larger one is refused at upload. |
-| `FLAG_ANSWER_MAX_BYTES` | `512` | Longest answer to a task that is accepted; a longer one is refused before it is stored. |
-| `EVENT_LOGO_MAX_BYTES` | `2097152` | Event logo. |
-| `EVENT_PREVIEW_PICTURE_MAX_BYTES` | `5242880` | Event preview picture. |
-| `EVENT_CONTENT_IMAGE_MAX_BYTES` | `5242880` | Image in event page content. |
-| `LIVE_LOGO_MAX_BYTES` | `1048576` | Live screen logo. |
-| `EMAIL_IMAGE_UPLOAD_MAX_BYTES` | `10485760` | Raw upload of an email template image. |
-| `EMAIL_IMAGE_MAX_BYTES` | `307200` | Email template image after processing. |
-| `EMAIL_IMAGE_MAX_WIDTH` / `EMAIL_IMAGE_MAX_PIXELS` | `1200` / `24000000` | Width after downscale, and the decoded pixel cap. |
-
-### Error journal
-
-The platform error journal records what broke: 5xx, panics, 403 (with the permission that refused), 429 (with the limiter), failed job attempts and discards, a stalled or growing job queue, mail that failed after its retries, and the laboratory (an agent offline, a failed lab deploy, a certificate close to its end, component errors reported by the agent). Errors are grouped by fingerprint (kind + route template or job kind + normalized message) with a count, first and last time and a few recent samples. 404s are only counted per day: per route template for a handler 404, one counter for every unmatched path (paths are never stored). 401 is not recorded. No IP address is ever read or stored; secrets, passwords, tokens and e-mail addresses are scrubbed from messages. Only super admins see it (`platform.errors.read` / `platform.errors.write`, routes under `/api/admin/errors`).
-
-Notifications go to the Telegram chat ids and the e-mail list that super admins keep in the journal settings (the e-mail list defaults to every super admin). A chat id the bot may not write to (it answers 403) is marked failing in the settings, never dropped. One message per fingerprint per `ERROR_JOURNAL_NOTIFY_COOLDOWN`: a storm is one message with a count.
-
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `TELEGRAM_BOT_TOKEN` | none | Secret. The one Telegram bot; empty switches the Telegram channel off (chat ids are kept, nothing is sent). Never logged. |
-| `ERROR_JOURNAL_SAMPLES_PER_GROUP` | `5` | Recent samples kept per error group. |
-| `ERROR_JOURNAL_RETENTION` | `720h` | How long groups, samples and 404 counters are kept; a daily job deletes older ones. |
-| `ERROR_JOURNAL_NOTIFY_COOLDOWN` | `15m` | Least time between two messages about one fingerprint. |
-| `ERROR_JOURNAL_SPIKE_THRESHOLD` / `ERROR_JOURNAL_SPIKE_WINDOW` | `20` / `5m` | Occurrences of a known fingerprint within the window that count as a spike (messaged for 5xx and 429). |
-| `ERROR_JOURNAL_BUFFER_SIZE` | `1024` | Capture queue; events beyond it are dropped (counted in the log) instead of slowing a request down. |
-| `ERROR_JOURNAL_NOT_FOUND_FLUSH_INTERVAL` | `10s` | How often the in-memory 404 counters are written. |
-| `ERROR_JOURNAL_QUEUE_STALL_AFTER` | `5m` | A job ready to run that waits longer than this means the workers stalled. |
-| `ERROR_JOURNAL_QUEUE_BACKLOG_LIMIT` | `1000` | More waiting jobs than this is a growing queue. |
-| `ERROR_JOURNAL_CERT_EXPIRY_WARN` | `336h` | A laboratory agent certificate that ends within this is reported. |
-| `ERROR_JOURNAL_AGENT_OFFLINE_AFTER` | `2m` | A laboratory agent unreachable this long is reported offline. |
-| `ERROR_JOURNAL_WATCH_INTERVAL` | `1m` | How often the queue and certificate checks run. |
-
-Every request and response carries an `X-Request-ID` header (a client's own id is kept when it is 8-64 letters, digits, `.`, `_` or `-`); the journal stores it with the sample.
-
-### Rate limits and retention
-
-No limit is keyed on a client address (a whole on-site event sits behind one router). Mail sent by organizers and admins (invitations, broadcasts, notifications) is never limited; only mail an account triggers itself is.
-
-The `RETENTION_*` periods (all but `RETENTION_BATCH_SIZE`) are defaults: periods saved in the platform settings of the platform panel override them on the next purge pass, without a restart.
-
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `FLAG_RATE_LIMIT_CHALLENGE_ATTEMPTS` / `_WINDOW` | `5` / `30s` | Flag submissions per team and challenge. |
-| `FLAG_RATE_LIMIT_TEAM_ATTEMPTS` / `_WINDOW` | `20` / `1m` | Flag submissions per team overall. |
-| `RATE_LIMIT_USER_PER_MINUTE` / `RATE_LIMIT_USER_BURST` | `1200` / `600` | General request limiter, a token bucket per signed-in user: steady rate per minute and burst. Over it: 429 with `Retry-After`, recorded in the error journal (`http_429`, limiter `user`). Live streams and `/api/health` are exempt. In memory, per replica. |
-| `RATE_LIMIT_ANON_PER_MINUTE` / `RATE_LIMIT_ANON_BURST` | `6000` / `1500` | The bucket shared by ALL cookie-less requests to the routes usable without a session (public reads, sign-in, the OAuth redirects; on the routes without any gate, with a cookie too), platform-wide (never per address), so only a real flood trips it (limiter `public`). |
-| `RATE_LIMIT_CLOSED_PER_MINUTE` / `RATE_LIMIT_CLOSED_BURST` | `3000` / `600` | The bucket shared by cookie-less requests to routes that need a session (and by a cookie that does not open there) and by every request to an unknown path, so a flood of 401s and 404s cannot drain the public readers' budget (limiter `closed`). Cookie-less requests are counted before the in-flight limiter, so a refused one takes no slot. Requests on the internal listener (in-cluster SSR: one trusted caller in front of many visitors) are not counted in `public` or `closed`; `HTTP_INFLIGHT_MAX` bounds them. The request log samples 401, 429 and the overload 503: one line per status and route per second, with the count of dropped lines in `suppressed`. |
-| `HTTP_INFLIGHT_MAX` | `64` | General requests one replica serves at once (in memory, per replica). It runs after the origin guard and the anonymous rate limit, so a refused request never takes a slot. A request over it waits up to `HTTP_INFLIGHT_WAIT` for a slot, then gets 503 with `Retry-After: 1` (code 70431, kept out of the error journal). A request body up to 1 MiB is read before the slot is taken, so a client slow to send it holds none. `0` turns the cap off. `/api/health` is never limited. Refusals are logged as one `warn` summary at most every 10 s, never per request: per class (`rejected_general`, `_anonymous`, `_per_session`, `_streams`, `_transfers`, `_media`), the peaks, and `db_busy`, the 503s of requests that found no database connection within `POSTGRES_ACQUIRE_TIMEOUT` (code 70432). A slow reader of a general response is bounded by `HTTP_SERVER_WRITE_TIMEOUT`. |
-| `HTTP_INFLIGHT_WAIT` | `50ms` | How long a general or transfer request waits for a free slot before the 503 (0 to 1s). |
-| `HTTP_INFLIGHT_ANON_SHARE` | `25` | Percent of `HTTP_INFLIGHT_MAX` that requests without a valid session may hold together (a cookie that does not open counts as none). `0` or `100`: no separate share. |
-| `HTTP_INFLIGHT_PER_SESSION` | `8` | General requests one session may hold at once (no client address is used, so per client means per session). `0` turns it off. Requests on the internal listener (in-cluster SSR) are held to `HTTP_INFLIGHT_MAX` only, never to the anonymous share or this cap. |
-| `HTTP_INFLIGHT_SUBCAP_WAIT` | `1s` | How long a request waits for a slot of its session's cap or of the anonymous share, and a public media request for a media slot, before the 503 (0 to 5s, and never past the request itself). Waiting there holds no general slot, so a page's burst of parallel requests is queued, not refused. |
-| `HTTP_INFLIGHT_STREAMS_MAX` | `200` | Live streams (SSE) served at once, on slots of their own; over it the 503 comes at once (no wait). `0` turns the cap off. |
-| `HTTP_INFLIGHT_TRANSFERS_MAX` | `32` | Uploads, file downloads, exports and the editors' media streams served at once, on slots of their own (`middleware.TransferRoutes()`); their bodies stream, they are not read first. `0` turns the cap off. |
-| `HTTP_INFLIGHT_MEDIA_MAX` | `64` | Public media (avatars, event logo, favicon, preview picture and content images: `middleware.PublicMediaRoutes`) served at once, on slots of their own, so uploads and exports cannot starve page images (a browser never retries an `<img>`). Over it a request waits `HTTP_INFLIGHT_SUBCAP_WAIT`. `0` turns the cap off. |
-| `LIMIT_SIGN_IN_MAX_FAILURES` | `5` | Wrong passwords for one account (and one signed-in user's password checks) before it is locked. |
-| `LIMIT_SIGN_IN_FAILURE_WINDOW` | `15m` | Window the failures are counted in. |
-| `LIMIT_SIGN_IN_LOCK_BASE` / `LIMIT_SIGN_IN_LOCK_MAX` | `1m` / `15m` | First lock; it doubles up to the maximum. |
-| `LIMIT_ACCOUNT_MAIL_GAP` | `1m` | Least time between two account mails of one kind (sign-up confirmation, password reset, email change) to one address. |
-| `LIMIT_ACCOUNT_MAIL_PER_HOUR` | `3` | Account mails of one kind per address and hour. |
-| `LIMIT_EMAIL_CHANGES_PER_HOUR` | `5` | Email-change mails one account can cause per hour. |
-| `LIMIT_ACCOUNT_ACTIONS` / `LIMIT_ACCOUNT_ACTIONS_WINDOW` | `20` / `10m` | Password-change and email-change requests per signed-in user. |
-| `LIMIT_STREAMS_PER_USER` | `8` | Open live-result streams per signed-in account. |
-| `LIMIT_STREAMS_PER_SCREEN` | `10` | Open live-result streams per screen link. |
-| `LIMIT_STREAMS_ANONYMOUS_PER_EVENT` | `500` | Open live-result streams of all anonymous readers of one event together. |
-| `LIMIT_ATTEMPT_STREAMS_PER_USER` | `6` | Open attempts-journal streams per account. |
-| `LIMIT_ERROR_STREAMS_PER_USER` | `3` | Open error-journal streams per super admin. |
-| `LIMIT_LIVE_SCREEN_PER_MINUTE` | `600` | Requests per minute of one screen link, shared by every screen opened with it; unknown tokens share one such budget. |
-| `RETENTION_SESSION_AFTER_EXPIRY` | `2160h` | Sessions after expiry. |
-| `RETENTION_LAB_TELEMETRY` | `8760h` | Lab telemetry: platform capacity by age; the container, lab and team minute rollups and the journal without clients, after the event's finish (rolling for an event with no end). |
-| `RETENTION_LAB_TELEMETRY_PARTICIPANTS` | `2160h` | Lab data about participants: VPN client traffic and connections, client transitions and states, and the raw archive (clients and IPs). After the event's finish (rolling for an event with no end); not longer than `RETENTION_LAB_TELEMETRY`. |
-| `RETENTION_DELIVERY_LOG` | `4320h` | Mail delivery log. |
-| `RETENTION_FORM_ANSWERS_AFTER_EVENT_END` | `8760h` | Form answers after an event ends. |
-| `RETENTION_INACTIVE_ACCOUNT` | `26280h` | Inactive accounts. |
-| `RETENTION_INACTIVITY_GRACE` | `720h` | Grace period before an inactive account is removed. |
-| `RETENTION_EXPIRED_INVITATION` | `168h` | Expired invitations. |
-| `RETENTION_PENDING_ACCOUNT` | `720h` | Unconfirmed accounts. |
-| `RETENTION_UNUSED_ANSWER_FILE` | `24h` | Uploaded answer files never submitted. |
-| `RETENTION_SIGNAL_HISTORY` | `8760h` | Signal history. |
-| `RETENTION_EVENT_ANALYTICS_AFTER_END` | `8760h` | Event analytics after an event ends. |
-| `RETENTION_BATCH_SIZE` | `1000` | Rows handled per retention batch. |
-
-The retention defaults are the published periods of the Privacy Policy; change them only together with the policy text.
-
-## Make targets
-
-| Target | What it does |
-| --- | --- |
-| `make build` | Compile all packages. |
-| `make vet` | `go vet` plus the lints: error codes (`lint-errors`), layer imports (`lint-layers`), route gates (`lint-routes`). |
-| `make test` | Run the full test suite. Integration tests need Docker. |
-| `make run` | Start the daemon with the current environment. |
-| `make run-local` | Source `./.env`, then start the daemon. |
-| `make sqlcGenerate` | Regenerate sqlc code (runs sqlc in Docker). Then run `go generate ./internal/delivery/repository/postgres/` for the mocks. |
-| `make swagger` | Regenerate the OpenAPI spec from handler annotations. |
-| `make error-catalog` | Regenerate `error-catalog/errors.en.json`. |
-| `make seed` | Fill the development database with test data for live checks, or remove it (`make seed ARGS="--delete"`). See [Test data](#test-data). |
-| `make tidy` | `go mod tidy`. |
-
-## Test data
-
-`make seed` fills the development database with data for live end-to-end checks. It drives the application's own use cases and repositories (no raw SQL), reads the same `.env` as `make run-local`, and needs the schema to be current (start the daemon once after an upgrade). It refuses to run when `ENV=production`, and when the database host is not local unless `--allow-remote` is given. It sends no mail: no signals are published.
-
-```bash
-make seed                                    # small profile, event starts in 30 minutes
-make seed ARGS="--profile load --start-in 10m --reveal as_ready"
-make seed ARGS="--delete --dry-run"          # list what cleanup would remove
-make seed ARGS="--delete"                    # remove everything the seeder created
-```
-
-| Flag | Default | Meaning |
-| --- | --- | --- |
-| `--profile` | `small` | `small`: 3 teams of 3; `load`: 16 teams of 5. |
-| `--start-in` | `30m` | When the event starts (at least `1m`: registration closes at the start). |
-| `--duration` | `3h` | How long it lasts. |
-| `--reveal` | `all_ready` | Task reveal mode: `all_ready` or `as_ready`. |
-| `--event-tag` | `seedlive` | Event subdomain; it must start with `seed`. |
-| `--infrastructure` | `true` | Allow dynamic labs on the event and seed the lab exercises. `false` seeds the static ones only. |
-| `--credentials` | `.seed-credentials` | File for the accounts and their password. |
-| `--delete`, `--dry-run` | | Cleanup; `--dry-run` only lists. |
-
-What it creates:
-
-- **Accounts**: two organizers (platform role `admin`; `seed-org1` owns the event, `seed-org2` is its manager) and the team members `seed-tNN-mK@seed.cybericebox.test` (member 1 is the captain). All are active and verified, with one shared password. The password is written only to the gitignored `.seed-credentials` (mode 0600, with the account list); it is never printed or logged, and a re-run keeps it.
-- **Ten catalog exercises**, tagged `seed`, named `[seed] …`, published: six with a lab (one to three devices, a switch, VPN with a DHCP range, a state-persistent device, one with two per-team variants) and four static; flags are fixed (`ICE{seed_<task>}`), tags `web`, `crypto`, `forensics`, `net`, `osint`, `misc`, hints of every level. Lab devices use `nginx:alpine`, `httpd:alpine`, `redis:alpine` and `traefik/whoami`: every device must keep running by itself, so a bare `alpine` or `busybox` does not do.
-- **One event** `[seed] Live Check`: team participation, open registration, public boards, published now and starting after `--start-in`; all exercises attached and shown on the board with points, hint costs, four challenge groups and prerequisites (two chains); dynamic infrastructure allowed; the teams are built, so they form at the start. The infrastructure flag cannot change after creation: delete and re-seed to flip it.
-
-It is idempotent: a re-run finds everything by its stable name, skips what is unchanged, publishes a new version only of an exercise whose definition changed, adds missing members, and moves the start to `--start-in` from now while the event has not started. Once the event has started, the schedule and the reveal mode stay.
-
-Cleanup removes only what carries the marker: events whose tag starts with `seed` and whose name with `[seed] `, catalog exercises tagged `seed` and named `[seed] …`, and accounts on `seed.cybericebox.test`. Events go first (an exercise cannot go while an event uses it), accounts last, deleted the way the platform deletes an account (the address is freed, sessions are revoked). An exercise that an event outside the seed uses is kept and reported.
-
-## Database and migrations
-
-- SQL queries live in `internal/delivery/repository/postgres/queries/*.sql`; sqlc generates the Go code next to them. Edit the SQL, run `make sqlcGenerate`, never edit generated files.
-- Migrations are numbered pairs (`NNNN_name.up.sql` and `.down.sql`) in `internal/delivery/repository/postgres/migrations` and are applied automatically on boot by golang-migrate. The Docker image carries them in `/app/migrations`.
-- The SQL itself is covered by testcontainers integration tests (`*_integration_test.go`), because mocks cannot catch schema drift.
-
-## Error catalog
-
-Every API error carries a numeric code (`FullCode = informCode*10000 + objectCode*100 + detailCode`, see `pkg/err`). The backend is the single source of truth: `error-catalog/errors.en.json` maps each code to its English message and `errors.uk.json` holds the Ukrainian text. Frontends localize by code and must not copy codes by hand.
-
-- One error variable is one call site with a unique detail code inside its object code; `make vet` fails on duplicates.
-- After adding or renaming an error run `make error-catalog`, and add the Ukrainian message.
-- Changing a detail code changes the full code and breaks clients that key on it; call it out in the commit message.
-
-## API documentation
-
-The OpenAPI spec is generated by swag from the handler annotations into `internal/delivery/controller/http/handler/apidocs`. The Swagger UI is served at `/docs` on the API host in every environment except `production`. Regenerate the spec with `make swagger` after changing handler DTOs or annotations.
-
-## Docker image and CI
-
-The `Dockerfile` builds a static binary (CGO off, cross-compiled on the build platform) and copies it with the migrations into a slim Alpine image. The laboratory module comes through `go mod download` at the version `go.mod` pins, so a plain build works:
-
-```bash
-docker buildx build --build-arg LABORATORY_VERSION=$(.github/scripts/lab-pin.sh version) -t cybericebox/daemon:local .
-```
-
-The image carries the label `org.cybericebox.laboratory.commit` (the pinned laboratory version); infrastructure compares it with `LABORATORY_IMAGE_TAG` when it renders a deploy.
-
-GitHub Actions publish multi-arch (`linux/amd64`, `linux/arm64`) images to Docker Hub as `cybericebox/daemon`. The cycle is described in [CONTRIBUTING.md](CONTRIBUTING.md):
-
-| Workflow | Trigger | Result |
-| --- | --- | --- |
-| `check.yml` | PR into `develop` or `main` | tests, image build into the `buildcache` tag, nothing published; a PR into `main` needs a laboratory release in `go.mod` |
-| `develop.yml` | push to `develop` | `sha-<7>` |
-| `build.yml` | manual (any commit) | `sha-<7>`, not rebuilt when it exists |
-| `prerelease.yml` | push to `main`, manual (major) | `vX.Y.Z-rc.N` and a GitHub pre-release |
-| `promote.yml` | manual (the rc tag) | `vX.Y.Z` and `latest` on the same image, GitHub release, cleanup of rc and `sha-*` tags |
-
-Registry credentials (`DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`, with delete rights) are organisation secrets.
-
-## Several replicas
-
-The daemon runs behind an HPA with any number of replicas that share only Postgres.
-
-- **Leader.** One replica, the holder of a session advisory lock (`pg_try_advisory_lock` on a connection of its own, `internal/leader`), runs the loops that poll the laboratory agents or write shared state on a timer: the monitoring stream of every agent (with its maintenance polling, capacity, link and error reports) and the error journal's periodic checks (queue, certificates, SMTP providers). The others retry every 5 s. The leader checks its lock connection every 5 s; when it is lost the loops stop and the replica goes back to waiting. On SIGTERM the loops stop first and the lock is released at once, so another replica takes over within one retry. Every replica still holds the agent connections (requests and jobs use them) and runs the job workers (River has its own leader election for periodic jobs).
-- **Pushes to one agent.** Cluster reservation pushes (`SyncAgent`) can start on any replica (a request or the reconcile job); each push also holds a per-agent advisory lock, so two replicas never list and write one agent at the same time.
-- **Error journal.** Capture, grouping and the notification decision are in the database: one message per group per cooldown (claimed in the capture transaction) and one per cooldown for the whole noisy kind (403), whichever replica captured. The live stream of the admin page crosses replicas through a change log table (`error_journal_changes`): every recorded occurrence or status change adds a row last in its transaction, under one advisory lock, so `seq` order is commit order. While a replica has at least one open stream, one poller of that replica reads the rows after its cursor every 3 s (one indexed query on a pool connection, no held connection) and shows them to the local streams; with no stream nothing is polled. A replica skips the rows it wrote itself (it showed them at once). Rows older than a day are purged.
-- **Still per replica** (in memory): the HTTP rate limiters and in-flight limiters (the limits above are per replica, so the effective limit grows with the replica count), the spike counter of the journal (a spike needs `ERROR_JOURNAL_SPIKE_THRESHOLD` occurrences on one replica), the 403 fold and the 404 counters (each replica writes its own totals; the writes add up), the session `last_seen` batching, and the open live streams (each browser is attached to one replica).
-
-## Deployment
-
-Deployment and cluster configuration: see the infrastructure repository.
+All settings are environment variables; there is no example env file. The names, defaults and rules are in
+`internal/config` (start with `internal/config/config.go`). The daemon refuses to start on a missing or invalid
+required value.
+
+| Variable | Meaning |
+|---|---|
+| `ENV` | `production` (default), `stage` or `development` |
+| `DOMAIN` | The one base domain; every other host is derived from it |
+| `SUPPORT_EMAIL` | Default Reply-To and contact in the mail footer |
+| `POSTGRES_PASSWORD` | Database password (host, port, user and database have defaults) |
+| `HTTP_SERVER_ENTRY_MAIN`, `_ID`, `_ADMIN`, `_EXERCISES`, `_EVENT` | Optional transparent proxy by TLS server name (default off: all five empty). Each is `host:port` of a frontend service; the backend owns the HTTPS port, serves its own API host and passes the TLS stream of the matching host (main = `DOMAIN`, `id`, `admin`, `exercises`, one label under `DOMAIN` for event sites) untouched to that address. A host whose class is empty, any other name, and `labs`, `vpn`, `ctl` are refused. Needs TLS; TCP only (no HTTP/3 for forwarded hosts) |
+| `HTTP_SERVER_TLS_CLIENT_AUTH`, `HTTP_SERVER_TLS_CLIENT_CA_FILE` | Client certificates (authenticated origin pull); `CLIENT_AUTH` is `off` (default), `optional` or `require`. The client address is the peer of the connection; only on a TLS connection whose client certificate was verified against `CLIENT_CA_FILE` (Cloudflare in attack mode) is the single `CF-Connecting-IP` value used instead, when it is exactly one IP address (a missing or malformed value keeps the peer). Applies to HTTPS, HTTP/3 and the entry hand-off alike; no other forwarding header and no PROXY protocol is read |
+| `HTTP_SERVER_HTTP3_ENABLED`, `_PORT`, `_ADVERTISED_PORT` | HTTP/3 (QUIC) served by the backend itself on UDP, same certificate and handler as HTTPS; default off, UDP port = HTTPS port, advertised `443` |
+| `CAPTCHA_PROVIDER` | `turnstile`, `recaptcha` (default) or `none`; `none` is refused in production |
+
+Everything else is optional with a default: HTTP and TLS listeners, SMTP, object storage, Google sign-in, laboratory
+agent bootstrap, rate limits and data retention periods.
+
+## Files bucket encryption
+
+Every object the backend stores in the files bucket is encrypted before upload, except public images (an event logo, favicon,
+preview picture or page image, and the images of email templates and presets: `mediaModel.PublicRefTypes`). Each object has a
+random key; the key is wrapped with the key of the `files` purpose (`FILES_SECRETS_KEY`, or derived from `SECRETS_MASTER_KEY`)
+and kept in `file_blobs.wrapped_key` / `media_uploads.wrapped_key`. The format is in `pkg/filecrypt`. A master key change
+rewraps these keys (`daemon keys reencrypt files`) and never touches a file. A blob row without a wrapped key is a plain
+object, served as before.
+
+Preconditions and limits:
+
+- **The deploy creates the bucket.** The backend only checks that it exists, and needs no right to create or configure it or
+  to delete object versions. The daemon does not start without the bucket, and does not start with storage configured but no
+  key for the `files` purpose.
+- **The bucket needs a rule that expires non-current versions** (for example 30 days). Without it, the plain versions of the
+  objects the background pass moves to encrypted ones, and of public copies replaced by encrypted ones, stay readable.
+  `daemon keys status` says so once the pass has moved something.
+- **The upgrade is not rolling.** A binary from before this change cannot read an encrypted blob. Stop the old replicas before
+  the new one starts, and do not roll back to it once an encrypted file exists. The down migration `0245` refuses while an
+  encrypted blob or upload exists.
+- **What is not swept.** The backend may not list the bucket, so it cannot find an object that no row names: an object left
+  by a crash between the copy and the row, a plain `media/tmp/<id>` object of a crashed upload from before this change, and
+  the plain chunks of an upload started before it (the upload expiry removes those by key within the upload TTL). A failed
+  removal is kept in `object_removals` and retried by the media GC; a removal that never succeeds stays listed.
+- A legacy `avatars/<user>` object moves into the media store in the background (never from a request); until then it is
+  served plain.
+- Tests: run `go test` with `GOWORK=off` in a worktree (the repository-root `go.work` does not list worktrees). Tests that need
+  a database use Docker (testcontainers); without a working Docker they hang until the test timeout, so pass `-timeout`.
+
+## Development
+
+| Command | What it does |
+|---|---|
+| `mise run build` | Compiles all packages |
+| `mise run test` | Runs all tests |
+| `mise run lint` | `go vet` plus the project lints (error codes, layer imports, route gates, secret contexts) |
+| `mise run sqlc` | Regenerates the Go code for SQL queries |
+| `mise run check` | Build, lint and tests: what the CI check runs |
+| `go generate ./internal/delivery/repository/postgres/` | Regenerates the repository mocks |
+| `mise run swagger` | Regenerates the OpenAPI spec |
+| `mise run error-catalog` | Regenerates `error-catalog/errors.en.json` after an error was added or renamed |
+| `mise run error-catalog-check` | Fails when the error catalog drifts from the code |
+| `mise run tidy` | `go mod tidy` |
+
+Rules to keep in mind:
+
+- Edit the SQL in `internal/delivery/repository/postgres/queries`, then regenerate. Never edit generated files.
+- Add a Ukrainian text to `error-catalog/errors.uk.json` for every new error.
+- The laboratory module version is pinned in `go.mod`. To build against a local `../../laboratory`, run `mise run work`.
+
+The branch cycle (`mise run dev-start`, `mise run dev-push`, `mise run dev-done`) is described in [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Releases
+
+Branches, pull requests, release candidates, promotion and the retention of old releases are described in
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE).
-
-Copyright 2026 CyberICEBox
+Apache License 2.0. See [LICENSE](LICENSE).

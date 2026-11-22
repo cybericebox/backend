@@ -1,4 +1,4 @@
--- Event analytics «Завдання» and «Прогрес» (docs/EVENT-ANALYTICS.md §6.3, §6.4).
+-- Event analytics "Tasks" and "Progress" (docs/EVENT-ANALYTICS.md §6.3, §6.4).
 -- The moderators team is never counted. Period bounds are [from_at, to_at).
 
 -- name: ListEventAnalyticsChallenges :many

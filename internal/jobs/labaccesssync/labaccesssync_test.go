@@ -9,8 +9,8 @@ import (
 
 	"github.com/riverqueue/river"
 
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	jobsModel "github.com/cybericebox/daemon/internal/model/jobs"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	jobsModel "github.com/cybericebox/backend/internal/model/jobs"
 )
 
 type recordingUseCase struct {

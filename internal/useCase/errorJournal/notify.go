@@ -11,9 +11,9 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	errorJournal "github.com/cybericebox/daemon/internal/model/errorJournal"
-	"github.com/cybericebox/daemon/pkg/email"
-	"github.com/cybericebox/daemon/pkg/telegram"
+	errorJournal "github.com/cybericebox/backend/internal/model/errorJournal"
+	"github.com/cybericebox/backend/pkg/email"
+	"github.com/cybericebox/backend/pkg/telegram"
 )
 
 // spikeCounter counts occurrences of a fingerprint in a sliding window, in memory (per replica).
@@ -223,13 +223,4 @@ func (j *Journal) sendEmail(ctx context.Context, to, text string) TestResult {
 	}
 	res.OK = true
 	return res
-}
-
-// recipients is the e-mail list plus, by default, the super admins; each address once.
-func (j *Journal) recipients(ctx context.Context, s errorJournal.Settings) []string {
-	out, err := j.recipientsEligible(ctx, s)
-	if err != nil {
-		log.Warn().Err(err).Msg("Failed to check error notification recipients")
-	}
-	return out
 }

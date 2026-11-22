@@ -5,15 +5,15 @@ import (
 	"strings"
 	"testing"
 
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 func TestPublicResultsFreezeCarriesConfiguredBannerAndLegacyDefaults(t *testing.T) {
 	for _, tc := range []struct{ input, text, level string }{
 		{`{}`, "", "warning"},
-		{`{"Applied":true,"BannerText":"Підсумки згодом.","BannerLevel":"critical"}`, "Підсумки згодом.", "critical"},
-		{`{"Active":false,"Applied":false,"BannerText":"Плановий банер.","BannerLevel":"critical"}`, "", "warning"},
-		{`{"Active":true,"Applied":false,"BannerText":"Плановий банер.","BannerLevel":"info"}`, "", "warning"},
+		{`{"Applied":true,"BannerText":"Results later.","BannerLevel":"critical"}`, "Results later.", "critical"},
+		{`{"Active":false,"Applied":false,"BannerText":"Planned banner.","BannerLevel":"critical"}`, "", "warning"},
+		{`{"Active":true,"Applied":false,"BannerText":"Planned banner.","BannerLevel":"info"}`, "", "warning"},
 	} {
 		var freeze eventUseCase.ResultsFreezeView
 		if err := json.Unmarshal([]byte(tc.input), &freeze); err != nil {

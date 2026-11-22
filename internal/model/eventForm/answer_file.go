@@ -6,7 +6,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
 )
 
 // InputFile is the answer type of a question that takes one attached file.

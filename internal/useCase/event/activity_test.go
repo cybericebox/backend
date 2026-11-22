@@ -13,10 +13,10 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	eventChallengeModel "github.com/cybericebox/daemon/internal/model/eventChallenge"
-	"github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	eventChallengeModel "github.com/cybericebox/backend/internal/model/eventChallenge"
+	"github.com/cybericebox/backend/internal/useCase/event"
 )
 
 // activityRow matches a written activity row by a predicate.

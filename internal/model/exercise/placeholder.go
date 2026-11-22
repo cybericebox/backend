@@ -47,10 +47,10 @@ func hasTaskDescriptionContent(description json.RawMessage) bool {
 type PlaceholderKind string
 
 const (
-	PlaceholderVPNSubnet      PlaceholderKind = "vpn.subnet"
-	PlaceholderInternetSubnet PlaceholderKind = "internet.subnet"
-	PlaceholderIP             PlaceholderKind = "ip"            // IP constructor
-	PlaceholderExternalLink   PlaceholderKind = "external.link" // proxy access URL
+	// PlaceholderGatewaySubnet is the /24 of a gateway of the lab (Placeholder.Gateway names the gateway device).
+	PlaceholderGatewaySubnet PlaceholderKind = "gateway.subnet"
+	PlaceholderIP            PlaceholderKind = "ip"            // IP constructor
+	PlaceholderExternalLink  PlaceholderKind = "external.link" // proxy access URL
 )
 
 const maxPlaceholderPathLength = 200
@@ -89,10 +89,12 @@ type Placeholder struct {
 	Kind PlaceholderKind `json:"kind"`
 
 	// IP constructor (Kind == PlaceholderIP)
-	IPReference string `json:"ip_reference,omitempty"` // "vpn" | "internet" | "static"
-	Octets1to3  string `json:"octets_1to3,omitempty"`  // static only
-	LastOctet   int    `json:"last_octet,omitempty"`   // 0..255
-	ShowMask    bool   `json:"show_mask,omitempty"`
+	IPReference string `json:"ip_reference,omitempty"` // "gateway" | "static"
+	// Gateway (gateway.subnet, and ip with ip_reference "gateway") is the name of the gateway device whose /24 it is.
+	Gateway    string `json:"gateway,omitempty"`
+	Octets1to3 string `json:"octets_1to3,omitempty"` // static only
+	LastOctet  int    `json:"last_octet,omitempty"`  // 0..255
+	ShowMask   bool   `json:"show_mask,omitempty"`
 
 	// IP constructor link form: the resolved value is scheme://ip[:port][path].
 	AsLink bool   `json:"as_link,omitempty"`
@@ -100,8 +102,10 @@ type Placeholder struct {
 	Port   int    `json:"port,omitempty"`   // 1..65535; 0 = the scheme default
 	Path   string `json:"path,omitempty"`   // starts with "/"; no spaces or quotes
 
-	// External link (Kind == PlaceholderExternalLink)
-	DeviceName string `json:"device_name,omitempty"`
+	// External link (Kind == PlaceholderExternalLink): a link to one access entry of the device. Access is the kind of the
+	// entry (empty = http). The device must have an entry of that kind; vnc and rdp validate and resolve to nothing yet.
+	DeviceName string     `json:"device_name,omitempty"`
+	Access     AccessKind `json:"access,omitempty"`
 }
 
 // validateInlinePlaceholderRefs checks only explicit Lexical variable nodes.
@@ -170,7 +174,11 @@ func (t Topology) validatePlaceholders(phs []Placeholder) error {
 			return ErrPlaceholderInvalid.WithContext("placeholder", string(p.Kind)).Err()
 		}
 		if missingNode {
-			return ErrPlaceholderNode.WithContext("placeholder", string(p.Kind)).Err()
+			failure := ErrPlaceholderNode.WithContext("placeholder", string(p.Kind))
+			if p.Kind == PlaceholderExternalLink {
+				failure = failure.WithPublicContext("device", p.DeviceName).WithPublicContext("access", string(p.EffectiveAccess()))
+			}
+			return failure.Err()
 		}
 	}
 	return nil
@@ -179,19 +187,15 @@ func (t Topology) validatePlaceholders(phs []Placeholder) error {
 // classifyPlaceholder reports (malformed, missingNode) for one placeholder.
 func classifyPlaceholder(t Topology, byName map[string]Device, p Placeholder) (bool, bool) {
 	switch p.Kind {
-	case PlaceholderVPNSubnet:
-		return false, !t.VPN.Enabled
-	case PlaceholderInternetSubnet:
-		return false, !t.Internet.Enabled
+	case PlaceholderGatewaySubnet:
+		return p.Gateway == "", p.Gateway != "" && !t.gatewayRefValid(p.Gateway)
 	case PlaceholderIP:
 		if p.LastOctet < 0 || p.LastOctet > 255 {
 			return true, false
 		}
 		switch p.IPReference {
-		case "vpn":
-			return false, !t.VPN.Enabled
-		case "internet":
-			return false, !t.Internet.Enabled
+		case "gateway":
+			return p.Gateway == "", p.Gateway != "" && !t.gatewayRefValid(p.Gateway)
 		case "static":
 			address := net.ParseIP(p.Octets1to3 + "." + strconv.Itoa(p.LastOctet))
 			return address == nil || address.To4() == nil, false
@@ -199,9 +203,20 @@ func classifyPlaceholder(t Topology, byName map[string]Device, p Placeholder) (b
 			return true, false
 		}
 	case PlaceholderExternalLink:
+		if !p.EffectiveAccess().Valid() {
+			return true, false
+		}
 		d, ok := byName[p.DeviceName]
-		return false, !ok || d.External == nil
+		return false, !ok || !d.HasAccess(p.EffectiveAccess())
 	default:
 		return true, false
 	}
+}
+
+// EffectiveAccess is the access kind an external.link placeholder points to (http when it names none).
+func (p Placeholder) EffectiveAccess() AccessKind {
+	if p.Access == "" {
+		return AccessHTTP
+	}
+	return p.Access
 }

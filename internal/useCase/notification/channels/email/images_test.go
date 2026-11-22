@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	notificationModel "github.com/cybericebox/daemon/internal/model/notification"
-	emailUseCase "github.com/cybericebox/daemon/internal/useCase/notification/channels/email"
+	notificationModel "github.com/cybericebox/backend/internal/model/notification"
+	emailUseCase "github.com/cybericebox/backend/internal/useCase/notification/channels/email"
 )
 
 func solidRGBA(w, h int, c color.Color) *image.RGBA {

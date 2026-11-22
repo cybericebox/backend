@@ -1,4 +1,4 @@
--- Static event scoring always has its one value (tasks «Як у заходу» and
+-- Static event scoring always has its one value (tasks scored "as in the event" and
 -- forced scoring use it). Existing events without it get the most common
 -- points of their tasks that follow the event (ties: the higher value), or
 -- 100 without such tasks. So scores do not change, a following task whose

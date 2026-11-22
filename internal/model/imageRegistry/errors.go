@@ -1,16 +1,16 @@
 package imageRegistryModel
 
 import (
-	"github.com/cybericebox/daemon/pkg/err"
+	"github.com/cybericebox/backend/pkg/err"
 
-	"github.com/cybericebox/daemon/internal/model"
+	"github.com/cybericebox/backend/internal/model"
 )
 
 // Error-code convention: see internal/model/auth/errors.go. Enforced by
-// `make lint-errors`. Vars without a call site yet are used by the later
+// `mise run lint:errors`. Vars without a call site yet are used by the later
 // image-registry layers (settings, upload, availability use cases).
 //
-// ImageRegistryObjectCode — next free detail code: 33
+// ImageRegistryObjectCode — next free detail code: 34
 var (
 	ErrRegistryNotConfigured = err.ErrConflict.WithObjectCode(model.ImageRegistryObjectCode).
 					WithMessage("The image registry is not configured").WithDetailCode(1)
@@ -102,7 +102,7 @@ var (
 	// "reason" says which: gzip, not_tar, no_image, multi_image, no_amd64, too_large, digest_mismatch.
 	ErrImageArchiveUnreadable = err.ErrInvalidData.WithObjectCode(model.ImageRegistryObjectCode).
 					WithMessage("The image archive cannot be imported").WithDetailCode(29)
-	// ErrImageNotExportable: a platform image of a task cannot be written into an export «з образами»: the registry
+	// ErrImageNotExportable: a platform image of a task cannot be written into an export "with images": the registry
 	// is not configured, refused, failed, or does not have the image. The public context "reason" says which
 	// (not_configured, not_found, unauthorized, rate_limited, unreachable, invalid_reference, invalid_image); the
 	// export adds "device" and "file".
@@ -113,11 +113,16 @@ var (
 	ErrDeviceImageInvalid = err.ErrInvalidData.WithObjectCode(model.ImageRegistryObjectCode).
 				WithMessage("The device image is not a valid image reference").WithDetailCode(31)
 	// ErrRegistryAccessDenied: the registry answered, but refused the platform token (401/403 on the token or the
-	// repository). Not an outage: retrying cannot help until an admin fixes the token in «Панель платформи». The
+	// repository). Not an outage: retrying cannot help until an admin fixes the token in the platform panel. The
 	// public context "token" names which token was refused ("push" or "pull"), never its value; "reason" is
 	// "unauthorized" (the same Reason the availability checks use).
 	ErrRegistryAccessDenied = err.ErrConflict.WithObjectCode(model.ImageRegistryObjectCode).
 				WithMessage("The image registry refused the platform token: check the registry token in the platform panel").WithDetailCode(32)
+	// ErrImagePinFailed: an import could not fix an image reference by digest, because its registry did not give the
+	// digest of the manifest. Public context "image" (the reference as written) and "reason" (not_found,
+	// unauthorized, unreachable, unsupported: the Service* reasons of the image checks).
+	ErrImagePinFailed = err.ErrConflict.WithObjectCode(model.ImageRegistryObjectCode).
+				WithMessage("The image cannot be fixed by its digest: the registry did not return it").WithDetailCode(33)
 )
 
 // ContextReason is the public error context of ErrRegistryUnavailable naming

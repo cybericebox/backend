@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 // A protected archive says what the author has to do: give a password, or another one.

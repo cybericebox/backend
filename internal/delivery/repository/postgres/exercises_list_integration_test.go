@@ -7,10 +7,10 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/exerciseRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/exerciseRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 // TestExerciseCatalogList covers the catalog list in SQL: the derived status
@@ -44,7 +44,7 @@ func TestExerciseCatalogList(t *testing.T) {
 	content := itVariants() // one fixed content: re-saving it is "no change"
 	save := func(e exerciseModel.Exercise, note string) {
 		t.Helper()
-		if _, err := repo.UpsertDraft(ctx, e.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{AdminNote: note, Variants: content}, itNow, uuid.NullUUID{}); err != nil {
+		if _, err := repo.ForceUpsertDraft(ctx, e.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{AdminNote: note, Variants: content}, itNow, uuid.NullUUID{}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -211,7 +211,7 @@ func TestExerciseAccessNone(t *testing.T) {
 	if e, err = repo.Create(ctx, e); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = repo.UpsertDraft(ctx, e.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{Variants: itVariants()}, itNow, uuid.NullUUID{}); err != nil {
+	if _, err = repo.ForceUpsertDraft(ctx, e.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{Variants: itVariants()}, itNow, uuid.NullUUID{}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = repo.Publish(ctx, e.ID, itNow); err != nil {

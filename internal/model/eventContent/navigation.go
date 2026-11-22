@@ -16,7 +16,7 @@ const (
 )
 
 // The stored order splits the navbar in three ranges around the fixed
-// «Завдання» and «Результати» entries: far negative before Challenges,
+// Challenges and Results entries: far negative before Challenges,
 // negative between the two, nonnegative after Results.
 const beforeChallengesLimit = -500_000_000
 
@@ -105,7 +105,7 @@ func PlaceInNavigation(pages []Page, pageID uuid.UUID, inNavbar bool, after stri
 		case NavigationAfterFirst:
 			index, group = 0, groupBeforeChallenges
 		case NavigationAfterChallenges:
-			// Directly after «Завдання»: before the pages already there.
+			// Directly after Challenges: before the pages already there.
 			index, group = lastIndexOf(groupBeforeChallenges), groupBeforeResults
 		case NavigationAfterResults:
 			index, group = lastIndexOf(groupBeforeResults), groupAfterResults

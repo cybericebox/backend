@@ -2,8 +2,8 @@ package errorJournalUseCase
 
 import (
 	"context"
-	errorJournal "github.com/cybericebox/daemon/internal/model/errorJournal"
-	mailModel "github.com/cybericebox/daemon/internal/model/mail"
+	errorJournal "github.com/cybericebox/backend/internal/model/errorJournal"
+	mailModel "github.com/cybericebox/backend/internal/model/mail"
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 	"testing"

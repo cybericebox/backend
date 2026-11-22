@@ -6,8 +6,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 type eventStageResponse struct {
@@ -47,7 +47,7 @@ type updateEventStageRequest struct {
 	Returnable          *bool                      `json:"Returnable"`
 	OpensWithEvent      *bool                      `json:"OpensWithEvent"`
 	ClosesWithEvent     *bool                      `json:"ClosesWithEvent"`
-	// CloseNow ends an open stage now («Закрити зараз»).
+	// CloseNow ends an open stage now (Close now).
 	CloseNow bool `json:"CloseNow"`
 }
 

@@ -8,11 +8,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
-	platformAnalyticsModel "github.com/cybericebox/daemon/internal/model/platformAnalytics"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	platformAnalyticsUseCase "github.com/cybericebox/daemon/internal/useCase/platformAnalytics"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
+	platformAnalyticsModel "github.com/cybericebox/backend/internal/model/platformAnalytics"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/model/usertext"
+	platformAnalyticsUseCase "github.com/cybericebox/backend/internal/useCase/platformAnalytics"
 )
 
 // MailUseCase is the port of the mail section.
@@ -157,12 +158,18 @@ func (h *Handler) mail(ctx *gin.Context) {
 	if !ok {
 		return
 	}
-	view, err := h.useCase.GetMail(ctx.Request.Context(), from, to, channel, transport, kind, includeTests)
-	if err != nil {
-		response.AbortWithError(ctx, err)
-		return
-	}
-	response.AbortWithData(ctx, toMailResponse(view))
+	answer(ctx, from, to, func(from, to *time.Time) (mailResponse, error) {
+		view, err := h.useCase.GetMail(
+			ctx.Request.Context(),
+			from,
+			to,
+			channel,
+			transport,
+			kind,
+			includeTests,
+		)
+		return toMailResponse(view), err
+	})
 }
 
 // exportMail godoc
@@ -207,28 +214,28 @@ func (h *Handler) exportMail(ctx *gin.Context) {
 // writeMailCSV writes the header and rows of one table.
 func writeMailCSV(write func([]string) error, table string, v platformAnalyticsUseCase.MailView) {
 	keyRows := func(header string, rows []platformAnalyticsUseCase.MailKeyView) {
-		_ = write([]string{header, "Надіслано", "З помилкою", "Усього", "Частка помилок", "Через резервний транспорт"})
+		_ = write([]string{header, usertext.ColSent, usertext.ColWithError, usertext.ColTotal, usertext.ColErrorShare, usertext.ColViaFallbackTransport})
 		for _, r := range rows {
 			_ = write([]string{csvText(r.Key), csvInt(r.Sent), csvInt(r.Failed), csvInt(r.Total), csvFloat(r.FailureRate * 100), csvInt(r.Fallbacks)})
 		}
 	}
 	switch table {
 	case "daily":
-		_ = write([]string{"День", "Надіслано", "З помилкою", "Через резервний транспорт"})
+		_ = write([]string{usertext.ColDay, usertext.ColSent, usertext.ColWithError, usertext.ColViaFallbackTransport})
 		for _, d := range v.Daily {
 			_ = write([]string{csvDay(d.Day), csvInt(d.Sent), csvInt(d.Failed), csvInt(d.Fallbacks)})
 		}
 	case "by_channel":
-		_ = write([]string{"Канал", "Надіслано", "З помилкою", "Відкладено", "Усього", "Частка помилок"})
+		_ = write([]string{usertext.ColChannel, usertext.ColSent, usertext.ColWithError, usertext.ColDeferred, usertext.ColTotal, usertext.ColErrorShare})
 		for _, r := range v.ByChannel {
 			_ = write([]string{csvText(r.Key), csvInt(r.Sent), csvInt(r.Failed), csvInt(r.Deferred), csvInt(r.Total), csvFloat(r.FailureRate * 100)})
 		}
 	case "by_transport":
-		keyRows("Транспорт", v.ByTransport)
+		keyRows(usertext.ColTransport, v.ByTransport)
 	case "by_type":
-		keyRows("Тип сповіщення", v.ByType)
+		keyRows(usertext.ColNotificationType, v.ByType)
 	case "errors":
-		_ = write([]string{"Код SMTP", "Помилка", "Кількість", "Востаннє"})
+		_ = write([]string{usertext.ColSMTPCode, usertext.ColError, usertext.ColCount, usertext.ColLastSeen})
 		for _, e := range v.Errors {
 			_ = write([]string{csvText(e.Code), csvText(e.Message), csvInt(e.Total), csvTime(e.LastAt)})
 		}

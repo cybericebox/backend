@@ -6,19 +6,19 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventConfigRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventFormRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventTeamRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/participantRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/teamChallengeRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventChallengeModel "github.com/cybericebox/daemon/internal/model/eventChallenge"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	participantModel "github.com/cybericebox/daemon/internal/model/participant"
-	teamChallengeModel "github.com/cybericebox/daemon/internal/model/teamChallenge"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventConfigRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventFormRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventTeamRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/participantRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/teamChallengeRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventChallengeModel "github.com/cybericebox/backend/internal/model/eventChallenge"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
+	teamChallengeModel "github.com/cybericebox/backend/internal/model/teamChallenge"
 )
 
 // UnlockHint opens one hint of a board challenge for the caller's whole

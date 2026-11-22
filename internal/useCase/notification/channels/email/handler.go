@@ -9,18 +9,18 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/emailTemplateRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	mailModel "github.com/cybericebox/daemon/internal/model/mail"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	"github.com/cybericebox/daemon/internal/model/notification"
-	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
-	emailModel "github.com/cybericebox/daemon/internal/model/notification/email"
-	"github.com/cybericebox/daemon/internal/model/notification/types"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
-	"github.com/cybericebox/daemon/internal/useCase/notification/channels/render"
-	"github.com/cybericebox/daemon/pkg/email"
+	"github.com/cybericebox/backend/internal/delivery/repository/emailTemplateRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	mailModel "github.com/cybericebox/backend/internal/model/mail"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	"github.com/cybericebox/backend/internal/model/notification"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
+	emailModel "github.com/cybericebox/backend/internal/model/notification/email"
+	"github.com/cybericebox/backend/internal/model/notification/types"
+	userModel "github.com/cybericebox/backend/internal/model/user"
+	"github.com/cybericebox/backend/internal/useCase/notification/channels/render"
+	"github.com/cybericebox/backend/pkg/email"
 )
 
 // MaxInlineBytes caps the total size of the inline images of one email.

@@ -5,17 +5,16 @@ import (
 	"strings"
 	"testing"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 func TestValidateForPublish_Placeholders(t *testing.T) {
 	webExt := dev("web", exerciseModel.DeviceTypeContainer, "eth0")
-	webExt.External = &exerciseModel.ExternalAccess{Port: 8080, Protocol: "http"}
+	webExt.Access = []exerciseModel.Access{{Kind: exerciseModel.AccessHTTP, Port: 8080, Protocol: "http"}, {Kind: exerciseModel.AccessTerminal}, {Kind: exerciseModel.AccessVNC, Port: 5900}}
 	plain := dev("plain", exerciseModel.DeviceTypeContainer, "eth0")
 
 	base := exerciseModel.Topology{
-		VPN:     exerciseModel.NetworkSpec{Enabled: true},
-		Devices: []exerciseModel.Device{webExt, plain},
+		Devices: []exerciseModel.Device{webExt, plain, gw("vpn", exerciseModel.DeviceTypeVPNGateway)},
 	}
 	noVPN := exerciseModel.Topology{Devices: []exerciseModel.Device{webExt, plain}}
 
@@ -25,19 +24,28 @@ func TestValidateForPublish_Placeholders(t *testing.T) {
 		ph      exerciseModel.Placeholder
 		wantErr error
 	}{
-		{"vpn subnet ok", base, exerciseModel.Placeholder{Kind: exerciseModel.PlaceholderVPNSubnet}, nil},
-		{"vpn subnet without vpn", noVPN, exerciseModel.Placeholder{Kind: exerciseModel.PlaceholderVPNSubnet}, exerciseModel.ErrPlaceholderNode.Err()},
-		{"internet subnet without internet", base, exerciseModel.Placeholder{Kind: exerciseModel.PlaceholderInternetSubnet}, exerciseModel.ErrPlaceholderNode.Err()},
-		{"ip vpn ok", base, exerciseModel.Placeholder{Kind: exerciseModel.PlaceholderIP, IPReference: "vpn", LastOctet: 10}, nil},
-		{"ip internet without internet", base, exerciseModel.Placeholder{Kind: exerciseModel.PlaceholderIP, IPReference: "internet", LastOctet: 10}, exerciseModel.ErrPlaceholderNode.Err()},
+		{"gateway subnet ok", base, exerciseModel.Placeholder{Kind: exerciseModel.PlaceholderGatewaySubnet, Gateway: "vpn"}, nil},
+		{"gateway subnet without a gateway", noVPN, exerciseModel.Placeholder{Kind: exerciseModel.PlaceholderGatewaySubnet, Gateway: "vpn"}, exerciseModel.ErrPlaceholderNode.Err()},
+		{"gateway subnet of an unknown gateway", base, exerciseModel.Placeholder{Kind: exerciseModel.PlaceholderGatewaySubnet, Gateway: "internet"}, exerciseModel.ErrPlaceholderNode.Err()},
+		{"gateway subnet of a node", base, exerciseModel.Placeholder{Kind: exerciseModel.PlaceholderGatewaySubnet, Gateway: "web"}, exerciseModel.ErrPlaceholderNode.Err()},
+		{"gateway subnet without a name", base, exerciseModel.Placeholder{Kind: exerciseModel.PlaceholderGatewaySubnet}, exerciseModel.ErrPlaceholderInvalid.Err()},
+		{"ip gateway ok", base, exerciseModel.Placeholder{Kind: exerciseModel.PlaceholderIP, IPReference: "gateway", Gateway: "vpn", LastOctet: 10}, nil},
+		{"ip gateway of an unknown gateway", base, exerciseModel.Placeholder{Kind: exerciseModel.PlaceholderIP, IPReference: "gateway", Gateway: "internet", LastOctet: 10}, exerciseModel.ErrPlaceholderNode.Err()},
+		{"ip gateway without a name", base, exerciseModel.Placeholder{Kind: exerciseModel.PlaceholderIP, IPReference: "gateway", LastOctet: 10}, exerciseModel.ErrPlaceholderInvalid.Err()},
+		{"the removed vpn reference", base, exerciseModel.Placeholder{Kind: exerciseModel.PlaceholderIP, IPReference: "vpn", LastOctet: 10}, exerciseModel.ErrPlaceholderInvalid.Err()},
 		{"ip static ok", base, exerciseModel.Placeholder{Kind: exerciseModel.PlaceholderIP, IPReference: "static", Octets1to3: "10.10.30", LastOctet: 7}, nil},
 		{"ip static missing octets", base, exerciseModel.Placeholder{Kind: exerciseModel.PlaceholderIP, IPReference: "static", LastOctet: 7}, exerciseModel.ErrPlaceholderInvalid.Err()},
 		{"ip static invalid octets", base, exerciseModel.Placeholder{Kind: exerciseModel.PlaceholderIP, IPReference: "static", Octets1to3: "10.999.30", LastOctet: 7}, exerciseModel.ErrPlaceholderInvalid.Err()},
 		{"ip unknown reference", base, exerciseModel.Placeholder{Kind: exerciseModel.PlaceholderIP, IPReference: "wat"}, exerciseModel.ErrPlaceholderInvalid.Err()},
-		{"ip bad octet", base, exerciseModel.Placeholder{Kind: exerciseModel.PlaceholderIP, IPReference: "vpn", LastOctet: 256}, exerciseModel.ErrPlaceholderInvalid.Err()},
+		{"ip bad octet", base, exerciseModel.Placeholder{Kind: exerciseModel.PlaceholderIP, IPReference: "gateway", Gateway: "vpn", LastOctet: 256}, exerciseModel.ErrPlaceholderInvalid.Err()},
 		{"external link ok", base, exerciseModel.Placeholder{Kind: exerciseModel.PlaceholderExternalLink, DeviceName: "web"}, nil},
 		{"external link unknown device", base, exerciseModel.Placeholder{Kind: exerciseModel.PlaceholderExternalLink, DeviceName: "ghost"}, exerciseModel.ErrPlaceholderNode.Err()},
-		{"external link device without external", base, exerciseModel.Placeholder{Kind: exerciseModel.PlaceholderExternalLink, DeviceName: "plain"}, exerciseModel.ErrPlaceholderNode.Err()},
+		{"external link device without an http entry", base, exerciseModel.Placeholder{Kind: exerciseModel.PlaceholderExternalLink, DeviceName: "plain"}, exerciseModel.ErrPlaceholderNode.Err()},
+		{"external link to the console", base, exerciseModel.Placeholder{Kind: exerciseModel.PlaceholderExternalLink, DeviceName: "web", Access: exerciseModel.AccessTerminal}, nil},
+		{"external link to vnc validates", base, exerciseModel.Placeholder{Kind: exerciseModel.PlaceholderExternalLink, DeviceName: "web", Access: exerciseModel.AccessVNC}, nil},
+		{"external link to a missing rdp entry", base, exerciseModel.Placeholder{Kind: exerciseModel.PlaceholderExternalLink, DeviceName: "web", Access: exerciseModel.AccessRDP}, exerciseModel.ErrPlaceholderNode.Err()},
+		{"external link to a missing console", base, exerciseModel.Placeholder{Kind: exerciseModel.PlaceholderExternalLink, DeviceName: "plain", Access: exerciseModel.AccessTerminal}, exerciseModel.ErrPlaceholderNode.Err()},
+		{"external link unknown access kind", base, exerciseModel.Placeholder{Kind: exerciseModel.PlaceholderExternalLink, DeviceName: "web", Access: "ssh"}, exerciseModel.ErrPlaceholderInvalid.Err()},
 		{"unknown kind", base, exerciseModel.Placeholder{Kind: "bogus"}, exerciseModel.ErrPlaceholderInvalid.Err()},
 	}
 	for _, tc := range cases {
@@ -57,9 +65,9 @@ func TestValidateForPublish_Placeholders(t *testing.T) {
 }
 
 func TestValidateForPublish_IPLinkPlaceholder(t *testing.T) {
-	topo := exerciseModel.Topology{VPN: exerciseModel.NetworkSpec{Enabled: true}}
+	topo := exerciseModel.Topology{Devices: []exerciseModel.Device{gw("vpn", exerciseModel.DeviceTypeVPNGateway)}}
 	link := func(mutate func(*exerciseModel.Placeholder)) exerciseModel.Placeholder {
-		p := exerciseModel.Placeholder{Kind: exerciseModel.PlaceholderIP, IPReference: "vpn", LastOctet: 10, AsLink: true, Scheme: "http"}
+		p := exerciseModel.Placeholder{Kind: exerciseModel.PlaceholderIP, IPReference: "gateway", Gateway: "vpn", LastOctet: 10, AsLink: true, Scheme: "http"}
 		mutate(&p)
 		return p
 	}

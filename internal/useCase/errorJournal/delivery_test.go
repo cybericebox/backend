@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	errorJournal "github.com/cybericebox/daemon/internal/model/errorJournal"
+	errorJournal "github.com/cybericebox/backend/internal/model/errorJournal"
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 )

@@ -11,13 +11,13 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	challengeAttemptModel "github.com/cybericebox/daemon/internal/model/challengeAttempt"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	event "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	challengeAttemptModel "github.com/cybericebox/backend/internal/model/challengeAttempt"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	event "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 // frozenConfig freezes 90 minutes before the finish; startedEvent finishes an
@@ -196,7 +196,7 @@ func TestGetManageResultsRanksOnlyVisibleAdmittedTeams(t *testing.T) {
 	neo, second, challengeID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 	q.EXPECT().ListManageScoreboard(gomock.Any(), eventID).Return([]postgres.ListManageScoreboardRow{
 		{TeamID: uuid.Must(uuid.NewV7()), Hidden: true, Admitted: true, PublicName: "Hidden", Points: 900},
-		{TeamID: neo, Admitted: true, Individual: true, PublicName: "neo", RealName: "Олена Коваль", Pseudonym: "neo", Points: 500},
+		{TeamID: neo, Admitted: true, Individual: true, PublicName: "neo", RealName: "Olena Koval", Pseudonym: "neo", Points: 500},
 		{TeamID: uuid.Must(uuid.NewV7()), Admitted: false, PublicName: "Small", Points: 400},
 		{TeamID: second, Admitted: true, PublicName: "Second", Points: 100},
 	}, nil)
@@ -217,7 +217,7 @@ func TestGetManageResultsRanksOnlyVisibleAdmittedTeams(t *testing.T) {
 	if got.Teams[0].Rank != nil || got.Teams[2].Rank != nil || *got.Teams[1].Rank != 1 || *got.Teams[3].Rank != 2 {
 		t.Fatalf("ranks = %+v", got.Teams)
 	}
-	if got.Teams[1].Pseudonym == nil || *got.Teams[1].Pseudonym != "neo" || got.Teams[1].RealName != "Олена Коваль" || got.Teams[3].Pseudonym != nil {
+	if got.Teams[1].Pseudonym == nil || *got.Teams[1].Pseudonym != "neo" || got.Teams[1].RealName != "Olena Koval" || got.Teams[3].Pseudonym != nil {
 		t.Fatalf("names = %+v", got.Teams)
 	}
 	neoRow, secondRow := got.Teams[1], got.Teams[3]
@@ -246,7 +246,7 @@ func TestAnnulSolveRejectsEveryAcceptedAttemptInOneTransaction(t *testing.T) {
 		q.EXPECT().LockEventTeamChallenge(gomock.Any(), postgres.LockEventTeamChallengeParams{EventID: eventID, EventTeamID: teamID, EventChallengeID: challengeID}).Return(teamChallengeID, nil),
 		q.EXPECT().ListEffectiveCorrectAttemptIDs(gomock.Any(), teamChallengeID).Return([]uuid.UUID{first, second}, nil),
 		q.EXPECT().CreateChallengeAttemptDecision(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, p postgres.CreateChallengeAttemptDecisionParams) (postgres.ChallengeAttemptDecision, error) {
-			if p.Decision != int16(challengeAttemptModel.DecisionRejected) || p.Reason != "Спільний прапор" || p.DecidedBy != by {
+			if p.Decision != int16(challengeAttemptModel.DecisionRejected) || p.Reason != "Shared flag" || p.DecidedBy != by {
 				t.Fatalf("decision = %+v", p)
 			}
 			decided = append(decided, p.ChallengeAttemptID)
@@ -263,7 +263,7 @@ func TestAnnulSolveRejectsEveryAcceptedAttemptInOneTransaction(t *testing.T) {
 		}),
 	)
 
-	got, err := uc.AnnulSolve(context.Background(), eventID, teamID, challengeID, " Спільний прапор ", by)
+	got, err := uc.AnnulSolve(context.Background(), eventID, teamID, challengeID, " Shared flag ", by)
 	if err != nil || got.Rejected != 2 || !unit.saved || len(decided) != 2 || decided[0] != first || decided[1] != second {
 		t.Fatalf("AnnulSolve = %+v, %v, saved %v", got, err, unit.saved)
 	}

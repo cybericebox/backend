@@ -7,20 +7,27 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	platformAnalyticsModel "github.com/cybericebox/daemon/internal/model/platformAnalytics"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	platformAnalyticsUseCase "github.com/cybericebox/daemon/internal/useCase/platformAnalytics"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	platformAnalyticsModel "github.com/cybericebox/backend/internal/model/platformAnalytics"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/model/usertext"
+	platformAnalyticsUseCase "github.com/cybericebox/backend/internal/useCase/platformAnalytics"
 )
 
 // EventsUseCase is the port of the events section.
 type EventsUseCase interface {
 	GetEvents(ctx context.Context, from, to *time.Time) (platformAnalyticsUseCase.EventsView, error)
+	GetEventsTable(
+		ctx context.Context,
+		from, to *time.Time,
+		q platformAnalyticsUseCase.TableQuery,
+	) (platformAnalyticsUseCase.EventsTable, error)
 }
 
 func (h *Handler) initEvents(router *gin.RouterGroup) {
 	analytics := router.Group("analytics", h.prot.RequirePermission(rbac.PermAnalyticsRead))
 	analytics.GET("events", h.events)
+	analytics.GET("events/table", h.eventsTable)
 	analytics.GET("events/export.csv", h.exportEvents)
 }
 
@@ -102,20 +109,33 @@ func toEventsResponse(v platformAnalyticsUseCase.EventsView) eventsResponse {
 		out.Statuses = append(out.Statuses, eventStatusResponse(s))
 	}
 	for _, e := range v.Events {
-		row := eventRowResponse{
-			ID: e.ID, Tag: e.Tag, Name: e.Name, Status: e.Status, FinishAt: e.FinishAt, DurationSeconds: e.DurationSeconds,
-			Participants: e.Participants, Teams: e.Teams, Solves: e.Solves, TeamsSolved: e.TeamsSolved, CompletionRate: e.CompletionRate,
-		}
-		if !e.StartAt.IsZero() {
-			start := e.StartAt
-			row.StartAt = &start
-		}
-		out.Events = append(out.Events, row)
+		out.Events = append(out.Events, toEventRowResponse(e))
 	}
 	for _, n := range v.Upcoming {
 		out.Upcoming = append(out.Upcoming, upcomingEventResponse(n))
 	}
 	return out
+}
+
+func toEventRowResponse(e platformAnalyticsUseCase.EventRowView) eventRowResponse {
+	row := eventRowResponse{
+		ID:              e.ID,
+		Tag:             e.Tag,
+		Name:            e.Name,
+		Status:          e.Status,
+		FinishAt:        e.FinishAt,
+		DurationSeconds: e.DurationSeconds,
+		Participants:    e.Participants,
+		Teams:           e.Teams,
+		Solves:          e.Solves,
+		TeamsSolved:     e.TeamsSolved,
+		CompletionRate:  e.CompletionRate,
+	}
+	if !e.StartAt.IsZero() {
+		start := e.StartAt
+		row.StartAt = &start
+	}
+	return row
 }
 
 // events godoc
@@ -132,12 +152,10 @@ func (h *Handler) events(ctx *gin.Context) {
 	if !ok {
 		return
 	}
-	v, err := h.useCase.GetEvents(ctx, from, to)
-	if err != nil {
-		response.AbortWithError(ctx, err)
-		return
-	}
-	response.AbortWithData(ctx, toEventsResponse(v))
+	answer(ctx, from, to, func(from, to *time.Time) (eventsResponse, error) {
+		v, err := h.useCase.GetEvents(ctx, from, to)
+		return toEventsResponse(v), err
+	})
 }
 
 // exportEvents godoc
@@ -162,7 +180,21 @@ func (h *Handler) exportEvents(ctx *gin.Context) {
 	if !ok {
 		return
 	}
-	v, err := h.useCase.GetEvents(ctx, from, to)
+	var v platformAnalyticsUseCase.EventsView
+	var err error
+	if table == "events" {
+		// The per-event table is exported whole, with the search and the sorting of the screen.
+		q, valid := parseTableQuery(ctx, platformAnalyticsUseCase.EventSortColumns, false)
+		if !valid {
+			return
+		}
+		var all platformAnalyticsUseCase.EventsTable
+		if all, err = h.useCase.GetEventsTable(ctx, from, to, q); err == nil {
+			v.Events = all.Rows
+		}
+	} else {
+		v, err = h.useCase.GetEvents(ctx, from, to)
+	}
 	if err != nil {
 		response.AbortWithError(ctx, err)
 		return
@@ -170,17 +202,17 @@ func (h *Handler) exportEvents(ctx *gin.Context) {
 	w := startCSV(ctx, "events-"+table)
 	switch table {
 	case "series":
-		_ = w.Write([]string{"День (UTC)", "Створено заходів", "Стартувало заходів", "Реєстрацій"})
+		_ = w.Write([]string{usertext.ColDayUTC, usertext.ColEventsCreated, usertext.ColEventsStarted, usertext.ColRegistrations})
 		for _, d := range v.Series {
 			_ = w.Write([]string{csvDay(d.Day), csvInt(d.EventsCreated), csvInt(d.EventsStarted), csvInt(d.Registrations)})
 		}
 	case "upcoming":
-		_ = w.Write([]string{"Захід", "Тег", "Старт (UTC)", "Опубліковано", "Реєстрацій"})
+		_ = w.Write([]string{usertext.ColEvent, usertext.ColTag, usertext.ColStartShortUTC, usertext.ColPublished, usertext.ColRegistrations})
 		for _, n := range v.Upcoming {
 			_ = w.Write([]string{csvText(n.Name), csvText(n.Tag), csvTime(n.StartAt), csvBool(n.Published), csvInt(n.Registrations)})
 		}
 	default:
-		_ = w.Write([]string{"Захід", "Тег", "Статус", "Старт (UTC)", "Фініш (UTC)", "Учасників", "Команд", "Розвʼязань", "Команд із розвʼязанням", "Частка команд із розвʼязанням", "Тривалість (с)"})
+		_ = w.Write([]string{usertext.ColEvent, usertext.ColTag, usertext.ColStatus, usertext.ColStartShortUTC, usertext.ColFinishShortUTC, usertext.ColParticipants, usertext.ColTeams, usertext.ColSolveCount, usertext.ColTeamsWithSolve, usertext.ColTeamsWithSolveShare, usertext.ColDurationSeconds})
 		for _, e := range v.Events {
 			start := ""
 			if !e.StartAt.IsZero() {

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/riverqueue/river"
@@ -15,22 +15,22 @@ import (
 	"github.com/riverqueue/river/rivermigrate"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/dispatchRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/userRepo"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	jobsModel "github.com/cybericebox/daemon/internal/model/jobs"
-	broadcastModel "github.com/cybericebox/daemon/internal/model/notification/broadcast"
-	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
-	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
-	"github.com/cybericebox/daemon/internal/testhelpers"
-	broadcastUseCase "github.com/cybericebox/daemon/internal/useCase/notification/broadcast"
-	emailUseCase "github.com/cybericebox/daemon/internal/useCase/notification/channels/email"
-	inAppUseCase "github.com/cybericebox/daemon/internal/useCase/notification/channels/inapp"
-	dispatcherUseCase "github.com/cybericebox/daemon/internal/useCase/notification/dispatcher"
-	"github.com/cybericebox/daemon/pkg/email"
-	"github.com/cybericebox/daemon/pkg/worker"
+	"github.com/cybericebox/backend/internal/delivery/repository/dispatchRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/userRepo"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	jobsModel "github.com/cybericebox/backend/internal/model/jobs"
+	broadcastModel "github.com/cybericebox/backend/internal/model/notification/broadcast"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
+	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
+	userModel "github.com/cybericebox/backend/internal/model/user"
+	"github.com/cybericebox/backend/internal/testhelpers"
+	broadcastUseCase "github.com/cybericebox/backend/internal/useCase/notification/broadcast"
+	emailUseCase "github.com/cybericebox/backend/internal/useCase/notification/channels/email"
+	inAppUseCase "github.com/cybericebox/backend/internal/useCase/notification/channels/inapp"
+	dispatcherUseCase "github.com/cybericebox/backend/internal/useCase/notification/dispatcher"
+	"github.com/cybericebox/backend/pkg/email"
+	"github.com/cybericebox/backend/pkg/worker"
 )
 
 type mailbox struct {
@@ -162,11 +162,42 @@ func TestBroadcast_EndToEnd_PlatformScopeThroughTheJournal(t *testing.T) {
 	require.Equal(t, int64(1), got.SentCount)
 	require.Equal(t, int64(1), got.FailedCount, "Bob's failed email counts as failed")
 
-	deliveries, err := uc.ListBroadcastDeliveries(ctx, b.ID, 20, 0)
+	deliveries, _, err := uc.ListBroadcastDeliveries(ctx, b.ID, "", 20, 0)
 	require.NoError(t, err)
 	require.Equal(t, "bob@test.test", deliveries[0].RecipientEmail, "failures come first")
 	require.Equal(t, "error", deliveries[0].TargetStatus)
 	require.Contains(t, deliveries[0].Error, "mailbox unavailable")
+
+	failedOnly, failedTotal, err := uc.ListBroadcastDeliveries(
+		ctx,
+		b.ID,
+		broadcastModel.DeliveryError,
+		20,
+		0,
+	)
+	require.NoError(t, err)
+	require.Len(t, failedOnly, 1, "the status filter keeps only failed rows")
+	require.EqualValues(t, 1, failedTotal)
+	require.Equal(t, "bob@test.test", failedOnly[0].RecipientEmail)
+	_, doneTotal, err := uc.ListBroadcastDeliveries(ctx, b.ID, broadcastModel.DeliveryDone, 1, 0)
+	require.NoError(t, err)
+	require.EqualValues(t, 3, doneTotal, "the total ignores the page size")
+	_, _, err = uc.ListBroadcastDeliveries(ctx, b.ID, "bogus", 20, 0)
+	require.Error(t, err)
+	var exported int
+	require.NoError(
+		t,
+		uc.ExportBroadcastDeliveries(
+			ctx,
+			b.ID,
+			"",
+			func(broadcastModel.Delivery) error { exported++; return nil },
+		),
+	)
+	require.Equal(t, 4, exported, "two channels for each of the two recipients")
+
+	_, err = uc.CancelBroadcast(ctx, b.ID, nil)
+	require.Error(t, err, "a finished broadcast cannot be canceled")
 
 	// The journal shows every message as a broadcast dispatch.
 	rows, total, err := dispatchRepo.New(db.Queries).List(ctx, dispatchModel.ListDispatchesFilter{Type: "broadcast", Limit: 10})
@@ -268,4 +299,47 @@ func TestBroadcastRecordRollsBackWhenRiverInsertFails(t *testing.T) {
 	require.Equal(t, 1, n)
 	require.NoError(t, db.Pool.QueryRow(ctx, "SELECT count(*) FROM river_job").Scan(&n))
 	require.Equal(t, 1, n)
+}
+
+// Canceling a running broadcast stops the sender: nobody else is queued and the status stays canceled.
+func TestBroadcast_CancelStopsTheSender(t *testing.T) {
+	db, _, uc, queued := harness2(t)
+	ctx := context.Background()
+	admin := seedUser(t, db, "admin@test.test", "Root", "Admin")
+	ann := seedUser(t, db, "ann@test.test", "Ann", "Lee")
+
+	b, err := uc.SendBroadcast(ctx, broadcastUseCase.SendInput{
+		ActorID: admin,
+		Content: emailAndInApp(),
+		Audience: broadcastModel.Audience{
+			Kind:    broadcastModel.KindUsers,
+			UserIDs: []uuid.UUID{ann},
+		},
+	})
+	require.NoError(t, err)
+
+	other := uuid.Must(uuid.NewV7())
+	_, err = uc.CancelBroadcast(ctx, b.ID, &other)
+	require.Error(t, err, "another scope's broadcast is a plain not-found")
+
+	got, err := uc.CancelBroadcast(ctx, b.ID, nil)
+	require.NoError(t, err)
+	require.Equal(t, broadcastModel.StatusCanceled, got.Status)
+	require.NotNil(t, got.FinishedAt)
+
+	require.NoError(t, uc.ProcessBroadcast(ctx, (*queued)[0]))
+	_, total, err := uc.ListBroadcastDeliveries(ctx, b.ID, "", 20, 0)
+	require.NoError(t, err)
+	require.Zero(t, total, "a canceled broadcast queues nobody")
+	after, err := uc.GetBroadcast(ctx, b.ID, nil)
+	require.NoError(t, err)
+	require.Equal(
+		t,
+		broadcastModel.StatusCanceled,
+		after.Status,
+		"the sender does not overwrite the cancellation",
+	)
+
+	_, err = uc.CancelBroadcast(ctx, b.ID, nil)
+	require.Error(t, err, "canceling twice is refused")
 }

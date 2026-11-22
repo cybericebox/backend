@@ -9,12 +9,12 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	exercise "github.com/cybericebox/daemon/internal/useCase/exercise"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	exercise "github.com/cybericebox/backend/internal/useCase/exercise"
 )
 
 // TestAuthorizeExercise covers the W4 policy: RBAC grants admins everything;
@@ -80,7 +80,7 @@ func TestAuthorizeExercise(t *testing.T) {
 
 func ptr[T any](v T) *T { return &v }
 
-// TestSetExerciseAccess_NoneClearsSelection: «недоступно нікому» writes
+// TestSetExerciseAccess_NoneClearsSelection: "unavailable to anyone" writes
 // access level 3 and drops any selected events (no insert).
 func TestSetExerciseAccess_NoneClearsSelection(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -158,8 +158,8 @@ func TestRedactFlags(t *testing.T) {
 	userID, exerciseID, versionID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 	variants := func() []exerciseModel.Variant {
 		return []exerciseModel.Variant{
-			{Tasks: []exerciseModel.Task{{Flag: []string{"a"}}}},
-			{Tasks: []exerciseModel.Task{{Flag: []string{"b"}}}},
+			{Tasks: []exerciseModel.Task{{Check: exerciseModel.FlagCheck("a")}}},
+			{Tasks: []exerciseModel.Task{{Check: exerciseModel.FlagCheck("b")}}},
 		}
 	}
 	rows := func(version uuid.UUID, mode int16, role int16) []postgres.ListManagedExerciseAttachmentsRow {
@@ -188,32 +188,38 @@ func TestRedactFlags(t *testing.T) {
 				t.Fatal(err)
 			}
 			for i, want := range tc.want {
-				if got := len(out.Variants[i].Tasks[0].Flag) > 0; got != want {
+				if got := len(out.Variants[i].Tasks[0].Check.AnswerValues()) > 0; got != want {
 					t.Fatalf("variant %d flag visible=%v want %v", i, got, want)
 				}
 			}
-			if len(in.Variants[0].Tasks[0].Flag) == 0 {
+			if len(in.Variants[0].Tasks[0].Check.AnswerValues()) == 0 {
 				t.Fatal("the input view was mutated")
 			}
 		})
 	}
 }
 
-// WithoutFlags takes every flag and flag env var out of a copy; the original keeps them.
+// WithoutFlags takes every answer value out of a copy; the original keeps them.
 func TestWithoutFlags(t *testing.T) {
 	v := exercise.VersionView{Variants: []exerciseModel.Variant{
-		{Tasks: []exerciseModel.Task{{Flag: []string{"a"}, DeviceFlagVar: "FLAG"}, {Flag: []string{"b", "c"}}}},
-		{Tasks: []exerciseModel.Task{{Flag: []string{"d"}}}},
+		{
+			Tasks: []exerciseModel.Task{
+				{Check: exerciseModel.FlagCheck("a")},
+				{Check: exerciseModel.FlagCheck("b", "c")},
+			},
+		},
+		{Tasks: []exerciseModel.Task{{Check: exerciseModel.FlagCheck("d")}}},
 	}}
 	out := exercise.WithoutFlags(v)
 	for _, variant := range out.Variants {
 		for _, task := range variant.Tasks {
-			if task.Flag != nil {
+			if task.Check.AnswerValues() != nil || task.Check.Answer == nil {
 				t.Fatalf("flag left: %+v", task)
 			}
 		}
 	}
-	if out.Variants[0].Tasks[0].DeviceFlagVar != "" || v.Variants[0].Tasks[0].DeviceFlagVar != "FLAG" || v.Variants[0].Tasks[0].Flag[0] != "a" || v.Variants[1].Tasks[0].Flag[0] != "d" {
+	if v.Variants[0].Tasks[0].Check.AnswerValues()[0] != "a" ||
+		v.Variants[1].Tasks[0].Check.AnswerValues()[0] != "d" {
 		t.Fatalf("copy %+v original %+v", out, v)
 	}
 }
@@ -230,5 +236,21 @@ func TestWithoutNotes(t *testing.T) {
 	}
 	if v.AdminNote != "admin" || v.Variants[0].Note != "first" || v.Variants[1].Note != "second" {
 		t.Fatalf("original changed: %+v", v)
+	}
+}
+
+// The opponents are author content for the Academy: a reader without full access never gets them, and the original view
+// keeps them.
+func TestWithoutNotesAlsoTakesTheOpponentsOut(t *testing.T) {
+	opponents := []exerciseModel.Opponent{{Role: exerciseModel.OpponentAttack, Band: 3, Goal: []string{"root"}, Brief: "secret brief"}}
+	v := exercise.VersionView{Variants: []exerciseModel.Variant{{Opponents: opponents}, {}}}
+	out := exercise.WithoutNotes(exercise.WithoutFlags(v))
+	for i, variant := range out.Variants {
+		if variant.Opponents != nil {
+			t.Fatalf("variant %d still has opponents: %+v", i, variant.Opponents)
+		}
+	}
+	if len(v.Variants[0].Opponents) != 1 || v.Variants[0].Opponents[0].Brief != "secret brief" {
+		t.Fatalf("original changed: %+v", v.Variants[0].Opponents)
 	}
 }

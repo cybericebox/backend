@@ -16,11 +16,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	exerciseHandler "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/exercise"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	imageRegistryModel "github.com/cybericebox/daemon/internal/model/imageRegistry"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
+	exerciseHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/exercise"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	imageRegistryModel "github.com/cybericebox/backend/internal/model/imageRegistry"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
 )
 
 // chunkedUC is a fakeUC with the resumable upload recorded.

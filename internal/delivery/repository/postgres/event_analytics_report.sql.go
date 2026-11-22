@@ -78,7 +78,7 @@ type ListEventReportRankingRow struct {
 	Attempts      int64     `json:"attempts"`
 }
 
-// Event analytics, «Звіт по заходу» (docs/EVENT-ANALYTICS.md §6.8): the
+// Event analytics, "Event report" (docs/EVENT-ANALYTICS.md §6.8): the
 // ranking, the per-task table and the funnel tail. The key numbers and the
 // activity series come from the overview statements.
 // The final table of the ranked teams (admitted, not hidden), live scores.

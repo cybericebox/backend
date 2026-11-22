@@ -8,14 +8,14 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	eventExerciseModel "github.com/cybericebox/daemon/internal/model/eventExercise"
-	eventManagerModel "github.com/cybericebox/daemon/internal/model/eventManager"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	eventExerciseModel "github.com/cybericebox/backend/internal/model/eventExercise"
+	eventManagerModel "github.com/cybericebox/backend/internal/model/eventManager"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	userModel "github.com/cybericebox/backend/internal/model/user"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 var pointsByDifficulty = map[exerciseModel.Difficulty]int32{

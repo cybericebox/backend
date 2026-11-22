@@ -19,7 +19,7 @@ func TestImageJobsRunOnTheImagesQueue(t *testing.T) {
 	}
 }
 
-// An export «з образами» pulls up to 10 GiB: the images queue too, a few attempts, a kind of its own.
+// An export "with images" pulls up to 10 GiB: the images queue too, a few attempts, a kind of its own.
 func TestExerciseExportArgsRunOnTheImagesQueue(t *testing.T) {
 	opts := (ExerciseExportArgs{}).InsertOpts()
 	if opts.Queue != ImagesQueue || opts.MaxAttempts != 3 {

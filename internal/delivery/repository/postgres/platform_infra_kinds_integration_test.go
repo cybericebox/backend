@@ -7,11 +7,11 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/exerciseRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/platformAnalyticsRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/testDeployRepo"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/exerciseRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/platformAnalyticsRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/testDeployRepo"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 // Test deploys are logged by triggers: a run starts with the deploy and ends
@@ -25,7 +25,7 @@ func TestInfraKinds_TestLabRunsAreLoggedByTriggersAndCounted(t *testing.T) {
 	ex := mustCreateExercise(t, exercises, "IT infra kinds")
 	variants := itVariants()
 	variants[0].ID = uuid.Must(uuid.NewV7())
-	version, err := exercises.UpsertDraft(ctx, ex.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{Variants: variants}, itNow, uuid.NullUUID{})
+	version, err := exercises.ForceUpsertDraft(ctx, ex.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{Variants: variants}, itNow, uuid.NullUUID{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +101,7 @@ func TestInfraKinds_StaticRunsAreNotLabs(t *testing.T) {
 	ex := mustCreateExercise(t, exercises, "IT infra kinds static")
 	variants := itVariants()
 	variants[0].ID = uuid.Must(uuid.NewV7())
-	version, err := exercises.UpsertDraft(ctx, ex.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{Variants: variants}, itNow, uuid.NullUUID{})
+	version, err := exercises.ForceUpsertDraft(ctx, ex.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{Variants: variants}, itNow, uuid.NullUUID{})
 	if err != nil {
 		t.Fatal(err)
 	}

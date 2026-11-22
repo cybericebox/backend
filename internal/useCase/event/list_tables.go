@@ -6,11 +6,11 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventTeamRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/participantRepo"
-	"github.com/cybericebox/daemon/internal/model"
-	participantModel "github.com/cybericebox/daemon/internal/model/participant"
-	"github.com/cybericebox/daemon/pkg/pagination"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventTeamRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/participantRepo"
+	"github.com/cybericebox/backend/internal/model"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
+	"github.com/cybericebox/backend/pkg/pagination"
 )
 
 // Columns of the manage tables that filters and sorting may use; any other
@@ -176,7 +176,7 @@ func (u *EventUseCase) ListTeamsTable(ctx context.Context, q TeamsTableQuery) (T
 	if err != nil {
 		return TeamsTableResult{}, model.ErrPlatform.WithError(err).WithMessage("Failed to get minimum team size").Err()
 	}
-	autoFormed, err := u.autoFormedAt(ctx, q.EventID)
+	autoFormed, err := u.teamClock(ctx, q.EventID)
 	if err != nil {
 		return TeamsTableResult{}, err
 	}

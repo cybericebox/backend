@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"github.com/cybericebox/daemon/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/model/rbac"
 	"strings"
 	"testing"
 )

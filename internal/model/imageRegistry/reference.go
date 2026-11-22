@@ -72,6 +72,29 @@ func SanitizeName(s string) string {
 	return s
 }
 
+// HasDigest reports whether an external image reference already names a manifest digest (name[:tag]@sha256:hex).
+func HasDigest(s string) bool {
+	if strings.HasPrefix(s, platformPrefix) {
+		return false
+	}
+	ref, err := ParseImageRef(s)
+	return err == nil && ref.Digest != ""
+}
+
+// PinnedReference is the external reference s fixed to digest: name:tag@sha256:hex. The tag stays for people (the
+// registry and the container runtime pull by the digest alone); a reference with no tag gets the implicit ":latest" it
+// meant. s must be a valid reference without a digest.
+func PinnedReference(s, digest string) string {
+	last := s
+	if i := strings.LastIndex(s, "/"); i >= 0 {
+		last = s[i+1:]
+	}
+	if !strings.Contains(last, ":") {
+		s += ":latest"
+	}
+	return s + "@" + digest
+}
+
 // ErrInvalidImageReference is returned by ParseImageRef; callers map it to
 // ReasonInvalidReference.
 var ErrInvalidImageReference = errors.New("invalid image reference")

@@ -7,13 +7,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 const oldSeededFooter = `{"type": "rich_text", "content": {"root": {"type": "root", "children": [{"type": "paragraph", "children": [{"type": "text", "text": "%s", "format": 0}]}]}}}`
 
 // TestSeededTemplateFooterMigration: at head no seeded platform template
-// carries the duplicate «Автоматичне повідомлення платформи» footer, and the
+// carries the duplicate "Automated platform message" footer, and the
 // migration removes it only where the last two blocks are still exactly the
 // seeded divider + line.
 func TestSeededTemplateFooterMigration(t *testing.T) {

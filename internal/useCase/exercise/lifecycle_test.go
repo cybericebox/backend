@@ -8,9 +8,9 @@ import (
 	"github.com/gofrs/uuid"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 func TestPublishDraft_NoDraft(t *testing.T) {
@@ -80,7 +80,7 @@ func TestGetVersion_MasksSecrets(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetVersion: %v", err)
 	}
-	env := view.Variants[0].Topology.Devices[0].EnvVars[0]
+	env := view.Variants[0].Topology.Devices[0].Bootstrap.Env[0]
 	if env.Value != "" || !env.Secret {
 		t.Fatalf("secret value must be masked in views: %+v", env)
 	}
@@ -109,9 +109,10 @@ func TestDiscardDraft_NoDraft(t *testing.T) {
 	exID := uuid.Must(uuid.NewV7())
 	expectEditableExercise(q, exID)
 
-	q.EXPECT().DiscardExerciseDraft(gomock.Any(), exID).Return(uuid.Nil, errNoRows())
+	q.EXPECT().DiscardExerciseDraft(gomock.Any(), gomock.Any()).Return(uuid.Nil, errNoRows())
+	q.EXPECT().GetDraftRevision(gomock.Any(), exID).Return(postgres.GetDraftRevisionRow{}, errNoRows())
 
-	err := uc.DiscardDraft(context.Background(), exID)
+	err := uc.DiscardDraft(context.Background(), exID, "")
 	if !errors.Is(err, exerciseModel.ErrNoDraft.Err()) {
 		t.Fatalf("want ErrNoDraft, got %v", err)
 	}
@@ -125,9 +126,9 @@ func TestDiscardDraft_RemovesMediaReferences(t *testing.T) {
 	exID, draftID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 	expectEditableExercise(q, exID)
 
-	q.EXPECT().DiscardExerciseDraft(gomock.Any(), exID).Return(draftID, nil)
+	q.EXPECT().DiscardExerciseDraft(gomock.Any(), gomock.Any()).Return(draftID, nil)
 
-	if err := uc.DiscardDraft(context.Background(), exID); err != nil {
+	if err := uc.DiscardDraft(context.Background(), exID, ""); err != nil {
 		t.Fatalf("DiscardDraft: %v", err)
 	}
 	if len(m.removed) != 1 || m.removed[0] != draftID {

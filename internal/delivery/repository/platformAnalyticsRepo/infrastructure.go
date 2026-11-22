@@ -6,7 +6,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
 )
 
 // InfrastructureQueries are the sqlc statements of the infrastructure section.

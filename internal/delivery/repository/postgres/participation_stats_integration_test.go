@@ -7,10 +7,11 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventTeamRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	eventTeamModel "github.com/cybericebox/daemon/internal/model/eventTeam"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventTeamRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	eventTeamModel "github.com/cybericebox/backend/internal/model/eventTeam"
+	"github.com/cybericebox/backend/internal/model/usertext"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 // The participation reads are scoped to one team: its solves, the solver, the
@@ -71,7 +72,7 @@ func TestParticipationStatsAreScopedToOneTeam(t *testing.T) {
 		firstBlood bool
 		hints      int64
 	}{{first, true, 0}, {second, false, 1}} {
-		solves, err := db.Queries.ListParticipationSolves(ctx, postgres.ListParticipationSolvesParams{EventID: event.ID, EventTeamID: tc.seeded.team})
+		solves, err := db.Queries.ListParticipationSolves(ctx, postgres.ListParticipationSolvesParams{EventID: event.ID, EventTeamID: tc.seeded.team, OtherCategory: usertext.UngroupedChallenges})
 		if err != nil || len(solves) != 1 {
 			t.Fatalf("solves of the team only: %+v err=%v", solves, err)
 		}

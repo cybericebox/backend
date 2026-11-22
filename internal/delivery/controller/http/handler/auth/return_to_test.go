@@ -10,9 +10,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	authHandler "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/auth"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	authUseCase "github.com/cybericebox/daemon/internal/useCase/auth"
+	authHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/auth"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	authUseCase "github.com/cybericebox/backend/internal/useCase/auth"
 )
 
 const eventURL = "https://event.example.test/e/1?x=y"

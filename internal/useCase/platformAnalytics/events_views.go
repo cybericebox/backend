@@ -5,11 +5,11 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	platformAnalyticsModel "github.com/cybericebox/daemon/internal/model/platformAnalytics"
+	platformAnalyticsModel "github.com/cybericebox/backend/internal/model/platformAnalytics"
 )
 
 type (
-	// EventsView is the «Заходи» report.
+	// EventsView is the "Events" report.
 	EventsView struct {
 		Period platformAnalyticsModel.Period
 		Totals EventsTotals

@@ -12,13 +12,12 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventAnswerFileRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventFormRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventTeamRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventFormModel "github.com/cybericebox/daemon/internal/model/eventForm"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventAnswerFileRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventFormRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventFormModel "github.com/cybericebox/backend/internal/model/eventForm"
 )
 
 const maxAnswerFileNameLength = 200
@@ -75,7 +74,7 @@ func (u *EventUseCase) answerForm(ctx context.Context, eventID uuid.UUID, scope 
 	return form, true, nil
 }
 
-// UploadAnswerFile stores a file for a «Файл» question of the event's
+// UploadAnswerFile stores a file for a "File" question of the event's
 // participant form or team fields. The file must match the question's formats
 // by content and fit its size limit. It stays with the uploader until an
 // answer that references it is saved; unused uploads expire under retention.
@@ -184,19 +183,6 @@ func (b boundAnswers) attach(ctx context.Context, repo *eventAnswerFileRepo.Repo
 		return model.ErrPlatform.WithError(err).WithMessage("Failed to attach answer files").Err()
 	}
 	return nil
-}
-
-// teamFieldForm reads the team fields for binding file answers; a missing
-// configuration has no file questions.
-func teamFieldForm(ctx context.Context, repo IRepository, eventID uuid.UUID) (eventFormModel.Form, error) {
-	form, err := eventTeamRepo.New(repo).GetFieldConfig(ctx, eventID)
-	if err != nil {
-		if repositoryTools.IsObjectNotFoundError(err) || err == pgx.ErrNoRows {
-			return eventFormModel.Form{}, nil
-		}
-		return eventFormModel.Form{}, model.ErrPlatform.WithError(err).WithMessage("Failed to get team fields").Err()
-	}
-	return form, nil
 }
 
 func (u *EventUseCase) streamAnswerFile(ctx context.Context, file eventFormModel.AnswerFile) (io.ReadCloser, AnswerFileView, error) {

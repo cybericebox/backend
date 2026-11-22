@@ -13,9 +13,9 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
 )
 
 const brandDraftLifetime = 24 * time.Hour
@@ -110,7 +110,11 @@ func (u *EventUseCase) UploadEventBrandDraft(ctx context.Context, eventID, userI
 			return uuid.Nil, err
 		}
 	}
-	file, err := u.brandMedia.UploadFile(ctx, brandDraftName(eventID, kind), contentType, bytes.NewReader(data), userID)
+	refType, ok := EventMediaKind(kind).refType()
+	if !ok {
+		return uuid.Nil, eventModel.ErrEventBrandDraftInvalid.Err()
+	}
+	file, err := u.brandMedia.UploadPublicImage(ctx, refType, brandDraftName(eventID, kind), contentType, bytes.NewReader(data), userID)
 	if err != nil {
 		return uuid.Nil, err
 	}

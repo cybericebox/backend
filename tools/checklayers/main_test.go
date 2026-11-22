@@ -7,9 +7,9 @@ func TestViolations(t *testing.T) {
 import (
 	"time"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	"github.com/cybericebox/daemon/internal/useCase/auth"
-	"github.com/cybericebox/daemon/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/useCase/auth"
+	"github.com/cybericebox/backend/internal/model/rbac"
 )`
 	got := violations(src)
 	if len(got) != 2 {

@@ -15,11 +15,11 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	exercise "github.com/cybericebox/daemon/internal/useCase/exercise"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	exercise "github.com/cybericebox/backend/internal/useCase/exercise"
 )
 
 // pgconnUniqueViolation simulates a unique-violation on exercises.name, as
@@ -133,6 +133,7 @@ func TestCreateExercise_DuplicateName(t *testing.T) {
 func TestUpdateExerciseIdentity_ConflictDiscrimination(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	q := postgresMocks.NewMockQuerier(ctrl)
+	q.EXPECT().GetDraftRevision(gomock.Any(), gomock.Any()).Return(postgres.GetDraftRevisionRow{}, pgx.ErrNoRows).AnyTimes()
 	uc := newUC(q, newFakeMedia())
 	id := uuid.Must(uuid.NewV7())
 	now := time.Date(2026, 7, 12, 10, 0, 0, 0, time.UTC)
@@ -303,6 +304,7 @@ func TestGetExercise_HasChangesAndArchivedAt(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			q := postgresMocks.NewMockQuerier(ctrl)
+			q.EXPECT().GetDraftRevision(gomock.Any(), gomock.Any()).Return(postgres.GetDraftRevisionRow{}, pgx.ErrNoRows).AnyTimes()
 			uc := newUC(q, newFakeMedia())
 			exID := uuid.Must(uuid.NewV7())
 			q.EXPECT().GetExerciseByID(gomock.Any(), exID).Return(postgres.Exercise{

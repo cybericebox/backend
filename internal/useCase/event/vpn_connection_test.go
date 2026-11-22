@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	labBindingModel "github.com/cybericebox/daemon/internal/model/labBinding"
+	labBindingModel "github.com/cybericebox/backend/internal/model/labBinding"
 	"github.com/gofrs/uuid"
 )
 

@@ -15,12 +15,12 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
-	mailModel "github.com/cybericebox/daemon/internal/model/mail"
-	"github.com/cybericebox/daemon/internal/model/notification/branding"
-	emailModel "github.com/cybericebox/daemon/internal/model/notification/email"
-	"github.com/cybericebox/daemon/internal/model/notification/emaildefaults"
-	mailUseCase "github.com/cybericebox/daemon/internal/useCase/mail"
-	emailUseCase "github.com/cybericebox/daemon/internal/useCase/notification/channels/email"
+	mailModel "github.com/cybericebox/backend/internal/model/mail"
+	"github.com/cybericebox/backend/internal/model/notification/branding"
+	emailModel "github.com/cybericebox/backend/internal/model/notification/email"
+	"github.com/cybericebox/backend/internal/model/notification/emaildefaults"
+	mailUseCase "github.com/cybericebox/backend/internal/useCase/mail"
+	emailUseCase "github.com/cybericebox/backend/internal/useCase/notification/channels/email"
 )
 
 type noPresets struct{}
@@ -30,7 +30,7 @@ func (noPresets) ListPresets(context.Context) ([]emailModel.BlockPreset, error) 
 type platformFooters struct{}
 
 func (platformFooters) Footer(context.Context, *uuid.UUID) (mailModel.Footer, error) {
-	return mailUseCase.RenderPlatformFooter("support@cybericebox.com", "https://cybericebox.com"), nil
+	return mailUseCase.RenderPlatformFooter("support@cybericebox.com", "https://cybericebox.com", ""), nil
 }
 
 // sampleValues are realistic variable values for the previews.
@@ -72,7 +72,7 @@ func TestWritePreviews(t *testing.T) {
 		Logo:   eventLogo(), LogoContentType: "image/png", LogoAlt: "Весняний CTF 2026",
 	}}
 	var index strings.Builder
-	index.WriteString(`<!doctype html><meta charset="utf-8"><title>Email previews</title><body style="font-family:sans-serif;max-width:900px;margin:32px auto"><h1>Шаблони листів</h1><ul>`)
+	index.WriteString(`<!doctype html><meta charset="utf-8"><title>Email previews</title><body style="font-family:sans-serif;max-width:900px;margin:32px auto"><h1>Email templates</h1><ul>`)
 	for _, tpl := range emaildefaults.All(emaildefaults.UK) {
 		in := emailUseCase.PreviewInput{NotificationType: tpl.Type, Subject: tpl.Subject, Preheader: tpl.Preheader, Body: tpl.Body, Values: sampleValues}
 		var scope *emailUseCase.EventPreviewScope
@@ -83,11 +83,11 @@ func TestWritePreviews(t *testing.T) {
 		require.NoError(t, err, tpl.Type)
 		name := strings.ReplaceAll(tpl.Type, ".", "-") + ".html"
 		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(out.HTML), 0o644))
-		brand := "платформа"
+		brand := "platform"
 		if tpl.Participant {
-			brand = "бренд заходу"
+			brand = "event brand"
 		}
-		fmt.Fprintf(&index, `<li><a href="%s">%s</a> · %s · тема: %s</li>`, name, tpl.Type, brand, out.Subject)
+		fmt.Fprintf(&index, `<li><a href="%s">%s</a> · %s · subject: %s</li>`, name, tpl.Type, brand, out.Subject)
 	}
 	index.WriteString(`</ul>`)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "index.html"), []byte(index.String()), 0o644))

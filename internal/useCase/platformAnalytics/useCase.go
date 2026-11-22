@@ -1,6 +1,6 @@
 // Package platformAnalytics is the application layer of platform-level
 // analytics (docs/EVENT-ANALYTICS.md §8, docs/PLATFORM-ANALYTICS.md): one
-// read model per admin «Аналітика» section, aggregates only. Every report is
+// read model per admin "Analytics" section, aggregates only. Every report is
 // loaded through the shared cache (analyticsCache) under a key that holds the
 // section and every filter.
 package platformAnalytics
@@ -9,10 +9,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/model"
-	labMonitoringModel "github.com/cybericebox/daemon/internal/model/labMonitoring"
-	platformAnalyticsModel "github.com/cybericebox/daemon/internal/model/platformAnalytics"
-	"github.com/cybericebox/daemon/internal/useCase/analyticsCache"
+	"github.com/cybericebox/backend/internal/model"
+	labMonitoringModel "github.com/cybericebox/backend/internal/model/labMonitoring"
+	platformAnalyticsModel "github.com/cybericebox/backend/internal/model/platformAnalytics"
+	"github.com/cybericebox/backend/internal/useCase/analyticsCache"
 )
 
 // reportTTL bounds how stale a report may be; the admin polls the live

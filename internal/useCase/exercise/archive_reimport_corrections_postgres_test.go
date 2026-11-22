@@ -3,24 +3,24 @@ package exercise_test
 import (
 	"bytes"
 	"context"
-	"github.com/cybericebox/daemon/internal/config"
-	jobsModel "github.com/cybericebox/daemon/internal/model/jobs"
-	mediaUseCase "github.com/cybericebox/daemon/internal/useCase/media"
+	"github.com/cybericebox/backend/internal/config"
+	jobsModel "github.com/cybericebox/backend/internal/model/jobs"
+	mediaUseCase "github.com/cybericebox/backend/internal/useCase/media"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/exerciseRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	"github.com/cybericebox/daemon/internal/delivery/repository/userRepo"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
-	"github.com/cybericebox/daemon/internal/testhelpers"
-	exercise "github.com/cybericebox/daemon/internal/useCase/exercise"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/exerciseRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/delivery/repository/userRepo"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	userModel "github.com/cybericebox/backend/internal/model/user"
+	"github.com/cybericebox/backend/internal/testhelpers"
+	exercise "github.com/cybericebox/backend/internal/useCase/exercise"
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 )
@@ -119,7 +119,7 @@ func TestRestoreAndRollbackSerializeContentAndReferencesWithReimport(t *testing.
 			repo := exerciseRepo.New(db.Queries)
 			oldFile, err := db.Queries.CreateFile(ctx, postgres.CreateFileParams{ID: uuid.Must(uuid.NewV7()), Name: "old.txt", ContentType: "text/plain", SizeBytes: 1, ContentHash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", CreatedAt: importJobT0, CreatedBy: uuid.NullUUID{UUID: user.ID, Valid: true}})
 			require.NoError(t, err)
-			published, err := repo.UpsertDraft(ctx, e.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{AdminNote: "published", Variants: []exerciseModel.Variant{{Tasks: []exerciseModel.Task{{Name: "published", Attachments: []exerciseModel.AttachmentRef{{FileID: oldFile.ID, Name: "old.txt"}}}}}}}, importJobT0, uuid.NullUUID{})
+			published, err := repo.ForceUpsertDraft(ctx, e.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{AdminNote: "published", Variants: []exerciseModel.Variant{{Tasks: []exerciseModel.Task{{Name: "published", Attachments: []exerciseModel.AttachmentRef{{FileID: oldFile.ID, Name: "old.txt"}}}}}}}, importJobT0, uuid.NullUUID{})
 			require.NoError(t, err)
 			published, err = repo.Publish(ctx, e.ID, importJobT0)
 			require.NoError(t, err)
@@ -132,7 +132,7 @@ func TestRestoreAndRollbackSerializeContentAndReferencesWithReimport(t *testing.
 			_, err = db.Queries.CreateEventExercise(ctx, postgres.CreateEventExerciseParams{ID: pin, EventID: event.ID, ExerciseID: e.ID, ExerciseVersionID: published.ID, Revision: 1, CreatedAt: importJobT0})
 			require.NoError(t, err)
 			if mode == "restore-existing" {
-				draft, err := repo.UpsertDraft(ctx, e.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{AdminNote: "acknowledged work", Variants: []exerciseModel.Variant{{Tasks: []exerciseModel.Task{{Name: "old", Attachments: []exerciseModel.AttachmentRef{{FileID: oldFile.ID, Name: "old.txt"}}}}}}}, importJobT0, uuid.NullUUID{})
+				draft, err := repo.ForceUpsertDraft(ctx, e.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{AdminNote: "acknowledged work", Variants: []exerciseModel.Variant{{Tasks: []exerciseModel.Task{{Name: "old", Attachments: []exerciseModel.AttachmentRef{{FileID: oldFile.ID, Name: "old.txt"}}}}}}}, importJobT0, uuid.NullUUID{})
 				require.NoError(t, err)
 				require.NoError(t, db.Queries.ReplaceFileReferences(ctx, postgres.ReplaceFileReferencesParams{RefType: "exercise_version", RefID: draft.ID, FileIds: []uuid.UUID{oldFile.ID}}))
 			}
@@ -156,7 +156,7 @@ func TestRestoreAndRollbackSerializeContentAndReferencesWithReimport(t *testing.
 			case <-ctx.Done():
 				t.Fatal(ctx.Err())
 			}
-			archive, err := exercise.BuildArchiveV1(map[string][]byte{"exercise.json": []byte(`{"schema":"cib-exercise/1","exercise":{"name":"Imported attachment target"},"versions":[{"status":"draft","admin_note":"imported","variants":[{"tasks":[{"name":"Subtask","attachments":[{"file":"files/new.txt"}]}]}]}]}`), "files/new.txt": []byte("new unique content")})
+			archive, err := exercise.BuildArchiveV1(map[string][]byte{"exercise.json": []byte(`{"schema":"cib-exercise/1.0","exercise":{"name":"Imported attachment target"},"versions":[{"status":"draft","admin_note":"imported","variants":[{"tasks":[{"name":"Subtask","attachments":[{"file":"files/new.txt"}]}]}]}]}`), "files/new.txt": []byte("new unique content")})
 			require.NoError(t, err)
 			sources := newPostgresSources(t, db)
 			sources.stage(archiveUpID, user.ID, archive, mediaModel.UploadPurposeExerciseArchive)
@@ -249,7 +249,7 @@ func TestRestoreAndRollbackSerializeContentAndReferencesWithReimport(t *testing.
 }
 
 func correctionMedia(db *testhelpers.TestDB) *mediaUseCase.MediaUseCase {
-	return mediaUseCase.NewMediaUseCase(mediaUseCase.Dependencies{Repo: db.Queries, Storage: testhelpers.NewMemoryStorage(), Config: config.MediaConfig{MaxUploadBytes: 64 << 20, UploadChunkBytes: 64 << 20, UploadTTL: time.Hour}})
+	return mediaUseCase.NewMediaUseCase(mediaUseCase.Dependencies{Repo: db.Queries, Storage: testhelpers.NewMemoryStorage(), FilesSealer: testhelpers.FilesSealer(), Config: config.MediaConfig{MaxUploadBytes: 64 << 20, UploadChunkBytes: 64 << 20, UploadTTL: time.Hour}})
 }
 func correctionSource(t *testing.T, ctx context.Context, media *mediaUseCase.MediaUseCase, by uuid.UUID, body []byte, file bool) exercise.PreviewArchiveInput {
 	t.Helper()
@@ -279,9 +279,9 @@ func TestReimportRechecksRealSourceAfterTargetLockWait(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			db, ctx, user, e := correctionTarget(t)
 			repo := exerciseRepo.New(db.Queries)
-			draft, err := repo.UpsertDraft(ctx, e.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{AdminNote: "unchanged"}, importJobT0, uuid.NullUUID{})
+			draft, err := repo.ForceUpsertDraft(ctx, e.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{AdminNote: "unchanged"}, importJobT0, uuid.NullUUID{})
 			require.NoError(t, err)
-			entries := map[string][]byte{"a/exercise.json": []byte(`{"schema":"cib-exercise/1","exercise":{"name":"Forbidden replacement"},"versions":[{"status":"draft","variants":[]}]}`), "b/exercise.json": []byte(`{"schema":"cib-exercise/1","exercise":{"name":"Must not create sibling"},"versions":[{"status":"draft","variants":[]}]}`)}
+			entries := map[string][]byte{"a/exercise.json": []byte(`{"schema":"cib-exercise/1.0","exercise":{"name":"Forbidden replacement"},"versions":[{"status":"draft","variants":[]}]}`), "b/exercise.json": []byte(`{"schema":"cib-exercise/1.0","exercise":{"name":"Must not create sibling"},"versions":[{"status":"draft","variants":[]}]}`)}
 			if c.worker {
 				entries["a/exercise.json"] = imageTask("Forbidden replacement", [2]string{"web", "images/web.tar"})
 				entries["a/images/web.tar"] = webImageTar
@@ -432,7 +432,7 @@ func TestReimportSourceLockStabilizesDeletionUntilTaskCommit(t *testing.T) {
 		t.Run(map[bool]string{false: "upload", true: "file"}[file], func(t *testing.T) {
 			db, ctx, user, e := correctionTarget(t)
 			repo := exerciseRepo.New(db.Queries)
-			_, err := repo.UpsertDraft(ctx, e.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{AdminNote: "before"}, importJobT0, uuid.NullUUID{})
+			_, err := repo.ForceUpsertDraft(ctx, e.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{AdminNote: "before"}, importJobT0, uuid.NullUUID{})
 			require.NoError(t, err)
 			archive := mustExerciseArchive(t, `{"name":"Committed with stabilized source"}`, `[{"status":"draft","variants":[]}]`)
 			media := correctionMedia(db)

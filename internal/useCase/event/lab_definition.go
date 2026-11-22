@@ -5,10 +5,10 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"github.com/cybericebox/daemon/internal/delivery/repository/exerciseRepo"
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	resourcesModel "github.com/cybericebox/daemon/internal/model/resources"
+	"github.com/cybericebox/backend/internal/delivery/repository/exerciseRepo"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	resourcesModel "github.com/cybericebox/backend/internal/model/resources"
 	"github.com/gofrs/uuid"
 	"strconv"
 )
@@ -18,6 +18,7 @@ func definitionHash(versionID uuid.UUID, generation int32, topology exerciseMode
 	sum := sha256.Sum256(append([]byte(versionID.String()+"\x00"+strconv.FormatInt(int64(generation), 10)+"\x00"), raw...))
 	return hex.EncodeToString(sum[:])
 }
+
 func (u *EventUseCase) knownZeroDemand(ctx context.Context, q IRepository, l eventLabModel.Lab) (bool, error) {
 	if l.DefinitionVersionID == uuid.Nil || l.DefinitionHash == "" {
 		return false, nil

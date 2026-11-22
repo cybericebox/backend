@@ -10,10 +10,10 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	"github.com/cybericebox/daemon/internal/useCase/exercise"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	"github.com/cybericebox/backend/internal/useCase/exercise"
 )
 
 type labNotices struct {

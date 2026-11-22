@@ -6,12 +6,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	exercise "github.com/cybericebox/daemon/internal/useCase/exercise"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	exercise "github.com/cybericebox/backend/internal/useCase/exercise"
 	"github.com/gofrs/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
@@ -19,6 +20,7 @@ import (
 func TestIdentityPatchSavesWorkingMetadataWithoutUpdatingPublishedIdentity(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	q := postgresMocks.NewMockQuerier(ctrl)
+	q.EXPECT().GetDraftRevision(gomock.Any(), gomock.Any()).Return(postgres.GetDraftRevisionRow{}, pgx.ErrNoRows).AnyTimes()
 	exID, draftID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 	before := time.Now().Add(-time.Hour)
 	q.EXPECT().GetExerciseByID(gomock.Any(), exID).Return(postgres.Exercise{ID: exID, Name: "Published", UpdatedAt: before}, nil)
@@ -40,6 +42,7 @@ func TestExerciseMetadataCardProjectsWorkingSnapshotOnlyForFullReaders(t *testin
 		t.Run(string(role), func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			q := postgresMocks.NewMockQuerier(ctrl)
+			q.EXPECT().GetDraftRevision(gomock.Any(), gomock.Any()).Return(postgres.GetDraftRevisionRow{}, pgx.ErrNoRows).AnyTimes()
 			exID, draftID, publishedID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 			entry := postgres.Exercise{ID: exID, Name: "Published", Tags: []string{"web"}, DraftVersionID: uuid.NullUUID{UUID: draftID, Valid: true}, PublishedVersionID: uuid.NullUUID{UUID: publishedID, Valid: true}}
 			q.EXPECT().GetExerciseByID(gomock.Any(), exID).Return(entry, nil).AnyTimes()
@@ -66,22 +69,41 @@ func TestExerciseMetadataCardProjectsWorkingSnapshotOnlyForFullReaders(t *testin
 	}
 }
 
-func TestArchiveRejectsInvalidPerVersionMetadataBeforeAnyTaskWrite(t *testing.T) {
+func TestArchiveRejectsInvalidMetadataOfTheImportedVersionBeforeAnyTaskWrite(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	q := postgresMocks.NewMockQuerier(ctrl)
-	archive := mustExerciseArchive(t, `{"name":"Valid root identity"}`, `[{"status":"checkpoint","exercise":{"name":"ab","description":"invalid snapshot name"},"variants":[]},{"status":"draft","variants":[]}]`)
+	archive := mustExerciseArchive(t, `{"name":"Valid root identity"}`, `[{"status":"draft","exercise":{"name":"ab","description":"invalid snapshot name"},"variants":[]},{"status":"checkpoint","variants":[]}]`)
 	_, err := newUC(q, newFakeMedia()).ImportExerciseArchive(context.Background(), exercise.ImportExerciseInput{Archive: archive})
 	require.ErrorIs(t, err, exerciseModel.ErrExerciseNameInvalid.Err())
+}
+
+// A version the import leaves out is not validated by it: its metadata decides nothing.
+func TestArchiveIgnoresMetadataOfVersionsTheImportLeavesOut(t *testing.T) {
+	archive := mustExerciseArchive(t, `{"name":"Valid root identity"}`, `[{"status":"checkpoint","exercise":{"name":"ab","description":"invalid snapshot name"},"variants":[]},{"status":"draft","variants":[]}]`)
+	rows, err := importAsWritten(t, archive)
+	require.NoError(t, err)
+	requireOneDraft(t, rows, "")
 }
 
 func TestPublishMetadataNameCollisionStaysWithTheNameField(t *testing.T) {
 	q := postgresMocks.NewMockQuerier(gomock.NewController(t))
 	id := uuid.Must(uuid.NewV7())
-	variants := []exerciseModel.Variant{{ID: uuid.Must(uuid.NewV7()), Tasks: []exerciseModel.Task{{
-		ID: uuid.Must(uuid.NewV7()), Name: "Valid static task", Difficulty: exerciseModel.DifficultyEasy,
-		Description: json.RawMessage(`{"root":{"type":"text","text":"Solve this task"}}`), Flag: []string{"ICE{x}"},
-	}}}}
-	q.EXPECT().GetExerciseByID(gomock.Any(), id).Return(postgres.Exercise{ID: id, Name: "Published name"}, nil)
+	variants := []exerciseModel.Variant{{ID: uuid.Must(uuid.NewV7()), Tasks: []exerciseModel.Task{
+		{
+			ID: uuid.Must(
+				uuid.NewV7(),
+			),
+			Name:       "Valid static task",
+			Difficulty: exerciseModel.DifficultyEasy,
+			Description: json.RawMessage(
+				`{"root":{"type":"text","text":"Solve this task"}}`,
+			),
+			Check: exerciseModel.FlagCheck("ICE{x}"),
+		},
+	}}}
+	q.EXPECT().
+		GetExerciseByID(gomock.Any(), id).
+		Return(postgres.Exercise{ID: id, Name: "Published name"}, nil)
 	q.EXPECT().GetDraftVersion(gomock.Any(), id).Return(postgres.ExerciseVersion{
 		ID: uuid.Must(uuid.NewV7()), ExerciseID: id, Status: "draft", Name: "Occupied name", Variants: mustMarshal(t, variants),
 	}, nil)

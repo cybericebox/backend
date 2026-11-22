@@ -9,19 +9,21 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	eventAnalyticsUseCase "github.com/cybericebox/daemon/internal/useCase/eventAnalytics"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/model/usertext"
+	eventAnalyticsUseCase "github.com/cybericebox/backend/internal/useCase/eventAnalytics"
 )
 
-// ParticipantsUseCase is the «Учасники» and «Комунікації» part of IUseCase.
+// ParticipantsUseCase is the Participants and Communications part of IUseCase.
 type ParticipantsUseCase interface {
 	GetEventAnalyticsParticipants(ctx context.Context, eventID uuid.UUID, from, to *time.Time) (eventAnalyticsUseCase.ParticipantsView, error)
+	GetEventAnalyticsSubmissions(ctx context.Context, eventID uuid.UUID) (eventAnalyticsUseCase.SubmissionsView, error)
 	GetEventAnalyticsCommunications(ctx context.Context, eventID uuid.UUID, from, to *time.Time) (eventAnalyticsUseCase.CommunicationsView, error)
 }
 
-// initParticipants registers the «Учасники» and «Комунікації» routes. The
+// initParticipants registers the Participants and Communications routes. The
 // reports hold no wrong answers, so every route needs only the sections level; the CSV exports need the export level.
 // The group carries its own PermSelf gate: tools/checkroutes sees only gates
 // written in the registering function.
@@ -29,6 +31,8 @@ func (h *Handler) initParticipants(router *gin.RouterGroup) {
 	analytics := router.Group("events/:id/manage/analytics", h.prot.RequirePermission(rbac.PermSelf))
 	analytics.GET("participants", h.requireSections, h.participants)
 	analytics.GET("participants/export.csv", h.requireExport, h.exportParticipants)
+	analytics.GET("submissions", h.requireSections, h.submissions)
+	analytics.GET("submissions/export.csv", h.requireExport, h.exportSubmissions)
 	analytics.GET("communications", h.requireSections, h.communications)
 	analytics.GET("communications/export.csv", h.requireExport, h.exportCommunications)
 }
@@ -142,7 +146,7 @@ type (
 
 // participants godoc
 // @Summary Participants and registration analytics
-// @Description §6.2 «Учасники й реєстрація»: the participation funnel, registrations per day and channel, team fill, registration form answer distributions and the drop-off list. from/to limit only the registrations per day (open bounds by default); the rest is the current state.
+// @Description §6.2 Participants and registration: the participation funnel, registrations per day and channel, team fill, registration form answer distributions and the drop-off list. from/to limit only the registrations per day (open bounds by default); the rest is the current state.
 // @Tags event-analytics
 // @Produce json
 // @Param id path string true "event ID"
@@ -170,7 +174,7 @@ func (h *Handler) participants(ctx *gin.Context) {
 	response.AbortWithData(ctx, toParticipantsResponse(v))
 }
 
-// maskDropOff masks the addresses of «Затверджені без жодної спроби» for a viewer without the people access (a
+// maskDropOff masks the addresses of Approved without any attempt for a viewer without the people access (a
 // read-only moderator, owner decision 2026-10-19); names stay. It reports whether the request may go on.
 func (h *Handler) maskDropOff(ctx *gin.Context, v *eventAnalyticsUseCase.ParticipantsView) bool {
 	people, ok := h.seesPeople(ctx)
@@ -272,29 +276,29 @@ func (h *Handler) exportParticipants(ctx *gin.Context) {
 	n := func(x int64) string { return strconv.FormatInt(x, 10) }
 	switch table {
 	case "funnel":
-		_ = w.Write([]string{"Етап", "Учасників"})
+		_ = w.Write([]string{usertext.ColStage, usertext.ColParticipants})
 		for _, s := range v.Funnel {
 			_ = w.Write([]string{funnelStageLabels[s.Stage], n(s.Count)})
 		}
 	case "registrations":
-		_ = w.Write([]string{"День (UTC)", "Відкрита реєстрація", "Схвалення", "Запрошення"})
+		_ = w.Write([]string{usertext.ColDayUTC, usertext.ColOpenRegistration, usertext.ColApproval, usertext.ColInvitations})
 		for _, d := range v.Registrations.Days {
 			_ = w.Write([]string{d.Day.UTC().Format("2006-01-02"), n(d.Open), n(d.Approval), n(d.Invitation)})
 		}
 	case "teams":
-		_ = w.Write([]string{"Команда", "Учасників", "Очікують приєднання"})
+		_ = w.Write([]string{usertext.ColTeam, usertext.ColParticipants, usertext.ColAwaitingJoin})
 		for _, t := range v.Teams.Incomplete {
 			_ = w.Write([]string{csvCellText(t.Name), strconv.Itoa(int(t.Members)), n(t.PendingInvitees)})
 		}
 	case "answers":
-		_ = w.Write([]string{"Питання", "Значення", "Відповідей"})
+		_ = w.Write([]string{usertext.ColQuestion, usertext.ColValue, usertext.ColAnswers})
 		for _, q := range v.Answers.Questions {
 			for _, b := range q.Buckets {
 				_ = w.Write([]string{csvCellText(q.Label), csvCellText(b.Label), n(b.Count)})
 			}
 		}
 	case "dropoff":
-		_ = w.Write([]string{"Учасник", "Пошта", "Команда", "Зареєстрований (UTC)", "Схвалений (UTC)", "Відкрито завдань"})
+		_ = w.Write([]string{usertext.ColParticipant, usertext.ColEmail, usertext.ColTeam, usertext.ColRegisteredUTC, usertext.ColApprovedUTC, usertext.ColTasksOpened})
 		for _, r := range v.DropOff.Rows {
 			registered := r.RegisteredAt
 			_ = w.Write([]string{csvCellText(r.Name), csvCellText(r.Email), csvCellText(r.TeamName), csvTimePtr(&registered), csvTimePtr(r.ApprovedAt), n(r.OpenedTasks)})
@@ -304,10 +308,10 @@ func (h *Handler) exportParticipants(ctx *gin.Context) {
 }
 
 var funnelStageLabels = map[string]string{
-	eventAnalyticsUseCase.StageInvited:    "Запрошено",
-	eventAnalyticsUseCase.StageRegistered: "Зареєстровано",
-	eventAnalyticsUseCase.StageApproved:   "Схвалено",
-	eventAnalyticsUseCase.StageInTeam:     "У команді",
-	eventAnalyticsUseCase.StageAttempted:  "Перша спроба",
-	eventAnalyticsUseCase.StageSolved:     "Перше розвʼязання",
+	eventAnalyticsUseCase.StageInvited:    usertext.StageInvited,
+	eventAnalyticsUseCase.StageRegistered: usertext.StageRegistered,
+	eventAnalyticsUseCase.StageApproved:   usertext.StageApproved,
+	eventAnalyticsUseCase.StageInTeam:     usertext.StageInTeam,
+	eventAnalyticsUseCase.StageAttempted:  usertext.StageFirstAttempt,
+	eventAnalyticsUseCase.StageSolved:     usertext.StageFirstSolve,
 }

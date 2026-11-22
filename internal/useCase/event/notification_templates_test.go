@@ -12,12 +12,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	notificationModel "github.com/cybericebox/daemon/internal/model/notification"
-	emailModel "github.com/cybericebox/daemon/internal/model/notification/email"
-	inAppModel "github.com/cybericebox/daemon/internal/model/notification/inapp"
-	"github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	notificationModel "github.com/cybericebox/backend/internal/model/notification"
+	emailModel "github.com/cybericebox/backend/internal/model/notification/email"
+	inAppModel "github.com/cybericebox/backend/internal/model/notification/inapp"
+	"github.com/cybericebox/backend/internal/useCase/event"
 )
 
 func TestCreateEventEmailTemplate_BindsScopeToEvent(t *testing.T) {

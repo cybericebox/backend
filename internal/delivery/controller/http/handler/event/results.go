@@ -11,16 +11,17 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/download"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/sse"
-	"github.com/cybericebox/daemon/internal/limits"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	siteBannerModel "github.com/cybericebox/daemon/internal/model/siteBanner"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
-	"github.com/cybericebox/daemon/pkg/pagination"
-	"github.com/cybericebox/daemon/pkg/tools"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/download"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/sse"
+	"github.com/cybericebox/backend/internal/limits"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	siteBannerModel "github.com/cybericebox/backend/internal/model/siteBanner"
+	"github.com/cybericebox/backend/internal/model/usertext"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
+	"github.com/cybericebox/backend/pkg/pagination"
+	"github.com/cybericebox/backend/pkg/tools"
 )
 
 type resultsFreezeStateResponse struct {
@@ -183,7 +184,7 @@ func (h *Handler) exportManageResults(ctx *gin.Context) {
 		return
 	}
 	w := startCSV(ctx, "results")
-	_ = w.Write([]string{"Місце", "Назва", "Справжнє імʼя", "Псевдонім", "Бали", "Розвʼязано", "Останнє розвʼязання (UTC)", "Прихована", "Допущена"})
+	_ = w.Write([]string{usertext.ColPlace, usertext.ColName, usertext.ColRealName, usertext.ColAlias, usertext.ColPoints, usertext.ColSolved, usertext.ColLastSolveUTC, usertext.ColHidden, usertext.ColAdmitted})
 	for _, team := range v.Teams {
 		if team.Moderators {
 			continue
@@ -279,7 +280,7 @@ func (h *Handler) updateResultsSettings(ctx *gin.Context) {
 }
 
 // setResultsOpened godoc
-// @Summary Open the results («Відкрити підсумки») or restore the freeze
+// @Summary Open the results (Open results) or restore the freeze
 // @Tags events
 // @Accept json
 // @Produce json
@@ -373,7 +374,7 @@ func (h *Handler) exportSolutionAttempts(ctx *gin.Context) {
 		return
 	}
 	w := startCSV(ctx, "attempts")
-	_ = w.Write([]string{"Час (UTC)", "Завдання", "Команда", "Учасник", "Відповідь", "Автоперевірка", "Рішення", "Зараховано", "Причина рішення"})
+	_ = w.Write([]string{usertext.ColTimeUTC, usertext.ColTask, usertext.ColTeam, usertext.ColParticipant, usertext.ColAnswer, usertext.ColAutoCheck, usertext.ColDecision, usertext.ColCredited, usertext.ColDecisionReason})
 	for {
 		for _, item := range page.Items {
 			reason := ""
@@ -444,7 +445,7 @@ func (h *Handler) liveSolutionAttempts(ctx *gin.Context) {
 	}
 	sse.WriteHeaders(ctx)
 	// attempts-changed covers attempts and decisions; hints-changed covers
-	// opened hints (the «Відкриті підказки» view).
+	// opened hints (the Opened hints view).
 	write := func(value eventUseCase.SolutionAttemptsStampView) {
 		payload, _ := json.Marshal(struct{ Attempts, Decisions int64 }{value.Attempts, value.Decisions})
 		_, _ = fmt.Fprintf(ctx.Writer, "event: attempts-changed\ndata: %s\n\n", payload)
@@ -513,7 +514,7 @@ func csvTime(value *time.Time) string {
 
 func yesNo(value bool) string {
 	if value {
-		return "так"
+		return usertext.Yes
 	}
-	return "ні"
+	return usertext.No
 }

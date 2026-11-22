@@ -1,4 +1,4 @@
--- Event analytics, «Використання»: per participant VPN connection state and
+-- Event analytics, "Usage": per participant VPN connection state and
 -- lab access over the VPN and the web proxy. Counts and times only, never an
 -- address. The moderators team is never counted.
 

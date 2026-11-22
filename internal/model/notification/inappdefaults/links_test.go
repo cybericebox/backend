@@ -22,7 +22,7 @@ func TestResourceRequestsLinkToTheAdminResourcesPage(t *testing.T) {
 }
 
 // A CPU throttling request has no page of its own to open (the resources page is the reservation calendar), so it
-// carries no link and the inbox offers only «Вирішено».
+// carries no link and the inbox offers only the "Resolved" action.
 func TestCPUThrottlingRequestHasNoLink(t *testing.T) {
 	for _, lang := range []Lang{UK, EN} {
 		found := 0

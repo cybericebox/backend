@@ -10,12 +10,13 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	eventAnalyticsUseCase "github.com/cybericebox/daemon/internal/useCase/eventAnalytics"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/model/usertext"
+	eventAnalyticsUseCase "github.com/cybericebox/backend/internal/useCase/eventAnalytics"
 )
 
-// ProgressUseCase is the «Прогрес» part of IUseCase.
+// ProgressUseCase is the Progress part of IUseCase.
 type ProgressUseCase interface {
 	GetEventAnalyticsProgressScores(ctx context.Context, eventID uuid.UUID, from, to *time.Time, top int, teamIDs []uuid.UUID) (eventAnalyticsUseCase.ScoresView, error)
 	GetEventAnalyticsProgressMatrix(ctx context.Context, eventID uuid.UUID, from, to *time.Time) (eventAnalyticsUseCase.MatrixView, error)
@@ -258,7 +259,7 @@ func toMatrixTeams(teams []eventAnalyticsUseCase.MatrixTeamView) []matrixTeamRes
 
 // exportProgressMatrix godoc
 // @Summary Export the team × task matrix as CSV (UTF-8 with BOM)
-// @Description One row per team, one column per task: the solve time (UTC), "спроб: N" for tried, empty for untouched.
+// @Description One row per team, one column per task: the solve time (UTC), an attempts count ("attempts: N" in Ukrainian) for tried, empty for untouched.
 // @Tags event-analytics
 // @Produce text/csv
 // @Param id path string true "event ID"
@@ -286,7 +287,7 @@ func (h *Handler) exportProgressMatrix(ctx *gin.Context) {
 		cells[key{c.TeamID, c.ChallengeID}] = c
 	}
 	w := startAnalyticsCSV(ctx, "matrix")
-	header := []string{"Команда", "Бали", "Розвʼязано"}
+	header := []string{usertext.ColTeam, usertext.ColPoints, usertext.ColSolved}
 	for _, t := range v.Tasks {
 		header = append(header, csvCellText(t.Name))
 	}
@@ -301,7 +302,7 @@ func (h *Handler) exportProgressMatrix(ctx *gin.Context) {
 			case c.SolvedAt != nil:
 				row = append(row, c.SolvedAt.UTC().Format(time.RFC3339))
 			default:
-				row = append(row, "спроб: "+strconv.FormatInt(c.Attempts, 10))
+				row = append(row, usertext.AttemptsCell(c.Attempts))
 			}
 		}
 		_ = w.Write(row)
@@ -382,7 +383,7 @@ func (h *Handler) exportProgressInactive(ctx *gin.Context) {
 		return
 	}
 	w := startAnalyticsCSV(ctx, "inactive")
-	_ = w.Write([]string{"Команда", "Бали", "Остання активність (UTC)", "Простій (хв)"})
+	_ = w.Write([]string{usertext.ColTeam, usertext.ColPoints, usertext.ColLastActivityUTC, usertext.ColIdleMinutes})
 	for _, t := range v.Teams {
 		_ = w.Write([]string{csvCellText(t.Name), strconv.FormatInt(t.Points, 10), csvTimePtr(t.LastActivityAt), strconv.FormatInt(t.IdleMinutes, 10)})
 	}

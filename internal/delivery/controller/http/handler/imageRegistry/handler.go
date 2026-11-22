@@ -1,5 +1,5 @@
 // Package imageRegistry serves the platform image registry settings of
-// «Панель платформи». Tokens are write-only: requests may carry them, no
+// Platform panel. Tokens are write-only: requests may carry them, no
 // response ever does.
 package imageRegistry
 
@@ -10,9 +10,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	imageRegistryUseCase "github.com/cybericebox/daemon/internal/useCase/imageRegistry"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	imageRegistryUseCase "github.com/cybericebox/backend/internal/useCase/imageRegistry"
 )
 
 type (
@@ -29,7 +29,7 @@ type (
 		CheckPlatformRegistry(ctx context.Context) (imageRegistryUseCase.SettingsView, error)
 		ClearImageRegistrySettings(ctx context.Context) error
 
-		// Organizer secrets of one event («Панель заходу»).
+		// Organizer secrets of one event (Event panel).
 		ListEventRegistrySecrets(ctx context.Context, eventID uuid.UUID) ([]imageRegistryUseCase.EventSecretView, error)
 		CreateEventRegistrySecret(ctx context.Context, eventID uuid.UUID, in imageRegistryUseCase.EventSecretInput) (imageRegistryUseCase.EventSecretView, error)
 		UpdateEventRegistrySecret(ctx context.Context, eventID, secretID uuid.UUID, in imageRegistryUseCase.EventSecretInput) (imageRegistryUseCase.EventSecretView, error)
@@ -38,7 +38,7 @@ type (
 		RequireManageEvent(ctx context.Context, eventID, userID uuid.UUID) error
 		RequireReadEvent(ctx context.Context, eventID, userID uuid.UUID) error
 
-		// Image availability of an event's tasks («Панель заходу»).
+		// Image availability of an event's tasks (Event panel).
 		EventImagesAvailability(ctx context.Context, eventID uuid.UUID) ([]imageRegistryUseCase.EventExerciseImages, error)
 	}
 

@@ -12,13 +12,13 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	eventAnalyticsModel "github.com/cybericebox/daemon/internal/model/eventAnalytics"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	eventAnalyticsUseCase "github.com/cybericebox/daemon/internal/useCase/eventAnalytics"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	eventAnalyticsModel "github.com/cybericebox/backend/internal/model/eventAnalytics"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	eventAnalyticsUseCase "github.com/cybericebox/backend/internal/useCase/eventAnalytics"
 )
 
-// peopleUseCase serves the «Учасники» and «Комунікації» routes; any other
+// peopleUseCase serves the Participants and Communications routes; any other
 // use-case call panics on the nil embedded interface.
 type peopleUseCase struct {
 	IUseCase

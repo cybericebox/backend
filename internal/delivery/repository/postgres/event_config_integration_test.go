@@ -9,15 +9,15 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventConfigRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/delivery/repository/userRepo"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	eventStandModel "github.com/cybericebox/daemon/internal/model/eventStand"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventConfigRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/delivery/repository/userRepo"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	eventStandModel "github.com/cybericebox/backend/internal/model/eventStand"
+	userModel "github.com/cybericebox/backend/internal/model/user"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 var ecNow = time.Date(2026, 7, 13, 9, 0, 0, 0, time.UTC)

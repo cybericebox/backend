@@ -7,17 +7,22 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
+	"strings"
 	"testing"
 
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	media "github.com/cybericebox/daemon/internal/useCase/media"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	"github.com/cybericebox/backend/internal/secretctx"
+	"github.com/cybericebox/backend/internal/testhelpers"
+	media "github.com/cybericebox/backend/internal/useCase/media"
+	"github.com/cybericebox/backend/pkg/filecrypt"
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
 // fakeStorage records puts/copies in-memory.
@@ -65,12 +70,47 @@ func (f *fakeStorage) Copy(_ context.Context, src, dst string) error {
 	return nil
 }
 
+func testSealer(*testing.T) *secret.Cipher { return testhelpers.FilesSealer() }
+
+// echoCreateFile answers CreateFile as the database does for a blob that did not exist: the row of the file, and the blob
+// exactly as the caller proposed it.
+func echoCreateFile(check func(postgres.CreateFileParams)) func(context.Context, postgres.CreateFileParams) (postgres.CreateFileRow, error) {
+	return func(_ context.Context, arg postgres.CreateFileParams) (postgres.CreateFileRow, error) {
+		if check != nil {
+			check(arg)
+		}
+		return postgres.CreateFileRow{
+			ID: arg.ID, Name: arg.Name, ContentType: arg.ContentType, SizeBytes: arg.SizeBytes, ContentHash: arg.ContentHash,
+			BlobObjectKey: arg.ObjectKey, BlobWrappedKey: arg.WrappedKey,
+		}, nil
+	}
+}
+
+// plainOf opens an encrypted blob object stored in the fake storage the way the use case does, to see what it holds.
+func plainOf(t *testing.T, st *fakeStorage, key, wrapped, hash string) []byte {
+	t.Helper()
+	fileKey, err := testhelpers.FilesSealer().DecryptWithContext(wrapped, secretctx.FileKey(hash))
+	if err != nil {
+		t.Fatalf("unwrap: %v", err)
+	}
+	r, err := filecrypt.NewDecryptReader(fileKey, bytes.NewReader(st.objects[key]))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("decrypt: %v", err)
+	}
+	return out
+}
+
 func newUC(t *testing.T, q media.IRepository, maxBytes int64) *media.MediaUseCase {
 	t.Helper()
 	return media.NewMediaUseCase(media.Dependencies{
-		Repo:    q,
-		Storage: newFakeStorage(),
-		Config:  config.MediaConfig{MaxUploadBytes: maxBytes},
+		Repo:        q,
+		Storage:     newFakeStorage(),
+		FilesSealer: testSealer(t),
+		Config:      config.MediaConfig{MaxUploadBytes: maxBytes},
 	})
 }
 
@@ -78,32 +118,40 @@ func TestUploadFile_HashesAndRecords(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	q := postgresMocks.NewMockQuerier(ctrl)
 	st := newFakeStorage()
-	uc := media.NewMediaUseCase(media.Dependencies{Repo: q, Storage: st, Config: config.MediaConfig{MaxUploadBytes: 1024}})
+	uc := media.NewMediaUseCase(media.Dependencies{Repo: q, Storage: st, FilesSealer: testSealer(t), Config: config.MediaConfig{MaxUploadBytes: 1024}})
 
 	payload := []byte("attachment-bytes")
 	wantHash := sha256.Sum256(payload)
 	wantHex := hex.EncodeToString(wantHash[:])
 
-	q.EXPECT().CreateFile(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, arg postgres.CreateFileParams) (postgres.File, error) {
-			if arg.ContentHash != wantHex {
-				t.Fatalf("hash mismatch: %s", arg.ContentHash)
-			}
-			if arg.SizeBytes != int64(len(payload)) {
-				t.Fatalf("size mismatch: %d", arg.SizeBytes)
-			}
-			return postgres.File{ID: arg.ID, Name: arg.Name, ContentHash: arg.ContentHash, SizeBytes: arg.SizeBytes}, nil
-		})
+	q.EXPECT().GetFileBlob(gomock.Any(), wantHex).Return(postgres.GetFileBlobRow{}, pgx.ErrNoRows)
+	var proposed postgres.CreateFileParams
+	q.EXPECT().CreateFile(gomock.Any(), gomock.Any()).DoAndReturn(echoCreateFile(func(arg postgres.CreateFileParams) {
+		proposed = arg
+		if arg.ContentHash != wantHex {
+			t.Fatalf("hash mismatch: %s", arg.ContentHash)
+		}
+		if arg.SizeBytes != int64(len(payload)) {
+			t.Fatalf("size mismatch: %d", arg.SizeBytes)
+		}
+	}))
 
 	f, err := uc.UploadFile(context.Background(), "dump.pcap", "application/octet-stream", bytes.NewReader(payload), uuid.Nil)
 	if err != nil {
 		t.Fatalf("UploadFile: %v", err)
 	}
-	if _, ok := st.objects[mediaModel.BlobKey(wantHex)]; !ok {
-		t.Fatal("blob object must exist after upload")
+	// The object is encrypted under a random name, not the content address, and holds no plain byte.
+	if proposed.WrappedKey == "" || !strings.HasPrefix(proposed.ObjectKey, "media/enc/") {
+		t.Fatalf("the blob must be proposed encrypted: %+v", proposed)
 	}
 	if len(st.objects) != 1 {
 		t.Fatalf("tmp object must be removed, got %d objects", len(st.objects))
+	}
+	if bytes.Contains(st.objects[proposed.ObjectKey], payload) {
+		t.Fatal("the stored object holds the plain bytes")
+	}
+	if got := plainOf(t, st, proposed.ObjectKey, proposed.WrappedKey, wantHex); !bytes.Equal(got, payload) {
+		t.Fatalf("the stored object opens to %q", got)
 	}
 	if f.ContentHash != wantHex {
 		t.Fatalf("returned hash mismatch: %s", f.ContentHash)
@@ -126,10 +174,8 @@ func TestUploadFile_TooLarge(t *testing.T) {
 func TestUploadLargeFile_OwnLimit(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	q := postgresMocks.NewMockQuerier(ctrl)
-	q.EXPECT().CreateFile(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, arg postgres.CreateFileParams) (postgres.File, error) {
-			return postgres.File{ID: arg.ID, SizeBytes: arg.SizeBytes, ContentHash: arg.ContentHash}, nil
-		})
+	q.EXPECT().GetFileBlob(gomock.Any(), gomock.Any()).Return(postgres.GetFileBlobRow{}, pgx.ErrNoRows)
+	q.EXPECT().CreateFile(gomock.Any(), gomock.Any()).DoAndReturn(echoCreateFile(nil))
 	uc := newUC(t, q, 8) // the browser cap is 8 bytes
 
 	f, err := uc.UploadLargeFile(context.Background(), "export.zip", "application/zip", bytes.NewReader(bytes.Repeat([]byte("x"), 20)), uuid.Nil, 20)
@@ -199,10 +245,11 @@ func TestReadFileChunk_Bounds(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	q := postgresMocks.NewMockQuerier(ctrl)
 	st := newFakeStorage()
-	uc := media.NewMediaUseCase(media.Dependencies{Repo: q, Storage: st, Config: config.MediaConfig{MaxUploadBytes: 100, UploadChunkBytes: 4}})
+	uc := media.NewMediaUseCase(media.Dependencies{Repo: q, Storage: st, FilesSealer: testSealer(t), Config: config.MediaConfig{MaxUploadBytes: 100, UploadChunkBytes: 4}})
 	id := uuid.FromStringOrNil("11111111-1111-7111-8111-111111111111")
 	st.objects[mediaModel.BlobKey("h")] = []byte("0123456789")
 	q.EXPECT().GetFileByID(gomock.Any(), id).Return(postgres.File{ID: id, SizeBytes: 10, ContentHash: "h"}, nil).AnyTimes()
+	q.EXPECT().GetFileBlob(gomock.Any(), "h").Return(postgres.GetFileBlobRow{ContentHash: "h", SizeBytes: 10}, nil).AnyTimes() // an older, plain blob
 
 	for index, want := range map[int]string{0: "0123", 1: "4567", 2: "89"} {
 		rc, _, length, err := uc.ReadFileChunk(context.Background(), id, index)

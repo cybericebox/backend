@@ -3,9 +3,9 @@ package event
 import (
 	"time"
 
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	participantModel "github.com/cybericebox/daemon/internal/model/participant"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
 )
 
 // ParticipationReason says why a participation action is unavailable. The

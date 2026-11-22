@@ -6,8 +6,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	calModel "github.com/cybericebox/daemon/internal/model/resourceCalendar"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	calModel "github.com/cybericebox/backend/internal/model/resourceCalendar"
 )
 
 // fallbackGroupOverhead is the group part of an author's test group while no agent has reported how it sizes the

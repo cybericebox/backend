@@ -6,8 +6,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	notificationModel "github.com/cybericebox/daemon/internal/model/notification"
-	emailModel "github.com/cybericebox/daemon/internal/model/notification/email"
+	notificationModel "github.com/cybericebox/backend/internal/model/notification"
+	emailModel "github.com/cybericebox/backend/internal/model/notification/email"
 )
 
 func TestNewDraft_DomainDefaults(t *testing.T) {

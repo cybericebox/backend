@@ -10,7 +10,7 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 
 	// register the swagger spec so swaggo serves the correct docs
-	_ "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/apidocs"
+	_ "github.com/cybericebox/backend/internal/delivery/controller/http/handler/apidocs"
 )
 
 func init() {

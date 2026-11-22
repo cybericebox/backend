@@ -3,20 +3,20 @@ package event
 import (
 	"context"
 	"errors"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
 	"testing"
 	"time"
 
 	"github.com/gofrs/uuid"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	eventStandModel "github.com/cybericebox/daemon/internal/model/eventStand"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	labBindingModel "github.com/cybericebox/daemon/internal/model/labBinding"
-	vpnModel "github.com/cybericebox/daemon/internal/model/vpn"
-	"github.com/cybericebox/daemon/pkg/labaccess"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	eventStandModel "github.com/cybericebox/backend/internal/model/eventStand"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	labBindingModel "github.com/cybericebox/backend/internal/model/labBinding"
+	vpnModel "github.com/cybericebox/backend/internal/model/vpn"
+	"github.com/cybericebox/backend/pkg/labaccess"
 )
 
 type clientStore struct {
@@ -39,7 +39,7 @@ func (*clientInfra) DeployLab(context.Context, string, string, infraModel.LabMet
 	return nil
 }
 func (*clientInfra) LabStatus(context.Context, string, string) (exerciseModel.LabDeployStatus, error) {
-	return exerciseModel.LabDeployStatus{Ready: true, Access: []exerciseModel.LabAccess{{Device: "web", Port: 80, Protocol: "http", URL: "https://web-abc123.challenges.example.com"}}}, nil
+	return exerciseModel.LabDeployStatus{Ready: true, Access: []exerciseModel.LabAccess{{Device: "web", Port: 80, Protocol: "http", URL: "https://web-abc123w.challenges.example.com"}}}, nil
 }
 func (*clientInfra) EnsureVPNGroup(context.Context, string) error { return nil }
 func (i *clientInfra) EnsureLabClient(_ context.Context, group, client string) (string, error) {
@@ -98,7 +98,7 @@ type linkIssuer struct{ got []labaccess.Session }
 
 func (i *linkIssuer) Issue(_ context.Context, s labaccess.Session, _ time.Time) (labaccess.Link, error) {
 	i.got = append(i.got, s)
-	return labaccess.Link{URL: s.AccessURL + "/_auth?t=x", Token: "x", ExpiresAt: s.ExpiresAt}, nil
+	return labaccess.Link{URL: s.AccessURL + "/_auth", Grant: "x", ExpiresAt: s.ExpiresAt}, nil
 }
 
 // The link is built from the live web address of the requested device, for the
@@ -116,7 +116,7 @@ func TestIssueLabLinkUsesTheDeviceAddressGroupAndClient(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(issuer.got) != 1 || issuer.got[0].Group != "e-x-t-y" || issuer.got[0].Client != labBindingModel.ParticipantClientName(userID) || issuer.got[0].AccessURL != "https://web-abc123.challenges.example.com" || link.Token != "x" {
+	if len(issuer.got) != 1 || issuer.got[0].Group != "e-x-t-y" || issuer.got[0].Client != labBindingModel.ParticipantClientName(userID) || issuer.got[0].AccessURL != "https://web-abc123w.challenges.example.com" || issuer.got[0].Lab != "c-1" || issuer.got[0].Device != "web" || issuer.got[0].Kind != labaccess.KindWeb || link.Grant != "x" {
 		t.Fatalf("session = %+v", issuer.got)
 	}
 	if _, err = uc.issueLabLink(context.Background(), eventID, userID, binding, "db", 5432); !errors.Is(err, eventStandModel.ErrStandLabNoWebDevice.Err()) {

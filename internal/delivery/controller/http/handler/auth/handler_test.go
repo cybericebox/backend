@@ -13,15 +13,22 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
+	"github.com/stretchr/testify/require"
 
-	authHandler "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/auth"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	authUseCase "github.com/cybericebox/daemon/internal/useCase/auth"
+	authHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/auth"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
+	passkeyModel "github.com/cybericebox/backend/internal/model/passkey"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	tablePrefsModel "github.com/cybericebox/backend/internal/model/tablePrefs"
+	userModel "github.com/cybericebox/backend/internal/model/user"
+	authUseCase "github.com/cybericebox/backend/internal/useCase/auth"
 )
 
 type fakeUC struct {
+	completeErr       error
+	completeCalls     int
+	acceptedDocuments []string
 	cookie, redirect  string
 	sessions          []authUseCase.SessionInfo
 	revokeErr         error
@@ -44,6 +51,12 @@ type fakeUC struct {
 	capturedMeta      authModel.SessionMetadata
 	loginHint         string
 	setupStartToken   string
+	passkeyErr        error
+	exportErr         error
+	tablePrefs        *tablePrefsModel.Prefs
+	tableKey          string
+	passkeys          []passkeyModel.Passkey
+	sessionEmailErr   error
 }
 
 func (f *fakeUC) SignIn(
@@ -74,10 +87,15 @@ func (f *fakeUC) GetSetupContext(_ context.Context, _ string) (*authUseCase.Setu
 func (f *fakeUC) CompleteRegistration(
 	_ context.Context,
 	_, _, _, _ string,
-	_ int32,
+	accepted []string,
 	_ string,
 	_ authModel.SessionMetadata,
 ) (string, string, error) {
+	f.completeCalls++
+	f.acceptedDocuments = accepted
+	if f.completeErr != nil {
+		return "", "", f.completeErr
+	}
 	return "c", "l", nil
 }
 func (f *fakeUC) PasswordPolicy() authUseCase.PasswordPolicy         { return f.policy }
@@ -125,6 +143,23 @@ func (f *fakeUC) BeginGoogleRegistration(
 	}
 	return authUseCase.GoogleRegistrationResult{SetupToken: "setuptok"}, nil
 }
+func (f *fakeUC) GoogleLinkPendingOf(context.Context, string) (authUseCase.GoogleLinkPending, error) {
+	return authUseCase.GoogleLinkPending{}, nil
+}
+func (f *fakeUC) SendGoogleLinkCode(context.Context, string) (authUseCase.GoogleLinkCodeSent, error) {
+	return authUseCase.GoogleLinkCodeSent{}, nil
+}
+func (f *fakeUC) ConfirmGoogleLink(context.Context, string, string, string, authModel.SessionMetadata) (string, string, error) {
+	return "", "", nil
+}
+func (f *fakeUC) SessionEmail(context.Context, string) (string, error) {
+	if f.sessionEmailErr != nil {
+		return "", f.sessionEmailErr
+	}
+	return "me@example.org", nil
+}
+func (f *fakeUC) CancelGoogleLink(context.Context, string) error { return nil }
+
 func (f *fakeUC) LinkGoogleToSetupFromOAuth(_ context.Context, _, _, _ string) (string, error) {
 	return f.linkSetupReturnTo, f.linkSetupErr
 }
@@ -204,6 +239,66 @@ func (f *fakeUC) UploadAvatar(
 func (f *fakeUC) RemoveAvatar(_ context.Context, _ uuid.UUID) error { return nil }
 func (f *fakeUC) GetAvatar(_ context.Context, _ uuid.UUID) (io.ReadCloser, string, error) {
 	return io.NopCloser(strings.NewReader(f.avatarBody)), f.avatarType, nil
+}
+
+func (f *fakeUC) GetTablePrefs(_ context.Context, _ uuid.UUID, key string) (*tablePrefsModel.Prefs, error) {
+	f.tableKey = key
+	return f.tablePrefs, f.passkeyErr
+}
+func (f *fakeUC) SaveTablePrefs(_ context.Context, _ uuid.UUID, key string, p tablePrefsModel.Prefs) (tablePrefsModel.Prefs, error) {
+	f.tableKey = key
+	return p, f.passkeyErr
+}
+func (f *fakeUC) ResetTablePrefs(_ context.Context, _ uuid.UUID, key string) error {
+	f.tableKey = key
+	return f.passkeyErr
+}
+
+func (f *fakeUC) ExportMyData(_ context.Context, _ uuid.UUID) (*userModel.DataExport, error) {
+	if f.exportErr != nil {
+		return nil, f.exportErr
+	}
+	return &userModel.DataExport{ExportedAt: time.Date(2026, 10, 31, 12, 0, 0, 0, time.UTC)}, nil
+}
+
+func (f *fakeUC) BeginPasskeySignIn(_ context.Context) (authUseCase.PasskeyCeremony, error) {
+	options := json.RawMessage(`{"publicKey":{"challenge":"c"}}`)
+	return authUseCase.PasskeyCeremony{CeremonyID: "cer", Options: options}, nil
+}
+func (f *fakeUC) PasskeySignIn(
+	_ context.Context,
+	_, redirect string,
+	_ []byte,
+	meta authModel.SessionMetadata,
+) (string, string, error) {
+	f.capturedRedirect = redirect
+	f.capturedMeta = meta
+	return f.cookie, f.redirect, f.passkeyErr
+}
+func (f *fakeUC) BeginPasskeyRegistration(
+	_ context.Context,
+	_ uuid.UUID,
+	password string,
+) (authUseCase.PasskeyCeremony, error) {
+	f.reauthPassword = password
+	options := json.RawMessage(`{"publicKey":{}}`)
+	return authUseCase.PasskeyCeremony{CeremonyID: "cer", Options: options}, f.passkeyErr
+}
+func (f *fakeUC) FinishPasskeyRegistration(
+	_ context.Context,
+	userID uuid.UUID,
+	_, name string,
+	_ []byte,
+) (passkeyModel.Passkey, error) {
+	created := passkeyModel.Passkey{ID: uuid.Must(uuid.NewV7()), UserID: userID, Name: name}
+	return created, f.passkeyErr
+}
+func (f *fakeUC) ListPasskeys(_ context.Context, _ uuid.UUID) ([]passkeyModel.Passkey, error) {
+	return f.passkeys, nil
+}
+func (f *fakeUC) RemovePasskey(_ context.Context, _, _ uuid.UUID, password string) error {
+	f.reauthPassword = password
+	return f.passkeyErr
 }
 
 type fakeProt struct {
@@ -357,7 +452,7 @@ func TestCompleteSetup_Returns200WithRedirectURL(t *testing.T) {
 	h := authHandler.NewAuthAPIHandler(&fakeUC{}, &fakeProt{}, testAuthConfig)
 	h.Init(r.Group("api"), r.Group("api"))
 
-	body := `{"Token":"t","FirstName":"Jane","LastName":"Doe","Password":"Secret!1","TosVersion":1,"Redirect":"https://id.example.test/dashboard"}`
+	body := `{"Token":"t","FirstName":"Jane","LastName":"Doe","Password":"Secret!1","AcceptedDocuments":["terms","privacy"],"Redirect":"https://id.example.test/dashboard"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/auth/setup", strings.NewReader(body))
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -864,4 +959,80 @@ func TestGoogleCallback_Setup_Success(t *testing.T) {
 	if loc != "https://id.example.test/setup/?token=existing-setup-tok" {
 		t.Fatalf("setup success: want absolute id Location, got %q", loc)
 	}
+}
+
+func postSetup(t *testing.T, uc *fakeUC, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(response.WithErrorHandler)
+	authHandler.NewAuthAPIHandler(uc, &fakeProt{}, testAuthConfig).Init(r.Group("api"), r.Group("api"))
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/setup", strings.NewReader(body))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	return w
+}
+
+// The list of documents the page showed reaches the use case as sent; a missing list is an empty one.
+func TestCompleteSetup_PassesTheAcceptedDocuments(t *testing.T) {
+	for body, want := range map[string][]string{
+		`{"Token":"t","AcceptedDocuments":["terms","privacy"]}`: {"terms", "privacy"},
+		`{"Token":"t","AcceptedDocuments":["privacy"]}`:         {"privacy"},
+		`{"Token":"t","AcceptedDocuments":[]}`:                  {},
+		`{"Token":"t"}`:                                         nil,
+	} {
+		uc := &fakeUC{}
+		if w := postSetup(t, uc, body); w.Code != http.StatusOK {
+			t.Fatalf("%s: want 200, got %d", body, w.Code)
+		}
+		if uc.completeCalls != 1 || len(uc.acceptedDocuments) != len(want) {
+			t.Fatalf("%s: use case got %v, want %v", body, uc.acceptedDocuments, want)
+		}
+		for i := range want {
+			if uc.acceptedDocuments[i] != want[i] {
+				t.Fatalf("%s: use case got %v, want %v", body, uc.acceptedDocuments, want)
+			}
+		}
+	}
+}
+
+// An unknown name is a bad request and never reaches the use case; the old version field is not an input any more.
+func TestCompleteSetup_RejectsAnUnknownDocument(t *testing.T) {
+	for _, body := range []string{
+		`{"Token":"t","AcceptedDocuments":["terms","cookies"]}`,
+		`{"Token":"t","AcceptedDocuments":["TERMS"]}`,
+		`{"Token":"t","AcceptedDocuments":[""]}`,
+	} {
+		uc := &fakeUC{}
+		if w := postSetup(t, uc, body); w.Code != http.StatusBadRequest || uc.completeCalls != 0 {
+			t.Fatalf("%s: want 400 and no call, got %d, %d calls", body, w.Code, uc.completeCalls)
+		}
+	}
+	uc := &fakeUC{}
+	postSetup(t, uc, `{"Token":"t","TosVersion":1}`)
+	if len(uc.acceptedDocuments) != 0 {
+		t.Fatalf("the version number must not count as an acceptance: %v", uc.acceptedDocuments)
+	}
+}
+
+// A list that does not cover the required documents answers 400 with code 20407 and tells the page which documents
+// the installation requires; the message names no document of anyone.
+func TestCompleteSetup_DocumentsNotAcceptedSaysWhichAreRequired(t *testing.T) {
+	failure := userModel.NewIncompleteUser(uuid.Must(uuid.NewV7()), "a@b.test", time.Now())
+	completeErr := failure.CompleteSetup("a", "b", "pwd", nil, []string{"terms", "privacy"}, func() (bool, error) { return false, nil }, time.Now())
+	require.Error(t, completeErr)
+
+	w := postSetup(t, &fakeUC{completeErr: completeErr}, `{"Token":"t","AcceptedDocuments":[]}`)
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	var env struct {
+		Status struct {
+			Code    int
+			Message string
+			Context map[string]any
+		}
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &env))
+	require.Equal(t, 20407, env.Status.Code)
+	require.Equal(t, "The required documents must be accepted", env.Status.Message)
+	require.Equal(t, []any{"terms", "privacy"}, env.Status.Context["required_documents"])
 }

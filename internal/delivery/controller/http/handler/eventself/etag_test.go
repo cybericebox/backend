@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 func TestResultsSnapshot_ETagAnswersUnchangedPollsWith304(t *testing.T) {

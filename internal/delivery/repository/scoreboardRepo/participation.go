@@ -6,7 +6,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/model/usertext"
 )
 
 // ParticipationSolve is one solved task of a team. SolvedBy is uuid.Nil when
@@ -36,7 +37,7 @@ type ParticipationTotals struct {
 }
 
 func (r *Repository) ParticipationSolves(ctx context.Context, eventID, teamID uuid.UUID) ([]ParticipationSolve, error) {
-	rows, err := r.q.ListParticipationSolves(ctx, postgres.ListParticipationSolvesParams{EventID: eventID, EventTeamID: teamID})
+	rows, err := r.q.ListParticipationSolves(ctx, postgres.ListParticipationSolvesParams{EventID: eventID, EventTeamID: teamID, OtherCategory: usertext.UngroupedChallenges})
 	if err != nil {
 		return nil, err
 	}

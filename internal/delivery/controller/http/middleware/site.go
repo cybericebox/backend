@@ -13,10 +13,10 @@ import (
 	"github.com/gofrs/uuid"
 	"golang.org/x/sync/singleflight"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	siteModel "github.com/cybericebox/daemon/internal/model/site"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	siteModel "github.com/cybericebox/backend/internal/model/site"
 )
 
 // Tags of an event site are resolved to the event id through a lookup that is cached for a short while,
@@ -118,7 +118,7 @@ func (r *SiteResolver) fromOrigin(ctx context.Context, origin string) (siteModel
 	}
 	host := strings.ToLower(strings.TrimSuffix(parsed.Hostname(), "."))
 	switch host {
-	case r.hosts.Main:
+	case r.hosts.Root:
 		return siteModel.Site{Kind: siteModel.Main}, nil
 	case r.hosts.ID:
 		return siteModel.Site{Kind: siteModel.ID}, nil

@@ -5,10 +5,10 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
 )
 
-// Read models of «Учасники» (§6.2) and «Комунікації» (§6.7).
+// Read models of "Participants" (§6.2) and "Communications" (§6.7).
 
 // Funnel stage keys, in order.
 const (
@@ -28,7 +28,7 @@ const (
 )
 
 type (
-	// ParticipantsView is the «Учасники» report.
+	// ParticipantsView is the "Participants" report.
 	ParticipantsView struct {
 		// TeamMode is false for an individual event: no team stage, no fill.
 		TeamMode      bool
@@ -133,7 +133,7 @@ type (
 		OpenedTasks  int64
 	}
 
-	// CommunicationsView is the «Комунікації» report.
+	// CommunicationsView is the "Communications" report.
 	CommunicationsView struct {
 		Totals CommsTypeView
 		Types  []CommsTypeView

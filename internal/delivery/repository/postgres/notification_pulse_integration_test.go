@@ -7,8 +7,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 // The pulse reads the newest inbox item, the unread count and the stamp of the open personal banners of one scope.

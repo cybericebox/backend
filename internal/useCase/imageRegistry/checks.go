@@ -8,11 +8,11 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	imageRegistryModel "github.com/cybericebox/daemon/internal/model/imageRegistry"
-	inboxUseCase "github.com/cybericebox/daemon/internal/useCase/notification/inbox"
-	"github.com/cybericebox/daemon/pkg/ociregistry"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	imageRegistryModel "github.com/cybericebox/backend/internal/model/imageRegistry"
+	inboxUseCase "github.com/cybericebox/backend/internal/useCase/notification/inbox"
+	"github.com/cybericebox/backend/pkg/ociregistry"
 )
 
 // Alert keys of the platform tokens (an organizer secret's is "event_secret:<id>").
@@ -135,7 +135,7 @@ func (u *ImageRegistryUseCase) checkPlatform(ctx context.Context, s imageRegistr
 	next := s
 	var pushT, pullT imageRegistryModel.Transition
 
-	if token := u.open(s.PushTokenCiphertext, pushContext); token == "" {
+	if token := u.open(s.PushTokenCiphertext, PushContext); token == "" {
 		pushT = next.PushCheck.Apply(imageRegistryModel.Inconclusive(imageRegistryModel.ReasonNotConfigured), now)
 	} else {
 		client := u.newClient(s.Provider, s.Repository, s.Account, token)
@@ -145,7 +145,7 @@ func (u *ImageRegistryUseCase) checkPlatform(ctx context.Context, s imageRegistr
 	next.PullCheck = imageRegistryModel.Check{}
 	if s.PullTokenCiphertext != "" {
 		next.PullCheck = s.PullCheck
-		if token := u.open(s.PullTokenCiphertext, pullContext); token == "" {
+		if token := u.open(s.PullTokenCiphertext, PullContext); token == "" {
 			pullT = next.PullCheck.Apply(imageRegistryModel.Inconclusive(imageRegistryModel.ReasonNotConfigured), now)
 		} else {
 			client := u.newClient(s.Provider, s.Repository, s.Account, token)
@@ -192,7 +192,7 @@ func (u *ImageRegistryUseCase) checkSecret(ctx context.Context, s imageRegistryM
 	now := u.now()
 	next := s
 	var t imageRegistryModel.Transition
-	if token := u.open(s.TokenCiphertext, eventSecretContext(s.ID)); token == "" {
+	if token := u.open(s.TokenCiphertext, EventSecretContext(s.ID)); token == "" {
 		t = next.Check.Apply(imageRegistryModel.Inconclusive(imageRegistryModel.ReasonNotConfigured), now)
 	} else {
 		client := u.external(s.Host, s.RepositoryPrefix, s.Username, token)

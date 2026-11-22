@@ -6,14 +6,14 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/handler/labview"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	eventStandModel "github.com/cybericebox/daemon/internal/model/eventStand"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	labBindingModel "github.com/cybericebox/daemon/internal/model/labBinding"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	teamChallengeModel "github.com/cybericebox/daemon/internal/model/teamChallenge"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/handler/labview"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	eventStandModel "github.com/cybericebox/backend/internal/model/eventStand"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	labBindingModel "github.com/cybericebox/backend/internal/model/labBinding"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	teamChallengeModel "github.com/cybericebox/backend/internal/model/teamChallenge"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 type standsResponse struct {
@@ -78,6 +78,33 @@ type standLabResponse struct {
 	ChallengeName string    `json:"ChallengeName"`
 	Status        string    `json:"Status"`
 	Reason        string    `json:"Reason"`
+	// WaitReason is the code of what a pending lab waits for (cluster_reservation, snapshot_quota,
+	// persistence_unavailable, ...), "" when nothing; WaitSince since when.
+	WaitReason string     `json:"WaitReason"`
+	WaitSince  *time.Time `json:"WaitSince"`
+	// RetryAttempts counts the automatic retries after failures.
+	RetryAttempts int32 `json:"RetryAttempts"`
+	// Wait is what the lab needs and what the event's reservation has left; null when none was recorded.
+	Wait *standWaitResponse `json:"Wait"`
+}
+
+// standWaitResponse: the need and the room of a lab waiting for room (CPU in millicores, memory and storage in bytes;
+// the storage fields are set when the snapshot quota is the short room).
+type standWaitResponse struct {
+	NeedCPUMillicores int64 `json:"NeedCPUMillicores"`
+	NeedMemoryBytes   int64 `json:"NeedMemoryBytes"`
+	HaveCPUMillicores int64 `json:"HaveCPUMillicores"`
+	HaveMemoryBytes   int64 `json:"HaveMemoryBytes"`
+	NeedStorageBytes  int64 `json:"NeedStorageBytes"`
+	HaveStorageBytes  int64 `json:"HaveStorageBytes"`
+}
+
+func toStandWaitResponse(d *eventStandModel.WaitDetail) *standWaitResponse {
+	if d == nil {
+		return nil
+	}
+	return &standWaitResponse{NeedCPUMillicores: d.NeedCPUMillicores, NeedMemoryBytes: d.NeedMemoryBytes, HaveCPUMillicores: d.HaveCPUMillicores,
+		HaveMemoryBytes: d.HaveMemoryBytes, NeedStorageBytes: d.NeedStorageBytes, HaveStorageBytes: d.HaveStorageBytes}
 }
 
 type standSettingsRequest struct {
@@ -96,11 +123,12 @@ type moderatorsLabRefResponse struct {
 }
 
 type standLabStatusResponse struct {
-	Phase        string                   `json:"Phase"`
-	Ready        bool                     `json:"Ready"`
-	VPNCIDR      string                   `json:"VPNCIDR"`
-	InternetCIDR string                   `json:"InternetCIDR"`
-	Access       []standLabAccessResponse `json:"Access"`
+	Phase string `json:"Phase"`
+	Ready bool   `json:"Ready"`
+	// Gateways are the VPN entries and Internet exits of the lab with their /24 and state (each VPN gateway has its own
+	// reverse-connection state); empty for a lab without any.
+	Gateways []labview.GatewayResponse `json:"Gateways"`
+	Access   []standLabAccessResponse  `json:"Access"`
 	// Queue is set while the Lab waits in the launch queue (phase Queued).
 	Queue             *labview.QueueResponse   `json:"Queue"`
 	ImageWarning      string                   `json:"ImageWarning"`
@@ -143,7 +171,19 @@ func toStandTeamResponse(v eventUseCase.StandTeamView) standTeamResponse {
 		Queue: labview.StandQueue(v.Launch), ImageWarning: v.Launch.ImageWarning,
 		ReservationEndsAt: v.ReservationEndsAt, ReservationEnded: v.ReservationEnded}
 	for _, lab := range v.Labs {
-		out.Labs = append(out.Labs, standLabResponse{ChallengeID: lab.ChallengeID, ChallengeName: lab.ChallengeName, Status: labReadinessString(lab.Readiness), Reason: lab.Reason})
+		out.Labs = append(
+			out.Labs,
+			standLabResponse{
+				ChallengeID:   lab.ChallengeID,
+				ChallengeName: lab.ChallengeName,
+				Status:        labReadinessString(lab.Readiness),
+				Reason:        lab.Reason,
+				WaitReason:    lab.WaitReason,
+				WaitSince:     lab.WaitSince,
+				Wait:          toStandWaitResponse(lab.Wait),
+				RetryAttempts: lab.RetryAttempts,
+			},
+		)
 	}
 	return out
 }
@@ -176,7 +216,7 @@ func teamChallengeReadinessString(r teamChallengeModel.Readiness) string {
 
 func toStandLabStatusResponse(v exerciseModel.LabDeployStatus) standLabStatusResponse {
 	live := labview.Status(v)
-	out := standLabStatusResponse{Phase: v.Phase, Ready: v.Ready, VPNCIDR: v.VPNCIDR, InternetCIDR: v.InternetCIDR, Access: make([]standLabAccessResponse, 0, len(v.Access)),
+	out := standLabStatusResponse{Phase: v.Phase, Ready: v.Ready, Gateways: live.Gateways, Access: make([]standLabAccessResponse, 0, len(v.Access)),
 		Queue: live.Queue, ImageWarning: live.ImageWarning, GroupImageWarning: live.GroupImageWarning, Devices: live.Devices}
 	for _, a := range v.Access {
 		out.Access = append(out.Access, standLabAccessResponse{Device: a.Device, Port: a.Port, Protocol: a.Protocol, URL: a.URL})
@@ -185,7 +225,7 @@ func toStandLabStatusResponse(v exerciseModel.LabDeployStatus) standLabStatusRes
 }
 
 // getStands godoc
-// @Summary List team stands (moderator «Стенди»)
+// @Summary List team stands (moderator Stands)
 // @Tags events
 // @Produce json
 // @Param id path string true "event ID"
@@ -348,13 +388,15 @@ type moderatorsLabLinkRequest struct {
 }
 
 type moderatorsLabLinkResponse struct {
+	// URL is https://<host>/_auth, without a query or a fragment; Grant is posted to it in the form field `grant`.
 	URL       string
+	Grant     string
 	ExpiresAt time.Time
 }
 
 // moderatorsLabLink godoc
-// @Summary Get the link that opens one web device of a moderators team task's lab
-// @Description Returns https://<device>-<code>.<base>/_auth?t=... for the event owner and write moderators testing tasks as the hidden moderators team. The link lives about two minutes and is single use; the page fetches it on every click. The laboratory proxy sets its own session cookie; the platform sets none.
+// @Summary Get the access grant that opens one web device of a moderators team task's lab
+// @Description Returns URL (https://<device>-<code><letter>.<base>/_auth, no query) and Grant (a signed JWS) for the event owner and write moderators testing tasks as the hidden moderators team; the page posts Grant to URL in a form. The page fetches a new grant on every click. The laboratory proxy sets its own session cookie; the platform sets none.
 // @Tags events
 // @Accept json
 // @Produce json
@@ -389,7 +431,7 @@ func (h *Handler) moderatorsLabLink(ctx *gin.Context) {
 		return
 	}
 	ctx.Header("Cache-Control", "private, no-store")
-	response.AbortWithData(ctx, moderatorsLabLinkResponse{URL: link.URL, ExpiresAt: link.ExpiresAt})
+	response.AbortWithData(ctx, moderatorsLabLinkResponse{URL: link.URL, Grant: link.Grant, ExpiresAt: link.ExpiresAt})
 }
 
 type standVPNProbeResponse struct {

@@ -15,9 +15,9 @@ import (
 	"github.com/gofrs/uuid"
 	"golang.org/x/image/draw"
 
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	"github.com/cybericebox/daemon/internal/model/notification/branding"
-	emailUseCase "github.com/cybericebox/daemon/internal/useCase/notification/channels/email"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	"github.com/cybericebox/backend/internal/model/notification/branding"
+	emailUseCase "github.com/cybericebox/backend/internal/useCase/notification/channels/email"
 )
 
 // ResolveEventEmailBrand is shared by template preview, logo endpoint and

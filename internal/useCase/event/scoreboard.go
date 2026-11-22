@@ -8,13 +8,13 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/scoreboardRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	eventTeamModel "github.com/cybericebox/daemon/internal/model/eventTeam"
-	participantModel "github.com/cybericebox/daemon/internal/model/participant"
-	"github.com/cybericebox/daemon/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/delivery/repository/scoreboardRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	eventTeamModel "github.com/cybericebox/backend/internal/model/eventTeam"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
+	"github.com/cybericebox/backend/internal/model/rbac"
 )
 
 // ResultsAccess carries optional request identity for an event-wide result

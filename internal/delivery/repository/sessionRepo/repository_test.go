@@ -10,10 +10,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	"github.com/cybericebox/daemon/internal/delivery/repository/sessionRepo"
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	"github.com/cybericebox/backend/internal/delivery/repository/sessionRepo"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
 )
 
 var now = time.Date(2026, 7, 12, 10, 0, 0, 0, time.UTC)

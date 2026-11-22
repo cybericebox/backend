@@ -13,11 +13,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	participantModel "github.com/cybericebox/daemon/internal/model/participant"
-	event "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
+	event "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 // city is required and editable, school is required and locked, size is a number.
@@ -214,7 +214,7 @@ func TestInviteParticipantsPrefillCountsMissingRequiredFields(t *testing.T) {
 	uc.SetInvitationNotifier(&invitationNotifier{})
 	eventID, managerID, versionID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 	version := prefillFormVersion(eventID, versionID)
-	version.RequireExisting = true // «Вимагати від усіх»: the gaps are counted
+	version.RequireExisting = true // "Require from everyone": the gaps are counted
 	q.EXPECT().GetLatestEventFormVersion(gomock.Any(), eventID).Return(version, nil)
 	expectNoStoredAnswers(q)
 	q.EXPECT().GetEventByID(gomock.Any(), eventID).Return(postgres.Event{ID: eventID, Tag: "ctf", Name: "CTF", LifecycleConfigured: true}, nil).Times(2)

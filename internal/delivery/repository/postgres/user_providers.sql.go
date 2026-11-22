@@ -76,7 +76,7 @@ func (q *Queries) DeleteUserProviders(ctx context.Context, userID uuid.UUID) (in
 }
 
 const getUserByProvider = `-- name: GetUserByProvider :one
-SELECT u.id, u.email, u.first_name, u.last_name, u.hashed_password, u.picture, u.role, u.status, u.email_confirmed, u.last_seen, u.updated_at, u.updated_by, u.created_at, u.tos_accepted_at, u.tos_version, u.deleted_at, u.inactivity_warned_at, u.personal_data_purged_at, u.invitation_sent_at
+SELECT u.id, u.email, u.first_name, u.last_name, u.hashed_password, u.picture, u.role, u.status, u.email_confirmed, u.last_seen, u.updated_at, u.updated_by, u.created_at, u.tos_accepted_at, u.deleted_at, u.inactivity_warned_at, u.personal_data_purged_at, u.invitation_sent_at, u.legal_documents
 FROM users u
          JOIN user_providers p ON p.user_id = u.id
 WHERE p.provider = $1
@@ -107,11 +107,11 @@ func (q *Queries) GetUserByProvider(ctx context.Context, arg GetUserByProviderPa
 		&i.UpdatedBy,
 		&i.CreatedAt,
 		&i.TosAcceptedAt,
-		&i.TosVersion,
 		&i.DeletedAt,
 		&i.InactivityWarnedAt,
 		&i.PersonalDataPurgedAt,
 		&i.InvitationSentAt,
+		&i.LegalDocuments,
 	)
 	return i, err
 }
@@ -138,6 +138,38 @@ func (q *Queries) GetUserProviders(ctx context.Context, userID uuid.UUID) ([]Use
 			&i.ProviderUserID,
 			&i.CreatedAt,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUserProvidersForUsers = `-- name: ListUserProvidersForUsers :many
+SELECT user_id, provider
+FROM user_providers
+WHERE user_id = ANY ($1::uuid[])
+ORDER BY user_id, provider
+`
+
+type ListUserProvidersForUsersRow struct {
+	UserID   uuid.UUID `json:"user_id"`
+	Provider string    `json:"provider"`
+}
+
+func (q *Queries) ListUserProvidersForUsers(ctx context.Context, userIds []uuid.UUID) ([]ListUserProvidersForUsersRow, error) {
+	rows, err := q.db.Query(ctx, listUserProvidersForUsers, userIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListUserProvidersForUsersRow{}
+	for rows.Next() {
+		var i ListUserProvidersForUsersRow
+		if err := rows.Scan(&i.UserID, &i.Provider); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

@@ -5,6 +5,7 @@ package errorJournalUseCase
 
 import (
 	"context"
+	"math"
 	"regexp"
 	"strings"
 	"sync"
@@ -14,8 +15,8 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	errorJournal "github.com/cybericebox/daemon/internal/model/errorJournal"
-	"github.com/cybericebox/daemon/pkg/email"
+	errorJournal "github.com/cybericebox/backend/internal/model/errorJournal"
+	"github.com/cybericebox/backend/pkg/email"
 )
 
 // Config holds the tunables of the journal (ERROR_JOURNAL_* env keys).
@@ -144,7 +145,9 @@ type (
 		Status errorJournal.Status
 		From   *time.Time
 		To     *time.Time
-		Query  string
+		// NewSince keeps the groups first seen at or after it (the "new items" counter of the page).
+		NewSince *time.Time
+		Query    string
 		// Request is a request id or its first characters (at least 8 hex): only the groups that have a sample
 		// of that request.
 		Request string
@@ -448,7 +451,7 @@ func (j *Journal) ListErrorGroups(ctx context.Context, f GroupFilter) ([]errorJo
 	if f.Limit < 1 || f.Limit > 200 {
 		f.Limit = 50
 	}
-	if f.Offset < 0 || (f.Status != "" && !f.Status.Valid()) {
+	if f.Offset < 0 || f.Offset > math.MaxInt32 || (f.Status != "" && !f.Status.Valid()) {
 		return nil, 0, errorJournal.ErrFilterInvalid.Err()
 	}
 	for _, k := range f.Kinds {

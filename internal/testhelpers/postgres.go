@@ -22,7 +22,7 @@ import (
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
 )
 
 // TestDB is a disposable PostgreSQL instance with the real schema applied —
@@ -47,10 +47,17 @@ var sharedServer struct {
 
 const templateDB = "cib_template"
 
-func startSharedServer() {
+// startedServer is what starting the shared server produced.
+type startedServer struct {
+	container *tcpostgres.PostgresContainer
+	baseDSN   string
+	err       error
+}
+
+func startSharedServer() (out startedServer) {
 	ctx := context.Background()
 	container, err := tcpostgres.Run(ctx,
-		"postgres:17-alpine",
+		"mirror.gcr.io/library/postgres:17-alpine",
 		tcpostgres.WithDatabase("testdb"),
 		tcpostgres.WithUsername("testuser"),
 		tcpostgres.WithPassword("testpass"),
@@ -64,33 +71,54 @@ func startSharedServer() {
 		),
 	)
 	if err != nil {
-		sharedServer.err = err
+		out.err = err
 		return
 	}
-	sharedServer.container = container
+	out.container = container
 	dsn, err := container.ConnectionString(ctx, "sslmode=disable")
 	if err != nil {
-		sharedServer.err = err
+		out.err = err
 		return
 	}
-	sharedServer.baseDSN = dsn
+	out.baseDSN = dsn
 	admin, err := pgxpool.New(ctx, dsn)
 	if err != nil {
-		sharedServer.err = err
+		out.err = err
 		return
 	}
 	defer admin.Close()
 	if _, err = admin.Exec(ctx, "CREATE DATABASE "+templateDB); err != nil {
-		sharedServer.err = err
+		out.err = err
 		return
 	}
 	pool, err := versionedTestPool(ctx, dsnForDatabase(dsn, templateDB))
 	if err != nil {
-		sharedServer.err = err
+		out.err = err
 		return
 	}
 	defer pool.Close()
-	sharedServer.err = migrateUp(pool)
+	out.err = migrateUp(pool)
+	return out
+}
+
+// dockerProbeTimeout bounds how long the first test waits for the container runtime. testcontainers reads the Docker
+// host through an HTTP call to the runtime's socket that has no deadline of its own: a socket that accepts and never
+// answers (Docker Desktop with its engine stopped) would hold the first test until the package timeout instead of
+// skipping it, as SetupTestDB promises.
+const dockerProbeTimeout = 90 * time.Second
+
+// startSharedServerOrGiveUp is startSharedServer with a deadline on the whole start. A start that does not finish in time
+// leaves no container to use: the tests skip. The slow start is not touched afterwards (its result is dropped), so no
+// state is written once the deadline has passed.
+func startSharedServerOrGiveUp() {
+	result := make(chan startedServer, 1)
+	go func() { result <- startSharedServer() }()
+	select {
+	case r := <-result:
+		sharedServer.container, sharedServer.baseDSN, sharedServer.err = r.container, r.baseDSN, r.err
+	case <-time.After(dockerProbeTimeout):
+		sharedServer.err = errors.New("the container runtime did not answer in time")
+	}
 }
 
 // dsnForDatabase is dsn with another database name.
@@ -109,9 +137,14 @@ func dsnForDatabase(dsn, name string) string {
 // without it.
 func SetupTestDB(t *testing.T) *TestDB {
 	t.Helper()
+	// CIB_TEST_NO_DB skips every database test at once, without a look at the container runtime: for a run on a machine
+	// where Docker is known to be down or must not be used. The skip is explicit, so a count of skips shows what did not run.
+	if os.Getenv("CIB_TEST_NO_DB") != "" {
+		t.Skip("database tests are switched off by CIB_TEST_NO_DB")
+	}
 	ctx := context.Background()
 
-	sharedServer.once.Do(startSharedServer)
+	sharedServer.once.Do(startSharedServerOrGiveUp)
 	if sharedServer.err != nil {
 		if sharedServer.container == nil {
 			t.Skipf("skipping integration test: cannot start postgres container (docker running?): %v", sharedServer.err)

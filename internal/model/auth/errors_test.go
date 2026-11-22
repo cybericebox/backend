@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
 )
 
 // The lib's err.As compares only DetailCode when the target has one, so two

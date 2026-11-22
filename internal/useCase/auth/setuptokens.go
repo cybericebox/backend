@@ -9,12 +9,12 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/temporalCodeRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
-	temporalCodeModel "github.com/cybericebox/daemon/internal/model/temporalCode"
-	"github.com/cybericebox/daemon/pkg/tools"
+	"github.com/cybericebox/backend/internal/delivery/repository/temporalCodeRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
+	temporalCodeModel "github.com/cybericebox/backend/internal/model/temporalCode"
+	"github.com/cybericebox/backend/pkg/tools"
 )
 
 // ISetupTokenSigner is the part of the token client the setup-link store needs.

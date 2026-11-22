@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/cybericebox/daemon/pkg/overload"
+	"github.com/cybericebox/backend/pkg/overload"
 )
 
 // AcquireLimited runs statements on a pool but waits for a free connection at most timeout: past it the call

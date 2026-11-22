@@ -5,7 +5,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	siteBannerModel "github.com/cybericebox/daemon/internal/model/siteBanner"
+	siteBannerModel "github.com/cybericebox/backend/internal/model/siteBanner"
 )
 
 const (
@@ -50,7 +50,7 @@ type ResultsSettings struct {
 	// Empty authored text uses the client's localized default message.
 	FreezeBannerText  string
 	FreezeBannerLevel siteBannerModel.Level
-	// OpenedAt: a moderator ended the freeze («Відкрити підсумки»).
+	// OpenedAt: a moderator ended the freeze ("Open results").
 	OpenedAt *time.Time
 	// LiveFreeze: the live screen honours the freeze too.
 	LiveFreeze   bool

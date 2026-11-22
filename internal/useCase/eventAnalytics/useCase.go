@@ -10,11 +10,11 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventAnalyticsRepo"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventAnalyticsModel "github.com/cybericebox/daemon/internal/model/eventAnalytics"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	eventManagerModel "github.com/cybericebox/daemon/internal/model/eventManager"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventAnalyticsRepo"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventAnalyticsModel "github.com/cybericebox/backend/internal/model/eventAnalytics"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	eventManagerModel "github.com/cybericebox/backend/internal/model/eventManager"
 )
 
 type (
@@ -76,6 +76,9 @@ type (
 		// LabTraffic answers whether a team touched a task's lab (satisfied by
 		// *labTrafficRepo.Repository); nil means the VPN sessions decide.
 		LabTraffic LabTraffic
+		// Reservations tells when the event's resource reservation starts (satisfied by the resource calendar
+		// use case); nil means the stands period starts with the event.
+		Reservations Reservations
 		// Now is the clock; nil means time.Now.
 		Now func() time.Time
 		// NewID makes VPN session IDs; nil means UUIDv7.
@@ -85,16 +88,25 @@ type (
 		RecomputeSettle time.Duration
 	}
 
+	// Reservations reads the start of an event's resource reservation; ok is false without a reservation.
+	Reservations interface {
+		EventReservationStart(
+			ctx context.Context,
+			eventID uuid.UUID,
+		) (start time.Time, ok bool, err error)
+	}
+
 	EventAnalyticsUseCase struct {
-		store       Store
-		events      Events
-		configs     Configs
-		memberships Memberships
-		labTraffic  LabTraffic
-		cache       *reportCache
-		now         func() time.Time
-		newID       func() uuid.UUID
-		settle      time.Duration
+		reservations Reservations
+		store        Store
+		events       Events
+		configs      Configs
+		memberships  Memberships
+		labTraffic   LabTraffic
+		cache        *reportCache
+		now          func() time.Time
+		newID        func() uuid.UUID
+		settle       time.Duration
 	}
 )
 
@@ -112,7 +124,15 @@ func New(deps Dependencies) *EventAnalyticsUseCase {
 		settle = 15 * time.Second
 	}
 	return &EventAnalyticsUseCase{
-		store: deps.Store, events: deps.Events, configs: deps.Configs, memberships: deps.Memberships, labTraffic: deps.LabTraffic,
-		cache: newReportCache(now), now: now, newID: newID, settle: settle,
+		store:        deps.Store,
+		events:       deps.Events,
+		configs:      deps.Configs,
+		memberships:  deps.Memberships,
+		labTraffic:   deps.LabTraffic,
+		reservations: deps.Reservations,
+		cache:        newReportCache(now),
+		now:          now,
+		newID:        newID,
+		settle:       settle,
 	}
 }

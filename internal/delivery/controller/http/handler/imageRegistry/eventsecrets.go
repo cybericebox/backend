@@ -7,10 +7,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/middleware"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	imageRegistryUseCase "github.com/cybericebox/daemon/internal/useCase/imageRegistry"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	imageRegistryUseCase "github.com/cybericebox/backend/internal/useCase/imageRegistry"
 )
 
 // eventSecretRequest is the organizer registry secret form. Token is
@@ -22,7 +22,7 @@ type eventSecretRequest struct {
 	Token            string `json:"Token"`
 }
 
-// eventSecretResponse is a secret as «Панель заходу» sees it: never the token.
+// eventSecretResponse is a secret as Event panel sees it: never the token.
 type eventSecretResponse struct {
 	ID               string    `json:"ID"`
 	Host             string    `json:"Host"`

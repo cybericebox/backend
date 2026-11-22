@@ -3,9 +3,9 @@ package exercise
 import (
 	"context"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/exerciseRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	"github.com/cybericebox/daemon/internal/model"
+	"github.com/cybericebox/backend/internal/delivery/repository/exerciseRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/model"
 	"github.com/gofrs/uuid"
 )
 

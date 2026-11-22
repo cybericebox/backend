@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"io"
 	"slices"
 	"strings"
 	"time"
@@ -13,21 +14,21 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	eventActivityModel "github.com/cybericebox/daemon/internal/model/eventActivity"
+	eventActivityModel "github.com/cybericebox/backend/internal/model/eventActivity"
 
-	testDeployRepo "github.com/cybericebox/daemon/internal/delivery/repository/testDeployRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	"github.com/cybericebox/daemon/internal/model/challengeAttempt"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	"github.com/cybericebox/daemon/internal/model/flagpattern"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	labAccessModel "github.com/cybericebox/daemon/internal/model/labAccess"
-	labBindingModel "github.com/cybericebox/daemon/internal/model/labBinding"
-	calModel "github.com/cybericebox/daemon/internal/model/resourceCalendar"
-	vpnModel "github.com/cybericebox/daemon/internal/model/vpn"
-	calendarUseCase "github.com/cybericebox/daemon/internal/useCase/resourceCalendar"
-	"github.com/cybericebox/daemon/pkg/labaccess"
+	testDeployRepo "github.com/cybericebox/backend/internal/delivery/repository/testDeployRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	"github.com/cybericebox/backend/internal/model/challengeAttempt"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	labAccessModel "github.com/cybericebox/backend/internal/model/labAccess"
+	labBindingModel "github.com/cybericebox/backend/internal/model/labBinding"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	calModel "github.com/cybericebox/backend/internal/model/resourceCalendar"
+	vpnModel "github.com/cybericebox/backend/internal/model/vpn"
+	calendarUseCase "github.com/cybericebox/backend/internal/useCase/resourceCalendar"
+	"github.com/cybericebox/backend/pkg/labaccess"
 )
 
 // IInfrastructure is the optional deploy port. It is nil when no infrastructure
@@ -47,7 +48,7 @@ type IInfrastructure interface {
 	LabClientHandshake(ctx context.Context, group, client string) (time.Time, error)
 }
 
-// ITestSessions signs the author's handoff link of the laboratory L7 proxy for a test
+// ITestSessions signs the author's access grant of the laboratory L7 proxy and device-access for a test
 // deploy: the deploy's group and the author's client. It is nil when no proxy key
 // is configured.
 type ITestSessions interface {
@@ -153,6 +154,39 @@ func (u *ExerciseUseCase) deployLab(ctx context.Context, group, lab string, meta
 	return err
 }
 
+// IFileReader reads the bytes of a stored file (satisfied by *media.MediaUseCase): the files of a bootstrap that name a file of
+// the archive are read in when a lab is built. Nil (narrow constructions): such a file cannot be read and the deploy is refused.
+type IFileReader interface {
+	StreamFile(ctx context.Context, id uuid.UUID) (io.ReadCloser, mediaModel.File, error)
+	// GetFile is the metadata (the size) of a file, without its bytes.
+	GetFile(ctx context.Context, id uuid.UUID) (mediaModel.File, error)
+}
+
+// SetFileReader wires the file store a bootstrap reads its archive files from.
+func (u *ExerciseUseCase) SetFileReader(r IFileReader) { u.files = r }
+
+// readBootstrapFile reads the bytes of a bootstrap file that names a file of the archive.
+func (u *ExerciseUseCase) readBootstrapFile(ctx context.Context) func(exerciseModel.AttachmentRef) ([]byte, error) {
+	return func(ref exerciseModel.AttachmentRef) ([]byte, error) {
+		if u.files == nil {
+			return nil, errors.New("file storage is not configured")
+		}
+		rc, _, err := u.files.StreamFile(ctx, ref.FileID)
+		if err != nil {
+			return nil, err
+		}
+		defer func() { _ = rc.Close() }()
+		body, err := io.ReadAll(io.LimitReader(rc, exerciseModel.MaxBootstrapFileBytes+1))
+		if err != nil {
+			return nil, err
+		}
+		if len(body) > exerciseModel.MaxBootstrapFileBytes {
+			return nil, errors.New("the file is over 256 KiB")
+		}
+		return body, nil
+	}
+}
+
 // labPresence is the optional port that tells whether a group or a Lab still exists on its agent. The agent
 // deletes asynchronously (finalizers), so an accepted deletion is not a gone Lab. Without it the deletion
 // is taken as done at once.
@@ -220,10 +254,20 @@ func (u *ExerciseUseCase) InfrastructureAvailable() bool {
 // resolved values for its write-only env Secret. length is the run length the author chose (one of
 // AllowedTestLengths; zero takes the lease in force); it is the lease and the window of the run's reservation.
 func (u *ExerciseUseCase) DeployVariantTest(ctx context.Context, ownerID, versionID, variantID uuid.UUID, length time.Duration) (exerciseModel.DeployHandle, error) {
-	return u.deployVariantTest(ctx, nil, ownerID, versionID, variantID, length)
+	return u.deployVariantTest(ctx, nil, ownerID, versionID, variantID, length, nil)
 }
+
+// DeployVariantTestWithTools is DeployVariantTest with the platform tools device added to the lab (see
+// Topology.WithToolsDevice): the lab an automated opponent works from. Without a configured tools image it is refused with
+// ErrToolsNoImage; a variant without a lab with ErrTestDeployNoLab.
+func (u *ExerciseUseCase) DeployVariantTestWithTools(ctx context.Context, ownerID, versionID, variantID uuid.UUID, length time.Duration, place exerciseModel.ToolsPlacement) (exerciseModel.DeployHandle, error) {
+	return u.deployVariantTest(ctx, nil, ownerID, versionID, variantID, length, &place)
+}
+
+// SetToolsImage wires the image of the platform tools device; empty: no tools device can be provided.
+func (u *ExerciseUseCase) SetToolsImage(image string) { u.toolsImage = image }
 func (u *ExerciseUseCase) DeployEventPreviewVariantTest(ctx context.Context, eventID, ownerID, versionID, variantID uuid.UUID, length time.Duration) (exerciseModel.DeployHandle, error) {
-	return u.deployVariantTest(ctx, &eventID, ownerID, versionID, variantID, length)
+	return u.deployVariantTest(ctx, &eventID, ownerID, versionID, variantID, length, nil)
 }
 
 // TestRunLengths are the run lengths an author may choose and the one taken when none is chosen.
@@ -242,20 +286,27 @@ func (u *ExerciseUseCase) testLength(ctx context.Context, chosen time.Duration) 
 	return lease, nil
 }
 
-func (u *ExerciseUseCase) deployVariantTest(ctx context.Context, eventID *uuid.UUID, ownerID, versionID, variantID uuid.UUID, length time.Duration) (exerciseModel.DeployHandle, error) {
+func (u *ExerciseUseCase) deployVariantTest(ctx context.Context, eventID *uuid.UUID, ownerID, versionID, variantID uuid.UUID, length time.Duration, tools *exerciseModel.ToolsPlacement) (exerciseModel.DeployHandle, error) {
 	defer logDuration("deploy test lab", time.Now(), uuid.Nil)
 
 	lease, err := u.testLength(ctx, length)
 	if err != nil {
 		return exerciseModel.DeployHandle{}, err
 	}
-	exerciseID, variant, err := u.loadVersionVariant(ctx, versionID, variantID)
+	exerciseID, variant, number, err := u.loadVersionVariant(ctx, versionID, variantID)
 	if err != nil {
 		return exerciseModel.DeployHandle{}, err
 	}
+	// A task that asks for what the laboratory cannot apply yet is refused here, not started half-working.
+	if err = variant.RequireLabSupported(); err != nil {
+		return exerciseModel.DeployHandle{}, exerciseModel.InVariant(err, number)
+	}
 	// A variant without devices has no laboratory to run: its test is a row with flags and a lease, which needs
 	// no agent. An event preview always needs a laboratory.
-	if eventID == nil && len(variant.Topology.Devices) == 0 {
+	if tools != nil && u.toolsImage == "" {
+		return exerciseModel.DeployHandle{}, exerciseModel.ErrToolsNoImage
+	}
+	if eventID == nil && !variant.Topology.HasLab() && tools == nil {
 		return u.deployStaticTest(ctx, ownerID, versionID, variant, lease)
 	}
 	if u.infra == nil {
@@ -272,40 +323,56 @@ func (u *ExerciseUseCase) deployVariantTest(ctx context.Context, eventID *uuid.U
 	}
 
 	if err := variant.ValidateTopologyForDeploy(); err != nil {
-		return exerciseModel.DeployHandle{}, err
+		return exerciseModel.DeployHandle{}, exerciseModel.InVariant(err, number)
 	}
-	if len(variant.Topology.Devices) == 0 {
+	if !variant.Topology.HasLab() {
 		return exerciseModel.DeployHandle{}, exerciseModel.ErrTestDeployNoLab.Err()
 	}
 	topo, err := u.decryptTopologySecrets(variant.ID, variant.Topology)
 	if err != nil {
 		return exerciseModel.DeployHandle{}, err
 	}
-	// Each flag-linked task gets one test value for this deploy, the same
-	// policy as an event (none: random, one: fixed, several: a pick, template:
-	// generated). The values stay on the server; the author checks a found flag with CheckTestFlag.
-	links := variant.FlagLinks()
-	for i := range links {
-		flag, flagErr := flagpattern.Resolve(links[i].Candidates, testFlagRandomBytes, rand.Reader)
-		if flagErr != nil {
-			return exerciseModel.DeployHandle{}, model.ErrPlatform.WithError(flagErr).WithMessage("Failed to resolve test flag").Err()
-		}
-		links[i].Flag = flag
-	}
-	if topo, err = topo.WithFlagEnv(links); err != nil {
+	// Each answer task gets one test value for this deploy, the same policy as an event (none: random, one: fixed,
+	// several: a pick, template: generated), and each variable of the infrastructure one value. The values stay on
+	// the server; the author checks a found answer with CheckTestFlag. The device bootstraps are then resolved with
+	// them and only the resolved environment goes to the laboratory.
+	deployFlags, pinned, err := pinTestAnswers(variant)
+	if err != nil {
 		return exerciseModel.DeployHandle{}, err
+	}
+	if pinned.Vars, err = variant.PinVariables(rand.Reader); err != nil {
+		return exerciseModel.DeployHandle{}, exerciseModel.InVariant(err, number)
+	}
+	resolveFrom := variant
+	resolveFrom.Topology = topo // the secrets are opened
+	resolved, err := resolveFrom.ResolveInstance(pinned)
+	if err != nil {
+		return exerciseModel.DeployHandle{}, exerciseModel.InVariant(err, number)
+	}
+	if topo, err = topo.WithBootstraps(resolved.Bootstraps); err != nil {
+		return exerciseModel.DeployHandle{}, exerciseModel.InVariantIfScoped(err, number)
+	}
+	// A bootstrap file that names a file of the archive is read in: the laboratory gets its bytes.
+	if topo, err = topo.WithBootstrapFiles(u.readBootstrapFile(ctx)); err != nil {
+		return exerciseModel.DeployHandle{}, exerciseModel.InVariantIfScoped(err, number)
+	}
+	if tools != nil {
+		if topo, _, err = topo.WithToolsDevice(u.toolsImage, *tools); err != nil {
+			return exerciseModel.DeployHandle{}, err
+		}
 	}
 	// Every image must be pullable before anything is created; the agent gets exactly the credentials they need.
 	topo, pullCredentials, err := u.prepareLabImages(ctx, eventID, exerciseID, topo)
 	if err != nil {
 		return exerciseModel.DeployHandle{}, err
 	}
+	// The conditions of the state tasks become the checks of the lab, with this deploy's values in their expectations.
+	checks, err := variant.BuildLabChecks(topo, resolved.Conditions)
+	if err != nil {
+		return exerciseModel.DeployHandle{}, exerciseModel.InVariant(err, number)
+	}
 
 	now := u.timeNow()
-	deployFlags := make([]exerciseModel.DeployFlag, 0, len(links))
-	for _, link := range links {
-		deployFlags = append(deployFlags, exerciseModel.DeployFlag{TaskID: link.TaskID, Name: link.Name, Flag: link.Flag})
-	}
 	id := uuid.Must(uuid.NewV7())
 	// The resource calendar decides whether the laboratory fits: the author's booked window, the guaranteed pool
 	// or unplanned room; otherwise the error names the nearest free window. An event preview lab is taken the same
@@ -338,7 +405,8 @@ func (u *ExerciseUseCase) deployVariantTest(ctx context.Context, eventID *uuid.U
 			return false, model.ErrPlatform.WithError(err).WithMessage("Failed to reserve test deploy").Err()
 		}
 		first := len(existing) == 0
-		if err = u.provisionTestLab(ctx, deploy, topo, pullCredentials, active, first); err != nil {
+		if err = u.provisionTestLab(ctx, deploy, topo, pullCredentials, checks, active, first); err != nil {
+			err = exerciseModel.InVariantIfScoped(err, number)
 			// The group or the lab may be half created. A canceled request must not prevent the cleanup;
 			// if it fails, the lease is kept so the periodic expiry pass can retry it.
 			cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 20*time.Second)
@@ -392,14 +460,15 @@ func (u *ExerciseUseCase) deployVariantTest(ctx context.Context, eventID *uuid.U
 
 // deployStaticTest starts the test of a variant without devices: a row with a flag for every task and a lease,
 // no laboratory, group or VPN. It counts toward the author's limit like a laboratory but never touches the agent.
-func (u *ExerciseUseCase) deployStaticTest(ctx context.Context, ownerID, versionID uuid.UUID, variant exerciseModel.Variant, lease time.Duration) (exerciseModel.DeployHandle, error) {
-	flags := make([]exerciseModel.DeployFlag, 0, len(variant.Tasks))
-	for _, task := range variant.Tasks {
-		flag, err := flagpattern.Resolve(task.Flag, testFlagRandomBytes, rand.Reader)
-		if err != nil {
-			return exerciseModel.DeployHandle{}, model.ErrPlatform.WithError(err).WithMessage("Failed to resolve test flag").Err()
-		}
-		flags = append(flags, exerciseModel.DeployFlag{TaskID: task.ID, Name: task.Name, Flag: flag})
+func (u *ExerciseUseCase) deployStaticTest(
+	ctx context.Context,
+	ownerID, versionID uuid.UUID,
+	variant exerciseModel.Variant,
+	lease time.Duration,
+) (exerciseModel.DeployHandle, error) {
+	flags, _, pinErr := pinTestAnswers(variant)
+	if pinErr != nil {
+		return exerciseModel.DeployHandle{}, pinErr
 	}
 	now := u.timeNow()
 	id := uuid.Must(uuid.NewV7())
@@ -407,20 +476,36 @@ func (u *ExerciseUseCase) deployStaticTest(ctx context.Context, ownerID, version
 	if err := u.admitStaticTest(ctx, id, ownerID, lease); err != nil {
 		return exerciseModel.DeployHandle{}, err
 	}
-	deploy := exerciseModel.NewStaticTestDeploy(id, versionID, variant.ID, ownerID, flags, now, lease)
-	err := u.underOwnerLock(ctx, ownerID, func(ctx context.Context, repo *testDeployRepo.Repository) (bool, error) {
-		existing, err := repo.ListOwned(ctx, ownerID)
-		if err != nil {
-			return false, model.ErrPlatform.WithError(err).WithMessage("Failed to reserve test deploy").Err()
-		}
-		if running := u.activeLabs(existing, now); len(running) >= u.MaxActiveTestDeploys() {
-			return false, u.labLimitError(ctx, running)
-		}
-		if _, err = repo.Create(ctx, deploy); err != nil {
-			return false, model.ErrPlatform.WithError(err).WithMessage("Failed to reserve test deploy").Err()
-		}
-		return true, nil
-	})
+	deploy := exerciseModel.NewStaticTestDeploy(
+		id,
+		versionID,
+		variant.ID,
+		ownerID,
+		flags,
+		now,
+		lease,
+	)
+	err := u.underOwnerLock(
+		ctx,
+		ownerID,
+		func(ctx context.Context, repo *testDeployRepo.Repository) (bool, error) {
+			existing, err := repo.ListOwned(ctx, ownerID)
+			if err != nil {
+				return false, model.ErrPlatform.WithError(err).
+					WithMessage("Failed to reserve test deploy").
+					Err()
+			}
+			if running := u.activeLabs(existing, now); len(running) >= u.MaxActiveTestDeploys() {
+				return false, u.labLimitError(ctx, running)
+			}
+			if _, err = repo.Create(ctx, deploy); err != nil {
+				return false, model.ErrPlatform.WithError(err).
+					WithMessage("Failed to reserve test deploy").
+					Err()
+			}
+			return true, nil
+		},
+	)
 	if err != nil {
 		releaseCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 20*time.Second)
 		defer cancel()
@@ -550,11 +635,11 @@ func withoutDeploy(items []exerciseModel.TestDeploy, id uuid.UUID) []exerciseMod
 // the VPN and, in per-user mode, for the proxy, and it is replaced as a whole, so it lists every
 // Lab of the author. The group's client and its config are made once, with the first Lab; later
 // Labs reuse them.
-func (u *ExerciseUseCase) provisionTestLab(ctx context.Context, deploy exerciseModel.TestDeploy, topo exerciseModel.Topology, pullCredentials []infraModel.RegistryCredential, existing []exerciseModel.TestDeploy, first bool) error {
+func (u *ExerciseUseCase) provisionTestLab(ctx context.Context, deploy exerciseModel.TestDeploy, topo exerciseModel.Topology, pullCredentials []infraModel.RegistryCredential, checks []exerciseModel.LabCheck, existing []exerciseModel.TestDeploy, first bool) error {
 	client := testClientName(deploy.CreatedBy)
 	// The author's group has one user (the author's client); its gateway is for the labs that use the internet.
 	plan := infraModel.GroupPlan{MaxUsers: 1}
-	if topo.Internet.Enabled {
+	if topo.HasGateway(exerciseModel.DeviceTypeInternetGateway) {
 		plan.InternetLabs = 1
 	}
 	if legacyEventPreview(deploy) {
@@ -567,10 +652,11 @@ func (u *ExerciseUseCase) provisionTestLab(ctx context.Context, deploy exerciseM
 	}
 	meta := testLabMeta(deploy)
 	meta.PullCredentials = pullCredentials
+	meta.Checks = checks
 	if err := u.deployLab(ctx, deploy.GroupName, deploy.LabName, meta, topo); err != nil {
 		return err
 	}
-	if err := u.infra.ReconcileLabGroupAccess(ctx, deploy.GroupName, []labAccessModel.ClientPolicy{{Name: client, AllowedLabs: labNames(existing, uuid.Nil, deploy.LabName)}}); err != nil {
+	if err := u.reconcileTestGroup(ctx, deploy, uuid.Nil, labAccessModel.ClientPolicy{Name: client, AllowedLabs: labNames(existing, uuid.Nil, deploy.LabName)}); err != nil {
 		return err
 	}
 	if !first {
@@ -601,8 +687,35 @@ func (u *ExerciseUseCase) removeTestLab(ctx context.Context, deploy exerciseMode
 	if err := u.infra.DeleteLab(ctx, deploy.GroupName, deploy.LabName); err != nil {
 		return err
 	}
-	return u.infra.ReconcileLabGroupAccess(ctx, deploy.GroupName, []labAccessModel.ClientPolicy{{Name: testClientName(deploy.CreatedBy), AllowedLabs: labNames(all, deploy.ID)}})
+	err := u.reconcileTestGroup(ctx, deploy, deploy.ID, labAccessModel.ClientPolicy{Name: testClientName(deploy.CreatedBy), AllowedLabs: labNames(all, deploy.ID)})
+	if err == nil || !strings.Contains(err.Error(), labNotInGroup) {
+		return err
+	}
+	// A lease that still runs does not mean its Lab still exists: the agent refuses a policy naming a Lab it no
+	// longer has in the group (deleted by hand, failed to start, removed by an earlier destroy whose row waits for
+	// its check). The Lab being removed is already deleted, so the policy is rebuilt from the Labs the agent
+	// really has; if it still cannot be applied the stale entry is not worth failing the destroy for.
+	var present []exerciseModel.TestDeploy
+	presence, tracked := u.infra.(labPresence)
+	for _, item := range all {
+		if item.ID == deploy.ID {
+			continue
+		}
+		if tracked {
+			if exists, existsErr := presence.LabExists(ctx, item.GroupName, item.LabName); existsErr != nil || !exists {
+				continue
+			}
+		}
+		present = append(present, item)
+	}
+	if retryErr := u.reconcileTestGroup(ctx, deploy, deploy.ID, labAccessModel.ClientPolicy{Name: testClientName(deploy.CreatedBy), AllowedLabs: labNames(present, deploy.ID)}); retryErr != nil {
+		log.Warn().Err(retryErr).Str("lab_group", deploy.GroupName).Str("lab", deploy.LabName).Msg("Test lab removed, its group policy still names a lab the agent does not have")
+	}
+	return nil
 }
+
+// labNotInGroup is the agent's refusal of a group policy that names a Lab it does not have in the group.
+const labNotInGroup = "does not belong to group"
 
 // underOwnerLock runs fn with the author's lock held until it returns: with a unit of work it is the
 // per-user advisory lock of one transaction, so a deploy, a destroy and an expiry of one author
@@ -738,6 +851,7 @@ func (u *ExerciseUseCase) deployTestStatus(ctx context.Context, userID, deployID
 	// no access; only the author's config, stored with this deploy, is ever handed out.
 	status.VPNConfig = ""
 	status.SolvedTasks = deploy.Solved
+	u.withTaskStates(ctx, &status, deploy)
 	if expired {
 		return status, deploy, nil // the access ended with the lease: no VPN config, handshake or probe address
 	}
@@ -794,7 +908,7 @@ func (u *ExerciseUseCase) CheckTestFlag(ctx context.Context, userID, deployID, t
 		if f.TaskID != taskID {
 			continue
 		}
-		if !challengeAttempt.FlagMatches(f.Flag, flag) {
+		if !testAnswerMatches(f, flag) {
 			return false, nil
 		}
 		// A correct answer is remembered with the deploy, so the solved state survives a reload.
@@ -808,49 +922,88 @@ func (u *ExerciseUseCase) CheckTestFlag(ctx context.Context, userID, deployID, t
 	return false, nil
 }
 
-// OpenTestDeployLink returns the author's link that opens one web device of a
-// ready test deploy. It names the deploy's lab group and the author's client only
-// (the group policy still decides which labs it reaches), and the session it
-// grants lasts until the deploy's lease ends. Test traffic is never counted for
-// an event. The link is short-lived and fetched fresh on every click; the
-// platform sets no cookie on the lab domain.
+// OpenTestDeployLink returns the author's access grant for one web device of a
+// ready test deploy: a query-free URL (https://<host>/_auth) and the grant the
+// frontend posts to it. The grant names the deploy's lab group, the lab, the
+// device and the author's client (the group policy still decides which labs it
+// reaches) and lasts until the deploy's lease ends, capped by the agent's limit.
+// Test traffic is never counted for an event. It is fetched fresh on every click;
+// the platform sets no cookie on the lab domain.
 func (u *ExerciseUseCase) OpenTestDeployLink(ctx context.Context, userID, deployID uuid.UUID, device string, port int32) (labaccess.Link, error) {
-	deploy, err := u.testDeploys.GetOwned(ctx, deployID, userID)
+	deploy, status, now, err := u.readyOwnedDeploy(ctx, userID, deployID)
 	if err != nil {
-		if repositoryTools.IsObjectNotFoundError(err) {
-			return labaccess.Link{}, exerciseModel.ErrTestDeployNotFound.Err()
-		}
-		return labaccess.Link{}, model.ErrPlatform.WithError(err).WithMessage("Failed to load test deploy").Err()
-	}
-	if err = requireLab(deploy); err != nil {
 		return labaccess.Link{}, err
-	}
-	if u.infra == nil || u.sessions == nil {
-		return labaccess.Link{}, infraModel.ErrInfrastructureUnavailable.Err()
-	}
-	if err = u.requireScopedPreviewActive(ctx, deploy); err != nil {
-		return labaccess.Link{}, err
-	}
-	now := time.Now()
-	if !deploy.ExpiresAt.After(now) {
-		return labaccess.Link{}, exerciseModel.ErrTestDeployNotFound.Err()
-	}
-	status, err := u.infra.LabStatus(ctx, deploy.GroupName, deploy.LabName)
-	if err != nil {
-		return labaccess.Link{}, model.ErrPlatform.WithError(err).WithMessage("Failed to read deploy status").Err()
-	}
-	if !status.Ready {
-		return labaccess.Link{}, exerciseModel.ErrTestDeployNotReady.Err()
 	}
 	accessURL, ok := status.WebURL(device, port)
 	if !ok {
 		return labaccess.Link{}, exerciseModel.ErrTestDeployNoWebDevice.Err()
 	}
-	link, err := u.sessions.Issue(ctx, labaccess.Session{Group: deploy.GroupName, Client: testClientName(userID), AccessURL: accessURL, ExpiresAt: deploy.ExpiresAt}, now)
+	link, err := u.sessions.Issue(ctx, labaccess.Session{Group: deploy.GroupName, Client: testClientName(userID), Lab: deploy.LabName, Device: device, Kind: labaccess.KindWeb, AccessURL: accessURL, ExpiresAt: deploy.ExpiresAt}, now)
 	if err != nil {
-		return labaccess.Link{}, model.ErrPlatform.WithError(err).WithMessage("Failed to issue the test laboratory web link").Err()
+		return labaccess.Link{}, model.ErrPlatform.WithError(err).WithMessage("Failed to issue the test laboratory web grant").Err()
 	}
 	return link, nil
+}
+
+// OpenTestDeployConsoleLink is the same for the console of one device (the `terminal` access entry): the URL is the url of
+// the device's terminal entry in the lab status (the laboratory gives every device its own console host, so nothing is built
+// here). A lab that serves no console, a device the lab does not have, or an entry with no url yet answers ErrTestDeployNoConsole.
+func (u *ExerciseUseCase) OpenTestDeployConsoleLink(ctx context.Context, userID, deployID uuid.UUID, device string) (labaccess.Link, error) {
+	deploy, status, now, err := u.readyOwnedDeploy(ctx, userID, deployID)
+	if err != nil {
+		return labaccess.Link{}, err
+	}
+	// No laboratory that is used serves a console (its option is off or its component is missing): not available.
+	if u.LabCapabilities(ctx).Access["terminal"] == infraModel.AvailabilityNone {
+		return labaccess.Link{}, exerciseModel.ErrTestDeployNoConsole.Err()
+	}
+	if !slices.ContainsFunc(status.Devices, func(d exerciseModel.LabDeployedDevice) bool { return d.Name == device }) {
+		return labaccess.Link{}, exerciseModel.ErrTestDeployNoConsole.Err()
+	}
+	accessURL, ok := status.EntryURL(device, exerciseModel.AccessTerminal, 0)
+	if !ok {
+		return labaccess.Link{}, exerciseModel.ErrTestDeployNoConsole.Err()
+	}
+	link, err := u.sessions.Issue(ctx, labaccess.Session{Group: deploy.GroupName, Client: testClientName(userID), Lab: deploy.LabName, Device: device, Kind: labaccess.KindConsole, AccessURL: accessURL, ExpiresAt: deploy.ExpiresAt}, now)
+	if err != nil {
+		return labaccess.Link{}, model.ErrPlatform.WithError(err).WithMessage("Failed to issue the test laboratory console grant").Err()
+	}
+	return link, nil
+}
+
+// readyOwnedDeploy loads the author's own test deploy and its status, refusing one that is gone, expired or not ready.
+func (u *ExerciseUseCase) readyOwnedDeploy(ctx context.Context, userID, deployID uuid.UUID) (exerciseModel.TestDeploy, exerciseModel.LabDeployStatus, time.Time, error) {
+	deploy, err := u.testDeploys.GetOwned(ctx, deployID, userID)
+	if err != nil {
+		if repositoryTools.IsObjectNotFoundError(err) {
+			return deploy, exerciseModel.LabDeployStatus{}, time.Time{}, exerciseModel.ErrTestDeployNotFound.Err()
+		}
+		return deploy, exerciseModel.LabDeployStatus{}, time.Time{}, model.ErrPlatform.WithError(err).WithMessage("Failed to load test deploy").Err()
+	}
+	fail := func(failure error) (exerciseModel.TestDeploy, exerciseModel.LabDeployStatus, time.Time, error) {
+		return deploy, exerciseModel.LabDeployStatus{}, time.Time{}, failure
+	}
+	if err = requireLab(deploy); err != nil {
+		return fail(err)
+	}
+	if u.infra == nil || u.sessions == nil {
+		return fail(infraModel.ErrInfrastructureUnavailable.Err())
+	}
+	if err = u.requireScopedPreviewActive(ctx, deploy); err != nil {
+		return fail(err)
+	}
+	now := time.Now()
+	if !deploy.ExpiresAt.After(now) {
+		return fail(exerciseModel.ErrTestDeployNotFound.Err())
+	}
+	status, err := u.infra.LabStatus(ctx, deploy.GroupName, deploy.LabName)
+	if err != nil {
+		return fail(model.ErrPlatform.WithError(err).WithMessage("Failed to read deploy status").Err())
+	}
+	if !status.Ready {
+		return fail(exerciseModel.ErrTestDeployNotReady.Err())
+	}
+	return deploy, status, now, nil
 }
 
 // DestroyDeployTest tears a test deploy down: its Lab, and the author's whole group with the VPN
@@ -1248,19 +1401,24 @@ func (u *ExerciseUseCase) deployedVariant(ctx context.Context, versionID uuid.UU
 	return version.Variants[variantIndex], nil
 }
 
-// ResolveDeployedFlagLinks lists the flag-linked tasks of one pinned variant, so
-// the event stand engine can inject each team's stored flag into the device.
-// Only names and ids are returned; no flag value leaves the catalog here.
-func (u *ExerciseUseCase) ResolveDeployedFlagLinks(ctx context.Context, versionID uuid.UUID, variantIndex int32) ([]exerciseModel.FlagLink, error) {
+// ResolveDeployedVariant is the pinned variant the event stand engine builds a team's lab from: the task keys and
+// ids (so each team's stored answer values can be placed as {{task.<key>}}) and the shape of the document the lab
+// needs. No answer value and no bootstrap content leaves the catalog here: only the resolved bootstraps (see
+// ResolveDeployedBootstraps) carry values, and only after the caller supplies the pinned ones.
+func (u *ExerciseUseCase) ResolveDeployedVariant(
+	ctx context.Context,
+	versionID uuid.UUID,
+	variantIndex int32,
+) (exerciseModel.Variant, error) {
 	variant, err := u.deployedVariant(ctx, versionID, variantIndex)
 	if err != nil {
-		return nil, err
+		return exerciseModel.Variant{}, err
 	}
-	links := variant.FlagLinks()
-	for i := range links {
-		links[i].Candidates = nil
+	for i := range variant.Tasks {
+		variant.Tasks[i] = variant.Tasks[i].WithoutSolution()
 	}
-	return links, nil
+	variant.Topology = u.redactedTopology(variant.Topology)
+	return variant, nil
 }
 
 // ResolveVersionTopologies exposes the non-secret topology shape for every
@@ -1274,34 +1432,68 @@ func (u *ExerciseUseCase) ResolveVersionTopologies(ctx context.Context, versionI
 	}
 	out := make([]exerciseModel.Topology, 0, len(version.Variants))
 	for _, variant := range version.Variants {
-		topology := variant.Topology
-		topology.Devices = append([]exerciseModel.Device(nil), topology.Devices...)
-		for index := range topology.Devices {
-			topology.Devices[index].EnvVars = nil
-		}
-		out = append(out, topology)
+		out = append(out, u.redactedTopology(variant.Topology))
 	}
 	return out, nil
 }
 
 // loadVariant fetches one variant of a version by id.
 func (u *ExerciseUseCase) loadVariant(ctx context.Context, versionID, variantID uuid.UUID) (exerciseModel.Variant, error) {
-	_, variant, err := u.loadVersionVariant(ctx, versionID, variantID)
+	_, variant, _, err := u.loadVersionVariant(ctx, versionID, variantID)
 	return variant, err
 }
 
-// loadVersionVariant is loadVariant with the exercise the version belongs to.
-func (u *ExerciseUseCase) loadVersionVariant(ctx context.Context, versionID, variantID uuid.UUID) (uuid.UUID, exerciseModel.Variant, error) {
+// loadVersionVariant is loadVariant with the exercise the version belongs to and the variant's 1-based position in the version.
+func (u *ExerciseUseCase) loadVersionVariant(ctx context.Context, versionID, variantID uuid.UUID) (uuid.UUID, exerciseModel.Variant, int, error) {
 	version, err := u.exercises.GetVersion(ctx, versionID)
 	if err != nil {
-		return uuid.Nil, exerciseModel.Variant{}, exerciseModel.ErrExerciseVersionNotFound.Err()
+		return uuid.Nil, exerciseModel.Variant{}, 0, exerciseModel.ErrExerciseVersionNotFound.Err()
 	}
-	for _, v := range version.Variants {
+	for position, v := range version.Variants {
 		if v.ID == variantID {
-			return version.ExerciseID, v, nil
+			return version.ExerciseID, v, position + 1, nil
 		}
 	}
-	return uuid.Nil, exerciseModel.Variant{}, exerciseModel.ErrExerciseVersionNotFound.Err()
+	return uuid.Nil, exerciseModel.Variant{}, 0, exerciseModel.ErrExerciseVersionNotFound.Err()
+}
+
+// redactedTopology is the shape of a topology without what a device is told to run: the bootstrap (env values,
+// files, script) is dropped. The stored topology is not changed.
+func (u *ExerciseUseCase) redactedTopology(topology exerciseModel.Topology) exerciseModel.Topology {
+	topology.Devices = append([]exerciseModel.Device(nil), topology.Devices...)
+	for index := range topology.Devices {
+		topology.Devices[index].Bootstrap = exerciseModel.Bootstrap{}
+	}
+	return topology
+}
+
+// pinTestAnswers pins one value for every answer task of the variant (the same policy as an event: none: a random
+// flag, one: fixed, several: a pick, template: generated). It returns the values for the author's check and the
+// same by task key for the substitution.
+func pinTestAnswers(
+	variant exerciseModel.Variant,
+) ([]exerciseModel.DeployFlag, exerciseModel.PinnedValues, error) {
+	pinned := exerciseModel.PinnedValues{Tasks: map[string]string{}}
+	var flags []exerciseModel.DeployFlag
+	for _, task := range variant.AnswerTasks() {
+		value, err := task.Check.Answer.Resolve(testFlagRandomBytes, rand.Reader)
+		if err != nil {
+			return nil, exerciseModel.PinnedValues{}, model.ErrPlatform.WithError(err).
+				WithMessage("Failed to resolve test flag").
+				Err()
+		}
+		flags = append(flags, exerciseModel.NewDeployFlag(task, value))
+		pinned.Tasks[task.Key] = value
+	}
+	return flags, pinned, nil
+}
+
+// testAnswerMatches compares what the author typed with the pinned value under the options of the task's answer.
+func testAnswerMatches(f exerciseModel.DeployFlag, typed string) bool {
+	if f.IsText() {
+		return challengeAttempt.AnswerMatches(f.Flag, typed, f.IgnoreCase, !f.NoTrim)
+	}
+	return challengeAttempt.FlagMatches(f.Flag, typed)
 }
 
 // decryptTopologySecrets returns a copy of the topology with secret env-var
@@ -1313,11 +1505,11 @@ func (u *ExerciseUseCase) decryptTopologySecrets(variantID uuid.UUID, topo exerc
 	copy(out.Devices, topo.Devices)
 	for di := range out.Devices {
 		d := &out.Devices[di]
-		if len(d.EnvVars) == 0 {
+		if len(d.Bootstrap.Env) == 0 {
 			continue
 		}
-		envs := make([]exerciseModel.EnvVar, len(d.EnvVars))
-		copy(envs, d.EnvVars)
+		envs := make([]exerciseModel.EnvVar, len(d.Bootstrap.Env))
+		copy(envs, d.Bootstrap.Env)
 		for ei := range envs {
 			if !envs[ei].Secret || envs[ei].Value == "" {
 				continue
@@ -1325,13 +1517,13 @@ func (u *ExerciseUseCase) decryptTopologySecrets(variantID uuid.UUID, topo exerc
 			if u.cipher == nil {
 				return exerciseModel.Topology{}, exerciseModel.ErrSecretsNotConfigured.Err()
 			}
-			pt, err := u.cipher.DecryptWithContext(envs[ei].Value, envSecretContext(variantID, d.Name, envs[ei].Name))
+			pt, err := u.cipher.DecryptWithContext(envs[ei].Value, EnvSecretContext(variantID, d.Name, envs[ei].Name))
 			if err != nil {
 				return exerciseModel.Topology{}, model.ErrPlatform.WithError(err).WithMessage("Failed to decrypt secret env var").Err()
 			}
 			envs[ei].Value = string(pt)
 		}
-		d.EnvVars = envs
+		d.Bootstrap.Env = envs
 	}
 	return out, nil
 }

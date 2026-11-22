@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/pkg/email"
+	"github.com/cybericebox/backend/pkg/email"
 )
 
 func TestBuildMessage_TextOnlyHasNoEmptyHTMLAlternative(t *testing.T) {

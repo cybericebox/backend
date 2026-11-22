@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/model/notification/branding"
+	"github.com/cybericebox/backend/internal/model/notification/branding"
 )
 
 func TestPlatform(t *testing.T) {

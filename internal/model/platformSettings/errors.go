@@ -1,17 +1,17 @@
 package platformSettingsModel
 
 import (
-	"github.com/cybericebox/daemon/pkg/err"
+	"github.com/cybericebox/backend/pkg/err"
 
-	"github.com/cybericebox/daemon/internal/model"
+	"github.com/cybericebox/backend/internal/model"
 )
 
 // Error-code convention: see internal/model/auth/errors.go. Enforced by
-// `make lint-errors`. Each var has exactly one non-test call site. A refused
+// `mise run lint:errors`. Each var has exactly one non-test call site. A refused
 // typed value carries the public context `field` (and `min`/`max` for a range)
 // so the admin form shows the error under that field.
 //
-// SettingObjectCode — next free detail code: 11
+// SettingObjectCode — next free detail code: 13.
 var (
 	ErrSettingNotFound = err.ErrObjectNotFound.WithObjectCode(model.SettingObjectCode).
 				WithMessage("Setting not found").
@@ -29,6 +29,9 @@ var (
 	// inactivity period itself.
 	ErrRetentionGraceNotShorter = err.ErrInvalidData.WithObjectCode(model.SettingObjectCode).
 					WithMessage("The deletion grace must be shorter than the inactivity period").WithDetailCode(5)
+	// ErrNodeProfilesNoneSupported: the platform must support at least one node profile.
+	ErrNodeProfilesNoneSupported = err.ErrInvalidData.WithObjectCode(model.SettingObjectCode).
+					WithMessage("At least one node profile must be supported").WithDetailCode(12)
 	// ErrRetentionParticipantsNotShorter: the period for the lab data of participants may not be longer than the period
 	// for the lab data of teams and containers.
 	ErrRetentionParticipantsNotShorter = err.ErrInvalidData.WithObjectCode(model.SettingObjectCode).

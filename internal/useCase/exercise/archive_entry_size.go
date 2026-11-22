@@ -5,18 +5,21 @@ import (
 	"compress/flate"
 	"errors"
 	"fmt"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 	"io"
 	"time"
 
 	yzip "github.com/yeka/zip"
 
-	appErr "github.com/cybericebox/daemon/pkg/err"
-	"github.com/cybericebox/daemon/pkg/ociregistry"
+	appErr "github.com/cybericebox/backend/pkg/err"
+	"github.com/cybericebox/backend/pkg/ociregistry"
 )
 
 // importStateRetryDelay is the wait between writes of an import's outcome.
 var importStateRetryDelay = time.Second
+
+// importHeartbeatEvery is how often a running import writes its heartbeat.
+var importHeartbeatEvery = exerciseModel.ImportHeartbeatEvery
 
 // Failures of the archive itself that are not typed errors: the zip readers' own, and these.
 var (

@@ -3,9 +3,9 @@ package eventself
 import (
 	"context"
 	"encoding/json"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 	"net/http"

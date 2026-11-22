@@ -11,15 +11,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/middleware"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	"github.com/cybericebox/daemon/internal/eventrender"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
-	eventManagerModel "github.com/cybericebox/daemon/internal/model/eventManager"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	eventUC "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	"github.com/cybericebox/backend/internal/eventrender"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
+	eventManagerModel "github.com/cybericebox/backend/internal/model/eventManager"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	eventUC "github.com/cybericebox/backend/internal/useCase/event"
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 )
@@ -31,11 +31,11 @@ type EventRenderUseCase interface {
 	GetEventRenderPage(context.Context, uuid.UUID, string, string, bool, time.Time) (eventUC.EventRenderPageView, error)
 }
 type EventRenderHandler struct {
-	uc        EventRenderUseCase
-	prot      IProtection
-	hosts     config.HostsConfig
-	secret    [sha256.Size]byte
-	secretSet bool
+	uc    EventRenderUseCase
+	prot  IProtection
+	hosts config.HostsConfig
+	// secrets are the digests of the accepted render secrets: RENDER_SECRET and, during a rotation, RENDER_SECRET_NEXT.
+	secrets   [][sha256.Size]byte
 	signer    *eventrender.Signer
 	now       func() time.Time
 	wait      func(context.Context, time.Duration) error
@@ -48,8 +48,10 @@ func NewEventRenderAPIHandler(uc EventRenderUseCase, prot IProtection, cfg confi
 		panic(fmt.Errorf("configure event render signer: %w", err))
 	}
 	h := &EventRenderHandler{uc: uc, prot: prot, hosts: cfg.Hosts, signer: signer, now: time.Now, wait: waitForRenderDenial, admission: make(chan struct{}, renderMaxInFlight)}
-	if cfg.RenderSecret != "" {
-		h.secret, h.secretSet = sha256.Sum256([]byte(cfg.RenderSecret)), true
+	for _, value := range []string{cfg.RenderSecret, cfg.RenderSecretNext} {
+		if value != "" {
+			h.secrets = append(h.secrets, sha256.Sum256([]byte(value)))
+		}
 	}
 	return h
 }
@@ -74,7 +76,12 @@ const renderSecretHeader = "X-Render-Secret"
 func (h *EventRenderHandler) requireSecret(ctx *gin.Context) {
 	ctx.Header("Cache-Control", "private, no-store")
 	got := sha256.Sum256([]byte(ctx.GetHeader(renderSecretHeader)))
-	if !h.secretSet || subtle.ConstantTimeCompare(got[:], h.secret[:]) != 1 {
+	// Every accepted digest is compared, whatever matched, so the time does not tell which value was close.
+	matched := 0
+	for i := range h.secrets {
+		matched |= subtle.ConstantTimeCompare(got[:], h.secrets[i][:])
+	}
+	if matched != 1 {
 		response.AbortWithNotFound(ctx)
 		return
 	}

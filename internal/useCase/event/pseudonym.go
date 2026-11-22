@@ -7,10 +7,10 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	participantModel "github.com/cybericebox/daemon/internal/model/participant"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
 )
 
 // ParticipantNameView is the caller's own identity in an event.

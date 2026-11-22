@@ -8,10 +8,10 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	userModel "github.com/cybericebox/backend/internal/model/user"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 type inboxSeed struct {
@@ -64,7 +64,7 @@ func TestInbox_ResolveBySubjectClosesEveryCopy(t *testing.T) {
 	db := testhelpers.SetupTestDB(t)
 	ctx := context.Background()
 	q := db.Queries
-	resolver := newInboxUser(t, q, "Іван", "П.", rbac.RoleUser)
+	resolver := newInboxUser(t, q, "Ivan", "P.", rbac.RoleUser)
 	first, second := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 	event := uuid.Must(uuid.NewV7())
 	ref := "application:" + event.String() + ":x"
@@ -99,7 +99,7 @@ func TestInbox_ResolveBySubjectClosesEveryCopy(t *testing.T) {
 				continue
 			}
 			if !row.ResolvedAt.Valid || row.Resolution.String != "approved" || !row.ReadAt.Valid ||
-				row.ResolvedBy.UUID != resolver || row.ResolvedByName != "Іван П." {
+				row.ResolvedBy.UUID != resolver || row.ResolvedByName != "Ivan P." {
 				t.Fatalf("copy of %s not resolved for everyone: %+v", user, row)
 			}
 		}
@@ -217,7 +217,7 @@ func TestInbox_LateCopyOfDecidedRequestIsCreatedResolved(t *testing.T) {
 	db := testhelpers.SetupTestDB(t)
 	ctx := context.Background()
 	q := db.Queries
-	moderator := newInboxUser(t, q, "Олена", "К.", rbac.RoleUser)
+	moderator := newInboxUser(t, q, "Olena", "K.", rbac.RoleUser)
 	late := uuid.Must(uuid.NewV7())
 	ref := "stand:e:t"
 	raised := time.Now().Add(-time.Minute)
@@ -249,7 +249,7 @@ func TestInbox_LateCopyOfDecidedRequestIsCreatedResolved(t *testing.T) {
 	for _, row := range rows {
 		switch row.ID {
 		case decidedCopy:
-			if !row.ResolvedAt.Valid || row.Resolution.String != "fixed" || !row.ReadAt.Valid || row.ResolvedByName != "Олена К." {
+			if !row.ResolvedAt.Valid || row.Resolution.String != "fixed" || !row.ReadAt.Valid || row.ResolvedByName != "Olena K." {
 				t.Fatalf("late copy not created resolved: %+v", row)
 			}
 		case newFailure:

@@ -1,9 +1,13 @@
 package dispatchModel
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/cybericebox/backend/internal/model/usertext"
+)
 
 // SkippedMessageReserved is the journal text of a recipient on a reserved domain.
-const SkippedMessageReserved = "Пропущено: зарезервований домен (RFC 2606), лист не надсилався"
+const SkippedMessageReserved = usertext.SkippedReserved
 
 // SkippedError means the message was deliberately not sent and never will be (for example the recipient is
 // on a reserved domain that cannot receive mail). It is not a failure: nothing is retried or reported, and the

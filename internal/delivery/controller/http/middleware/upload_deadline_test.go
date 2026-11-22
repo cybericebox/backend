@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/middleware"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
 )
 
 func TestUploadTimeoutFollowsTheSizeWithinBounds(t *testing.T) {

@@ -8,16 +8,16 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/protection"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/protection"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 )
 
 func newRecaptchaProt(cfg config.RecaptchaConfig) *protection.Protection {
 	return protection.New(
 		protection.Dependencies{
 			UseCase: &fakeUseCase{},
-			Config:  config.AuthConfig{Hosts: config.HostsConfig{Main: "example.test", API: "api.example.test", ID: "id.example.test", Admin: "admin.example.test", Exercises: "exercises.example.test", EventDomain: "example.test"}, Recaptcha: cfg},
+			Config:  config.AuthConfig{Hosts: config.HostsConfig{Root: "example.test", API: "api.example.test", ID: "id.example.test", Admin: "admin.example.test", Exercises: "exercises.example.test", EventDomain: "example.test"}, Recaptcha: cfg},
 		},
 	)
 }

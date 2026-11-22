@@ -7,8 +7,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	labBindingModel "github.com/cybericebox/daemon/internal/model/labBinding"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	labBindingModel "github.com/cybericebox/backend/internal/model/labBinding"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 // The database and Go build the same LabGroup name, and it fits a Kubernetes label.

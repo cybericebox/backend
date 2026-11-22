@@ -9,9 +9,9 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	errorJournal "github.com/cybericebox/daemon/internal/model/errorJournal"
-	"github.com/cybericebox/daemon/pkg/email"
-	"github.com/cybericebox/daemon/pkg/telegram"
+	errorJournal "github.com/cybericebox/backend/internal/model/errorJournal"
+	"github.com/cybericebox/backend/pkg/email"
+	"github.com/cybericebox/backend/pkg/telegram"
 )
 
 var errNotFound = errors.New("not found")

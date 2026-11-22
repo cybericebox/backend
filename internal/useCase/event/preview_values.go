@@ -6,9 +6,10 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	"github.com/cybericebox/backend/internal/model/usertext"
 )
 
 // EventPreviewValues are the variable values the template previews of the event use (eventPreviewValues).
@@ -36,11 +37,11 @@ func eventPreviewValues(e eventModel.Event, eventDomain string) map[string]strin
 		"invite_url":      site + "/invite",
 		"team_url":        site + "/participation?tab=team",
 		"start_at":        kyivTime(e.Lifecycle.StartAt),
-		"user_first_name": "Імʼя",
-		"user_last_name":  "Прізвище",
-		"user_name":       "Імʼя учасника",
+		"user_first_name": usertext.PreviewFirstName,
+		"user_last_name":  usertext.PreviewLastName,
+		"user_name":       usertext.PreviewParticipantName,
 		"user_email":      "participant@" + e.Tag + "." + eventDomain,
-		"team_name":       "Назва команди",
+		"team_name":       usertext.PreviewTeamName,
 	}
 	if e.Lifecycle.FinishAt != nil {
 		values["finish_at"] = kyivTime(*e.Lifecycle.FinishAt)

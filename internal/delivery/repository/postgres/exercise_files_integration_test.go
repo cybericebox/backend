@@ -10,10 +10,10 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/exerciseRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/exerciseRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 // itGraceCutoff is the media GC cutoff as of itNow (24h grace).
@@ -160,9 +160,9 @@ func TestExerciseFiles_Backfill(t *testing.T) {
 	ctx := context.Background()
 	repo := exerciseRepo.New(db.Queries)
 	taskOne, taskTwo := mustCreateExercise(t, repo, "Backfill one"), mustCreateExercise(t, repo, "Backfill two")
-	versionOne, err := repo.UpsertDraft(ctx, taskOne.ID, uuid.FromStringOrNil("0192f0a0-0000-7000-8000-0000000c0101"), exerciseModel.ExerciseVersion{Variants: itVariants()}, itNow, uuid.NullUUID{})
+	versionOne, err := repo.ForceUpsertDraft(ctx, taskOne.ID, uuid.FromStringOrNil("0192f0a0-0000-7000-8000-0000000c0101"), exerciseModel.ExerciseVersion{Variants: itVariants()}, itNow, uuid.NullUUID{})
 	require.NoError(t, err)
-	versionTwo, err := repo.UpsertDraft(ctx, taskTwo.ID, uuid.FromStringOrNil("0192f0a0-0000-7000-8000-0000000c0102"), exerciseModel.ExerciseVersion{Variants: itVariants()}, itNow, uuid.NullUUID{})
+	versionTwo, err := repo.ForceUpsertDraft(ctx, taskTwo.ID, uuid.FromStringOrNil("0192f0a0-0000-7000-8000-0000000c0102"), exerciseModel.ExerciseVersion{Variants: itVariants()}, itNow, uuid.NullUUID{})
 	require.NoError(t, err)
 
 	earliest := uuid.FromStringOrNil("0192f0a0-0000-7000-8000-0000000c0002")

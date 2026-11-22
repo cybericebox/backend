@@ -8,18 +8,19 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	eventAnalyticsModel "github.com/cybericebox/daemon/internal/model/eventAnalytics"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	eventAnalyticsUseCase "github.com/cybericebox/daemon/internal/useCase/eventAnalytics"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	eventAnalyticsModel "github.com/cybericebox/backend/internal/model/eventAnalytics"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/model/usertext"
+	eventAnalyticsUseCase "github.com/cybericebox/backend/internal/useCase/eventAnalytics"
 )
 
-// UsageUseCase is the «Використання» part of IUseCase.
+// UsageUseCase is the Usage part of IUseCase.
 type UsageUseCase interface {
 	GetEventAnalyticsUsage(ctx context.Context, eventID uuid.UUID, teamID *uuid.UUID, from, to *time.Time) (eventAnalyticsUseCase.UsageView, error)
 }
 
-// initUsage registers the «Використання» routes on the analytics group.
+// initUsage registers the Usage routes on the analytics group.
 func (h *Handler) initUsage(router *gin.RouterGroup) {
 	analytics := router.Group("events/:id/manage/analytics", h.prot.RequirePermission(rbac.PermSelf))
 	analytics.GET("usage", h.requireSections, h.usage)
@@ -118,7 +119,7 @@ type (
 
 // usage godoc
 // @Summary Per participant VPN connection state and lab access (VPN and web proxy)
-// @Description «Використання». Online is true when the last WireGuard handshake is at most 3 minutes old; it is never derived from traffic. VPN figures (sessions, online seconds, bytes) follow the period; the lab counters are cumulative over the whole event. Counts and times only, no addresses. Empty (Available=false) for an event without infrastructure. Not cached.
+// @Description Usage. Online is true when the last WireGuard handshake is at most 3 minutes old; it is never derived from traffic. VPN figures (sessions, online seconds, bytes) follow the period; the lab counters are cumulative over the whole event. Counts and times only, no addresses. Empty (Available=false) for an event without infrastructure. Not cached.
 // @Tags event-analytics
 // @Produce json
 // @Param id path string true "event ID"
@@ -144,7 +145,7 @@ func (h *Handler) usage(ctx *gin.Context) {
 	response.AbortWithData(ctx, out)
 }
 
-// seesPeople tells whether the caller may see the per-person rows of «Використання» (Access.People).
+// seesPeople tells whether the caller may see the per-person rows of Usage (Access.People).
 func (h *Handler) seesPeople(ctx *gin.Context) (bool, bool) {
 	eventID, ok := parseEventID(ctx)
 	if !ok {
@@ -263,8 +264,8 @@ func (h *Handler) exportUsage(ctx *gin.Context) {
 	w.Flush()
 }
 
-var usageCSVHeader = []string{"Учасник", "Команда", "VPN онлайн зараз", "Останнє VPN-підключення (UTC)", "Перше VPN-підключення (UTC)", "VPN сесій", "VPN час онлайн (с)",
-	"VPN отримано (байт)", "VPN надіслано (байт)", "Запитів через проксі", "Проксі отримано (байт)", "Проксі надіслано (байт)", "Перший запит через проксі (UTC)", "Останній запит через проксі (UTC)"}
+var usageCSVHeader = []string{usertext.ColParticipant, usertext.ColTeam, usertext.ColVPNOnlineNow, usertext.ColLastVPNConnectUTC, usertext.ColFirstVPNConnectUTC, usertext.ColVPNSessions, usertext.ColVPNOnlineSeconds,
+	usertext.ColVPNReceivedBytes, usertext.ColVPNSentBytes, usertext.ColProxyRequests, usertext.ColProxyReceivedBytes, usertext.ColProxySentBytes, usertext.ColFirstProxyRequestUTC, usertext.ColLastProxyRequestUTC}
 
 func usageCSVRow(u eventAnalyticsUseCase.UsageUserView) []string {
 	n := func(v int64) string { return strconv.FormatInt(v, 10) }

@@ -6,14 +6,14 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventNotificationRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventFormModel "github.com/cybericebox/daemon/internal/model/eventForm"
-	mailModel "github.com/cybericebox/daemon/internal/model/mail"
-	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
-	signalModel "github.com/cybericebox/daemon/internal/model/signal"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventNotificationRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventFormModel "github.com/cybericebox/backend/internal/model/eventForm"
+	mailModel "github.com/cybericebox/backend/internal/model/mail"
+	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
+	signalModel "github.com/cybericebox/backend/internal/model/signal"
 )
 
 // NotificationSubscriptionView is the effective subscription of an Event.

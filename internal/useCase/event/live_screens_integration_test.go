@@ -10,16 +10,16 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventConfigRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	"github.com/cybericebox/daemon/internal/delivery/repository/userRepo"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
-	"github.com/cybericebox/daemon/internal/testhelpers"
-	"github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventConfigRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/delivery/repository/userRepo"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
+	userModel "github.com/cybericebox/backend/internal/model/user"
+	"github.com/cybericebox/backend/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/useCase/event"
 )
 
 func liveScreensFixture(t *testing.T, tag string) (*event.EventUseCase, *testhelpers.TestDB, uuid.UUID, uuid.UUID) {
@@ -52,7 +52,7 @@ func TestLiveScreensLifecycle(t *testing.T) {
 
 	screens, err := uc.ListLiveScreens(ctx, eventID, true)
 	if err != nil || len(screens) != 1 || screens[0].Name != "Екран 1" || screens[0].Version != 1 || screens[0].HasDraft || screens[0].Link != nil {
-		t.Fatalf("a new event has «Екран 1»: %+v, %v", screens, err)
+		t.Fatalf("a new event has the default first screen: %+v, %v", screens, err)
 	}
 	first := screens[0].ID
 
@@ -66,13 +66,13 @@ func TestLiveScreensLifecycle(t *testing.T) {
 		t.Fatalf("the single-screen draft went elsewhere: %+v, %v", editor, err)
 	}
 
-	// A second screen without a name is «Екран 2»; a copy carries layout and draft.
+	// A second screen without a name gets the default second name; a copy carries layout and draft.
 	second, err := uc.CreateLiveScreen(ctx, eventID, event.CreateLiveScreenInput{})
 	if err != nil || second.Name != "Екран 2" || second.Position != 1 {
 		t.Fatalf("second = %+v, %v", second, err)
 	}
-	copied, err := uc.CreateLiveScreen(ctx, eventID, event.CreateLiveScreenInput{Name: "  Фойє ", CopyFrom: &first})
-	if err != nil || copied.Name != "Фойє" || !copied.HasDraft {
+	copied, err := uc.CreateLiveScreen(ctx, eventID, event.CreateLiveScreenInput{Name: "  Lobby ", CopyFrom: &first})
+	if err != nil || copied.Name != "Lobby" || !copied.HasDraft {
 		t.Fatalf("copy = %+v, %v", copied, err)
 	}
 	template := eventContentModel.DefaultLiveLayout()
@@ -106,7 +106,7 @@ func TestLiveScreensLifecycle(t *testing.T) {
 	}
 
 	// Rename and reorder.
-	if renamed, err := uc.RenameLiveScreen(ctx, eventID, second.ID, " Головний зал "); err != nil || renamed.Name != "Головний зал" {
+	if renamed, err := uc.RenameLiveScreen(ctx, eventID, second.ID, " Main hall "); err != nil || renamed.Name != "Main hall" {
 		t.Fatalf("rename = %+v, %v", renamed, err)
 	}
 	if _, err = uc.RenameLiveScreen(ctx, eventID, second.ID, "  "); !errors.Is(err, eventContentModel.ErrLiveScreenNameInvalid.Err()) {
@@ -122,7 +122,7 @@ func TestLiveScreensLifecycle(t *testing.T) {
 			t.Fatalf("reorder %v = %v", wrong, err)
 		}
 	}
-	// The single-screen routes follow the order: now «Головний зал».
+	// The single-screen routes follow the order: now the renamed screen.
 	if editor, _ := uc.GetLiveScreenEditor(ctx, eventID, uuid.Nil); editor.ID != second.ID {
 		t.Fatalf("the first screen after reordering = %+v", editor)
 	}

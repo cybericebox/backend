@@ -15,9 +15,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/middleware"
-	"github.com/cybericebox/daemon/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
+	"github.com/cybericebox/backend/internal/model/rbac"
 )
 
 // This test is the authorization map of the HTTP API. It builds the REAL route
@@ -129,7 +129,7 @@ func buildRoutePolicy(t *testing.T) []routeSummary {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	hosts := config.HostsConfig{Main: "example.test", API: "api.example.test", ID: "id.example.test", Admin: "admin.example.test", Exercises: "exercises.example.test", EventDomain: "example.test"}
+	hosts := config.HostsConfig{Root: "example.test", API: "api.example.test", ID: "id.example.test", Admin: "admin.example.test", Exercises: "exercises.example.test", EventDomain: "example.test"}
 	NewAPIHandler(nil, probeProtector{}, config.AuthConfig{SessionEncryptionKey: "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f", Hosts: hosts}).Init(router)
 
 	var out []routeSummary
@@ -232,22 +232,30 @@ func TestRoutePolicy(t *testing.T) {
 // Each carries the reason it is safe. A route missing from this map that has no
 // gate fails TestRouteInvariants; so does an entry that got a gate (stale).
 var publicRoutes = map[string]string{
-	"POST /api/auth/sign-in":                "credential entry; recaptcha, failure lockout",
-	"POST /api/auth/sign-up":                "registration entry; recaptcha, per-recipient mail quota",
-	"GET /api/auth/setup":                   "setup-token flow: the token is the credential",
-	"POST /api/auth/setup":                  "setup-token flow: the token is the credential",
-	"POST /api/auth/password/reset-request": "recaptcha; neutral answer; per-recipient mail quota",
-	"POST /api/auth/password/reset":         "single-use emailed code is the credential",
-	"GET /api/auth/password/policy":         "static complexity policy (config, no user data)",
-	"POST /api/auth/account/email/confirm":  "single-use emailed code is the credential",
-	"GET /api/auth/avatar/:id":              "public avatar proxy; the bucket stays private",
-	"GET /api/auth/google":                  "OAuth sign-in redirect",
-	"GET /api/auth/google/register":         "OAuth registration redirect",
-	"GET /api/auth/google/setup":            "OAuth setup-link redirect; the email must match the account",
-	"GET /api/auth/google/callback":         "OAuth callback; state cookie double-submit",
-	"GET /api/render/key":                   "event-frontend server only: the render secret is the credential, 404 without it",
-	"GET /api/render/events/:tag/manifest":  "event-frontend server only: the render secret is the credential, 404 without it",
-	"GET /api/render/events/:tag/page":      "event-frontend server only: the render secret is the credential, 404 without it",
+	"POST /api/auth/sign-in":                 "credential entry; recaptcha, failure lockout",
+	"POST /api/auth/sign-up":                 "registration entry; recaptcha, per-recipient mail quota",
+	"GET /api/auth/last-email":               "answers with the browser's own last-sign-in cookie, nothing else",
+	"DELETE /api/auth/last-email":            "clears the browser's own last-sign-in cookie",
+	"POST /api/auth/passkeys/sign-in/begin":  "passkey sign-in start; recaptcha, one-time server challenge",
+	"POST /api/auth/passkeys/sign-in/finish": "passkey sign-in: the signed assertion over the one-time challenge is the credential",
+	"GET /api/auth/setup":                    "setup-token flow: the token is the credential",
+	"POST /api/auth/setup":                   "setup-token flow: the token is the credential",
+	"POST /api/auth/password/reset-request":  "recaptcha; neutral answer; per-recipient mail quota",
+	"POST /api/auth/password/reset":          "single-use emailed code is the credential",
+	"GET /api/auth/password/policy":          "static complexity policy (config, no user data)",
+	"POST /api/auth/account/email/confirm":   "single-use emailed code is the credential",
+	"GET /api/auth/avatar/:id":               "public avatar proxy; the bucket stays private",
+	"GET /api/auth/google":                   "OAuth sign-in redirect",
+	"GET /api/auth/google/register":          "OAuth registration redirect",
+	"GET /api/auth/google/setup":             "OAuth setup-link redirect; the email must match the account",
+	"GET /api/auth/google/callback":          "OAuth callback; state cookie double-submit",
+	"GET /api/auth/google/pending":           "pending Google link: the ticket cookie (set at the OAuth callback, single-use, 10 minutes) is the credential",
+	"POST /api/auth/google/pending/code":     "pending Google link: ticket cookie; per-recipient mail quota (60 s, 5 per hour)",
+	"POST /api/auth/google/pending/confirm":  "pending Google link: ticket cookie plus the password or the mailed code; failure lockout, attempt limit",
+	"DELETE /api/auth/google/pending":        "pending Google link: ticket cookie; gives the link up",
+	"GET /api/render/key":                    "event-frontend server only: the render secret is the credential, 404 without it",
+	"GET /api/render/events/:tag/manifest":   "event-frontend server only: the render secret is the credential, 404 without it",
+	"GET /api/render/events/:tag/page":       "event-frontend server only: the render secret is the credential, 404 without it",
 }
 
 // selfWithoutLayerPrefixes are the areas where PermSelf alone is the whole route
@@ -505,7 +513,7 @@ func TestUngatedPublicRoutesMatchTheMountedRouter(t *testing.T) {
 // right after the guard, so no use case is needed.
 func TestChunkUploadPassesTheOriginGuardOnTheRealRouter(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	hosts := config.HostsConfig{Main: "example.test", API: "api.example.test", ID: "id.example.test", Admin: "admin.example.test", Exercises: "exercises.example.test", EventDomain: "example.test"}
+	hosts := config.HostsConfig{Root: "example.test", API: "api.example.test", ID: "id.example.test", Admin: "admin.example.test", Exercises: "exercises.example.test", EventDomain: "example.test"}
 	router := gin.New()
 	router.Use(middleware.OriginGuardWith(middleware.OriginPolicy{Hosts: hosts}))
 	NewAPIHandler(nil, probeProtector{}, config.AuthConfig{SessionEncryptionKey: "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f", Hosts: hosts}).Init(router)

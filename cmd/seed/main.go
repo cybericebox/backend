@@ -1,5 +1,5 @@
 // Command seed fills a development database with test data for live end-to-end checks, or
-// removes it again (--delete). It reads the same environment as the daemon (`make seed` loads
+// removes it again (--delete). It reads the same environment as the daemon (`mise run seed` loads
 // .env) and refuses to run in production. See the README, section «Test data».
 package main
 
@@ -11,12 +11,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/repository"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	"github.com/cybericebox/daemon/internal/seed"
-	"github.com/cybericebox/daemon/pkg/password"
-	"github.com/cybericebox/daemon/pkg/secret"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/repository"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	"github.com/cybericebox/backend/internal/seed"
+	"github.com/cybericebox/backend/pkg/password"
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
 func main() {
@@ -65,8 +65,9 @@ func run() error {
 	defer repo.Close()
 
 	deps := seed.Deps{
-		Queries: repo.Queries,
-		Pool:    repo.Pool(),
+		Queries:           repo.Queries,
+		Pool:              repo.Pool(),
+		RequiredDocuments: cfg.Auth.RequiredDocuments(),
 		Password: password.New(password.Config{Complexity: password.ComplexityConfig{
 			MinLength:            cfg.Auth.Password.MinLength,
 			MaxLength:            cfg.Auth.Password.MaxLength,
@@ -76,8 +77,13 @@ func run() error {
 			MinSpecialCharacters: cfg.Auth.Password.MinSpecialCharacters,
 		}}),
 	}
+	// The key comes from the same loader as the daemon's (master key, key directories): see config.ResolveKeys.
 	if key := cfg.Exercise.SecretsKey; key != "" {
-		deps.Cipher, _ = secret.New(key)
+		cipher, err := secret.New(key)
+		if err != nil {
+			return fmt.Errorf("the exercise secrets key: %w", err)
+		}
+		deps.Cipher = cipher
 	}
 	seeder := seed.New(deps)
 	opts := seed.Options{

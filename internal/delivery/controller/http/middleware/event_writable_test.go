@@ -11,7 +11,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/assert"
 
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
 )
 
 type archivedGuard struct{}

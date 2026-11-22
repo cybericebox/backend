@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
 	labpb "github.com/cybericebox/laboratory/pkg/agent/protobuf"
 	"github.com/gofrs/uuid"
 	"google.golang.org/protobuf/proto"

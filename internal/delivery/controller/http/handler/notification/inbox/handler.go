@@ -10,10 +10,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/middleware"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	inboxModel "github.com/cybericebox/daemon/internal/model/notification/inbox"
-	"github.com/cybericebox/daemon/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	inboxModel "github.com/cybericebox/backend/internal/model/notification/inbox"
+	"github.com/cybericebox/backend/internal/model/rbac"
 )
 
 type (
@@ -67,7 +67,7 @@ type notificationResponse struct {
 	// ResolvedBy is the person who resolved it (null for system resolutions).
 	ResolvedBy *resolvedByResponse `json:"ResolvedBy"`
 	// Resolvable is true when the recipient may close this open request by hand (the resolve endpoint accepts it).
-	// Clients show «Вирішено» from it instead of keeping their own list of types.
+	// Clients show Resolved from it instead of keeping their own list of types.
 	Resolvable bool `json:"Resolvable"`
 }
 

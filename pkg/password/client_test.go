@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/cybericebox/daemon/pkg/password"
+	"github.com/cybericebox/backend/pkg/password"
 )
 
 func defaultConfig() password.Config {

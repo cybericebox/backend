@@ -19,12 +19,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	event "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	event "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 type brandMediaFake struct {
@@ -35,6 +35,10 @@ type brandMediaFake struct {
 	contentRefs map[uuid.UUID][]uuid.UUID
 	mime        string
 	blob        []byte
+}
+
+func (m *brandMediaFake) UploadPublicImage(ctx context.Context, _, name, contentType string, r io.Reader, by uuid.UUID) (mediaModel.File, error) {
+	return m.UploadFile(ctx, name, contentType, r, by)
 }
 
 func (m *brandMediaFake) UploadFile(_ context.Context, name, contentType string, _ io.Reader, by uuid.UUID) (mediaModel.File, error) {

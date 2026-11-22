@@ -8,8 +8,8 @@ import (
 
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
 )
 
 // userClockMarks records, per mock, the accounts whose 30-day unconfirmed
@@ -68,7 +68,7 @@ func stubParticipationModelReads(q *postgresMocks.MockQuerier) {
 		return 1, nil
 	}).AnyTimes()
 	q.EXPECT().CountPendingTeamInvitations(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
-	q.EXPECT().GetEventParticipantProfile(gomock.Any(), gomock.Any()).Return(postgres.GetEventParticipantProfileRow{FirstName: "Олена", LastName: "Коваль", DisplayName: "Олена Коваль"}, nil).AnyTimes()
+	q.EXPECT().GetEventParticipantProfile(gomock.Any(), gomock.Any()).Return(postgres.GetEventParticipantProfileRow{FirstName: "Olena", LastName: "Koval", DisplayName: "Olena Koval"}, nil).AnyTimes()
 	q.EXPECT().ListEventTeamMembers(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 	q.EXPECT().ListPendingTeamInvitations(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 }

@@ -14,8 +14,8 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	imageRegistryModel "github.com/cybericebox/daemon/internal/model/imageRegistry"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	imageRegistryModel "github.com/cybericebox/backend/internal/model/imageRegistry"
 )
 
 const secretToken = "registry-token-fixed"

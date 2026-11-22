@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
 )
 
 func field(key, input string, mutate func(*eventContentModel.Block)) eventContentModel.Block {

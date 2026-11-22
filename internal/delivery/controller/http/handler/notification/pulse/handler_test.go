@@ -10,13 +10,13 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/middleware"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	siteModel "github.com/cybericebox/daemon/internal/model/site"
-	pulseUseCase "github.com/cybericebox/daemon/internal/useCase/notification/pulse"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	siteModel "github.com/cybericebox/backend/internal/model/site"
+	pulseUseCase "github.com/cybericebox/backend/internal/useCase/notification/pulse"
 )
 
 type fakeUseCase struct {
@@ -38,7 +38,7 @@ func (f *fakeUseCase) Pulse(_ context.Context, site siteModel.Site, v pulseUseCa
 
 func (f *fakeUseCase) Banners(_ context.Context, site siteModel.Site, v pulseUseCase.Viewer) (pulseUseCase.BannerList, error) {
 	f.sites, f.viewers = append(f.sites, site), append(f.viewers, v)
-	return pulseUseCase.BannerList{Version: f.banners, Items: []pulseUseCase.Banner{{ID: "system-results-freeze:x", Kind: "system", Text: "Заморожено", Level: "critical"}}}, nil
+	return pulseUseCase.BannerList{Version: f.banners, Items: []pulseUseCase.Banner{{ID: "system-results-freeze:x", Kind: "system", Text: "Frozen", Level: "critical"}}}, nil
 }
 
 func (f *fakeUseCase) DismissBanner(_ context.Context, userID, id uuid.UUID) error {
@@ -56,7 +56,7 @@ func newRouter(uc *fakeUseCase) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(response.WithErrorHandler)
-	hosts := config.HostsConfig{Main: "example.test", API: "api.example.test", ID: "id.example.test", Admin: "admin.example.test", Exercises: "exercises.example.test", EventDomain: "example.test"}
+	hosts := config.HostsConfig{Root: "example.test", API: "api.example.test", ID: "id.example.test", Admin: "admin.example.test", Exercises: "exercises.example.test", EventDomain: "example.test"}
 	site := middleware.NewSiteResolver(hosts, func(context.Context, string) (uuid.UUID, error) { return uuid.Nil, eventModel.ErrEventNotFound.Err() }).ResolveSite()
 	NewPulseAPIHandler(uc, allowAll{}, site).Init(router.Group("/api/notifications"))
 	return router
@@ -137,7 +137,7 @@ func TestBannersCarryTheVersionAsETag(t *testing.T) {
 	if cc := w.Header().Get("Cache-Control"); cc != "public, no-cache" {
 		t.Fatalf("guest Cache-Control = %q", cc)
 	}
-	if !strings.Contains(w.Body.String(), `"ID":"system-results-freeze:x","Kind":"system","Title":"","Text":"Заморожено"`) {
+	if !strings.Contains(w.Body.String(), `"ID":"system-results-freeze:x","Kind":"system","Title":"","Text":"Frozen"`) {
 		t.Fatalf("body = %s", w.Body.String())
 	}
 	if again := get(router, "/api/notifications/banners?site=main", false, map[string]string{"If-None-Match": `"v42"`}); again.Code != http.StatusNotModified {

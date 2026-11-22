@@ -6,7 +6,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 // Everything the seeder creates carries a marker, and cleanup deletes only what carries it:
@@ -123,11 +123,27 @@ func (e exerciseSpec) variants() []exerciseModel.Variant {
 				Name:        task.Name,
 				Description: mustJSON(lexical(task.Text...)),
 				Difficulty:  task.Difficulty,
-				Flag:        []string{task.Flag},
+				Key:         task.Key,
+				Check: exerciseModel.Check{
+					Answer: &exerciseModel.AnswerCheck{
+						Type:   exerciseModel.AnswerTypeFlag,
+						Values: []string{task.Flag},
+					},
+				},
 			}
 			if task.Device != "" {
-				built.LinkedDeviceID = uuid.NullUUID{UUID: deviceIDs[task.Device], Valid: true}
-				built.DeviceFlagVar = task.FlagVar
+				// The flag reaches the device through its bootstrap env, like any task value.
+				for di := range topology.Devices {
+					if topology.Devices[di].ID == deviceIDs[task.Device] {
+						topology.Devices[di].Bootstrap.Env = append(
+							topology.Devices[di].Bootstrap.Env,
+							exerciseModel.EnvVar{
+								Name:  task.FlagVar,
+								Value: "{{task." + task.Key + "}}",
+							},
+						)
+					}
+				}
 			}
 			for i, hint := range task.Hints {
 				built.Hints = append(built.Hints, exerciseModel.Hint{
@@ -149,16 +165,18 @@ func (v variantSpec) topology(exerciseKey, variantKey string) (exerciseModel.Top
 	if len(v.Devices) == 0 {
 		return topology, ids
 	}
-	topology.VPN = exerciseModel.NetworkSpec{Enabled: true}
-	if v.DHCP {
-		topology.VPN.DHCP = true
-		topology.VPN.DHCPRanges = []exerciseModel.DHCPRange{{Start: 100, End: 200}}
-	}
 	device := func(key string) uuid.UUID { return seedID(exerciseKey, variantKey, "device", key) }
+	// The VPN entry of the lab is a gateway device of its own.
+	gateway := exerciseModel.Device{ID: device("vpn-gateway"), Name: "vpn", Type: exerciseModel.DeviceTypeVPNGateway}
+	if v.DHCP {
+		gateway.DHCP = true
+		gateway.DHCPRanges = []exerciseModel.DHCPRange{{Start: 100, End: 200}}
+	}
+	topology.Devices = append(topology.Devices, gateway)
 	deviceEndpoint := func(id uuid.UUID, iface string) exerciseModel.Endpoint {
 		return exerciseModel.Endpoint{Kind: exerciseModel.EndpointDevice, DeviceID: id, Interface: iface}
 	}
-	vpn := exerciseModel.Endpoint{Kind: exerciseModel.EndpointVPN, Interface: "eth0"}
+	vpn := deviceEndpoint(gateway.ID, exerciseModel.GatewayPort)
 	connect := func(a, b exerciseModel.Endpoint) {
 		topology.Connections = append(topology.Connections, exerciseModel.Connection{Endpoints: []exerciseModel.Endpoint{a, b}})
 	}
@@ -174,16 +192,23 @@ func (v variantSpec) topology(exerciseKey, variantKey string) (exerciseModel.Top
 		ids[spec.Key] = id
 		ip := exerciseModel.IPConfig{Type: exerciseModel.IPConfigTypeDHCPPreset}
 		if spec.Host > 0 {
-			ip = exerciseModel.IPConfig{Type: exerciseModel.IPConfigTypeStatic, AddressRef: &exerciseModel.NetworkIPRef{Network: "vpn", Host: spec.Host}}
+			ip = exerciseModel.IPConfig{Type: exerciseModel.IPConfigTypeStatic, AddressRef: &exerciseModel.NetworkIPRef{Gateway: gateway.Name, Host: spec.Host}}
 		}
 		built := exerciseModel.Device{
-			ID: id, Name: spec.Name, Type: exerciseModel.DeviceTypeContainer, Image: spec.Image, SecurityPreset: spec.Preset,
+			ID:             id,
+			Name:           spec.Name,
+			Type:           exerciseModel.DeviceTypeNode,
+			Profile:        exerciseModel.NodeProfileContainer,
+			Image:          spec.Image,
+			SecurityPreset: spec.Preset,
 			ResourcePreset: "small",
 			Interfaces:     []exerciseModel.Interface{{Name: "eth0", IP: ip}},
-			EnvVars:        []exerciseModel.EnvVar{{Name: "SEED", Value: "1"}},
+			Bootstrap: exerciseModel.Bootstrap{
+				Env: []exerciseModel.EnvVar{{Name: "SEED", Value: "1"}},
+			},
 		}
 		if spec.Web {
-			built.External = &exerciseModel.ExternalAccess{Port: 80, Protocol: "http"}
+			built.Access = []exerciseModel.Access{{Kind: exerciseModel.AccessHTTP, Port: 80, Protocol: "http"}}
 		}
 		switch spec.Persist {
 		case "":
@@ -303,7 +328,14 @@ func catalog() []exerciseSpec {
 			Variants: []variantSpec{{
 				Switch: true, DHCP: true,
 				Devices: []deviceSpec{
-					{Key: "gw", Name: "gateway", Image: imageWeb, Web: true, Host: 10, Preset: exerciseModel.SecurityPresetStandard},
+					{
+						Key:    "gw",
+						Name:   "front",
+						Image:  imageWeb,
+						Web:    true,
+						Host:   10,
+						Preset: exerciseModel.SecurityPresetStandard,
+					},
 					{Key: "echo", Name: "echo", Image: imageWhoami, Host: 11},
 					{Key: "client", Name: "client", Image: imageWeb2},
 				},

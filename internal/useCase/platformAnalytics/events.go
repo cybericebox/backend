@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/platformAnalyticsRepo"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	platformAnalyticsModel "github.com/cybericebox/daemon/internal/model/platformAnalytics"
+	"github.com/cybericebox/backend/internal/delivery/repository/platformAnalyticsRepo"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	platformAnalyticsModel "github.com/cybericebox/backend/internal/model/platformAnalytics"
 )
 
 const (
@@ -48,7 +48,7 @@ func EventStatusName(status int16) string {
 	}
 }
 
-// GetEvents is the «Заходи» report: events and registrations over the period,
+// GetEvents is the "Events" report: events and registrations over the period,
 // events by lifecycle status, the newest events with their aggregates, and the
 // next scheduled events. Aggregates only.
 func (u *PlatformAnalyticsUseCase) GetEvents(ctx context.Context, from, to *time.Time) (EventsView, error) {

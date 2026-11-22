@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/model/jobs"
-	"github.com/cybericebox/daemon/internal/model/notification/dispatch"
-	"github.com/cybericebox/daemon/pkg/tools"
+	"github.com/cybericebox/backend/internal/model/jobs"
+	"github.com/cybericebox/backend/internal/model/notification/dispatch"
+	"github.com/cybericebox/backend/pkg/tools"
 )
 
 // fakeProcessor is a hand-rolled test double for the notify worker's IUseCase port.

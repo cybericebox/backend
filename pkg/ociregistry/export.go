@@ -18,7 +18,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/remote/transport"
 )
 
-// Writing one image of the registry as an image archive (a task archive exported «з образами»): an OCI image
+// Writing one image of the registry as an image archive (a task archive exported "with images"): an OCI image
 // layout tar (oci-layout, index.json, blobs/sha256/*) with a docker load manifest.json next to it, so both
 // `docker load` and the archive import (ReadImageArchive) accept it. The blobs are streamed from the registry
 // straight into the tar (their sizes come from the manifest, so every header is written before its bytes) and

@@ -6,18 +6,18 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	challengeAttemptModel "github.com/cybericebox/daemon/internal/model/challengeAttempt"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
-	eventExerciseModel "github.com/cybericebox/daemon/internal/model/eventExercise"
-	eventFormModel "github.com/cybericebox/daemon/internal/model/eventForm"
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
-	eventStandModel "github.com/cybericebox/daemon/internal/model/eventStand"
-	participantModel "github.com/cybericebox/daemon/internal/model/participant"
-	resourcesModel "github.com/cybericebox/daemon/internal/model/resources"
-	siteBannerModel "github.com/cybericebox/daemon/internal/model/siteBanner"
-	teamChallengeModel "github.com/cybericebox/daemon/internal/model/teamChallenge"
+	challengeAttemptModel "github.com/cybericebox/backend/internal/model/challengeAttempt"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
+	eventExerciseModel "github.com/cybericebox/backend/internal/model/eventExercise"
+	eventFormModel "github.com/cybericebox/backend/internal/model/eventForm"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
+	eventStandModel "github.com/cybericebox/backend/internal/model/eventStand"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
+	resourcesModel "github.com/cybericebox/backend/internal/model/resources"
+	siteBannerModel "github.com/cybericebox/backend/internal/model/siteBanner"
+	teamChallengeModel "github.com/cybericebox/backend/internal/model/teamChallenge"
 )
 
 type EventView struct {
@@ -31,6 +31,16 @@ type EventView struct {
 	InfrastructureAllowed bool
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
+	// StartAt / FinishAt are the scheduled start and finish (nil while the schedule is not configured; FinishAt
+	// is nil without a finish).
+	StartAt, FinishAt *time.Time
+	// Counts are filled in the offset (page) list only.
+	Counts *EventCountsView
+}
+
+// EventCountsView are the counters of one row of the admin events table.
+type EventCountsView struct {
+	Participants, Teams, StandsReady, StandsTotal int64
 }
 
 type EventManagerView struct {
@@ -58,6 +68,10 @@ type EventLifecycleView struct {
 	Status         eventModel.LifecycleStatus
 	UpdatedAt      time.Time
 	Infrastructure EventInfrastructurePlan
+	// ReservationShortenedTo is set when saving the schedule ended the event's reservation earlier (the withdrawal is
+	// before the old end): the new end, when the labs are stopped and deleted. RunningLabs is how many labs ran then.
+	ReservationShortenedTo *time.Time
+	RunningLabs            int32
 }
 
 type EventScoringProfileView struct {
@@ -106,7 +120,17 @@ func toEventTenantView(e eventModel.Event, now time.Time) EventTenantView {
 }
 
 func toEventView(e eventModel.Event, now time.Time) EventView {
+	var startAt, finishAt *time.Time
+	if e.Lifecycle.Configured {
+		start := e.Lifecycle.StartAt
+		startAt = &start
+		if e.Lifecycle.FinishAt != nil {
+			finish := *e.Lifecycle.FinishAt
+			finishAt = &finish
+		}
+	}
 	return EventView{
+		StartAt: startAt, FinishAt: finishAt,
 		ID:                    e.ID,
 		Tag:                   e.Tag,
 		Name:                  e.InternalName,
@@ -452,6 +476,11 @@ type TeamInvitationView struct {
 	Email            string
 	CreatedAt        time.Time
 	InvitationSentAt *time.Time
+	// InvitationExpired: the invitation can no longer be accepted by the person (the join period is over).
+	// InvitationAwaitingPublication: the event is not published yet and the invitation becomes acceptable at
+	// publication; it is not expired.
+	InvitationExpired             bool
+	InvitationAwaitingPublication bool
 }
 
 type TeamsListResult struct {
@@ -487,10 +516,13 @@ type EventExerciseView struct {
 	UpdateAvailable     bool
 	Fork                *EventExerciseForkView
 	Infrastructure      bool
-	VariantCount        int32
-	ChallengeCount      int32
-	PublishedCount      int32
-	HasAttempts         bool
+	// UsesConsole: some device of the pinned version has a terminal access entry (a console in the browser). A console is
+	// not meant for events; nothing bans it, the organizer sees it here.
+	UsesConsole    bool
+	VariantCount   int32
+	ChallengeCount int32
+	PublishedCount int32
+	HasAttempts    bool
 	// Resources is the total of the pinned version: the least and the most it needs over its variants (equal for
 	// one variant); planning reserves the largest. ResourceHeavy: an approved elevation holds a device above the
 	// platform frame (a badge in the task picker and list). NoAgentFits: no agent that is used can run it; it
@@ -542,6 +574,7 @@ type EventCatalogItem struct {
 	Scope              string
 	PublishedVersionID uuid.UUID
 	Infrastructure     bool
+	UsesConsole        bool
 	Attached           bool
 	// Resources is the total of the published version (min and max over its variants); ResourceHeavy: an
 	// approved elevation holds a device above the platform frame.
@@ -869,7 +902,7 @@ type ResultsDisplayView struct {
 	RowsLimit    *int32
 }
 
-// ResultsSettingsView is the moderator «Налаштування результатів» read model.
+// ResultsSettingsView is the moderator "results settings" read model.
 type ResultsSettingsView struct {
 	ScoreboardVisibility eventConfigModel.Visibility
 	FreezeEnabled        bool

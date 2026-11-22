@@ -7,8 +7,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/model"
-	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
+	"github.com/cybericebox/backend/internal/model"
+	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
 )
 
 // Dispatch statuses and channels as stored by the notification dispatcher.
@@ -20,7 +20,7 @@ const (
 	registrationKey = "registration"
 )
 
-// GetEventAnalyticsCommunications is the «Комунікації» report (§6.7): mail and
+// GetEventAnalyticsCommunications is the "Communications" report (§6.7): mail and
 // in-app notifications per type with errors and the in-app read rate, and the
 // completion of every event form. Nil bounds leave the window open.
 func (u *EventAnalyticsUseCase) GetEventAnalyticsCommunications(ctx context.Context, eventID uuid.UUID, from, to *time.Time) (CommunicationsView, error) {

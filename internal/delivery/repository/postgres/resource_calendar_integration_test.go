@@ -9,10 +9,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/resourceCalendarRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	calModel "github.com/cybericebox/daemon/internal/model/resourceCalendar"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/resourceCalendarRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	calModel "github.com/cybericebox/backend/internal/model/resourceCalendar"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 var rcT0 = time.Date(2026, 10, 5, 8, 0, 0, 0, time.UTC)

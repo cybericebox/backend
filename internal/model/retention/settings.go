@@ -3,7 +3,7 @@ package retentionModel
 import (
 	"time"
 
-	platformSettingsModel "github.com/cybericebox/daemon/internal/model/platformSettings"
+	platformSettingsModel "github.com/cybericebox/backend/internal/model/platformSettings"
 )
 
 // SettingsFields are the periods editable in the platform settings, in the order the admin form shows them;

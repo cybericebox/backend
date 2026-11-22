@@ -13,28 +13,28 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventConfigRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventManagerRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventTeamRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/exerciseRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	"github.com/cybericebox/daemon/internal/delivery/repository/userRepo"
-	errorJournal "github.com/cybericebox/daemon/internal/model/errorJournal"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
-	eventManagerModel "github.com/cybericebox/daemon/internal/model/eventManager"
-	eventStandModel "github.com/cybericebox/daemon/internal/model/eventStand"
-	eventTeamModel "github.com/cybericebox/daemon/internal/model/eventTeam"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	labBindingModel "github.com/cybericebox/daemon/internal/model/labBinding"
-	resourcesModel "github.com/cybericebox/daemon/internal/model/resources"
-	teamChallengeModel "github.com/cybericebox/daemon/internal/model/teamChallenge"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
-	"github.com/cybericebox/daemon/internal/testhelpers"
-	"github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventConfigRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventManagerRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventTeamRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/exerciseRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/delivery/repository/userRepo"
+	errorJournal "github.com/cybericebox/backend/internal/model/errorJournal"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
+	eventManagerModel "github.com/cybericebox/backend/internal/model/eventManager"
+	eventStandModel "github.com/cybericebox/backend/internal/model/eventStand"
+	eventTeamModel "github.com/cybericebox/backend/internal/model/eventTeam"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	labBindingModel "github.com/cybericebox/backend/internal/model/labBinding"
+	resourcesModel "github.com/cybericebox/backend/internal/model/resources"
+	teamChallengeModel "github.com/cybericebox/backend/internal/model/teamChallenge"
+	userModel "github.com/cybericebox/backend/internal/model/user"
+	"github.com/cybericebox/backend/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/useCase/event"
 )
 
 // standAgent is an in-memory Laboratory: Labs become ready or fail on demand.
@@ -44,6 +44,7 @@ type standAgent struct {
 	stopCalls           []eventLabModel.StopRequest
 	observations        map[eventLabModel.Ref]eventLabModel.Observation
 	stopErr, statusErr  error
+	labStatusErr        error
 	stopErrs            map[eventLabModel.Ref]error
 	mu                  sync.Mutex
 	deployed            []string
@@ -132,6 +133,9 @@ func (a *standAgent) DeployLab(ctx context.Context, group, lab string, meta infr
 func (a *standAgent) LabStatus(_ context.Context, group, lab string) (exerciseModel.LabDeployStatus, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	if a.labStatusErr != nil {
+		return exerciseModel.LabDeployStatus{}, a.labStatusErr
+	}
 	switch key := group + "/" + lab; {
 	case a.queued[key] != nil:
 		return exerciseModel.LabDeployStatus{Phase: exerciseModel.DeployPhaseQueued, Queue: a.queued[key]}, nil
@@ -190,25 +194,67 @@ type standTopologies struct {
 // standSets holds the multi-task sets a test attached, by pinned version id.
 type standSets struct {
 	topology map[uuid.UUID]exerciseModel.Topology
-	links    map[uuid.UUID][]exerciseModel.FlagLink
+	variants map[uuid.UUID]exerciseModel.Variant // the tasks (ids and keys) of a set's variant, by pinned version id
 }
 
 func (s standTopologies) ResolveDeployedTopology(_ context.Context, versionID uuid.UUID, _ int32) (exerciseModel.Topology, error) {
 	if topology, ok := s.sets.topology[versionID]; ok {
 		return topology, nil
 	}
-	return exerciseModel.Topology{Devices: []exerciseModel.Device{{ID: s.deviceID, Name: "web", Type: exerciseModel.DeviceTypeContainer}}}, nil
+	return exerciseModel.Topology{
+		Devices: []exerciseModel.Device{
+			{
+				ID:        s.deviceID,
+				Name:      "web",
+				Type:      exerciseModel.DeviceTypeContainer,
+				Bootstrap: standTaskFlagBootstrap(),
+			},
+		},
+	}, nil
 }
 
-func (s standTopologies) ResolveVersionTopologies(context.Context, uuid.UUID) ([]exerciseModel.Topology, error) {
-	return []exerciseModel.Topology{{Devices: []exerciseModel.Device{{ID: s.deviceID, Name: "web", Image: "nginx:1"}, {ID: uuid.Must(uuid.NewV7()), Name: "db", Image: "postgres:16"}}}, {Devices: []exerciseModel.Device{{Name: "web", Image: "nginx:1"}}}}, nil
-}
-
-func (s standTopologies) ResolveDeployedFlagLinks(_ context.Context, versionID uuid.UUID, _ int32) ([]exerciseModel.FlagLink, error) {
-	if links, ok := s.sets.links[versionID]; ok {
-		return append([]exerciseModel.FlagLink(nil), links...), nil
+// standTaskFlagBootstrap hands the value of the task with the key standTaskKey to the service as TASK_FLAG.
+func standTaskFlagBootstrap() exerciseModel.Bootstrap {
+	return exerciseModel.Bootstrap{
+		Env: []exerciseModel.EnvVar{{Name: "TASK_FLAG", Value: "{{task." + standTaskKey + "}}"}},
 	}
-	return []exerciseModel.FlagLink{{TaskID: s.taskID, DeviceID: s.deviceID, Var: "TASK_FLAG"}}, nil
+}
+
+const standTaskKey = "task_flag"
+
+// standVariant is the one-task variant of the default fixture.
+func standVariant(taskID uuid.UUID) exerciseModel.Variant {
+	return exerciseModel.Variant{
+		Tasks: []exerciseModel.Task{
+			{ID: taskID, Key: standTaskKey, Name: "Task", Check: exerciseModel.FlagCheck()},
+		},
+	}
+}
+
+func (s standTopologies) ResolveVersionTopologies(
+	context.Context,
+	uuid.UUID,
+) ([]exerciseModel.Topology, error) {
+	return []exerciseModel.Topology{
+		{
+			Devices: []exerciseModel.Device{
+				{ID: s.deviceID, Name: "web", Image: "nginx:1"},
+				{ID: uuid.Must(uuid.NewV7()), Name: "db", Image: "postgres:16"},
+			},
+		},
+		{Devices: []exerciseModel.Device{{Name: "web", Image: "nginx:1"}}},
+	}, nil
+}
+
+func (s standTopologies) ResolveDeployedVariant(
+	_ context.Context,
+	versionID uuid.UUID,
+	_ int32,
+) (exerciseModel.Variant, error) {
+	if variant, ok := s.sets.variants[versionID]; ok {
+		return variant, nil
+	}
+	return standVariant(s.taskID), nil
 }
 
 type standCapability struct{}
@@ -441,7 +487,7 @@ func TestStandEngine_StaticOnlyEventNeedsNoLaboratory(t *testing.T) {
 	if err != nil || len(solvers.Items) != 1 || !solvers.Items[0].Own || solvers.Items[0].FirstBlood {
 		t.Fatalf("moderators solvers = %+v, %v", solvers, err)
 	}
-	// «Моя участь» of the organizers' preview reads the real recorded activity.
+	// "My participation" of the organizers' preview reads the real recorded activity.
 	stats, err := uc.GetModeratorsParticipationStats(ctx, f.eventID, f.ownerID)
 	if err != nil || stats.Team.TeamID != moderators.ID || stats.Team.TeamName != "" || stats.Rank != 0 || len(stats.Team.Solves) != 1 || stats.Solved != 1 ||
 		stats.Team.Attempts != 2 || stats.Team.CorrectAttempts != 1 || stats.Me.UserID != f.ownerID || stats.Me.Attempts != 2 || stats.Me.Solves != 1 || stats.Me.Points != 100 || len(stats.Team.Members) == 0 {
@@ -480,7 +526,7 @@ func TestStandEngine_InjectsTheTeamsStoredFlagIntoTheLinkedDevice(t *testing.T) 
 		topology := f.agent.topos[lab]
 		f.agent.mu.Unlock()
 		var got []string
-		for _, env := range topology.Devices[0].EnvVars {
+		for _, env := range topology.Devices[0].Bootstrap.Env {
 			if env.Name == "TASK_FLAG" {
 				got = append(got, env.Value)
 			}
@@ -500,7 +546,14 @@ func newStandFixture(t *testing.T) *standFixture {
 	db := testhelpers.SetupTestDB(t)
 	ctx := context.Background()
 	now := time.Now()
-	f := &standFixture{db: db, agent: newStandAgent(), sets: &standSets{topology: map[uuid.UUID]exerciseModel.Topology{}, links: map[uuid.UUID][]exerciseModel.FlagLink{}}}
+	f := &standFixture{
+		db:    db,
+		agent: newStandAgent(),
+		sets: &standSets{
+			topology: map[uuid.UUID]exerciseModel.Topology{},
+			variants: map[uuid.UUID]exerciseModel.Variant{},
+		},
+	}
 	users := userRepo.New(db.Queries)
 	newUser := func(email string) uuid.UUID {
 		u, err := users.Create(ctx, userModel.NewIncompleteUser(uuid.Must(uuid.NewV7()), email, now))
@@ -587,16 +640,23 @@ func (f *standFixture) attach(t *testing.T, infrastructure bool) uuid.UUID {
 	if err != nil {
 		t.Fatal(err)
 	}
-	variant := exerciseModel.Variant{Index: 0, Tasks: []exerciseModel.Task{{
-		ID: uuid.Must(uuid.NewV7()), Name: "Find the flag", Description: json.RawMessage(`{"blocks":[]}`),
-		Difficulty: exerciseModel.DifficultyEasy, Flag: []string{"ICE{x}"},
-	}}}
+	variant := exerciseModel.Variant{Index: 0, Tasks: []exerciseModel.Task{
+		{
+			ID: uuid.Must(
+				uuid.NewV7(),
+			),
+			Name:        "Find the flag",
+			Description: json.RawMessage(`{"blocks":[]}`),
+			Difficulty:  exerciseModel.DifficultyEasy,
+			Check:       exerciseModel.FlagCheck("ICE{x}"),
+		},
+	}}
 	variant.Topology.Devices = []exerciseModel.Device{} // stored as [], never null, like a real exercise
 	if infrastructure {
 		variant.Topology.Devices = []exerciseModel.Device{{ID: uuid.Must(uuid.NewV7()), Name: "web", Type: exerciseModel.DeviceTypeContainer}}
 		f.infraTaskID, f.infraDevice = variant.Tasks[0].ID, variant.Topology.Devices[0].ID
 	}
-	draft, err := exercises.UpsertDraft(ctx, value.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{Variants: []exerciseModel.Variant{variant}}, now, uuid.NullUUID{})
+	draft, err := exercises.ForceUpsertDraft(ctx, value.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{Variants: []exerciseModel.Variant{variant}}, now, uuid.NullUUID{})
 	if err != nil {
 		t.Fatal(err)
 	}

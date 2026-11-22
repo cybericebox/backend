@@ -11,14 +11,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
-	inboxModel "github.com/cybericebox/daemon/internal/model/notification/inbox"
-	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
-	signalModel "github.com/cybericebox/daemon/internal/model/signal"
-	inboxUseCase "github.com/cybericebox/daemon/internal/useCase/notification/inbox"
-	"github.com/cybericebox/daemon/pkg/tools"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
+	inboxModel "github.com/cybericebox/backend/internal/model/notification/inbox"
+	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
+	signalModel "github.com/cybericebox/backend/internal/model/signal"
+	inboxUseCase "github.com/cybericebox/backend/internal/useCase/notification/inbox"
+	"github.com/cybericebox/backend/pkg/tools"
 )
 
 type sent struct {
@@ -62,7 +62,7 @@ func TestRequestRouter_ApplicationGoesToWriteManagersButTheApplicant(t *testing.
 	repo.EXPECT().ListEventWriteManagerUserIDs(gomock.Any(), eventID).Return([]uuid.UUID{owner, applicant, moderator}, nil)
 	repo.EXPECT().GetUserByID(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, id uuid.UUID) (postgres.User, error) {
 		if id == applicant {
-			return postgres.User{ID: id, FirstName: "Олена", LastName: "К.", Email: "o@example.org"}, nil
+			return postgres.User{ID: id, FirstName: "Alice", LastName: "K.", Email: "o@example.org"}, nil
 		}
 		return postgres.User{ID: id, Email: id.String() + "@example.org"}, nil
 	}).AnyTimes()
@@ -79,7 +79,7 @@ func TestRequestRouter_ApplicationGoesToWriteManagersButTheApplicant(t *testing.
 		got := notifier.sent[i]
 		assert.Equal(t, want, got.userID)
 		assert.Equal(t, notificationTypes.NotificationType(inboxModel.TypeApplicationSubmitted), got.typ)
-		assert.Equal(t, "Олена К.", got.vars["applicant_name"])
+		assert.Equal(t, "Alice K.", got.vars["applicant_name"])
 		assert.Equal(t, want.String(), got.vars["user_id"])
 		require.NotNil(t, got.options.Inbox)
 		assert.Equal(t, inboxModel.CategoryRequests, got.options.Inbox.Category)
@@ -239,7 +239,7 @@ func TestRequestRouter_UserDeletedWithdrawsApplications(t *testing.T) {
 	require.NoError(t, router.UserDeleted(context.Background(), userID))
 }
 
-func TestRequestRouter_ElevationWithdrawnAndCPUThrottleGoneResolveTheirSubject(t *testing.T) {
+func TestRequestRouter_ElevationWithdrawnResolvesItsSubject(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	repo := postgresMocks.NewMockQuerier(ctrl)
 	router := inboxUseCase.NewRequestRouter(repo, &fakeNotifier{})
@@ -248,9 +248,4 @@ func TestRequestRouter_ElevationWithdrawnAndCPUThrottleGoneResolveTheirSubject(t
 		SubjectRef: inboxModel.ElevationRef(elevationID), Resolution: "withdrawn",
 	}).Return(int64(1), nil)
 	require.NoError(t, router.ElevationWithdrawn(context.Background(), elevationID))
-
-	repo.EXPECT().ResolveInboxBySubjectRef(gomock.Any(), postgres.ResolveInboxBySubjectRefParams{
-		SubjectRef: inboxModel.CPUThrottleRef("uid-1", "db"), Resolution: "resolved",
-	}).Return(int64(1), nil)
-	require.NoError(t, router.CPUThrottleGone(context.Background(), "uid-1", "db"))
 }

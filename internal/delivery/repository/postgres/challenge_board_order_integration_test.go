@@ -10,21 +10,22 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventTeamRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/exerciseRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	eventTeamModel "github.com/cybericebox/daemon/internal/model/eventTeam"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventTeamRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/exerciseRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	eventTeamModel "github.com/cybericebox/backend/internal/model/eventTeam"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	"github.com/cybericebox/backend/internal/model/usertext"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
-// boardSet attaches one more exercise (a «завдання») to the event.
+// boardSet attaches one more exercise (a "task") to the event.
 func boardSet(t *testing.T, q *postgres.Queries, eventID uuid.UUID, name string, createdAt time.Time) postgres.EventExercise {
 	t.Helper()
 	ctx := context.Background()
 	exercises := exerciseRepo.New(q)
 	exercise := mustCreateExercise(t, exercises, name)
-	draft, err := exercises.UpsertDraft(ctx, exercise.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{Variants: itVariants()}, itNow, uuid.NullUUID{})
+	draft, err := exercises.ForceUpsertDraft(ctx, exercise.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{Variants: itVariants()}, itNow, uuid.NullUUID{})
 	if err != nil {
 		t.Fatalf("save exercise draft: %v", err)
 	}
@@ -51,7 +52,7 @@ func boardChallenge(t *testing.T, q *postgres.Queries, link postgres.EventExerci
 
 func boardNames(t *testing.T, q *postgres.Queries, teamID uuid.UUID) ([]string, []int32, []int32) {
 	t.Helper()
-	rows, err := q.ListTeamBoardChallenges(context.Background(), postgres.ListTeamBoardChallengesParams{EventTeamID: teamID, PublishedOnly: true, At: time.Now()})
+	rows, err := q.ListTeamBoardChallenges(context.Background(), postgres.ListTeamBoardChallengesParams{EventTeamID: teamID, PublishedOnly: true, At: time.Now(), OtherGroupName: usertext.UngroupedChallenges})
 	if err != nil {
 		t.Fatalf("list board: %v", err)
 	}

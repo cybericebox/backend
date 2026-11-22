@@ -1,13 +1,13 @@
 package exerciseModel
 
 import (
-	"github.com/cybericebox/daemon/pkg/err"
+	"github.com/cybericebox/backend/pkg/err"
 
-	"github.com/cybericebox/daemon/internal/model"
+	"github.com/cybericebox/backend/internal/model"
 )
 
 // Error-code convention: see internal/model/auth/errors.go. Enforced by
-// `make lint-errors`. Each var has exactly one non-test call site; the
+// `mise run lint:errors`. Each var has exactly one non-test call site; the
 // validation helpers below are structured so every rule fails in one place.
 //
 // ExerciseObjectCode — no free detail code left: 1–99 are taken and 100+ would spill into the next object's full
@@ -51,6 +51,14 @@ var (
 	// rows while the row still exists. 409: the client reloads and retries.
 	ErrExerciseModified = err.ErrConflict.WithObjectCode(model.ExerciseObjectCode).
 				WithMessage("Exercise was modified concurrently").WithDetailCode(4)
+	// ErrDraftModified: the writer started from a revision of the working copy that is no longer the current one (someone
+	// saved, created or discarded it meanwhile). 409; the public context names the current revision and who saved it when.
+	// One call site: the use case helper that every draft writer goes through.
+	ErrDraftModified = err.ErrConflict.WithObjectCode(model.ExerciseObjectCode).
+				WithMessage("The working copy was changed by someone else").WithDetailCode(22)
+	// ErrDraftRevisionInvalid: the revision sent back is not one the platform issued.
+	ErrDraftRevisionInvalid = err.ErrInvalidData.WithObjectCode(model.ExerciseObjectCode).
+				WithMessage("The working copy revision is not valid").WithDetailCode(23)
 	// multi-site: covers publish/discard without a draft, the
 	// publish-vs-concurrent-discard race, and checkpoint without a draft or
 	// published version to snapshot — one public "no draft" fact.
@@ -98,9 +106,10 @@ var (
 	ErrTaskDifficultyInvalid = err.ErrInvalidData.WithObjectCode(model.ExerciseObjectCode).
 					WithMessage("Task difficulty is invalid").WithDetailCode(14)
 	ErrFlagSourceInvalid = err.ErrInvalidData.WithObjectCode(model.ExerciseObjectCode).
-				WithMessage("Task flag must use ICE{...} without whitespace").WithDetailCode(15)
+				WithMessage("A flag answer must use ICE{...} without whitespace; braces only as the repeat count {n} of a class in a template").WithDetailCode(15)
 	ErrFlagMultiNeedsDevice = err.ErrInvalidData.WithObjectCode(model.ExerciseObjectCode).
-				WithMessage("Several flags or a flag template are only available for tasks with a device").WithDetailCode(76)
+				WithMessage("Several answer values or a template need the task value delivered into a lab by a bootstrap").
+				WithDetailCode(76)
 	ErrDeviceNameInvalid = err.ErrInvalidData.WithObjectCode(model.ExerciseObjectCode).
 				WithMessage("Container name must be a DNS label: lowercase a-z, 0-9 and '-', not starting or ending with '-'").WithDetailCode(16)
 	// ErrDeviceNameTooLong: the name becomes part of the lab's web address
@@ -120,13 +129,9 @@ var (
 	ErrDeviceAddressRefInvalid = err.ErrInvalidData.WithObjectCode(model.ExerciseObjectCode).
 					WithMessage("Static address reference is invalid or conflicts with another address").WithDetailCode(44)
 	ErrNetworkDHCPInvalid = err.ErrInvalidData.WithObjectCode(model.ExerciseObjectCode).
-				WithMessage("DHCP ranges or internet DNS address are invalid").WithDetailCode(47)
-	ErrFlagEnvironmentConflict = err.ErrInvalidData.WithObjectCode(model.ExerciseObjectCode).
-					WithMessage("Flag target environment variable is already used by a device variable or another task").WithDetailCode(42)
+				WithMessage("DHCP ranges or the DNS address of a gateway are invalid").WithDetailCode(47)
 	ErrDeviceSecurityPresetInvalid = err.ErrInvalidData.WithObjectCode(model.ExerciseObjectCode).
 					WithMessage("Device security preset is invalid").WithDetailCode(34)
-	ErrDeviceExternalInvalid = err.ErrInvalidData.WithObjectCode(model.ExerciseObjectCode).
-					WithMessage("Device external access is invalid").WithDetailCode(27)
 	ErrConnectionArityInvalid = err.ErrInvalidData.WithObjectCode(model.ExerciseObjectCode).
 					WithMessage("Connection must have exactly two endpoints").WithDetailCode(28)
 	ErrConnectionEndpointsInvalid = err.ErrInvalidData.WithObjectCode(model.ExerciseObjectCode).
@@ -142,27 +147,22 @@ var (
 	ErrDevicePersistenceInvalid = err.ErrInvalidData.WithObjectCode(model.ExerciseObjectCode).
 					WithMessage("Device state persistence is allowed only on container devices, with a debounce between 1s and 24h").WithDetailCode(64)
 	ErrForwardingPortInvalid = err.ErrInvalidData.WithObjectCode(model.ExerciseObjectCode).
-					WithMessage("Switch or hub port must be GigabitEthernet0/1 through GigabitEthernet0/48").WithDetailCode(43)
-	// Detail codes 22 and 23 (ErrSwitchLoop, ErrGatewaysBridged) are retired:
-	// static L2 loop/broadcast-domain checks were dropped as meaningless
-	// (unmanaged switches can be cabled to real hardware outside the declared
-	// topology); the gap is not reusable.
-	ErrFlagDeviceUnresolved = err.ErrInvalidData.WithObjectCode(model.ExerciseObjectCode).
-				WithMessage("Task flag references a device absent from the topology").WithDetailCode(24)
+					WithMessage("Switch or hub port must be GigabitEthernet0/1 through GigabitEthernet0/48").
+					WithDetailCode(43)
+		// Detail codes 22 and 23 (ErrSwitchLoop, ErrGatewaysBridged) are retired:
+		// static L2 loop/broadcast-domain checks were dropped as meaningless
+		// (unmanaged switches can be cabled to real hardware outside the declared
+		// topology); the gap is not reusable.
+		// ErrFlagDeviceUnresolved (24) and ErrFlagEnvironmentConflict (42) are retired with the task-to-device link: a
+		// value reaches a device only through that device's bootstrap. The gaps are not reusable.
 
 	// ── publish-time graph validation (new specifics, Task 4 review) ──
-	ErrVPNDisabled = err.ErrInvalidData.WithObjectCode(model.ExerciseObjectCode).
-			WithMessage("VPN is not enabled in this variant's topology").WithDetailCode(29)
-	ErrInternetDisabled = err.ErrInvalidData.WithObjectCode(model.ExerciseObjectCode).
-				WithMessage("Internet is not enabled in this variant's topology").WithDetailCode(30)
-	ErrVPNGatewayInUse = err.ErrInvalidData.WithObjectCode(model.ExerciseObjectCode).
-				WithMessage("VPN gateway is already connected").WithDetailCode(31)
-	ErrInternetGatewayInUse = err.ErrInvalidData.WithObjectCode(model.ExerciseObjectCode).
-				WithMessage("Internet gateway is already connected").WithDetailCode(32)
+	// Detail codes 29-32 (ErrVPNDisabled, ErrInternetDisabled, ErrVPNGatewayInUse, ErrInternetGatewayInUse) are retired:
+	// the VPN and the Internet are gateway devices now; the gaps are not reusable.
 	ErrDeviceNameDuplicate = err.ErrInvalidData.WithObjectCode(model.ExerciseObjectCode).
 				WithMessage("Device names must be unique within the topology").WithDetailCode(33)
 	ErrDeviceAddressRefUnreachable = err.ErrInvalidData.WithObjectCode(model.ExerciseObjectCode).
-					WithMessage("Static address reference must be connected to its gateway network").WithDetailCode(45)
+					WithMessage("Static address reference must be connected to the network of the gateway it names").WithDetailCode(45)
 
 	// ── hints ──
 	ErrHintsInvalid = err.ErrInvalidData.WithObjectCode(model.ExerciseObjectCode).
@@ -232,7 +232,8 @@ var (
 				WithMessage("A linked variant must point to an unlinked variant of the same version").WithDetailCode(78)
 	// ErrLinkedFlagsNotDistinct: a base and its linked variants share a fixed flag value for one task.
 	ErrLinkedFlagsNotDistinct = err.ErrInvalidData.WithObjectCode(model.ExerciseObjectCode).
-					WithMessage("Linked variants of one base need different flags for the same task").WithDetailCode(79)
+					WithMessage("Linked variants of one base need different answer values for the same task").
+					WithDetailCode(79)
 	// ErrArchiveInvalid: the exercise archive document breaks the schema. One public fact: the
 	// `reason` context says what and where (a key, a 1-based path), so the author can fix the file.
 	ErrArchiveInvalid = err.ErrInvalidData.WithObjectCode(model.ExerciseObjectCode).
@@ -241,10 +242,10 @@ var (
 	// does not push images (archives naming image files import in the background); the context names the device.
 	ErrArchiveImageFileUnsupported = err.ErrInvalidData.WithObjectCode(model.ExerciseObjectCode).
 					WithMessage("Device images inside the archive cannot be imported this way").WithDetailCode(88)
-	// ErrArchiveSchemaUnsupported: the document does not declare schema cib-exercise/1; the context
+	// ErrArchiveSchemaUnsupported: the document does not declare schema cib-exercise/1.0; the context
 	// `expected` names the schema.
 	ErrArchiveSchemaUnsupported = err.ErrInvalidData.WithObjectCode(model.ExerciseObjectCode).
-					WithMessage("Unsupported archive schema: expected schema: cib-exercise/1").WithDetailCode(90)
+					WithMessage("Unsupported archive schema: expected schema: cib-exercise/1.0").WithDetailCode(90)
 	// ErrArchiveTooLarge: an archive (imported or being exported) is over the archive limits: the zip, one file
 	// or all files unpacked, the number of entries, or how far a file expands; the context `reason` says which.
 	ErrArchiveTooLarge = err.ErrInvalidData.WithObjectCode(model.ExerciseObjectCode).
@@ -267,7 +268,8 @@ var (
 	// ErrArchiveLinkedVariantField: a linked variant of the archive carries a key it does not own, or tasks that
 	// do not match its base (another count, another task id); the context `field` is the 1-based path.
 	ErrArchiveLinkedVariantField = err.ErrInvalidData.WithObjectCode(model.ExerciseObjectCode).
-					WithMessage("A linked variant may carry only its note and, per task, the flag and attachments").WithDetailCode(86)
+					WithMessage("A linked variant may carry only its index, note, weight, device images and, per task, the answer values and attachments").
+					WithDetailCode(86)
 	// ErrArchiveLinkedToInvalid: linked_to names no variant of the version, the variant itself or a linked
 	// variant; the context `variant` is the 1-based path of the linked variant and `linked_to` the value.
 	ErrArchiveLinkedToInvalid = err.ErrInvalidData.WithObjectCode(model.ExerciseObjectCode).

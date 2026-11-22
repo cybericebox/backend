@@ -10,26 +10,26 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/challengeAttemptRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventChallengeRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventFormRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventTeamRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/participantRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/requestIdempotencyRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/teamChallengeRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	challengeAttempt "github.com/cybericebox/daemon/internal/model/challengeAttempt"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventChallengeModel "github.com/cybericebox/daemon/internal/model/eventChallenge"
-	eventExerciseModel "github.com/cybericebox/daemon/internal/model/eventExercise"
-	eventFormModel "github.com/cybericebox/daemon/internal/model/eventForm"
-	eventTeamModel "github.com/cybericebox/daemon/internal/model/eventTeam"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	participantModel "github.com/cybericebox/daemon/internal/model/participant"
-	teamChallengeModel "github.com/cybericebox/daemon/internal/model/teamChallenge"
+	"github.com/cybericebox/backend/internal/delivery/repository/challengeAttemptRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventChallengeRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventFormRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventTeamRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/participantRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/requestIdempotencyRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/teamChallengeRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	challengeAttempt "github.com/cybericebox/backend/internal/model/challengeAttempt"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventChallengeModel "github.com/cybericebox/backend/internal/model/eventChallenge"
+	eventExerciseModel "github.com/cybericebox/backend/internal/model/eventExercise"
+	eventFormModel "github.com/cybericebox/backend/internal/model/eventForm"
+	eventTeamModel "github.com/cybericebox/backend/internal/model/eventTeam"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
+	teamChallengeModel "github.com/cybericebox/backend/internal/model/teamChallenge"
 )
 
 const challengeSubmissionIdempotencyScope = "event.challenge.submit"
@@ -204,7 +204,8 @@ func (u *EventUseCase) submitChallenge(ctx context.Context, eventID, userID, cha
 	if err = throttleSubmission(txCtx, challengeAttemptRepo.New(txRepo), eventID, teamID, tc.EventChallengeID, tc.ID, in.ReceivedAt, !moderators); err != nil {
 		return SubmitChallengeResult{}, err
 	}
-	correct := challengeAttempt.FlagMatches(tc.ExpectedFlag, canonicalAnswer)
+	correct := eventChallengeModel.AnswerOfSnapshot(tc.Snapshot).
+		Matches(tc.ExpectedFlag, canonicalAnswer, in.Answer)
 	var before *time.Time
 	wasSolved := false
 	if correct && !practice {

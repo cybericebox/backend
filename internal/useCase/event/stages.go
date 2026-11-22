@@ -3,22 +3,22 @@ package event
 import (
 	"context"
 	"errors"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabAllocationRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabRetentionRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabAllocationRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabRetentionRepo"
 	"time"
 
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventExerciseRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventStageRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventExerciseModel "github.com/cybericebox/daemon/internal/model/eventExercise"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventExerciseRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventStageRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventExerciseModel "github.com/cybericebox/backend/internal/model/eventExercise"
 )
 
 // EventStageView is a stage with explicit dates and computed state. First and Last describe its place in the order.
@@ -59,7 +59,7 @@ type UpdateStageInput struct {
 	Returnable          *bool
 	OpensWithEvent      *bool
 	ClosesWithEvent     *bool
-	// CloseNow is «Закрити зараз»: an open stage ends now.
+	// CloseNow is "close now": an open stage ends now.
 	CloseNow bool
 }
 

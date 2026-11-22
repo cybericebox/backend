@@ -10,12 +10,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/middleware"
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
-	errorJournal "github.com/cybericebox/daemon/internal/model/errorJournal"
-	authUseCase "github.com/cybericebox/daemon/internal/useCase/auth"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
+	errorJournal "github.com/cybericebox/backend/internal/model/errorJournal"
+	authUseCase "github.com/cybericebox/backend/internal/useCase/auth"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 // chainUseCase is just enough of the use case for NewController to build its chain: no event tags, and every
@@ -52,7 +52,7 @@ func TestInflightLimiterInTheControllerChain(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	sink := &chainSink{}
 	hosts := config.HostsConfig{
-		Main:        "example.test",
+		Root:        "example.test",
 		API:         "api.example.test",
 		ID:          "id.example.test",
 		Admin:       "admin.example.test",
@@ -149,7 +149,7 @@ func TestNewServer_MarksOnlyTheInternalListener(t *testing.T) {
 		InternalPort:       "0",
 		MaxHeaderMegabytes: 1,
 	}
-	s := NewServer(&cfg, "127.0.0.1", http.NotFoundHandler())
+	s := NewServer(&cfg, "127.0.0.1", http.NotFoundHandler(), config.HostsConfig{})
 	seen := false
 	for _, l := range s.listeners {
 		ctx := context.Background()

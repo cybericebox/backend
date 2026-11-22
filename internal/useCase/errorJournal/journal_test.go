@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	errorJournal "github.com/cybericebox/daemon/internal/model/errorJournal"
-	"github.com/cybericebox/daemon/pkg/telegram"
+	errorJournal "github.com/cybericebox/backend/internal/model/errorJournal"
+	"github.com/cybericebox/backend/pkg/telegram"
 )
 
 var ctx = context.Background()
@@ -320,4 +320,12 @@ func TestListErrorGroupsRequestFilterNeedsEightHexCharacters(t *testing.T) {
 		_, _, err := h.j.ListErrorGroups(ctx, GroupFilter{Request: bad})
 		assert.ErrorIs(t, err, errorJournal.ErrFilterInvalid.Err(), bad)
 	}
+}
+
+func TestListErrorGroupsRefusesAnOffsetBeyondTheDatabaseRange(t *testing.T) {
+	h := newHarness(DefaultConfig())
+	// 1<<31 wraps to a negative int32 offset, which the database refuses with a 500.
+	_, _, err := h.j.ListErrorGroups(ctx, GroupFilter{Offset: 1 << 31})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errorJournal.ErrFilterInvalid.Err())
 }

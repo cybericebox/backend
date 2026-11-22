@@ -7,13 +7,14 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/temporalCodeRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
-	temporalCodeModel "github.com/cybericebox/daemon/internal/model/temporalCode"
-	"github.com/cybericebox/daemon/pkg/secret"
-	"github.com/cybericebox/daemon/pkg/tools"
+	"github.com/cybericebox/backend/internal/delivery/repository/temporalCodeRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
+	temporalCodeModel "github.com/cybericebox/backend/internal/model/temporalCode"
+	"github.com/cybericebox/backend/internal/secretctx"
+	"github.com/cybericebox/backend/pkg/secret"
+	"github.com/cybericebox/backend/pkg/tools"
 )
 
 // payloadTTL outlives every River retry of a notify job (backoff stays well under it); the retention
@@ -26,11 +27,10 @@ type payloadStore struct {
 	cipher *secret.Cipher
 }
 
-func payloadCode(dispatchID uuid.UUID) string { return "notify-payload:" + dispatchID.String() }
+// payloadCode is the lookup code of the stored payload (temporal_codes.code). It is not the context the payload is sealed with.
+func payloadCode(dispatchID uuid.UUID) string { return "notify-payload:" + dispatchID.String() } // secretctx:ignore
 
-func payloadContext(dispatchID uuid.UUID) []byte {
-	return []byte("notify-payload:" + dispatchID.String())
-}
+func payloadContext(dispatchID uuid.UUID) []byte { return secretctx.NotifyPayload(dispatchID) }
 
 func (s *payloadStore) put(ctx context.Context, dispatchID, userID uuid.UUID, p dispatchModel.Payload) error {
 	if s.cipher == nil {

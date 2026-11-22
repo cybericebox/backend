@@ -9,9 +9,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/model/notification/emaildefaults"
-	"github.com/cybericebox/daemon/internal/model/notification/inappdefaults"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/model/notification/emaildefaults"
+	"github.com/cybericebox/backend/internal/model/notification/inappdefaults"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 func readMigration(t *testing.T, name string) string {
@@ -79,17 +79,17 @@ func TestEmailTemplatesRedesignMigration(t *testing.T) {
 	require.True(t, ok, "the dead row is restored")
 
 	// An admin edit (a row written by a user) is left alone by up.
-	_, err = db.Pool.Exec(ctx, `UPDATE notification_email_templates SET subject = 'Мій текст'
+	_, err = db.Pool.Exec(ctx, `UPDATE notification_email_templates SET subject = 'My text'
 		WHERE notification_type = 'flag_accepted' AND scope_event_id IS NULL`)
 	require.NoError(t, err)
 	_, err = db.Pool.Exec(ctx, `INSERT INTO notification_email_templates (id, notification_type, status, subject, body)
-		VALUES (gen_random_uuid(), 'flag_accepted', 'draft', 'Чернетка', '[]')`)
+		VALUES (gen_random_uuid(), 'flag_accepted', 'draft', 'Draft', '[]')`)
 	require.NoError(t, err)
 
 	_, err = db.Pool.Exec(ctx, up)
 	require.NoError(t, err)
 	kept, _ := load("flag_accepted")
-	require.Equal(t, "Мій текст", kept.subject, "a type with a draft is not replaced")
+	require.Equal(t, "My text", kept.subject, "a type with a draft is not replaced")
 	requireDefaults("flag_accepted")
 }
 
@@ -130,7 +130,7 @@ func TestInAppTemplatesRedesignMigration(t *testing.T) {
 	require.Equal(t, "{{event_url}}", link, "the old link is restored")
 
 	_, err = db.Pool.Exec(ctx, `INSERT INTO notification_in_app_templates (id, notification_type, status, title, body)
-		VALUES (gen_random_uuid(), 'flag_accepted', 'draft', 'Чернетка', 'x')`)
+		VALUES (gen_random_uuid(), 'flag_accepted', 'draft', 'Draft', 'x')`)
 	require.NoError(t, err)
 	_, err = db.Pool.Exec(ctx, up)
 	require.NoError(t, err)

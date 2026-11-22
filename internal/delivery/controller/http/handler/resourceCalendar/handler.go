@@ -5,19 +5,19 @@ package resourceCalendar
 
 import (
 	"context"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/middleware"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
 	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/audit"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	calModel "github.com/cybericebox/daemon/internal/model/resourceCalendar"
-	exerciseUseCase "github.com/cybericebox/daemon/internal/useCase/exercise"
-	calUseCase "github.com/cybericebox/daemon/internal/useCase/resourceCalendar"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/audit"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	calModel "github.com/cybericebox/backend/internal/model/resourceCalendar"
+	exerciseUseCase "github.com/cybericebox/backend/internal/useCase/exercise"
+	calUseCase "github.com/cybericebox/backend/internal/useCase/resourceCalendar"
 )
 
 type (

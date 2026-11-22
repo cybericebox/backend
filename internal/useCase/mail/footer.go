@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"golang.org/x/net/html"
 	"io"
+	"slices"
 	"strings"
 
-	mailModel "github.com/cybericebox/daemon/internal/model/mail"
-	"github.com/cybericebox/daemon/internal/useCase/notification/channels/render"
+	mailModel "github.com/cybericebox/backend/internal/model/mail"
+	"github.com/cybericebox/backend/internal/model/usertext"
+	"github.com/cybericebox/backend/internal/useCase/notification/channels/render"
 )
 
 // footerBox is small, muted footer text. Alignment belongs to its document.
@@ -27,19 +29,19 @@ var footerStyling = json.RawMessage(`{"font_family":"Arial,Helvetica,sans-serif"
 // blocks. An empty result means there is nothing to append. A document the
 // renderer rejects (it was validated on save, so only corrupt data) falls back
 // to the default footer rather than blocking mail.
-func renderFooter(doc []byte, supportEmail, site string) mailModel.Footer {
+func renderFooter(doc []byte, supportEmail, site, privacy string) mailModel.Footer {
 	if len(doc) == 0 {
 		doc = mailModel.DefaultFooterDoc(mailModel.LanguageUK)
 	}
-	if footer, ok := tryRenderFooter(doc, supportEmail, site); ok {
+	if footer, ok := tryRenderFooter(doc, supportEmail, site, privacy); ok {
 		return footer
 	}
-	footer, _ := tryRenderFooter(mailModel.DefaultFooterDoc(mailModel.LanguageUK), supportEmail, site)
+	footer, _ := tryRenderFooter(mailModel.DefaultFooterDoc(mailModel.LanguageUK), supportEmail, site, privacy)
 	return footer
 }
 
-func tryRenderFooter(doc []byte, supportEmail, site string) (mailModel.Footer, bool) {
-	resolved, ok := mailModel.ResolveFooterDoc(doc, mailModel.FooterValues(supportEmail, site))
+func tryRenderFooter(doc []byte, supportEmail, site, privacy string) (mailModel.Footer, bool) {
+	resolved, ok := mailModel.ResolveFooterDoc(doc, mailModel.FooterValues(supportEmail, site, privacy))
 	if !ok {
 		return mailModel.Footer{}, resolved != nil
 	}
@@ -65,20 +67,16 @@ func tryRenderFooter(doc []byte, supportEmail, site string) (mailModel.Footer, b
 
 // RenderPlatformFooter is the built-in footer of platform mail for the given
 // Reply-To and site (previews and tests).
-func RenderPlatformFooter(supportEmail, site string) mailModel.Footer {
-	return renderFooter(nil, supportEmail, site)
+func RenderPlatformFooter(supportEmail, site, privacy string) mailModel.Footer {
+	return renderFooter(nil, supportEmail, site, privacy)
 }
 
 // Keep familiar short footer labels together without preventing long custom
 // links or paragraphs from wrapping. Touch text tokens only, never URLs.
 func keepFooterLinkWords(markup string) string {
-	words := strings.NewReplacer(
-		"Звʼязатися з нами", "Звʼязатися&nbsp;з&nbsp;нами",
-		"Зв\u2019язатися з нами", "Зв\u2019язатися&nbsp;з&nbsp;нами",
-		"Зв&#39;язатися з нами", "Зв&#39;язатися&nbsp;з&nbsp;нами",
-		"Політика конфіденційності", "Політика&nbsp;конфіденційності",
+	words := strings.NewReplacer(append(slices.Clone(usertext.FooterLinkReplacements),
 		"Contact us", "Contact&nbsp;us", "Privacy Policy", "Privacy&nbsp;Policy",
-	)
+	)...)
 	tokenizer := html.NewTokenizer(strings.NewReader(markup))
 	var out strings.Builder
 	for {

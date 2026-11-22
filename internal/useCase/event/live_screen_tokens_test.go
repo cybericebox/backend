@@ -13,8 +13,8 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
 )
 
 func randomScreenToken(t *testing.T) string {
@@ -80,7 +80,7 @@ func TestIssueAndRevokeRefreshTheKnownLinks(t *testing.T) {
 	}
 	q.EXPECT().GetEventByID(gomock.Any(), eventID).Return(startedEvent(eventID, now), nil)
 	screenID := uuid.Must(uuid.NewV7())
-	q.EXPECT().GetEventLiveScreen(gomock.Any(), gomock.Any()).Return(liveScreenRow(t, eventID, screenID, "Екран 1"), nil).Times(2)
+	q.EXPECT().GetEventLiveScreen(gomock.Any(), gomock.Any()).Return(liveScreenRow(t, eventID, screenID, "Screen 1"), nil).Times(2)
 	q.EXPECT().IssueEventLiveScreenLink(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, p postgres.IssueEventLiveScreenLinkParams) error {
 		stored = append(stored, p.TokenHash)
 		return nil

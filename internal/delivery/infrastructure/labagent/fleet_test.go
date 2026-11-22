@@ -17,10 +17,10 @@ import (
 
 	labpb "github.com/cybericebox/laboratory/pkg/agent/protobuf"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	resourcesModel "github.com/cybericebox/daemon/internal/model/resources"
-	"github.com/cybericebox/daemon/pkg/labaccess"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	resourcesModel "github.com/cybericebox/backend/internal/model/resources"
+	"github.com/cybericebox/backend/pkg/labaccess"
 )
 
 type memoryPlacements struct {
@@ -276,23 +276,58 @@ func TestSessionIssuerSignsWithTheKeyOfTheAgentThatHoldsTheGroup(t *testing.T) {
 		tenant, kid string
 		key         ed25519.PrivateKey
 	}{"e-1-t-1": {"tenant-b", "kb", keyB}, "e-1-t-2": {"tenant-a", "ka", keyA}} {
-		link, issueErr := sessions.Issue(ctx, labaccess.Session{Group: group, Client: "p-1", AccessURL: "https://web-abc.labs.example.com/"}, now)
+		link, issueErr := sessions.Issue(ctx, labaccess.Session{Group: group, Client: "p-1", Lab: "c-1", Device: "web", AccessURL: "https://web-abc.labs.example.com/"}, now)
 		if issueErr != nil {
 			t.Fatalf("%s: %v", group, issueErr)
 		}
 		var claims jwt.RegisteredClaims
-		token, parseErr := jwt.ParseWithClaims(link.Token, &claims, func(*jwt.Token) (any, error) { return want.key.Public(), nil }, jwt.WithIssuer(want.tenant), jwt.WithAudience(labaccess.Audience))
+		token, parseErr := jwt.ParseWithClaims(link.Grant, &claims, func(*jwt.Token) (any, error) { return want.key.Public(), nil }, jwt.WithIssuer(want.tenant), jwt.WithAudience(labaccess.Audience))
 		if parseErr != nil || token.Header["kid"] != want.kid {
 			t.Fatalf("%s: token does not verify with the holder's key: %v kid=%v", group, parseErr, token.Header["kid"])
 		}
 	}
 	// A member without a key gives no link; an unknown group is an error.
 	f.bm.AccessKey = nil
-	if _, err = sessions.Issue(ctx, labaccess.Session{Group: "e-1-t-1", Client: "p-1", AccessURL: "https://web-abc.labs.example.com/"}, now); !errors.Is(err, infraModel.ErrInfrastructureUnavailable.Err()) {
+	if _, err = sessions.Issue(ctx, labaccess.Session{Group: "e-1-t-1", Client: "p-1", Lab: "c-1", Device: "web", AccessURL: "https://web-abc.labs.example.com/"}, now); !errors.Is(err, infraModel.ErrInfrastructureUnavailable.Err()) {
 		t.Fatalf("no key = %v", err)
 	}
-	if _, err = sessions.Issue(ctx, labaccess.Session{Group: "e-9-t-9", Client: "p-1", AccessURL: "https://web-abc.labs.example.com/"}, now); err == nil {
+	if _, err = sessions.Issue(ctx, labaccess.Session{Group: "e-9-t-9", Client: "p-1", Lab: "c-1", Device: "web", AccessURL: "https://web-abc.labs.example.com/"}, now); err == nil {
 		t.Fatal("an unknown group has no agent")
+	}
+}
+
+// The grant never outlives what the agent's proxy reports, and an agent whose contract has another major (or none) gets no
+// grant at all: it would refuse it. A report that is not there yet keeps the grant uncapped.
+func TestSessionIssuerCapsByTheAgentLimitAndRefusesAnIncompatibleContract(t *testing.T) {
+	f := newFleetFixture(t)
+	ctx := context.Background()
+	_, key, _ := ed25519.GenerateKey(rand.Reader)
+	f.am.Tenant, f.am.AccessKeyID, f.am.AccessKey = "tenant-a", "ka", key
+	f.am.Features = NewFeatureCell(nil)
+	f.fleet.Replace([]*Member{f.am, f.bm})
+	f.store.groups = map[string]uuid.UUID{"e-1-t-2": f.am.ID}
+	issuer, err := labaccess.New(labaccess.Config{SessionTTL: 24 * time.Hour})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessions := SessionIssuer{Fleet: f.fleet, Issuer: issuer}
+	now := time.Date(2026, 11, 20, 12, 0, 0, 0, time.UTC)
+	session := labaccess.Session{Group: "e-1-t-2", Client: "p-1", Lab: "c-1", Device: "web", AccessURL: "https://web-abc.labs.example.com/"}
+
+	f.am.Features.Set(infraModel.AgentFeatures{ContractVersion: "3.0", Proxy: infraModel.ProxyFeature{GrantMaxTTLSeconds: 3600}})
+	link, err := sessions.Issue(ctx, session, now)
+	if err != nil || !link.ExpiresAt.Equal(now.Add(time.Hour)) {
+		t.Fatalf("a grant is capped at the agent's limit: %v %v", link.ExpiresAt, err)
+	}
+	f.am.Features.Set(infraModel.AgentFeatures{ContractVersion: "3.2", Proxy: infraModel.ProxyFeature{GrantMaxTTLSeconds: 3600}})
+	if _, err = sessions.Issue(ctx, session, now); err != nil {
+		t.Fatalf("a later minor of contract 3 takes the grant: %v", err)
+	}
+	for _, reported := range []string{"", "2.9", "4.0", "x"} {
+		f.am.Features.Set(infraModel.AgentFeatures{ContractVersion: reported, Proxy: infraModel.ProxyFeature{GrantMaxTTLSeconds: 3600}})
+		if _, err = sessions.Issue(ctx, session, now); !errors.Is(err, infraModel.ErrInfrastructureUnavailable.Err()) {
+			t.Fatalf("contract %q must give no grant: %v", reported, err)
+		}
 	}
 }
 
@@ -322,6 +357,17 @@ func TestFleetRefusesPersistenceTheAgentDoesNotOffer(t *testing.T) {
 	if err = f.fleet.DeployLab(ctx, "e-1-t-1", "c-3", infraModel.LabMeta{}, persistentTopology()); err != nil {
 		t.Fatal(err)
 	}
+	// Persistence that became available after the agent started is seen at the refusal, without waiting for the
+	// next poll.
+	late := newFleetFixture(t)
+	late.am.Features = NewFeatureCell(&infraModel.AgentFeatures{})
+	late.a.features = &labpb.FeaturesResponse{StatePersistence: &labpb.StatePersistenceFeature{Available: true}}
+	if err = late.fleet.DeployLab(ctx, "e-3-t-1", "c-1", infraModel.LabMeta{}, persistentTopology()); err != nil {
+		t.Fatalf("the agent offers persistence now: %v", err)
+	}
+	if !late.am.Features.Get().Persistence.Available {
+		t.Fatal("the refreshed report is kept")
+	}
 	// An agent that has not reported yet is not second-guessed: it refuses on its own if it must.
 	other := newFleetFixture(t)
 	if err = other.fleet.DeployLab(ctx, "e-2-t-1", "c-1", infraModel.LabMeta{}, persistentTopology()); err != nil {
@@ -345,6 +391,23 @@ func TestFleetPersistenceAvailableFollowsTheEnabledAgentsReports(t *testing.T) {
 	}
 }
 
+func TestFleetLabCapabilitiesAggregatesTheEnabledAgentsReports(t *testing.T) {
+	f := newFleetFixture(t)
+	if got := f.fleet.LabCapabilities(); got.Known || got.Checks != infraModel.AvailabilityUnknown {
+		t.Fatalf("an agent that has not reported is unknown, not false: %+v", got)
+	}
+	f.bm.Features = NewFeatureCell(&infraModel.AgentFeatures{Checks: &infraModel.ChecksFeature{Enabled: true}})
+	got := f.fleet.LabCapabilities()
+	// The fixture has another enabled agent that has not reported: what the reporting one can is "some", what it cannot is "unknown".
+	if !got.Known || got.Checks != infraModel.AvailabilitySome || got.Observations["custom"] != infraModel.AvailabilitySome || got.Observations["directory"] != infraModel.AvailabilityUnknown {
+		t.Fatalf("reported: %+v", got)
+	}
+	f.bm.Enabled = false
+	if got = f.fleet.LabCapabilities(); got.Known {
+		t.Fatalf("a disabled agent is not used: %+v", got)
+	}
+}
+
 func TestFeaturesOfConvertsTheAgentReport(t *testing.T) {
 	got := FeaturesOf(&labpb.FeaturesResponse{
 		StatePersistence: &labpb.StatePersistenceFeature{Available: true, DefaultDebounceMs: 5000, WriteQuotaBytes: 10, MaxFileSizeBytes: 20, ExcludedPaths: []string{"/proc"}},
@@ -352,7 +415,8 @@ func TestFeaturesOfConvertsTheAgentReport(t *testing.T) {
 		Scheduler:        &labpb.SchedulerFeature{Enabled: true, MaxPods: 4},
 		Endpoints:        &labpb.EndpointsFeature{LabsDomain: "labs.example.test", VpnEndpoint: "vpn.example.test:51820"},
 		Certificate:      &labpb.CertificateFeature{NotAfterUnix: 99, IssuedTtlSeconds: 100},
-		Proxy:            &labpb.ProxyFeature{AccessTokenMaxTtlSeconds: 300, SessionMaxTtlSeconds: 86400, SessionIdleTtlSeconds: 3600},
+		Proxy:            &labpb.ProxyFeature{GrantMaxTtlSeconds: 28800},
+		ContractVersion:  "3.0",
 		Limits: &labpb.LimitsFeature{
 			Device: &labpb.DeviceLimits{MaxCpuMillicores: 500, MaxMemoryBytes: 512 << 20, DefaultCpuMillicores: 100, DefaultMemoryBytes: 256 << 20},
 			Lab:    &labpb.LabLimits{MaxDevices: 10},
@@ -362,12 +426,13 @@ func TestFeaturesOfConvertsTheAgentReport(t *testing.T) {
 		DeviceProfiles: []string{"standard"},
 	})
 	want := infraModel.AgentFeatures{
-		Persistence: infraModel.PersistenceFeature{Available: true, DefaultDebounce: 5000, WriteQuotaBytes: 10, MaxFileSizeBytes: 20, ExcludedPaths: []string{"/proc"}},
-		ImageCache:  infraModel.ImageCacheFeature{Enabled: true, Registries: []string{"docker.io"}},
-		Scheduler:   infraModel.SchedulerFeature{Enabled: true, MaxPods: 4},
-		Endpoints:   infraModel.EndpointsFeature{LabsDomain: "labs.example.test", VPNEndpoint: "vpn.example.test:51820"},
-		Certificate: infraModel.CertificateFeature{NotAfterUnix: 99, IssuedTTLSeconds: 100},
-		Proxy:       infraModel.ProxyFeature{AccessTokenMaxTTLSeconds: 300, SessionMaxTTLSeconds: 86400, SessionIdleTTLSeconds: 3600},
+		ContractVersion: "3.0",
+		Persistence:     infraModel.PersistenceFeature{Available: true, DefaultDebounce: 5000, WriteQuotaBytes: 10, MaxFileSizeBytes: 20, ExcludedPaths: []string{"/proc"}},
+		ImageCache:      infraModel.ImageCacheFeature{Enabled: true, Registries: []string{"docker.io"}},
+		Scheduler:       infraModel.SchedulerFeature{Enabled: true, MaxPods: 4},
+		Endpoints:       infraModel.EndpointsFeature{LabsDomain: "labs.example.test", VPNEndpoint: "vpn.example.test:51820"},
+		Certificate:     infraModel.CertificateFeature{NotAfterUnix: 99, IssuedTTLSeconds: 100},
+		Proxy:           infraModel.ProxyFeature{GrantMaxTTLSeconds: 28800},
 		Limits: infraModel.LimitsFeature{
 			DeviceMaxCPUMillicores: 500, DeviceMaxMemoryBytes: 512 << 20, LabMaxDevices: 10, TenantMaxLabs: 7,
 			DeviceProfiles: []string{"standard"},

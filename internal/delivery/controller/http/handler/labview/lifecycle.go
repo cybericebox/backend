@@ -1,6 +1,6 @@
 package labview
 
-import eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+import eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 
 // ParticipantLabResponse preserves the frozen PascalCase nullable wire shape.
 type ParticipantLabResponse eventUseCase.ParticipantLabView

@@ -5,10 +5,10 @@ import (
 	"strings"
 	"time"
 
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
 )
 
-// InputDate is the answer type of a «Дата / час» question. DateMode says what
+// InputDate is the answer type of a "Date / time" question. DateMode says what
 // the participant enters: a date ("YYYY-MM-DD"), a time of day ("HH:MM",
 // local, no zone) or both (a UTC ISO datetime, "2026-09-29T12:30:00Z").
 // An empty mode is a date, as saved before times existed.

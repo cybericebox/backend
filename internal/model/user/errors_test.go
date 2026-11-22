@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	userModel "github.com/cybericebox/daemon/internal/model/user"
+	userModel "github.com/cybericebox/backend/internal/model/user"
 )
 
 // ErrUserNotFound (404) and ErrUserExists (409-family) shared DetailCode 1,

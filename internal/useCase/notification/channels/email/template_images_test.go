@@ -13,10 +13,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	notificationModel "github.com/cybericebox/daemon/internal/model/notification"
-	"github.com/cybericebox/daemon/internal/model/notification/branding"
-	emailUseCase "github.com/cybericebox/daemon/internal/useCase/notification/channels/email"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	notificationModel "github.com/cybericebox/backend/internal/model/notification"
+	"github.com/cybericebox/backend/internal/model/notification/branding"
+	emailUseCase "github.com/cybericebox/backend/internal/useCase/notification/channels/email"
 )
 
 // fakeTemplateMedia is an in-memory TemplateMedia recording reference calls.
@@ -42,7 +42,7 @@ func (f *fakeTemplateMedia) addFile(contentType string, size int64) uuid.UUID {
 	return id
 }
 
-func (f *fakeTemplateMedia) UploadFile(_ context.Context, name, contentType string, r io.Reader, createdBy uuid.UUID) (mediaModel.File, error) {
+func (f *fakeTemplateMedia) UploadPublicImage(_ context.Context, _, name, contentType string, r io.Reader, createdBy uuid.UUID) (mediaModel.File, error) {
 	b, err := io.ReadAll(r)
 	if err != nil {
 		return mediaModel.File{}, err

@@ -7,16 +7,18 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 func validTask() exerciseModel.Task {
 	return exerciseModel.Task{
-		ID:          uuid.Must(uuid.NewV7()),
-		Name:        "Find the flag",
-		Description: json.RawMessage(`{"root":{"children":[{"type":"paragraph","children":[{"type":"text","text":"Find the flag"}]}]}}`),
-		Difficulty:  exerciseModel.DifficultyEasy,
-		Flag:        []string{"ICE{x}"},
+		ID:   uuid.Must(uuid.NewV7()),
+		Name: "Find the flag",
+		Description: json.RawMessage(
+			`{"root":{"children":[{"type":"paragraph","children":[{"type":"text","text":"Find the flag"}]}]}}`,
+		),
+		Difficulty: exerciseModel.DifficultyEasy,
+		Check:      exerciseModel.FlagCheck("ICE{x}"),
 	}
 }
 
@@ -29,13 +31,13 @@ func TestValidateStructure(t *testing.T) {
 	twoTasks.Tasks = append(twoTasks.Tasks, validTask())
 
 	badFlagList := validVariant()
-	badFlagList.Tasks[0].Flag = []string{" "}
+	badFlagList.Tasks[0].Check = exerciseModel.FlagCheck(" ")
 
 	emptyFlag := validVariant()
-	emptyFlag.Tasks[0].Flag = nil
+	emptyFlag.Tasks[0].Check = exerciseModel.FlagCheck()
 
 	multiFlag := validVariant()
-	multiFlag.Tasks[0].Flag = []string{"ICE{a}", "ICE{b}"}
+	multiFlag.Tasks[0].Check = exerciseModel.FlagCheck("ICE{a}", "ICE{b}")
 
 	badDifficulty := validVariant()
 	badDifficulty.Tasks[0].Difficulty = "nightmare"
@@ -47,7 +49,7 @@ func TestValidateStructure(t *testing.T) {
 	badDeviceName.Topology.Devices = []exerciseModel.Device{{ID: uuid.Must(uuid.NewV7()), Name: "Bad_Name", Type: exerciseModel.DeviceTypeContainer}}
 
 	badEndpointArity := validVariant()
-	badEndpointArity.Topology.Connections = []exerciseModel.Connection{{Endpoints: []exerciseModel.Endpoint{{Kind: exerciseModel.EndpointVPN}}}}
+	badEndpointArity.Topology.Connections = []exerciseModel.Connection{{Endpoints: []exerciseModel.Endpoint{{Kind: exerciseModel.EndpointDevice}}}}
 
 	cases := []struct {
 		name     string
@@ -99,7 +101,7 @@ func TestValidateStructure_RequiresICEFlagFormat(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			variant := validVariant()
-			variant.Tasks[0].Flag = []string{tc.value}
+			variant.Tasks[0].Check = exerciseModel.FlagCheck(tc.value)
 			err := (&exerciseModel.ExerciseVersion{Variants: []exerciseModel.Variant{variant}}).ValidateStructure()
 			if tc.valid && err != nil {
 				t.Fatalf("valid flag %q rejected: %v", tc.value, err)
@@ -129,7 +131,7 @@ func TestFlagCandidates_DraftAndPublicationRules(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			variant := validVariant()
-			variant.Tasks[0].Flag = tc.flags
+			variant.Tasks[0].Check = exerciseModel.FlagCheck(tc.flags...)
 			version := exerciseModel.ExerciseVersion{Variants: []exerciseModel.Variant{variant}}
 			if got := version.ValidateStructure() == nil; got != tc.structureValid {
 				t.Fatalf("structure valid=%t, want %t", got, tc.structureValid)
@@ -312,7 +314,7 @@ func TestHasInfrastructure(t *testing.T) {
 		{"no variants", nil, false},
 		{"no topology", []exerciseModel.Variant{{}}, false},
 		{"empty devices", []exerciseModel.Variant{{Topology: exerciseModel.Topology{Devices: []exerciseModel.Device{}}}}, false},
-		{"networks without devices", []exerciseModel.Variant{{Topology: exerciseModel.Topology{VPN: exerciseModel.NetworkSpec{Enabled: true}, Internet: exerciseModel.NetworkSpec{Enabled: true}}}}, false},
+		{"gateways without devices", []exerciseModel.Variant{{Topology: exerciseModel.Topology{Devices: []exerciseModel.Device{gw("vpn", exerciseModel.DeviceTypeVPNGateway), gw("out", exerciseModel.DeviceTypeInternetGateway)}}}}, false},
 		{"device in a later variant", []exerciseModel.Variant{{}, {Topology: exerciseModel.Topology{Devices: []exerciseModel.Device{{Name: "host-1"}}}}}, true},
 	} {
 		if got := exerciseModel.HasInfrastructure(tc.variants); got != tc.want {
@@ -333,7 +335,7 @@ func TestValidateForPublish_MultiFlagNeedsDeviceHasOwnError(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			variant := validVariant()
-			variant.Tasks[0].Flag = tc.flags
+			variant.Tasks[0].Check = exerciseModel.FlagCheck(tc.flags...)
 			err := (&exerciseModel.ExerciseVersion{Variants: []exerciseModel.Variant{variant}}).ValidateForPublish()
 			if !errors.Is(err, tc.want) {
 				t.Fatalf("want %v, got %v", tc.want, err)

@@ -8,10 +8,10 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	emailModel "github.com/cybericebox/daemon/internal/model/notification/email"
+	emailModel "github.com/cybericebox/backend/internal/model/notification/email"
 
-	eventHandler "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/event"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	eventHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/event"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 type subscriptionContractUC struct {

@@ -9,10 +9,10 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	event "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	event "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 // liveBoardNames reads the view=live board of an individual event with one

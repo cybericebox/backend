@@ -1,4 +1,4 @@
--- Platform analytics, «Інфраструктура» (docs/EVENT-ANALYTICS.md §8). Aggregates
+-- Platform analytics, "Infrastructure" (docs/EVENT-ANALYTICS.md §8). Aggregates
 -- only: no IP addresses, no VPN client addresses, no lab payloads.
 --
 -- A stand is ACTIVE while its status is creating (1) or ready (2), the same

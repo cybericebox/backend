@@ -8,14 +8,14 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventTeamRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/participantRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/userRepo"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventTeamModel "github.com/cybericebox/daemon/internal/model/eventTeam"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventTeamRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/participantRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/userRepo"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventTeamModel "github.com/cybericebox/backend/internal/model/eventTeam"
+	userModel "github.com/cybericebox/backend/internal/model/user"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 // TestParticipantsTableFiltersAndSortsColumns drives the participants table
@@ -110,7 +110,7 @@ func TestTeamsTableFiltersAndSortsColumns(t *testing.T) {
 	}{
 		{"Alpha", "Zoya", 3, "Одеса", "2026-01-10", "09:15"},
 		{"Beta", "Andrii", 1, "Київ", "2026-03-05T10:00:00.000Z", "18:40"},
-		{"Gamma", "Mariia", 2, "Львів", "не дата", ""},
+		{"Gamma", "Mariia", 2, "Львів", "not a date", ""},
 	} {
 		captain, cErr := users.Create(ctx, userModel.NewIncompleteUser(uuid.Must(uuid.NewV7()), fmt.Sprintf("ttable-%d@example.test", i), now))
 		if cErr != nil {

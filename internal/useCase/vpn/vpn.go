@@ -7,16 +7,16 @@ package vpn
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/gofrs/uuid"
 
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/delivery/repository/vpnRepo"
-	"github.com/cybericebox/daemon/internal/model"
-	vpnModel "github.com/cybericebox/daemon/internal/model/vpn"
-	"github.com/cybericebox/daemon/pkg/secret"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/delivery/repository/vpnRepo"
+	"github.com/cybericebox/backend/internal/model"
+	vpnModel "github.com/cybericebox/backend/internal/model/vpn"
+	"github.com/cybericebox/backend/internal/secretctx"
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
 // IRepository is the narrow data port the vpnRepo wraps (the sqlc Querier
@@ -48,14 +48,10 @@ type ConfigView struct {
 	UpdatedAt time.Time
 }
 
-// configContext binds a stored config to its row (user, scope and scope reference): a ciphertext copied to
+// ConfigContext binds a stored config to its row (user, scope and scope reference): a ciphertext copied to
 // another row, or another user's, does not open.
-func configContext(userID uuid.UUID, scope vpnModel.Scope, scopeRef uuid.NullUUID) []byte {
-	ref := ""
-	if scopeRef.Valid {
-		ref = scopeRef.UUID.String()
-	}
-	return []byte(fmt.Sprintf("vpn-config:%s:%v:%s", userID, scope, ref))
+func ConfigContext(userID uuid.UUID, scope vpnModel.Scope, scopeRef uuid.NullUUID) []byte {
+	return secretctx.VPNConfig(userID, string(scope), scopeRef)
 }
 
 // StoreConfig encrypts and upserts a user's VPN config for a scope. Re-issuing
@@ -67,7 +63,7 @@ func (u *VPNUseCase) StoreConfig(ctx context.Context, userID uuid.UUID, scope vp
 	if u.cipher == nil {
 		return vpnModel.ErrVPNSecretsNotConfigured.Err()
 	}
-	ct, err := u.cipher.EncryptWithContext([]byte(plaintext), configContext(userID, scope, scopeRef))
+	ct, err := u.cipher.EncryptWithContext([]byte(plaintext), ConfigContext(userID, scope, scopeRef))
 	if err != nil {
 		return model.ErrPlatform.WithError(err).WithMessage("Failed to encrypt VPN config").Err()
 	}
@@ -90,7 +86,7 @@ func (u *VPNUseCase) GetConfig(ctx context.Context, userID uuid.UUID, scope vpnM
 	if u.cipher == nil {
 		return "", vpnModel.ErrVPNSecretsNotConfigured.Err()
 	}
-	pt, err := u.cipher.DecryptWithContext(c.Config, configContext(userID, scope, scopeRef))
+	pt, err := u.cipher.DecryptWithContext(c.Config, ConfigContext(userID, scope, scopeRef))
 	if err != nil {
 		return "", model.ErrPlatform.WithError(err).WithMessage("Failed to decrypt VPN config").Err()
 	}

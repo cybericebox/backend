@@ -227,7 +227,7 @@ WHERE r.ref_type = 'event_answer_file'
 -- this removes everything else that belongs to the person and anonymizes
 -- their public alias. The tombstone row stays: challenge attempts, teams and
 -- scoreboards keep referencing it, and it is presented as the generic
--- "Учасник" (event_participant_public_name) once the pseudonym is gone.
+-- the default public participant name (event_participant_public_name) once the pseudonym is gone.
 WITH batch AS (
     SELECT u.id
     FROM users u
@@ -254,8 +254,6 @@ WITH batch AS (
     DELETE FROM notification_user_settings WHERE user_id IN (SELECT id FROM batch)
 ), dispatches AS (
     DELETE FROM notification_dispatches WHERE recipient_user_id IN (SELECT id FROM batch)
-), envelopes AS (
-    DELETE FROM secret_envelopes WHERE recipient_user_id IN (SELECT id FROM batch)
 ), idempotency AS (
     DELETE FROM request_idempotency WHERE owner_id IN (SELECT id FROM batch)
 ), managers AS (
@@ -264,6 +262,9 @@ WITH batch AS (
     DELETE FROM sessions WHERE user_id IN (SELECT id FROM batch)
 ), providers AS (
     DELETE FROM user_providers WHERE user_id IN (SELECT id FROM batch)
+), assistant_subject AS (
+    -- The pseudonym at the authoring assistant's brain: with it gone the brain's data is no longer linked to the person.
+    DELETE FROM assistant_subjects WHERE user_id IN (SELECT id FROM batch)
 ), avatars AS (
     DELETE FROM file_references WHERE ref_type = 'user_avatar' AND ref_id IN (SELECT id FROM batch)
 ), signals AS (

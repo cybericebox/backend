@@ -1,5 +1,5 @@
 -- name: ListEventLiveScreens :many
--- The event's screens in the editor order; the first one is «Екран 1» of the
+-- The event's screens in the editor order; the first one is "Screen 1" of the
 -- old single-screen routes.
 SELECT *
 FROM event_live_screens

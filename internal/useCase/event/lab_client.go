@@ -6,8 +6,8 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	labBindingModel "github.com/cybericebox/daemon/internal/model/labBinding"
-	vpnModel "github.com/cybericebox/daemon/internal/model/vpn"
+	labBindingModel "github.com/cybericebox/backend/internal/model/labBinding"
+	vpnModel "github.com/cybericebox/backend/internal/model/vpn"
 )
 
 // labClientDeleter and vpnConfigDeleter are optional capabilities of the agent

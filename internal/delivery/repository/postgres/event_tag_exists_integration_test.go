@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 // An event site's origin is allowed while its event exists, archived or not.

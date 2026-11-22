@@ -6,8 +6,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
 )
 
 var boardT0 = time.Date(2026, 10, 10, 9, 0, 0, 0, time.UTC)

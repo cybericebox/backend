@@ -18,9 +18,9 @@ import (
 	"github.com/rs/zerolog/log"
 	"google.golang.org/api/option"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	"github.com/cybericebox/daemon/internal/model"
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	"github.com/cybericebox/backend/internal/model"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
 )
 
 var recaptchaHTTPClient = &http.Client{Timeout: 10 * time.Second}

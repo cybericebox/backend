@@ -9,7 +9,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/cybericebox/daemon/pkg/password"
+	"github.com/cybericebox/backend/pkg/password"
 )
 
 // DefaultCredentialsPath is where the seeded accounts and their password go. The file is
@@ -45,7 +45,7 @@ func readPassword(path string) string {
 // writeCredentials rewrites the file (mode 0600) with the shared password and every account.
 func writeCredentials(path, header, plain string, lines []credentialLine) error {
 	var out strings.Builder
-	out.WriteString("# Cyber ICE Box seed accounts. Dev only, gitignored, rewritten by every `make seed`.\n")
+	out.WriteString("# Cyber ICE Box seed accounts. Dev only, gitignored, rewritten by every `mise run seed`.\n")
 	for line := range strings.SplitSeq(header, "\n") {
 		out.WriteString("# " + line + "\n")
 	}

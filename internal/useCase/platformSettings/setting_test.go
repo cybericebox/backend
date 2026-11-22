@@ -12,11 +12,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	"github.com/cybericebox/daemon/internal/model/platformSettings"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	"github.com/cybericebox/daemon/pkg/tools"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	"github.com/cybericebox/backend/internal/model/platformSettings"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	"github.com/cybericebox/backend/pkg/tools"
 )
 
 func setup(t *testing.T) (

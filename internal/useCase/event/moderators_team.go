@@ -6,9 +6,9 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
 )
 
 // ModeratorsTeamMemberView is one member of the hidden moderators team: an
@@ -26,7 +26,7 @@ type ModeratorsTeamView struct {
 }
 
 // GetModeratorsTeam shows the hidden moderators team for the organizers'
-// «Моя команда» preview: the team exists on every event, its members are the
+// "My team" preview: the team exists on every event, its members are the
 // event managers. It records nothing and never appears in results.
 func (u *EventUseCase) GetModeratorsTeam(ctx context.Context, eventID uuid.UUID) (ModeratorsTeamView, error) {
 	e, err := u.events.GetByID(ctx, eventID)

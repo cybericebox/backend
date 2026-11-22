@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 
-	inboxModel "github.com/cybericebox/daemon/internal/model/notification/inbox"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
+	inboxModel "github.com/cybericebox/backend/internal/model/notification/inbox"
+	userModel "github.com/cybericebox/backend/internal/model/user"
 )
 
 // Payload is what a queued notification needs besides ids: the template variables, the recipient

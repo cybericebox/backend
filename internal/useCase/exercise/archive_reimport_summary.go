@@ -8,11 +8,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"strings"
 
-	"github.com/cybericebox/daemon/internal/model"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	imageRegistryModel "github.com/cybericebox/daemon/internal/model/imageRegistry"
-	imageRegistryUseCase "github.com/cybericebox/daemon/internal/useCase/imageRegistry"
+	"github.com/cybericebox/backend/internal/model"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	imageRegistryModel "github.com/cybericebox/backend/internal/model/imageRegistry"
+	imageRegistryUseCase "github.com/cybericebox/backend/internal/useCase/imageRegistry"
 	"github.com/gofrs/uuid"
 )
 
@@ -50,6 +51,7 @@ func (u *ExerciseUseCase) importSummary(ctx context.Context, parsed ParsedExerci
 	if err = targetCopy.SyncLinkedVariants(); err != nil {
 		return summary, err
 	}
+	alignUnpinnedImages(sourceCopy.Variants, targetCopy.Variants)
 	sourceHashes := map[uuid.UUID]string{}
 	for id, path := range parsed.FilePaths {
 		sum := sha256.Sum256(parsed.Files[path])
@@ -98,12 +100,39 @@ func (u *ExerciseUseCase) importSummary(ctx context.Context, parsed ParsedExerci
 			summary.Variants.Changed++
 		}
 		for ti := 0; ti < min(len(sourceCopy.Variants[vi].Tasks), len(targetCopy.Variants[vi].Tasks)); ti++ {
-			if !slices.Equal(sourceCopy.Variants[vi].Tasks[ti].Flag, targetCopy.Variants[vi].Tasks[ti].Flag) {
+			if !slices.Equal(
+				sourceCopy.Variants[vi].Tasks[ti].Check.AnswerValues(),
+				targetCopy.Variants[vi].Tasks[ti].Check.AnswerValues(),
+			) {
 				summary.FlagsChanged++
 			}
 		}
 	}
 	return summary, nil
+}
+
+// alignUnpinnedImages makes a stored image that was fixed by digest at import (name:tag@sha256) equal to the archive's
+// reference of the same name and tag when the archive names no digest, so the same archive imported again is unchanged:
+// the tag the archive names is the author's wording, the digest is what the platform fixed it to. Devices and own images
+// are paired by position, as the comparison does. A different tag, or a digest the archive names itself, is a difference.
+func alignUnpinnedImages(source, target []exerciseModel.Variant) {
+	align := func(from string, to *string) {
+		if !isExternalImage(from) || imageRegistryModel.HasDigest(from) || !imageRegistryModel.HasDigest(*to) {
+			return
+		}
+		unpinned, _, _ := strings.Cut(*to, "@")
+		if imageRegistryModel.PinnedReference(from, "") == unpinned+"@" {
+			*to = from
+		}
+	}
+	for vi := 0; vi < min(len(source), len(target)); vi++ {
+		for di := 0; di < min(len(source[vi].Topology.Devices), len(target[vi].Topology.Devices)); di++ {
+			align(source[vi].Topology.Devices[di].Image, &target[vi].Topology.Devices[di].Image)
+		}
+		for oi := 0; oi < min(len(source[vi].ImageOverrides), len(target[vi].ImageOverrides)); oi++ {
+			align(source[vi].ImageOverrides[oi].Image, &target[vi].ImageOverrides[oi].Image)
+		}
+	}
 }
 
 func copyImportVersion(version exerciseModel.ExerciseVersion) (exerciseModel.ExerciseVersion, error) {
@@ -127,12 +156,10 @@ func importFileIdentity(id uuid.UUID, name string, hashes map[uuid.UUID]string) 
 
 func importFiles(variants []exerciseModel.Variant, hashes map[uuid.UUID]string) map[string]bool {
 	files := map[string]bool{}
-	for _, variant := range variants {
-		for _, task := range variant.Tasks {
-			for _, file := range task.Attachments {
-				files[importFileIdentity(file.FileID, file.Name, hashes)] = true
-			}
-		}
+	for i := range variants {
+		variants[i].EachFileRef(func(file *exerciseModel.AttachmentRef) {
+			files[importFileIdentity(file.FileID, file.Name, hashes)] = true
+		})
 	}
 	return files
 }
@@ -193,9 +220,12 @@ func canonicalImportVariants(variants []exerciseModel.Variant, hashes map[uuid.U
 		for ti := range variant.Tasks {
 			task := &variant.Tasks[ti]
 			task.ID = comparisonID("task", ti)
-			if task.LinkedDeviceID.Valid {
-				if id, ok := ids[task.LinkedDeviceID.UUID.String()]; ok {
-					task.LinkedDeviceID.UUID = uuid.FromStringOrNil(id)
+			if task.Check.State != nil {
+				for ci := range task.Check.State.Conditions {
+					condition := &task.Check.State.Conditions[ci]
+					if id, ok := ids[condition.DeviceID.String()]; ok {
+						condition.DeviceID = uuid.FromStringOrNil(id)
+					}
 				}
 			}
 			keys := map[string]string{}
@@ -223,11 +253,13 @@ func canonicalImportVariants(variants []exerciseModel.Variant, hashes map[uuid.U
 					hint.Text = string(text)
 				}
 			}
-			for ai := range task.Attachments {
-				file := &task.Attachments[ai]
-				file.FileID = uuid.NewV5(uuid.NamespaceOID, importFileIdentity(file.FileID, file.Name, hashes))
-			}
 		}
+		variant.EachFileRef(func(file *exerciseModel.AttachmentRef) {
+			file.FileID = uuid.NewV5(
+				uuid.NamespaceOID,
+				importFileIdentity(file.FileID, file.Name, hashes),
+			)
+		})
 		for ci := range variant.Topology.Connections {
 			for ei := range variant.Topology.Connections[ci].Endpoints {
 				endpoint := &variant.Topology.Connections[ci].Endpoints[ei]

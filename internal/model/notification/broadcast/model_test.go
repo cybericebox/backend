@@ -6,9 +6,9 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	broadcastModel "github.com/cybericebox/daemon/internal/model/notification/broadcast"
-	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
-	_ "github.com/cybericebox/daemon/internal/model/notification/types/payloads"
+	broadcastModel "github.com/cybericebox/backend/internal/model/notification/broadcast"
+	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
+	_ "github.com/cybericebox/backend/internal/model/notification/types/payloads"
 )
 
 func TestAudienceValidate(t *testing.T) {

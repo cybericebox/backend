@@ -3,13 +3,14 @@ package labagent
 import (
 	"context"
 	"sync"
+	"time"
 
 	labpb "github.com/cybericebox/laboratory/pkg/agent/protobuf"
 
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	resourcesModel "github.com/cybericebox/daemon/internal/model/resources"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	resourcesModel "github.com/cybericebox/backend/internal/model/resources"
 )
 
 // FeatureCell holds the last features an agent reported. Copies of a Member share it, so a report
@@ -19,6 +20,8 @@ type FeatureCell struct {
 	v  *infraModel.AgentFeatures
 	// incompatible: the agent answered UNIMPLEMENTED on the reservation API, so it gets no new groups.
 	incompatible bool
+	// refusalRefreshed is when a refusal last forced a new read of the features.
+	refusalRefreshed time.Time
 }
 
 // MarkIncompatible records an agent without the reservation API; true the first time.
@@ -80,7 +83,7 @@ func (c *FeatureCell) Set(f infraModel.AgentFeatures) {
 func FeaturesOf(r *labpb.FeaturesResponse) infraModel.AgentFeatures {
 	p, ic, sch, ep, cert, proxy := r.GetStatePersistence(), r.GetImageCache(), r.GetScheduler(), r.GetEndpoints(), r.GetCertificate(), r.GetProxy()
 	life := r.GetLifecycle()
-	return infraModel.AgentFeatures{Lifecycle: infraModel.LifecycleCapabilities{PerLabStop: life.GetPerLabStop(), RequiredSnapshot: life.GetRequiredSnapshot(), ConfirmedRuntime: life.GetConfirmedRuntime(), RetainedRestart: life.GetRetainedRestart(), FullGroupStop: life.GetFullGroupStop()},
+	return infraModel.AgentFeatures{ContractVersion: r.GetContractVersion(), Lifecycle: infraModel.LifecycleCapabilities{PerLabStop: life.GetPerLabStop(), RequiredSnapshot: life.GetRequiredSnapshot(), ConfirmedRuntime: life.GetConfirmedRuntime(), RetainedRestart: life.GetRetainedRestart(), FullGroupStop: life.GetFullGroupStop()},
 		Persistence: infraModel.PersistenceFeature{
 			Available: p.GetAvailable(), DefaultDebounce: p.GetDefaultDebounceMs(), WriteQuotaBytes: p.GetWriteQuotaBytes(),
 			MaxFileSizeBytes: p.GetMaxFileSizeBytes(), ExcludedPaths: p.GetExcludedPaths(),
@@ -95,9 +98,80 @@ func FeaturesOf(r *labpb.FeaturesResponse) infraModel.AgentFeatures {
 			HasMemory: r.GetTenantQuota().GetHasMemoryQuota(), MemoryBytes: r.GetTenantQuota().GetMemoryQuotaBytes(),
 		},
 		Proxy: infraModel.ProxyFeature{
-			AccessTokenMaxTTLSeconds: proxy.GetAccessTokenMaxTtlSeconds(), SessionMaxTTLSeconds: proxy.GetSessionMaxTtlSeconds(), SessionIdleTTLSeconds: proxy.GetSessionIdleTtlSeconds(),
+			GrantMaxTTLSeconds: proxy.GetGrantMaxTtlSeconds(),
 		},
-		Reservations: infraModel.ReservationsFeature{Required: r.GetReservations().GetRequired(), NoticeSeconds: int64(r.GetReservations().GetEndingNoticeSeconds())},
+		Reservations:           infraModel.ReservationsFeature{Required: r.GetReservations().GetRequired(), NoticeSeconds: int64(r.GetReservations().GetEndingNoticeSeconds())},
+		PersistenceUnavailable: infraModel.ParseUnavailableReason(p.GetUnavailableReason()),
+		LifecycleUnavailable:   infraModel.ParseUnavailableReason(life.GetUnavailableReason()),
+		Checks:                 checksFeatureOf(r.GetChecks()),
+		Access:                 accessFeatureOf(r.GetAccess()),
+		Bootstrap:              bootstrapFeatureOf(r.GetBootstrap()),
+		VPN:                    vpnFeatureOf(r.GetVpn()),
+		Internet:               internetFeatureOf(r.GetInternet()),
+		AllowedRegistries:      allowedRegistriesOf(r.GetAllowedRegistries()),
+		Activity:               activityFeatureOf(r.GetActivity()),
+	}
+}
+
+// The optional parts of contract 1.5 are nil when the report lacks them (an agent older than the fields).
+func checksFeatureOf(c *labpb.ChecksFeature) *infraModel.ChecksFeature {
+	if c == nil {
+		return nil
+	}
+	return &infraModel.ChecksFeature{
+		Enabled: c.GetEnabled(), MaxChecksPerLab: c.GetMaxChecksPerLab(), MaxPartsPerCheck: c.GetMaxPartsPerCheck(),
+		MaxTimeLimitSeconds: c.GetMaxTimeLimitSeconds(), MaxScheduleSeconds: c.GetMaxScheduleSeconds(), MaxDetailBytes: c.GetMaxDetailBytes(),
+		Observations: append([]string(nil), c.GetObservations()...),
+	}
+}
+
+func activityFeatureOf(a *labpb.ActivityFeature) *infraModel.ActivityFeature {
+	if a == nil {
+		return nil
+	}
+	return &infraModel.ActivityFeature{Enabled: a.GetEnabled(), MaxEvents: a.GetMaxEvents(), RingMinutes: a.GetRingMinutes(), ConsoleMaxLifetimeSeconds: a.GetConsoleMaxLifetimeS(), DeviceTouch: a.GetDeviceTouch()}
+}
+
+func vpnFeatureOf(v *labpb.VPNFeature) *infraModel.VPNFeature {
+	if v == nil {
+		return nil
+	}
+	out := &infraModel.VPNFeature{ReverseConnections: v.GetReverseConnections(), MaxGateways: v.GetMaxGateways()}
+	if v.Enabled != nil { // optional: absent = an older agent, which runs a VPN
+		enabled := v.GetEnabled()
+		out.Enabled = &enabled
+	}
+	return out
+}
+
+func internetFeatureOf(i *labpb.InternetFeature) *infraModel.InternetFeature {
+	if i == nil {
+		return nil
+	}
+	return &infraModel.InternetFeature{Enabled: i.GetEnabled()}
+}
+
+func allowedRegistriesOf(a *labpb.AllowedRegistriesFeature) *infraModel.AllowedRegistriesFeature {
+	if a == nil {
+		return nil
+	}
+	return &infraModel.AllowedRegistriesFeature{Any: a.GetAny(), Registries: append([]string(nil), a.GetRegistries()...)}
+}
+
+func accessFeatureOf(a *labpb.AccessFeature) *infraModel.AccessFeature {
+	if a == nil {
+		return nil
+	}
+	return &infraModel.AccessFeature{HTTP: a.GetHttp(), Terminal: a.GetTerminal(), VNC: a.GetVnc(), RDP: a.GetRdp()}
+}
+
+func bootstrapFeatureOf(b *labpb.BootstrapFeature) *infraModel.BootstrapFeature {
+	if b == nil {
+		return nil
+	}
+	return &infraModel.BootstrapFeature{
+		MaxScriptBytes: b.GetMaxScriptBytes(), MaxFiles: b.GetMaxFiles(), MaxFileBytes: b.GetMaxFileBytes(),
+		MaxTotalBytes: b.GetMaxTotalBytes(), MaxTimeLimitSeconds: b.GetMaxTimeLimitSeconds(), MaxAttempts: b.GetMaxAttempts(),
 	}
 }
 
@@ -157,6 +231,18 @@ func (f *Fleet) PersistenceAvailable() bool {
 	return false
 }
 
+// LabCapabilities is what the agents that are used can run, aggregated without naming any (see infraModel.CapabilitiesOf):
+// one entry per agent, nil for one that has not reported. It reads the cached reports, so it is cheap and makes no call; a
+// report is refreshed by the monitoring and again when an agent refuses (refreshOnRefusal).
+func (f *Fleet) LabCapabilities() infraModel.LabCapabilities {
+	members := f.eligible()
+	features := make([]*infraModel.AgentFeatures, 0, len(members))
+	for _, m := range members {
+		features = append(features, m.Features.Get())
+	}
+	return infraModel.CapabilitiesOf(features)
+}
+
 // fitOf is the first limit of the member that the need passes; nil when it fits or the agent has not
 // reported its limits (it refuses on its own if it must).
 func (f *Fleet) fitOf(m *Member, need infraModel.PlacementNeed) *infraModel.FitViolation {
@@ -179,6 +265,10 @@ func (f *Fleet) groupPodsFit(l infraModel.LimitsFeature, plan infraModel.GroupPl
 		size   resourcesModel.Amount
 	}{{l.VPN, sizes.VPN}, {l.Gateway, sizes.Gateway}} {
 		if !pod.sizing.Reported() && pod.size == (resourcesModel.Amount{}) {
+			continue
+		}
+		// No internet lab: the gateway switch is off and its pod does not exist (contract 2.7).
+		if pod.size == (resourcesModel.Amount{}) && plan.InternetLabs <= 0 && pod.sizing == l.Gateway {
 			continue
 		}
 		if pod.size.CPUMillicores <= 0 || pod.size.MemoryBytes <= 0 {
@@ -265,7 +355,8 @@ func (f *Fleet) GroupSizes(plan infraModel.GroupPlan) (sizes infraModel.GroupSiz
 			return sizes, false
 		}
 		s := feat.Limits.SizesFor(plan)
-		if s.VPN.CPUMillicores <= 0 || s.VPN.MemoryBytes <= 0 || s.Gateway.CPUMillicores <= 0 || s.Gateway.MemoryBytes <= 0 {
+		// The gateway pod exists only for a plan with internet labs; without them its size is none.
+		if s.VPN.CPUMillicores <= 0 || s.VPN.MemoryBytes <= 0 || (plan.InternetLabs > 0 && (s.Gateway.CPUMillicores <= 0 || s.Gateway.MemoryBytes <= 0)) {
 			return sizes, false
 		}
 		sizes = infraModel.GroupSizes{VPN: sizes.VPN.Max(s.VPN), Gateway: sizes.Gateway.Max(s.Gateway)}

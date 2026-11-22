@@ -9,15 +9,15 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabObservationRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventTeamRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/platformStandRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventStandModel "github.com/cybericebox/daemon/internal/model/eventStand"
-	eventTeamModel "github.com/cybericebox/daemon/internal/model/eventTeam"
-	labMonitoringModel "github.com/cybericebox/daemon/internal/model/labMonitoring"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabObservationRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventTeamRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/platformStandRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventStandModel "github.com/cybericebox/backend/internal/model/eventStand"
+	eventTeamModel "github.com/cybericebox/backend/internal/model/eventTeam"
+	labMonitoringModel "github.com/cybericebox/backend/internal/model/labMonitoring"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 func imSeedTeam(t *testing.T, db *testhelpers.TestDB, event eventModel.Event, captainID uuid.UUID, name, code string) eventTeamModel.EventTeam {

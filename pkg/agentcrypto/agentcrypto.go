@@ -46,6 +46,23 @@ func NewClientKey() (ClientKey, error) {
 	}, nil
 }
 
+// CSRForKey makes a PKCS#10 request for an existing EC private key (PEM). A renewal that must keep its key presents it.
+func CSRForKey(keyPEM string) (string, error) {
+	block, _ := pem.Decode([]byte(keyPEM))
+	if block == nil {
+		return "", fmt.Errorf("the client key is not PEM")
+	}
+	key, err := x509.ParseECPrivateKey(block.Bytes)
+	if err != nil {
+		return "", fmt.Errorf("read client key: %w", err)
+	}
+	csr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{Subject: pkix.Name{CommonName: "platform"}}, key)
+	if err != nil {
+		return "", fmt.Errorf("create certificate request: %w", err)
+	}
+	return string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr})), nil
+}
+
 // AccessKey is an Ed25519 key pair that signs the lab access tokens of one tenant. The agent holds the
 // public key, identified by ID (the token's kid).
 type AccessKey struct {

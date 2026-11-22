@@ -1,0 +1,73 @@
+{
+  "connections": [
+    {
+      "endpoints": [
+        {
+          "device": "attack",
+          "interface": "eth0"
+        },
+        {
+          "device": "r1",
+          "interface": "eth0"
+        }
+      ]
+    }
+  ],
+  "devices": [
+    {
+      "access": [
+        {
+          "command": [
+            "/bin/bash"
+          ],
+          "kind": "terminal",
+          "user": "root"
+        }
+      ],
+      "image": "registry.example/frr:10",
+      "name": "r1",
+      "service": {
+        "args": [
+          "/usr/lib/frr/docker-start"
+        ],
+        "command": [
+          "/sbin/tini",
+          "--"
+        ],
+        "user": "frr",
+        "workingDir": "/var/run/frr"
+      },
+      "type": "container"
+    },
+    {
+      "image": "registry.example/web:1",
+      "name": "srv",
+      "service": {
+        "args": [
+          "--port",
+          "80"
+        ],
+        "command": [
+          "/app/serve"
+        ],
+        "user": "www-data"
+      },
+      "type": "container"
+    }
+  ],
+  "gateways": [
+    {
+      "dhcpServer": {
+        "enabled": true,
+        "ranges": [
+          {
+            "end": 200,
+            "start": 100
+          }
+        ]
+      },
+      "kind": "vpn",
+      "name": "attack"
+    }
+  ]
+}

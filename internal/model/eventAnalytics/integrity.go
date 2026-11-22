@@ -9,7 +9,7 @@ import (
 	"github.com/gofrs/uuid"
 )
 
-// The integrity signals of «Доброчесність» (docs/EVENT-ANALYTICS.md §6.6,
+// The integrity signals of "Integrity" (docs/EVENT-ANALYTICS.md §6.6,
 // docs/ANTI-CHEAT.md). A signal is a hint for a human to review, attached to
 // one solve and computed on read from timing, access evidence, answer
 // similarity and attempt patterns only: no IP or user agent (§9.3), no

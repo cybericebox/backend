@@ -8,10 +8,10 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/daemon/internal/model"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	resourcesModel "github.com/cybericebox/daemon/internal/model/resources"
+	"github.com/cybericebox/backend/internal/model"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	resourcesModel "github.com/cybericebox/backend/internal/model/resources"
 )
 
 // ResourceTotals is what a topology or a task version needs: its container devices and their CPU and memory.
@@ -69,7 +69,8 @@ func (u *ExerciseUseCase) versionView(ctx context.Context, v exerciseModel.Exerc
 	view := toVersionView(v)
 	view.Resources = u.versionResources(ctx, v.ExerciseID, v.Variants)
 	view.Elevation = u.elevationView(ctx, v.ExerciseID, "")
-	view.AuthorName = u.authorNames(ctx, v.CreatedBy)[v.CreatedBy.UUID]
+	names := u.authorNames(ctx, v.CreatedBy, v.UpdatedBy)
+	view.AuthorName, view.UpdatedByName = names[v.CreatedBy.UUID], names[v.UpdatedBy.UUID]
 	view.SecretGroups = u.secretValueGroups(v.Variants)
 	view.FileHashes = u.attachmentHashes(ctx, v.Variants)
 	return view
@@ -172,10 +173,10 @@ func (u *ExerciseUseCase) versionResources(ctx context.Context, exerciseID uuid.
 // approved elevation. It needs no agent.
 func (u *ExerciseUseCase) requireResourcesAllowed(ctx context.Context, exerciseID uuid.UUID, variants []exerciseModel.Variant) error {
 	policy := u.Policy()
-	for _, v := range variants {
+	for position, v := range variants {
 		for _, d := range v.Topology.Devices {
-			if d.Type == exerciseModel.DeviceTypeContainer && policy.InvalidPreset(d) {
-				return exerciseModel.ErrDeviceResourcePresetInvalid.WithPublicContext("variant", v.ID.String()).
+			if d.IsNode() && policy.InvalidPreset(d) {
+				return exerciseModel.ErrDeviceResourcePresetInvalid.WithPublicContext("variant", position+1).
 					WithPublicContext("device", d.Name).WithPublicContext("preset", d.ResourcePreset).Err()
 			}
 		}
@@ -226,6 +227,8 @@ type visibleResource struct {
 	Range          ResourceRange
 	Heavy          bool
 	Infrastructure bool
+	Console        bool
+	MissingSecrets bool
 }
 
 // visibleResources reads the same working/public snapshot as the catalog metadata and statistics.
@@ -242,7 +245,7 @@ func (u *ExerciseUseCase) visibleResources(ctx context.Context, actor Actor, ids
 	out := make(map[uuid.UUID]visibleResource, len(variants))
 	var needApprovals []uuid.UUID
 	for id, vs := range variants {
-		out[id] = visibleResource{Range: rangeOf(policy.VariantRange(vs)), Infrastructure: exerciseModel.HasInfrastructure(vs)}
+		out[id] = visibleResource{Range: rangeOf(policy.VariantRange(vs)), Infrastructure: exerciseModel.HasInfrastructure(vs), Console: exerciseModel.UsesConsole(vs), MissingSecrets: len(exerciseModel.MissingSecrets(vs)) > 0}
 		if len(policy.OutsideFrame(vs)) > 0 {
 			needApprovals = append(needApprovals, id)
 		}

@@ -11,9 +11,9 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	eventHandler "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/event"
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	eventHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/event"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 type liveContractScreen struct {
@@ -35,7 +35,7 @@ type liveContractUC struct {
 
 func newLiveContractUC() *liveContractUC {
 	first := uuid.Must(uuid.NewV7())
-	return &liveContractUC{order: []uuid.UUID{first}, screens: map[uuid.UUID]*liveContractScreen{first: {name: "Екран 1", published: eventContentModel.DefaultLiveLayout()}}}
+	return &liveContractUC{order: []uuid.UUID{first}, screens: map[uuid.UUID]*liveContractScreen{first: {name: "Screen 1", published: eventContentModel.DefaultLiveLayout()}}}
 }
 
 func (*liveContractUC) RequireReadEvent(context.Context, uuid.UUID, uuid.UUID) error   { return nil }
@@ -85,7 +85,7 @@ func (u *liveContractUC) CreateLiveScreen(_ context.Context, _ uuid.UUID, in eve
 	id := uuid.Must(uuid.NewV7())
 	name := in.Name
 	if name == "" {
-		name = "Екран 2"
+		name = "Screen 2"
 	}
 	u.screens[id] = &liveContractScreen{name: name, published: eventContentModel.DefaultLiveLayout()}
 	u.order = append(u.order, id)
@@ -219,7 +219,7 @@ func TestLiveLayoutHTTPContractForEditor(t *testing.T) {
 
 	read := eventRequest(t, router, http.MethodGet, base, "")
 	var initial liveEditorPayload
-	if err := json.Unmarshal(read["Data"], &initial); err != nil || initial.Published.Version != 1 || initial.Draft != nil || initial.ID != u.order[0] || initial.Name != "Екран 1" {
+	if err := json.Unmarshal(read["Data"], &initial); err != nil || initial.Published.Version != 1 || initial.Draft != nil || initial.ID != u.order[0] || initial.Name != "Screen 1" {
 		t.Fatalf("initial editor payload: %s error=%v", read["Data"], err)
 	}
 
@@ -256,8 +256,8 @@ func TestLiveScreensHTTPContract(t *testing.T) {
 	first := u.order[0]
 
 	// A new screen copies the first one under its own name.
-	write := liveStatusRequest(t, router, http.MethodPost, base+"/screens", `{"Name":"Фойє","CopyFrom":"`+first.String()+`"}`)
-	if write.Code != http.StatusCreated || u.created.Name != "Фойє" || u.created.CopyFrom == nil || *u.created.CopyFrom != first || u.created.Layout != nil {
+	write := liveStatusRequest(t, router, http.MethodPost, base+"/screens", `{"Name":"Foyer","CopyFrom":"`+first.String()+`"}`)
+	if write.Code != http.StatusCreated || u.created.Name != "Foyer" || u.created.CopyFrom == nil || *u.created.CopyFrom != first || u.created.Layout != nil {
 		t.Fatalf("create: status=%d body=%s input=%+v", write.Code, write.Body.String(), u.created)
 	}
 	second := u.order[1]
@@ -284,7 +284,7 @@ func TestLiveScreensHTTPContract(t *testing.T) {
 		LinksVisible bool
 	}
 	if err := json.Unmarshal(list["Data"], &screens); err != nil || len(screens.Screens) != 3 || screens.Max != 10 || !screens.LinksVisible || !u.withLink ||
-		screens.Screens[1].ID != second || screens.Screens[1].Name != "Фойє" || screens.Screens[1].Position != 1 {
+		screens.Screens[1].ID != second || screens.Screens[1].Name != "Foyer" || screens.Screens[1].Position != 1 {
 		t.Fatalf("list: %s error=%v", list["Data"], err)
 	}
 
@@ -319,8 +319,8 @@ func TestLiveScreensHTTPContract(t *testing.T) {
 	}
 
 	// Rename, duplicate (no body), reorder.
-	renamed := eventRequest(t, router, http.MethodPatch, base+"/screens/"+second.String(), `{"Name":"  Хол  "}`)
-	if !strings.Contains(string(renamed["Data"]), `"Name":"Хол"`) {
+	renamed := eventRequest(t, router, http.MethodPatch, base+"/screens/"+second.String(), `{"Name":"  Hall  "}`)
+	if !strings.Contains(string(renamed["Data"]), `"Name":"Hall"`) {
 		t.Fatalf("rename: %s", renamed["Data"])
 	}
 	if write = liveStatusRequest(t, router, http.MethodPatch, base+"/screens/"+second.String(), `{"Name":""}`); write.Code != http.StatusBadRequest {
@@ -337,14 +337,14 @@ func TestLiveScreensHTTPContract(t *testing.T) {
 
 	// Links per screen; the single-screen link routes are the first screen's.
 	issued := eventRequest(t, router, http.MethodPost, base+"/screens/"+second.String()+"/link", `{"Expiry":"none"}`)
-	if !strings.Contains(string(issued["Data"]), `"Token":"token-Хол"`) || u.screens[second].link == nil {
+	if !strings.Contains(string(issued["Data"]), `"Token":"token-Hall"`) || u.screens[second].link == nil {
 		t.Fatalf("issue screen link: %s", issued["Data"])
 	}
 	if state := eventRequest(t, router, http.MethodGet, base+"/screens/"+second.String()+"/link", ""); strings.Contains(string(state["Data"]), "Token") || strings.Contains(string(state["Data"]), `"Link":null`) {
 		t.Fatalf("screen link state: %s", state["Data"])
 	}
 	if state := eventRequest(t, router, http.MethodGet, base+"/screen-link", ""); string(state["Data"]) != `{"Link":null}` {
-		t.Fatalf("the first screen (now «Екран 2») has no link: %s", state["Data"])
+		t.Fatalf("the first screen (now «Screen 2») has no link: %s", state["Data"])
 	}
 	eventRequest(t, router, http.MethodPost, base+"/screen-link", `{"Expiry":"none"}`)
 	if u.screens[fourth].link == nil {

@@ -2,7 +2,7 @@ package event
 
 import (
 	"encoding/json"
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
 	"strings"
 	"testing"
 	"time"

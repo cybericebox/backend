@@ -9,22 +9,22 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/repository/exerciseRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	"github.com/cybericebox/daemon/internal/delivery/repository/userRepo"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	imageModel "github.com/cybericebox/daemon/internal/model/imageRegistry"
-	jobsModel "github.com/cybericebox/daemon/internal/model/jobs"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
-	"github.com/cybericebox/daemon/internal/testhelpers"
-	exercise "github.com/cybericebox/daemon/internal/useCase/exercise"
-	imageUseCase "github.com/cybericebox/daemon/internal/useCase/imageRegistry"
-	mediaUseCase "github.com/cybericebox/daemon/internal/useCase/media"
-	"github.com/cybericebox/daemon/pkg/ociregistry"
-	"github.com/cybericebox/daemon/pkg/ociregistry/archivetest"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/repository/exerciseRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/delivery/repository/userRepo"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	imageModel "github.com/cybericebox/backend/internal/model/imageRegistry"
+	jobsModel "github.com/cybericebox/backend/internal/model/jobs"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	userModel "github.com/cybericebox/backend/internal/model/user"
+	"github.com/cybericebox/backend/internal/testhelpers"
+	exercise "github.com/cybericebox/backend/internal/useCase/exercise"
+	imageUseCase "github.com/cybericebox/backend/internal/useCase/imageRegistry"
+	mediaUseCase "github.com/cybericebox/backend/internal/useCase/media"
+	"github.com/cybericebox/backend/pkg/ociregistry"
+	"github.com/cybericebox/backend/pkg/ociregistry/archivetest"
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 )
@@ -86,11 +86,11 @@ func TestSourceHTTPRecoversOwnedActiveAndCompletedReimport(t *testing.T) {
 				require.NoError(t, err)
 				entity, err = repo.Create(ctx, entity)
 				require.NoError(t, err)
-				draft, err := repo.UpsertDraft(ctx, entity.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{AdminNote: "before"}, now, uuid.NullUUID{})
+				draft, err := repo.ForceUpsertDraft(ctx, entity.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{AdminNote: "before"}, now, uuid.NullUUID{})
 				require.NoError(t, err)
-				archive, err := exercise.BuildArchiveV1(map[string][]byte{"exercise.json": []byte(`{"schema":"cib-exercise/1","exercise":{"name":"Replay updated"},"versions":[{"status":"draft","variants":[{"topology":{"devices":[{"name":"web","type":"container","image":{"file":"images/web.tar"}}]}}]}]}`), "images/web.tar": archivetest.Legacy(archivetest.Amd64([]byte("replay layer")))})
+				archive, err := exercise.BuildArchiveV1(map[string][]byte{"exercise.json": []byte(`{"schema":"cib-exercise/1.0","exercise":{"name":"Replay updated"},"versions":[{"status":"draft","variants":[{"topology":{"devices":[{"name":"web","type":"container","image":{"file":"images/web.tar"}}]}}]}]}`), "images/web.tar": archivetest.Legacy(archivetest.Amd64([]byte("replay layer")))})
 				require.NoError(t, err)
-				media := mediaUseCase.NewMediaUseCase(mediaUseCase.Dependencies{Repo: db.Queries, Storage: testhelpers.NewMemoryStorage(), Config: config.MediaConfig{MaxUploadBytes: 64 << 20, UploadChunkBytes: 64 << 20, UploadTTL: time.Hour}})
+				media := mediaUseCase.NewMediaUseCase(mediaUseCase.Dependencies{Repo: db.Queries, Storage: testhelpers.NewMemoryStorage(), FilesSealer: testhelpers.FilesSealer(), Config: config.MediaConfig{MaxUploadBytes: 64 << 20, UploadChunkBytes: 64 << 20, UploadTTL: time.Hour}})
 				sources := &replaySources{MediaUseCase: media}
 				registry := &replayRegistry{}
 				in := exercise.PreviewArchiveInput{Targets: []exercise.ImportTarget{{ItemKey: ".", Mode: "update", ExerciseID: entity.ID}}}
@@ -131,7 +131,7 @@ func TestSourceHTTPRecoversOwnedActiveAndCompletedReimport(t *testing.T) {
 						require.Error(t, err, "successful source was consumed")
 					}
 				} else {
-					_, err = repo.UpsertDraft(ctx, entity.ID, draft.ID, exerciseModel.ExerciseVersion{AdminNote: "changed after queue"}, time.Now(), uuid.NullUUID{})
+					_, err = repo.ForceUpsertDraft(ctx, entity.ID, draft.ID, exerciseModel.ExerciseVersion{AdminNote: "changed after queue"}, time.Now(), uuid.NullUUID{})
 					require.NoError(t, err)
 				}
 				before, err := repo.GetDraft(ctx, entity.ID)

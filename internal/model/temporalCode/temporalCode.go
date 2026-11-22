@@ -5,9 +5,9 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/pkg/err"
+	"github.com/cybericebox/backend/pkg/err"
 
-	"github.com/cybericebox/daemon/internal/model"
+	"github.com/cybericebox/backend/internal/model"
 )
 
 // Code is a single-use opaque temporal code (password reset / email change),
@@ -64,10 +64,15 @@ const (
 	NotificationPayloadCodeType
 	// AuthDeliveryCodeType stores a sealed public auth command pending its River handoff.
 	AuthDeliveryCodeType
+	// PasskeyRegistrationCodeType keeps the server half of a passkey registration ceremony (challenge, person,
+	// session); it is consumed by the one finish call that answers it.
+	PasskeyRegistrationCodeType
+	// PasskeyLoginCodeType keeps the server half of a passkey sign-in ceremony (the challenge).
+	PasskeyLoginCodeType
 )
 
 // Error-code convention: see internal/model/auth/errors.go. Enforced by
-// `make lint-errors`.
+// `mise run lint:errors`.
 //
 // TemporalCodeObjectCode — next free detail code: 3
 var (

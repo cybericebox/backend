@@ -9,10 +9,10 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	imageRegistryModel "github.com/cybericebox/daemon/internal/model/imageRegistry"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	exerciseUseCase "github.com/cybericebox/daemon/internal/useCase/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	imageRegistryModel "github.com/cybericebox/backend/internal/model/imageRegistry"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	exerciseUseCase "github.com/cybericebox/backend/internal/useCase/exercise"
 )
 
 func smallLimits(archiveBytes int64, entries int) *exerciseModel.ArchiveLimits {
@@ -24,8 +24,8 @@ func smallLimits(archiveBytes int64, entries int) *exerciseModel.ArchiveLimits {
 // The import takes the archive limits in force once and hands the same set to every task it imports.
 func TestImportArchive_ReadsTheLimitsOnceAndPassesThem(t *testing.T) {
 	archive, err := exerciseUseCase.BuildArchiveV1(map[string][]byte{
-		"a/exercise.json": []byte(`{"schema":"cib-exercise/1"}`),
-		"b/exercise.json": []byte(`{"schema":"cib-exercise/1"}`),
+		"a/exercise.json": []byte(`{"schema":"cib-exercise/1.0"}`),
+		"b/exercise.json": []byte(`{"schema":"cib-exercise/1.0"}`),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -46,7 +46,7 @@ func TestImportArchive_ReadsTheLimitsOnceAndPassesThem(t *testing.T) {
 }
 
 func TestImportArchive_OverTheSavedArchiveCap(t *testing.T) {
-	archive, err := exerciseUseCase.BuildArchiveV1(map[string][]byte{"exercise.json": []byte(`{"schema":"cib-exercise/1"}`)})
+	archive, err := exerciseUseCase.BuildArchiveV1(map[string][]byte{"exercise.json": []byte(`{"schema":"cib-exercise/1.0"}`)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +59,7 @@ func TestImportArchive_OverTheSavedArchiveCap(t *testing.T) {
 
 // Several tasks of one export share one set of limits.
 func TestExport_SeveralTasksShareOneLimitSet(t *testing.T) {
-	single, err := exerciseUseCase.BuildArchiveV1(map[string][]byte{"exercise.json": []byte(`{"schema":"cib-exercise/1"}`)})
+	single, err := exerciseUseCase.BuildArchiveV1(map[string][]byte{"exercise.json": []byte(`{"schema":"cib-exercise/1.0"}`)})
 	if err != nil {
 		t.Fatal(err)
 	}

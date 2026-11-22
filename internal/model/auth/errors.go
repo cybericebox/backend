@@ -3,15 +3,15 @@ package authModel
 import (
 	"net/http"
 
-	"github.com/cybericebox/daemon/pkg/err"
+	"github.com/cybericebox/backend/pkg/err"
 
-	"github.com/cybericebox/daemon/internal/model"
+	"github.com/cybericebox/backend/internal/model"
 )
 
 // StatusClientClosedRequest is the non-standard 499 the access log uses for a request the client abandoned.
 const StatusClientClosedRequest = 499
 
-// Error-code convention (enforced by `make lint-errors`):
+// Error-code convention (enforced by `mise run lint:errors`):
 //   - one Err* var = one call site in non-test code = unique DetailCode within
 //     the object code; exceptions are documented as multi-site with a category:
 //     category A — security-indistinguishable (client must not tell the cases
@@ -57,7 +57,7 @@ var (
 	ErrSetupAlreadyComplete = err.ErrInvalidData.WithObjectCode(model.AuthObjectCode).
 				WithMessage("Setup already complete").WithDetailCode(6)
 	ErrTosNotAccepted = err.ErrInvalidData.WithObjectCode(model.AuthObjectCode).
-				WithMessage("Terms of Service not accepted").WithDetailCode(7)
+				WithMessage("The required documents must be accepted").WithDetailCode(7)
 	// multi-site: registration and google-unlink both guard "account must keep
 	// at least one login method"; per-site reason via WithError.
 	ErrNoLoginMethod = err.ErrInvalidData.WithObjectCode(model.AuthObjectCode).
@@ -151,6 +151,19 @@ var (
 				WithHTTPCode(StatusClientClosedRequest)
 	ErrAuthInvalidEmail = err.ErrInvalidData.WithObjectCode(model.AuthObjectCode).
 				WithMessage("Invalid email address").WithDetailCode(26)
+	// ErrAuthGoogleLinkConfirm (GOOGLE_LINK_CONFIRM): a Google identity signed in with the verified address of an
+	// existing account that is not a Gmail one: it is not linked, nor signed in, until the owner confirms (the
+	// password or a mailed code). The callback turns it into the redirect to the confirmation page.
+	ErrAuthGoogleLinkConfirm = err.ErrConflict.WithObjectCode(model.AuthObjectCode).
+					WithMessage("Confirm linking the Google account").WithDetailCode(35)
+	// ErrAuthGoogleLinkTicketInvalid — category A: no pending Google link, an expired one, a used one and a link
+	// that was given up are one indistinguishable "not found".
+	ErrAuthGoogleLinkTicketInvalid = err.ErrObjectNotFound.WithObjectCode(model.AuthObjectCode).
+					WithMessage("Google link request not found or expired").WithDetailCode(36)
+	// ErrAuthGoogleLinkCodeInvalid: the mailed code is wrong (the context carries nothing); after too many wrong
+	// codes the request is dropped and the next answer is ErrAuthGoogleLinkTicketInvalid.
+	ErrAuthGoogleLinkCodeInvalid = err.ErrInvalidData.WithObjectCode(model.AuthObjectCode).
+					WithMessage("Invalid confirmation code").WithDetailCode(37)
 )
 
 // AuthRecaptchaObjectCode — next free detail code: 5

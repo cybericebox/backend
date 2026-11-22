@@ -18,10 +18,25 @@ type Querier interface {
 	// An email image is owned by its draft as soon as it is uploaded. Inserting
 	// one link avoids a read/replace race when uploads finish concurrently.
 	AddFileReference(ctx context.Context, arg AddFileReferenceParams) error
+	// An object that could not be removed: kept here until a pass removes it.
+	AddObjectRemoval(ctx context.Context, arg AddObjectRemovalParams) error
+	// Moves a plain blob to an encrypted object: only while the blob is still plain, so of two writers one wins.
+	AdoptBlobEncryption(ctx context.Context, arg AdoptBlobEncryptionParams) (int64, error)
+	// Gives a user the avatar reference, in this one statement, only while the legacy avatar is still the user's current one:
+	// the user exists (not deleted), still has a picture (RemoveAvatar clears it first, in a write that commits before it touches
+	// anything else) and has no avatar reference. The user row is locked FOR UPDATE, so a removal or a deletion cannot slip between
+	// the check and the insert. Zero rows: the avatar was removed, the user is gone or has an avatar of their own; the file stays
+	// unreferenced and the media GC takes it.
+	AdoptLegacyAvatar(ctx context.Context, arg AdoptLegacyAvatarParams) (int64, error)
+	AdvanceAssistantRunSeq(ctx context.Context, arg AdvanceAssistantRunSeqParams) (int64, error)
 	AdvanceEventResultRevision(ctx context.Context, arg AdvanceEventResultRevisionParams) (AdvanceEventResultRevisionRow, error)
 	// A chunk is accepted only as the next one in order; zero rows means the client is out of step (it reads the
 	// status and continues from chunks_received). Every accepted chunk moves the expiry forward.
 	AdvanceMediaUpload(ctx context.Context, arg AdvanceMediaUploadParams) (int64, error)
+	// Folds one page of a group's activity into the running figures and moves the group's cursor, in one statement, so the page
+	// is counted exactly once. batch is {labs:[{lab,egress}], clients:[{lab,client,bytes}], dsts:[{lab,client,dst}],
+	// sessions:[{lab,session_id,client,opened_ms,closed_ms}]}, each list holding one entry per key.
+	ApplyLabActivity(ctx context.Context, arg ApplyLabActivityParams) error
 	// Overwrites the final row of a user x lab x access type with the collector's
 	// cumulative values. Totals never go down (a stale resend cannot lower them),
 	// first is min, last is max, first_responded_at the earliest answer.
@@ -47,6 +62,11 @@ type Querier interface {
 	AttachEventLabAssignmentBindings(ctx context.Context, labID uuid.NullUUID) (int64, error)
 	AvgDailyActiveSince(ctx context.Context, createdAt time.Time) (float64, error)
 	BlobExists(ctx context.Context, contentHash string) (bool, error)
+	// Only a running broadcast can be canceled; the sender stops queuing recipients.
+	CancelNotificationBroadcast(ctx context.Context, id uuid.UUID) (int64, error)
+	// Claims the save for one request: a new row, a failed one, or a pending one without an import job whose claim is older
+	// than the lease (its request died). 0 rows: another request holds it.
+	ClaimAssistantSave(ctx context.Context, arg ClaimAssistantSaveParams) (int64, error)
 	// Records the file as the task's copy of its content and returns the task's canonical file. On conflict the
 	// stored file stays canonical while the GC would keep it; a GC-eligible one is replaced by the given file.
 	ClaimExerciseFile(ctx context.Context, arg ClaimExerciseFileParams) (uuid.UUID, error)
@@ -55,22 +75,41 @@ type Querier interface {
 	ClaimLabGroupPlacement(ctx context.Context, arg ClaimLabGroupPlacementParams) (uuid.UUID, error)
 	ClaimSignalHookExecution(ctx context.Context, arg ClaimSignalHookExecutionParams) (SignalHookExecution, error)
 	ClaimSignalOutboxBatch(ctx context.Context, arg ClaimSignalOutboxBatchParams) ([]SignalOutbox, error)
+	// The event follows the platform default again.
+	ClearEventAssistantStatsMode(ctx context.Context, eventID uuid.UUID) (int64, error)
 	// A member may only be detached from the exact current team selected by the
 	// use case. Captains need an explicit transfer or disband operation instead.
 	ClearEventParticipantTeam(ctx context.Context, arg ClearEventParticipantTeamParams) (int64, error)
 	// A warned user who signed in again is active: forget the warning so the
 	// deletion never fires and a later inactivity period warns afresh.
 	ClearReturnedInactivityWarnings(ctx context.Context) (int64, error)
+	// Decides how the run ends; the teardown follows and then FinishAssistantRun. Only the first decision counts.
+	CloseAssistantRun(ctx context.Context, arg CloseAssistantRunParams) (int64, error)
 	// When, in which lab group, the live telemetry (raw rows and current state) of the events gave which IP to the client
 	// (under its real name or its pseudonym): the first and the last observation.
 	CollectLabClientIPWindows(ctx context.Context, arg CollectLabClientIPWindowsParams) ([]CollectLabClientIPWindowsRow, error)
+	// The task exists: the save is done.
+	CompleteAssistantSave(ctx context.Context, arg CompleteAssistantSaveParams) (int64, error)
 	CompleteEventFormDelivery(ctx context.Context, arg CompleteEventFormDeliveryParams) (int64, error)
 	CompleteRequestIdempotency(ctx context.Context, arg CompleteRequestIdempotencyParams) (int64, error)
 	CompleteSignalHookExecution(ctx context.Context, arg CompleteSignalHookExecutionParams) (int64, error)
 	CompleteSignalOutbox(ctx context.Context, arg CompleteSignalOutboxParams) (int64, error)
 	ConsumeEventStageRuntimeSelection(ctx context.Context, arg ConsumeEventStageRuntimeSelectionParams) (int64, error)
+	// The delete is the claim: of two concurrent confirmations only one removes the row.
+	ConsumeGoogleLinkTicket(ctx context.Context, arg ConsumeGoogleLinkTicketParams) (int64, error)
+	// A board challenge copied into another event's set: same task, order, points, scoring, hints and attempt limit; the
+	// copy is not published and has no team copies, attempts or solves.
+	CopyEventChallenge(ctx context.Context, arg CopyEventChallengeParams) error
+	CopyEventConfig(ctx context.Context, arg CopyEventConfigParams) error
+	CopyEventPages(ctx context.Context, arg CopyEventPagesParams) error
+	// Copy of an event into a new one (docs/specs/ADMIN.md §2): settings, theme, pages, never people or results.
+	CopyEventSettings(ctx context.Context, arg CopyEventSettingsParams) error
+	CountActiveAssistantRunsOfActor(ctx context.Context, actorID uuid.UUID) (int64, error)
 	CountActiveExerciseTestDeploys(ctx context.Context, arg CountActiveExerciseTestDeploysParams) (int64, error)
+	// How many journal rows the filters match (no cursor, no limit).
+	CountAdminAuditLog(ctx context.Context, arg CountAdminAuditLogParams) (int64, error)
 	CountApprovedEventTeams(ctx context.Context, eventID uuid.UUID) (int64, error)
+	CountBroadcastDeliveries(ctx context.Context, arg CountBroadcastDeliveriesParams) (int64, error)
 	CountDispatches(ctx context.Context, arg CountDispatchesParams) (int64, error)
 	CountDispatchesByStatusSince(ctx context.Context, createdAt time.Time) ([]CountDispatchesByStatusSinceRow, error)
 	CountDispatchesByTypeSince(ctx context.Context, createdAt time.Time) ([]CountDispatchesByTypeSinceRow, error)
@@ -95,6 +134,8 @@ type Querier interface {
 	CountEventLiveScreens(ctx context.Context, eventID uuid.UUID) (int64, error)
 	// Tab counters: applications count only undecided requests.
 	CountEventParticipantKinds(ctx context.Context, eventID uuid.UUID) (CountEventParticipantKindsRow, error)
+	// Every event row of the user (any status): an unclaimed account left without any is an orphan.
+	CountEventParticipantRowsOfUser(ctx context.Context, userID uuid.UUID) (int64, error)
 	// Mirrors ListEventParticipantsDetailed's status, kind, search and field filters.
 	CountEventParticipants(ctx context.Context, arg CountEventParticipantsParams) (int64, error)
 	// Mirrors ListEventParticipantsTable's filters.
@@ -109,9 +150,14 @@ type Querier interface {
 	// Mirrors ListEventTeamsTable's filters.
 	CountEventTeamsTable(ctx context.Context, arg CountEventTeamsTableParams) (int64, error)
 	CountEvents(ctx context.Context, search string) (int64, error)
+	// How many events have each value of a field under the other filters of the table (the caller leaves the faceted
+	// field's own filter empty). field: status, infrastructure or organizer (an event counts once per manager).
+	CountEventsFacet(ctx context.Context, arg CountEventsFacetParams) ([]CountEventsFacetRow, error)
 	CountEventsPage(ctx context.Context, arg CountEventsPageParams) (int64, error)
 	CountExercises(ctx context.Context, arg CountExercisesParams) (int64, error)
 	CountExercisesPage(ctx context.Context, arg CountExercisesPageParams) (int64, error)
+	// Counts one check of the mailed code and returns how many were made; zero rows: no attempts are left.
+	CountGoogleLinkTicketCodeAttempt(ctx context.Context, arg CountGoogleLinkTicketCodeAttemptParams) (int32, error)
 	// Tab badges. An item needs attention while it is an open request (whether
 	// read or not) or unread; resolved requests are read, so they drop out.
 	// other_events counts attention items of OTHER Events and is meaningful only
@@ -120,11 +166,16 @@ type Querier interface {
 	CountIncompleteSignalHookExecutions(ctx context.Context, signalID uuid.UUID) (int64, error)
 	CountLabGroupPlacementsByAgent(ctx context.Context) ([]CountLabGroupPlacementsByAgentRow, error)
 	CountLabTelemetryErasuresQueuedBefore(ctx context.Context, queuedBefore time.Time) (int64, error)
+	// The test labs of an exercise that are leased now, any author.
+	CountLeasedExerciseTestDeploys(ctx context.Context, arg CountLeasedExerciseTestDeploysParams) (int32, error)
 	// Conflict means overlapping HALF-OPEN platform windows, not merely a reused
 	// tag. The exclusion constraint closes the race between concurrent writers.
 	CountLiveEventsWithTag(ctx context.Context, arg CountLiveEventsWithTagParams) (int64, error)
+	CountNotificationBroadcasts(ctx context.Context, arg CountNotificationBroadcastsParams) (int64, error)
+	CountPendingExerciseResourceElevations(ctx context.Context) (int64, error)
 	CountPendingResourceChangeRequests(ctx context.Context) (int64, error)
 	CountPendingTeamInvitations(ctx context.Context, arg CountPendingTeamInvitationsParams) (int64, error)
+	CountPlainBlobs(ctx context.Context) (int64, error)
 	// The stand counts split by kind: moderators = the moderators team stand, else an event team stand.
 	CountPlatformStandsByKindStatus(ctx context.Context) ([]CountPlatformStandsByKindStatusRow, error)
 	CountPlatformStandsByStatus(ctx context.Context) ([]CountPlatformStandsByStatusRow, error)
@@ -135,15 +186,26 @@ type Querier interface {
 	CountTargetsByChannelStatusSince(ctx context.Context, createdAt time.Time) ([]CountTargetsByChannelStatusSinceRow, error)
 	CountUnreadInbox(ctx context.Context, arg CountUnreadInboxParams) (int64, error)
 	CountUserLoginMethods(ctx context.Context, id uuid.UUID) (int64, error)
+	CountUserPasskeys(ctx context.Context, userID uuid.UUID) (int64, error)
 	CountUsers(ctx context.Context, arg CountUsersParams) (int64, error)
 	CountUsersActiveSince(ctx context.Context, lastSeen time.Time) (int64, error)
 	CountUsersByRole(ctx context.Context, role string) (int64, error)
 	CountUsersByRoleAll(ctx context.Context) ([]CountUsersByRoleAllRow, error)
 	CountUsersByStatus(ctx context.Context, status string) (int64, error)
 	CountUsersCreatedSince(ctx context.Context, createdAt time.Time) (int64, error)
+	// How many users have each value of a field under the other filters of the table (the caller leaves the faceted
+	// field's own filter empty). field: role, status, emailConfirmed or signIn (a user counts once per method).
+	CountUsersFacet(ctx context.Context, arg CountUsersFacetParams) ([]CountUsersFacetRow, error)
 	CreateAdminAuditLog(ctx context.Context, arg CreateAdminAuditLogParams) error
+	// A run that is starting. The partial unique index refuses a second active run of the variant.
+	CreateAssistantRun(ctx context.Context, arg CreateAssistantRunParams) error
+	// Gives the user a pseudonym on first use. Two requests at once: the first row stays (0 rows for the second).
+	CreateAssistantSubject(ctx context.Context, arg CreateAssistantSubjectParams) (int64, error)
+	// A freshly enrolled connection. Two replicas enrolling at once: the first row stays (0 rows for the second).
+	CreateBrainConnection(ctx context.Context, arg CreateBrainConnectionParams) (int64, error)
 	CreateChallengeAttempt(ctx context.Context, arg CreateChallengeAttemptParams) (ChallengeAttempt, error)
 	CreateChallengeAttemptDecision(ctx context.Context, arg CreateChallengeAttemptDecisionParams) (ChallengeAttemptDecision, error)
+	CreateCopiedEventChallengeGroup(ctx context.Context, arg CreateCopiedEventChallengeGroupParams) error
 	CreateDispatch(ctx context.Context, arg CreateDispatchParams) (NotificationDispatch, error)
 	CreateDispatchIfAbsent(ctx context.Context, arg CreateDispatchIfAbsentParams) (int64, error)
 	// Rollback: a new draft cloned from a historical version's content. Fails
@@ -206,7 +268,14 @@ type Querier interface {
 	// call's `now` — both on first insert and on a dedup-hit conflict — so GC's
 	// orphan listing (ListOrphanBlobs) never targets a blob a concurrent upload
 	// just referenced (see file_blobs.touched_at, migration 0015).
-	CreateFile(ctx context.Context, arg CreateFileParams) (File, error)
+	// object_key and wrapped_key are those of the blob when it is created; on a
+	// dedup hit the blob keeps its own, and the row returned says which they are,
+	// so the caller can drop the object it stored if it lost the race.
+	// require_existing: the caller stored no object because it found the blob. Then the
+	// blob is only bumped, never created: if the collector removed it meanwhile, nothing is
+	// inserted and no row comes back (the caller starts again), so a blob can never come
+	// back as an empty row that points at an object that is gone.
+	CreateFile(ctx context.Context, arg CreateFileParams) (CreateFileRow, error)
 	// Idempotent per team and hint: a repeated unlock returns the first one.
 	CreateHintUnlock(ctx context.Context, arg CreateHintUnlockParams) (CreateHintUnlockRow, error)
 	// An empty category stores the default tab (personal). A request whose
@@ -233,7 +302,6 @@ type Querier interface {
 	CreateResourceChangeRequest(ctx context.Context, arg CreateResourceChangeRequestParams) error
 	CreateResourceReservation(ctx context.Context, arg CreateResourceReservationParams) error
 	CreateResourceTestLabHold(ctx context.Context, arg CreateResourceTestLabHoldParams) error
-	CreateSecretEnvelope(ctx context.Context, arg CreateSecretEnvelopeParams) (SecretEnvelope, error)
 	// All timestamps come from the domain factory (NewSession), not DB defaults —
 	// one source of truth for entity defaults.
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
@@ -244,18 +312,41 @@ type Querier interface {
 	// Timestamps come from the domain factory, not DB defaults — one source of
 	// truth for entity defaults.
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	// Refuses (no row) when the user already holds max_per_user passkeys: the cap and the insert are one statement.
+	CreateUserPasskey(ctx context.Context, arg CreateUserPasskeyParams) (UserPasskey, error)
 	CreateUserProvider(ctx context.Context, arg CreateUserProviderParams) (UserProvider, error)
+	// Events that run now or start before the horizon, with their counters.
+	DashboardCurrentEvents(ctx context.Context, arg DashboardCurrentEventsParams) ([]DashboardCurrentEventsRow, error)
+	// Events that run stands, have not finished and start within the horizon (or run now), with no active reservation.
+	DashboardEventsWithoutReservation(ctx context.Context, arg DashboardEventsWithoutReservationParams) ([]DashboardEventsWithoutReservationRow, error)
+	// The platform admin dashboard (docs/specs/ADMIN.md §3): every block is a handful of statements, never one per row.
+	// Events with failed stands (events not finished or archived), the worst first, with the totals over all of them.
+	DashboardFailedStands(ctx context.Context, arg DashboardFailedStandsParams) ([]DashboardFailedStandsRow, error)
+	// Deliveries that ended in an error since the given moment.
+	DashboardMailErrors(ctx context.Context, since time.Time) (int64, error)
+	DashboardOpenErrors(ctx context.Context, rowLimit int32) ([]DashboardOpenErrorsRow, error)
+	// oldest_at is 'epoch' without a pending request.
+	DashboardPendingElevations(ctx context.Context) (DashboardPendingElevationsRow, error)
+	// Three daily series for the days from the given day on (UTC days): sign-ups, users with a session, solved tasks.
+	DashboardTrends(ctx context.Context, arg DashboardTrendsParams) ([]DashboardTrendsRow, error)
 	DecideExerciseProposal(ctx context.Context, arg DecideExerciseProposalParams) (int64, error)
 	// Only a pending request can be decided; 0 rows: it was decided meanwhile.
 	DecideExerciseResourceElevation(ctx context.Context, arg DecideExerciseResourceElevationParams) (int64, error)
 	// Writes the decision of a pending request; 0 rows: it was decided meanwhile.
 	DecideResourceChangeRequest(ctx context.Context, arg DecideResourceChangeRequestParams) (int64, error)
+	// Keeps a team out of a task's cohort for lack of room: recorded for the task's current revision and reveal mode, and
+	// removed from the unopened barrier at once.
+	DeclineEventLabRevealTeam(ctx context.Context, arg DeclineEventLabRevealTeamParams) error
+	DeleteAllUserTablePrefs(ctx context.Context, userID uuid.UUID) (int64, error)
 	// Guarded delete: refuses when the blob got re-referenced between the S3
 	// removal decision and this call.
 	DeleteBlob(ctx context.Context, contentHash string) (int64, error)
 	DeleteClusterReservation(ctx context.Context, id uuid.UUID) error
 	DeleteEmailBlockPreset(ctx context.Context, id uuid.UUID) error
 	DeleteEmailTemplate(ctx context.Context, id uuid.UUID) (int64, error)
+	// The row goes first and says which object it held at that moment (the pass that encrypts older blobs may have moved it
+	// since the listing); the caller removes that object. Guarded as DeleteBlob, and only for a blob that is encrypted now.
+	DeleteEncryptedBlob(ctx context.Context, arg DeleteEncryptedBlobParams) (string, error)
 	DeleteErrorTelegramChatsNotIn(ctx context.Context, keep []string) error
 	DeleteEvent(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteEventChallengeGroup(ctx context.Context, arg DeleteEventChallengeGroupParams) (int64, error)
@@ -287,11 +378,13 @@ type Querier interface {
 	DeleteEventVPNSessions(ctx context.Context, arg DeleteEventVPNSessionsParams) error
 	DeleteExercise(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteExerciseEventAccess(ctx context.Context, exerciseID uuid.UUID) error
+	DeleteExpiredGoogleLinkTickets(ctx context.Context, now time.Time) error
 	DeleteExpiredRequestIdempotency(ctx context.Context, expiresAt time.Time) (int64, error)
 	DeleteExpiredResourceTestLabHolds(ctx context.Context, now time.Time) (int64, error)
 	DeleteExpiredSessionRevocations(ctx context.Context) (int64, error)
 	DeleteFileReferences(ctx context.Context, arg DeleteFileReferencesParams) (int64, error)
 	DeleteFileReferencesBatch(ctx context.Context, arg DeleteFileReferencesBatchParams) (int64, error)
+	DeleteGoogleLinkTicket(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteImageBlobPush(ctx context.Context, digest string) error
 	DeleteImageRegistrySettings(ctx context.Context) error
 	DeleteInAppTemplate(ctx context.Context, id uuid.UUID) (int64, error)
@@ -307,6 +400,7 @@ type Querier interface {
 	DeleteMediaUpload(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteNonOwnerEventManager(ctx context.Context, arg DeleteNonOwnerEventManagerParams) (int64, error)
 	DeleteNotificationBroadcastTemplate(ctx context.Context, arg DeleteNotificationBroadcastTemplateParams) (int64, error)
+	DeleteObjectRemoval(ctx context.Context, objectKey string) error
 	DeleteOwnedExerciseTestDeploy(ctx context.Context, arg DeleteOwnedExerciseTestDeployParams) (int64, error)
 	// Withdraws a pending request that has nothing left to ask (the working copy is inside the frame or covered by
 	// approvals); a decided request is history and stays. 0 rows: it was decided or removed meanwhile.
@@ -329,16 +423,25 @@ type Querier interface {
 	// Every code of the type issued to the user (the payload names the user): a
 	// password reset revokes the reset links still in the mailbox.
 	DeleteTemporalCodesForUser(ctx context.Context, arg DeleteTemporalCodesForUserParams) (int64, error)
+	// Removes a canonical Lab that never reached the agent and nothing else holds on to (no binding, no archive, no
+	// pin), with its objectives. The main statement counts the Lab row.
+	DeleteUnbornEventTeamLab(ctx context.Context, id uuid.UUID) (int64, error)
 	// GC step 1: drop grace-expired unreferenced files, decrement their blobs.
 	DeleteUnreferencedFiles(ctx context.Context, createdBefore time.Time) ([]DeleteUnreferencedFilesRow, error)
+	DeleteUserPasskey(ctx context.Context, arg DeleteUserPasskeyParams) (int64, error)
+	DeleteUserPasskeys(ctx context.Context, userID uuid.UUID) (int64, error)
 	DeleteUserProvider(ctx context.Context, arg DeleteUserProviderParams) (int64, error)
 	DeleteUserProviders(ctx context.Context, userID uuid.UUID) (int64, error)
+	DeleteUserTablePrefs(ctx context.Context, arg DeleteUserTablePrefsParams) (int64, error)
 	DeleteUserVPNConfig(ctx context.Context, arg DeleteUserVPNConfigParams) (int64, error)
 	DetachEventExercise(ctx context.Context, arg DetachEventExerciseParams) (int64, error)
 	DiscardEventLandingDraft(ctx context.Context, eventID uuid.UUID) (int64, error)
 	DiscardEventPageDraft(ctx context.Context, arg DiscardEventPageDraftParams) (int64, error)
 	// exercises.draft_version_id clears itself via ON DELETE SET NULL.
-	DiscardExerciseDraft(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	// Only the revision the writer saw is discarded; zero rows: no draft, or it changed meanwhile.
+	DiscardExerciseDraft(ctx context.Context, arg DiscardExerciseDraftParams) (uuid.UUID, error)
+	// Only the user who started the import closes its row: a foreign job inserts nothing (zero rows).
+	DismissExerciseImportJob(ctx context.Context, arg DismissExerciseImportJobParams) (int64, error)
 	DismissInAppBanner(ctx context.Context, arg DismissInAppBannerParams) (int64, error)
 	// Whether an Event's email templates may use/serve the file: it must already
 	// be referenced by a platform template (scope NULL), a block preset, or one of
@@ -362,10 +465,31 @@ type Querier interface {
 	// the domain (Exercise.HasUnpublishedChanges) without asking.
 	// label is deliberately not compared: it names snapshots, never content.
 	ExerciseDraftDiffersFromPublished(ctx context.Context, exerciseID uuid.UUID) (bool, error)
+	ExportUserEventStaffRoles(ctx context.Context, userID uuid.UUID) ([]ExportUserEventStaffRolesRow, error)
+	ExportUserFlagAttempts(ctx context.Context, userID uuid.UUID) ([]ExportUserFlagAttemptsRow, error)
+	ExportUserFormAnswers(ctx context.Context, userID uuid.UUID) ([]ExportUserFormAnswersRow, error)
+	ExportUserInbox(ctx context.Context, userID uuid.UUID) ([]ExportUserInboxRow, error)
+	ExportUserNotificationSettings(ctx context.Context, userID uuid.UUID) ([]ExportUserNotificationSettingsRow, error)
+	// The "download my data" export. Every query is keyed on the caller's own user id and reads only that person's
+	// rows; names of other people never leave (a team shows only its title).
+	ExportUserParticipations(ctx context.Context, userID uuid.UUID) ([]ExportUserParticipationsRow, error)
+	ExportUserTablePrefs(ctx context.Context, userID uuid.UUID) ([]ExportUserTablePrefsRow, error)
 	// Grows the latest segment of the same collector boot when the new span joins
 	// it (within the tolerance); zero rows means a new segment is needed.
 	ExtendLabTrafficCoverage(ctx context.Context, arg ExtendLabTrafficCoverageParams) (int64, error)
 	ExtendOwnedExerciseTestDeploy(ctx context.Context, arg ExtendOwnedExerciseTestDeployParams) (ExerciseTestDeployment, error)
+	// Counts of the dispatch log per value of one field (type, status, event, channel, result or transport) under
+	// the other filters: the filter of the field itself is ignored. The target filters (channel, result, transport)
+	// are met by one target of the dispatch, like in the list.
+	FacetDispatches(ctx context.Context, arg FacetDispatchesParams) ([]FacetDispatchesRow, error)
+	// Counts of the stand table per value of one field (status, kind or event) under the other filters: the filter
+	// of the field itself is ignored. The status key is the persisted smallint.
+	FacetPlatformStands(ctx context.Context, arg FacetPlatformStandsParams) ([]FacetPlatformStandsRow, error)
+	// Counts of the test lab table per value of one field (status, author or exercise) under the other filters: the
+	// filter of the field itself is ignored.
+	FacetPlatformTestLabs(ctx context.Context, arg FacetPlatformTestLabsParams) ([]FacetPlatformTestLabsRow, error)
+	// The import failed with this error code: the next save claims the row again, the leader tells the brain.
+	FailAssistantSave(ctx context.Context, arg FailAssistantSaveParams) (int64, error)
 	// Final disposal follows a persisted exact tombstone and retired children,
 	// never a names-only command result or an absent monitoring frame.
 	FinalizeRetiredLabGroupPlacement(ctx context.Context, arg FinalizeRetiredLabGroupPlacementParams) (int64, error)
@@ -378,6 +502,8 @@ type Querier interface {
 	// Every event team bound to the lab group, whatever the event lifecycle: the
 	// current state must already be there when an event becomes active.
 	FindEventTeamsByLabGroup(ctx context.Context, labGroupName string) ([]FindEventTeamsByLabGroupRow, error)
+	// The teardown is done: the run takes its end state.
+	FinishAssistantRun(ctx context.Context, arg FinishAssistantRunParams) (int64, error)
 	FinishErrorNotification(ctx context.Context, arg FinishErrorNotificationParams) (int64, error)
 	FinishEventLabUsageRollup(ctx context.Context, arg FinishEventLabUsageRollupParams) error
 	FinishNotificationBroadcast(ctx context.Context, arg FinishNotificationBroadcastParams) error
@@ -387,17 +513,37 @@ type Querier interface {
 	// Closes the roster for good. formed_by NULL means no person did it. Already
 	// formed teams are left alone, so a repeat is a no-op.
 	FormEventTeam(ctx context.Context, arg FormEventTeamParams) (int64, error)
-	// An empty eligible roster is deferred, not an immutable prepared cohort.
+	// An empty eligible roster is deferred, not an immutable prepared cohort. Until the tasks are shown (the barrier is
+	// opened) the cohort is recomputed on every call: a team that becomes eligible, before or after the start, joins it, and a
+	// team declined for lack of room (event_lab_reveal_declined, in the same revision and mode) stays out; once opened
+	// it is frozen.
 	FreezeEventLabRevealBarrier(ctx context.Context, arg FreezeEventLabRevealBarrierParams) ([]uuid.UUID, error)
 	GetActiveChannels(ctx context.Context, arg GetActiveChannelsParams) ([]string, error)
 	// The screen's one working link (unrevoked and not expired).
 	GetActiveEventLiveScreenLink(ctx context.Context, arg GetActiveEventLiveScreenLinkParams) (EventLiveScreenLink, error)
+	// The lab kept for an outbox request (a request seen again finds its lab instead of making another).
+	GetAssistantLabByRequest(ctx context.Context, requestID string) (AssistantRun, error)
+	GetAssistantRun(ctx context.Context, id uuid.UUID) (AssistantRun, error)
+	GetAssistantRunAnswer(ctx context.Context, arg GetAssistantRunAnswerParams) (GetAssistantRunAnswerRow, error)
+	// The save of this session by this author: its state, the task (empty until done), the import job, whether the brain
+	// was told and when it was claimed.
+	GetAssistantSave(ctx context.Context, arg GetAssistantSaveParams) (GetAssistantSaveRow, error)
+	// The user's pseudonym at the brain.
+	GetAssistantSubject(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
+	// The user a pseudonym belongs to (the brain's requests name the pseudonym only).
+	GetAssistantSubjectUser(ctx context.Context, subject uuid.UUID) (uuid.UUID, error)
+	// The stored connection to one brain endpoint.
+	GetBrainConnection(ctx context.Context, endpoint string) (BrainConnection, error)
+	// The last outbox request that was answered.
+	GetBrainOutboxSeq(ctx context.Context, endpoint string) (int64, error)
 	GetClusterReservation(ctx context.Context, id uuid.UUID) (ClusterReservation, error)
 	GetClusterReservationOfTestGroup(ctx context.Context, ownerID uuid.NullUUID) (ClusterReservation, error)
 	GetClusterReservationOfTestRun(ctx context.Context, testDeployID uuid.NullUUID) (ClusterReservation, error)
 	GetCurrentEventLabAccessMonitoring(ctx context.Context, eventTeamID uuid.UUID) (LabMonitoringCurrent, error)
 	GetDatabaseTime(ctx context.Context) (time.Time, error)
 	GetDispatch(ctx context.Context, id uuid.UUID) (GetDispatchRow, error)
+	// The revision of the working copy (when and by whom it was last written) without its content.
+	GetDraftRevision(ctx context.Context, exerciseID uuid.UUID) (GetDraftRevisionRow, error)
 	GetDraftVersion(ctx context.Context, exerciseID uuid.UUID) (ExerciseVersion, error)
 	GetEarliestEventResultChangeRevision(ctx context.Context, eventID uuid.UUID) (int64, error)
 	GetEffectiveTeamChallengeSolvedAt(ctx context.Context, teamChallengeID uuid.UUID) (GetEffectiveTeamChallengeSolvedAtRow, error)
@@ -412,6 +558,8 @@ type Querier interface {
 	GetEventAnalyticsOverview(ctx context.Context, arg GetEventAnalyticsOverviewParams) (GetEventAnalyticsOverviewRow, error)
 	GetEventAnalyticsRollupState(ctx context.Context, eventID uuid.UUID) (GetEventAnalyticsRollupStateRow, error)
 	GetEventAnswerFile(ctx context.Context, fileID uuid.UUID) (EventAnswerFile, error)
+	// The event's own mode; no row: it follows the platform default.
+	GetEventAssistantStatsMode(ctx context.Context, eventID uuid.UUID) (int16, error)
 	// Cheap change marker for the moderators' live journal: attempts, decisions
 	// and opened hints.
 	GetEventAttemptsStamp(ctx context.Context, eventID uuid.UUID) (GetEventAttemptsStampRow, error)
@@ -469,7 +617,7 @@ type Querier interface {
 	// team is a member like any other here.
 	GetEventParticipantDetail(ctx context.Context, arg GetEventParticipantDetailParams) (GetEventParticipantDetailRow, error)
 	GetEventParticipantFieldsMissing(ctx context.Context, arg GetEventParticipantFieldsMissingParams) (int32, error)
-	// Event analytics, «Учасники» and «Комунікації» sections
+	// Event analytics, "Participants" and "Communications" sections
 	// (docs/EVENT-ANALYTICS.md §6.2, §6.7). The moderators team is never counted.
 	// The participation funnel: invited → registered → approved → in a team →
 	// first attempt → first solve. Registered excludes invitations not accepted
@@ -538,6 +686,7 @@ type Querier interface {
 	GetExerciseProposal(ctx context.Context, id uuid.UUID) (ExerciseProposal, error)
 	GetExerciseResourceElevation(ctx context.Context, id uuid.UUID) (ExerciseResourceElevation, error)
 	GetExerciseVersionByID(ctx context.Context, id uuid.UUID) (ExerciseVersion, error)
+	GetFileBlob(ctx context.Context, contentHash string) (GetFileBlobRow, error)
 	GetFileByID(ctx context.Context, id uuid.UUID) (File, error)
 	// Read path for an owner's current file set (e.g. resolving a user's avatar
 	// file before streaming it). Ordered newest-file-first (files.created_at
@@ -548,6 +697,7 @@ type Querier interface {
 	// a ref_type/ref_id with no rows simply yields an empty slice, not an error.
 	GetFileReferenceIDs(ctx context.Context, arg GetFileReferenceIDsParams) ([]uuid.UUID, error)
 	GetFirstEventLiveScreen(ctx context.Context, eventID uuid.UUID) (EventLiveScreen, error)
+	GetGoogleLinkTicket(ctx context.Context, arg GetGoogleLinkTicketParams) (GoogleLinkTicket, error)
 	GetImageBlobPush(ctx context.Context, digest string) (ImageBlobPush, error)
 	GetImageRegistrySettings(ctx context.Context) (ImageRegistrySetting, error)
 	// Caller has already checked ActionWrite and the archive freeze for this ID.
@@ -561,6 +711,11 @@ type Querier interface {
 	GetInfrastructureAgent(ctx context.Context, id uuid.UUID) (InfrastructureAgent, error)
 	// The catalog task behind a team task of the event.
 	GetIntegrityTaskOfTeamChallenge(ctx context.Context, arg GetIntegrityTaskOfTeamChallengeParams) (GetIntegrityTaskOfTeamChallengeRow, error)
+	GetLabActivityCursor(ctx context.Context, labGroupName string) (GetLabActivityCursorRow, error)
+	// The activity of one lab as one VPN client saw it (a grader run's lab): whether the lab had egress, the bytes the client
+	// exchanged with it, the distinct lab addresses it reached and its console time (a session open, or longer than the cap, is
+	// counted up to max_session_seconds). No row: the lab has no report.
+	GetLabActivityOfClient(ctx context.Context, arg GetLabActivityOfClientParams) (GetLabActivityOfClientRow, error)
 	GetLabArchiveChunkForScrub(ctx context.Context, id uuid.UUID) (GetLabArchiveChunkForScrubRow, error)
 	GetLabBinding(ctx context.Context, arg GetLabBindingParams) (LabBinding, error)
 	// The earliest moment a lab of this task existed for the team; 0001-01-01 when
@@ -635,7 +790,7 @@ type Querier interface {
 	// Team stands right now (ready / creating / failed) and the failures logged
 	// in each window (source stand, to_status failed = 3).
 	GetPlatformOverviewStands(ctx context.Context, arg GetPlatformOverviewStandsParams) (GetPlatformOverviewStandsRow, error)
-	// Platform analytics, «Огляд» (docs/EVENT-ANALYTICS.md §8). Aggregates across
+	// Platform analytics, "Overview" (docs/EVENT-ANALYTICS.md §8). Aggregates across
 	// the whole platform. Every window is a half-open [from, to) of UTC days; the
 	// previous window is passed as prev_from/prev_to (an empty window for "all
 	// time"). The moderators team is never counted.
@@ -660,7 +815,6 @@ type Querier interface {
 	GetResourceCalendarSettings(ctx context.Context) (ResourceCalendarSetting, error)
 	GetResourceChangeRequest(ctx context.Context, id uuid.UUID) (ResourceChangeRequest, error)
 	GetResourceReservation(ctx context.Context, id uuid.UUID) (ResourceReservation, error)
-	GetSecretEnvelope(ctx context.Context, id uuid.UUID) (SecretEnvelope, error)
 	GetSessionByID(ctx context.Context, id uuid.UUID) (Session, error)
 	GetSessionsByUser(ctx context.Context, userID uuid.UUID) ([]Session, error)
 	GetSiteBanner(ctx context.Context, id uuid.UUID) (SiteBanner, error)
@@ -692,7 +846,9 @@ type Querier interface {
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserByProvider(ctx context.Context, arg GetUserByProviderParams) (User, error)
+	GetUserPasskeyByCredentialID(ctx context.Context, credentialID []byte) (UserPasskey, error)
 	GetUserProviders(ctx context.Context, userID uuid.UUID) ([]UserProvider, error)
+	GetUserTablePrefs(ctx context.Context, arg GetUserTablePrefsParams) (GetUserTablePrefsRow, error)
 	GetUserUIPreference(ctx context.Context, arg GetUserUIPreferenceParams) ([]byte, error)
 	// IS NOT DISTINCT FROM matches a null scope_ref (the test scope) NULL-safely.
 	GetUserVPNConfig(ctx context.Context, arg GetUserVPNConfigParams) (UserVpnConfig, error)
@@ -701,6 +857,12 @@ type Querier interface {
 	HasIncompleteRequiredEventFormDelivery(ctx context.Context, arg HasIncompleteRequiredEventFormDeliveryParams) (bool, error)
 	// Whether any notification (open or closed) was ever delivered for the subject: an alert raised once per subject.
 	InboxSubjectExists(ctx context.Context, subjectRef string) (bool, error)
+	// The judgement of one answer event; an answer seen again is ignored (the judgement stays).
+	InsertAssistantRunAnswer(ctx context.Context, arg InsertAssistantRunAnswerParams) (int64, error)
+	// Stores one brain frame verbatim; a frame seen again (a resumed stream) is ignored.
+	InsertAssistantRunEvent(ctx context.Context, arg InsertAssistantRunEventParams) (int64, error)
+	// Gives teams their id in the statistics of an event. A team that has one already keeps it (a second writer loses).
+	InsertAssistantStatsTeamRefs(ctx context.Context, arg InsertAssistantStatsTeamRefsParams) error
 	InsertErrorSample(ctx context.Context, arg InsertErrorSampleParams) error
 	InsertEventRegistrySecret(ctx context.Context, arg InsertEventRegistrySecretParams) error
 	// The first lifecycle transition captures the population. A retry must return
@@ -710,7 +872,7 @@ type Querier interface {
 	InsertExerciseEventAccess(ctx context.Context, arg InsertExerciseEventAccessParams) error
 	InsertImportedExerciseVersion(ctx context.Context, arg InsertImportedExerciseVersionParams) (ExerciseVersion, error)
 	InsertPlatformSMTPProvider(ctx context.Context, arg InsertPlatformSMTPProviderParams) (MailSmtpConfig, error)
-	// Authorized edits invalidate a different preparation tuple atomically. They
+	// Authorized edits invalidate a different preparation tuple atomically (and the declines made in the old one). They
 	// never insert/freeze a cohort before the assignment preparation boundary.
 	InvalidateEventLabRevealBarrier(ctx context.Context, arg InvalidateEventLabRevealBarrierParams) error
 	InviteEventParticipant(ctx context.Context, arg InviteEventParticipantParams) (EventParticipant, error)
@@ -728,6 +890,8 @@ type Querier interface {
 	// Creation and regeneration in one statement: any unrevoked link of the
 	// screen (active or expired) is revoked and the new one inserted.
 	IssueEventLiveScreenLink(ctx context.Context, arg IssueEventLiveScreenLinkParams) error
+	// The runs the leader drives: starting, running or closing.
+	ListActiveAssistantRuns(ctx context.Context, maxRows int32) ([]AssistantRun, error)
 	ListActiveBannersByUser(ctx context.Context, arg ListActiveBannersByUserParams) ([]ListActiveBannersByUserRow, error)
 	// The working links of all screens of the event (at most one per screen).
 	ListActiveEventLiveScreenLinks(ctx context.Context, arg ListActiveEventLiveScreenLinksParams) ([]EventLiveScreenLink, error)
@@ -751,8 +915,41 @@ type Querier interface {
 	ListAdminAuditLog(ctx context.Context, arg ListAdminAuditLogParams) ([]AdminAuditLog, error)
 	// The approved values of every approved elevation of the given exercises.
 	ListApprovedExerciseResourceElevations(ctx context.Context, exerciseIds []uuid.UUID) ([]ListApprovedExerciseResourceElevationsRow, error)
+	// The activity of the labs of teams x tasks, per (event, team, event exercise): the labs of one instance (a recreate makes
+	// another lab) are folded together. egress_used: any of its labs had egress; vpn_bytes: bytes the team's VPN clients exchanged
+	// with the labs; devices_touched: distinct lab addresses reached; console_seconds: console time, a session still open (or one
+	// longer than the cap) counted up to the cap: the laboratory's own console_max_s of the group, else max_session_seconds.
+	// device_touch false: the cluster produces no device_touch events, so vpn_bytes and devices_touched are not reported. An instance whose group was never pulled (reports off, or not yet) is not returned: its figures are "not reported", not zero.
+	ListAssistantLabActivity(ctx context.Context, arg ListAssistantLabActivityParams) ([]ListAssistantLabActivityRow, error)
+	// The opponent runs of a variant (any role of the manifest, never the grader or a lab), newest first.
+	ListAssistantOpponentRunsOfVariant(ctx context.Context, arg ListAssistantOpponentRunsOfVariantParams) ([]AssistantRun, error)
+	ListAssistantRunAnswers(ctx context.Context, runID uuid.UUID) ([]ListAssistantRunAnswersRow, error)
+	ListAssistantRunEvents(ctx context.Context, arg ListAssistantRunEventsParams) ([]ListAssistantRunEventsRow, error)
+	// The grader runs of a variant, newest first (the labs the brain asked for are not runs).
+	ListAssistantRunsOfVariant(ctx context.Context, arg ListAssistantRunsOfVariantParams) ([]AssistantRun, error)
+	// The platform default mode of every source that has one set (the others are off).
+	ListAssistantStatsDefaults(ctx context.Context) ([]ListAssistantStatsDefaultsRow, error)
+	// The tasks (exercise and pinned version) of the events whose collection is on (final or continuous), whether or not
+	// they have anything to send yet. exercise_ids empty: all of them.
+	ListAssistantStatsEnabledEventTasks(ctx context.Context, arg ListAssistantStatsEnabledEventTasksParams) ([]ListAssistantStatsEnabledEventTasksRow, error)
+	// The variants (their topologies name the images) of the versions that are about to be reported.
+	ListAssistantStatsTaskVersions(ctx context.Context, versionIds []uuid.UUID) ([]ListAssistantStatsTaskVersionsRow, error)
+	// What each engaged team did with each task of the events whose collection is on and due: continuous while the event has
+	// started, final once it has ended. One row per (task, team); the team is not in the row, and only ranked teams count
+	// (no moderators, no hidden teams, no team with a member in excluded_users: the participants who refused). Times are
+	// seconds from the team's first opening of the task to its last solved subtask, NULL when it did not solve all of them.
+	// event_id, event_exercise_id and team_id are for the caller only (it turns them into the random per-event team_ref and drops them).
+	// wrong_submissions are the team's wrong answers (before its solve, when it solved the task). The lab figures come from the
+	// status log of the task's labs (ready_seconds: from the first lab record to the first ready; NULL while never ready;
+	// restarts: the highest recreate generation; broken: a lab of the team failed); has_lab is false for a task without a lab.
+	// state_checks lists the state-checked subtasks (a state subtask has no flag): their ref and the seconds from the lab being
+	// ready to the pass (NULL when it did not pass).
+	ListAssistantStatsTeamFacts(ctx context.Context, arg ListAssistantStatsTeamFactsParams) ([]ListAssistantStatsTeamFactsRow, error)
+	// The random ids teams already have in the statistics of these events.
+	ListAssistantStatsTeamRefs(ctx context.Context, eventIds []uuid.UUID) ([]ListAssistantStatsTeamRefsRow, error)
 	// One row per recipient and channel target of the broadcast (recipients still
-	// waiting for their first attempt have a NULL channel).
+	// waiting for their first attempt have a NULL channel). status_filter is
+	// '' (all), 'error', 'done' or 'waiting' (no attempt yet).
 	ListBroadcastDeliveries(ctx context.Context, arg ListBroadcastDeliveriesParams) ([]ListBroadcastDeliveriesRow, error)
 	ListBroadcastQueuedUserIDs(ctx context.Context, broadcastID uuid.NullUUID) ([]uuid.UUID, error)
 	// Every agent that holds a part (for the periodic reconcile).
@@ -796,7 +993,7 @@ type Querier interface {
 	ListErrorTelegramChats(ctx context.Context) ([]ErrorJournalTelegramChat, error)
 	// The event-wide 5-minute series in [from_at, to_at).
 	ListEventActivitySeries(ctx context.Context, arg ListEventActivitySeriesParams) ([]ListEventActivitySeriesRow, error)
-	// Event analytics «Завдання» and «Прогрес» (docs/EVENT-ANALYTICS.md §6.3, §6.4).
+	// Event analytics "Tasks" and "Progress" (docs/EVENT-ANALYTICS.md §6.3, §6.4).
 	// The moderators team is never counted. Period bounds are [from_at, to_at).
 	// The published challenges of the event in board order, with the declared
 	// difficulty from the snapshot. A NULL challenge_id lists them all.
@@ -865,6 +1062,9 @@ type Querier interface {
 	// challenge is returned, including those with no materialized team rows yet.
 	ListEventChallengeAvailability(ctx context.Context, eventExerciseID uuid.UUID) ([]ListEventChallengeAvailabilityRow, error)
 	ListEventChallengeGroups(ctx context.Context, eventID uuid.UUID) ([]EventChallengeGroup, error)
+	ListEventChallengeGroupsOf(ctx context.Context, eventID uuid.UUID) ([]ListEventChallengeGroupsOfRow, error)
+	// Every prerequisite pair among the challenges of an event.
+	ListEventChallengePrerequisitePairs(ctx context.Context, eventID uuid.UUID) ([]EventChallengePrerequisite, error)
 	ListEventChallengePrerequisites(ctx context.Context, challengeID uuid.UUID) ([]uuid.UUID, error)
 	// One page of who solved a board challenge: the same team population as the
 	// solve counts, named like the public scoreboard names its rows. Oldest solve
@@ -874,6 +1074,9 @@ type Querier interface {
 	ListEventChallengeSolves(ctx context.Context, arg ListEventChallengeSolvesParams) ([]ListEventChallengeSolvesRow, error)
 	ListEventChallenges(ctx context.Context, eventExerciseID uuid.UUID) ([]EventChallenge, error)
 	ListEventChallengesWithAttempts(ctx context.Context, ids []uuid.UUID) ([]uuid.UUID, error)
+	// The counters of the admin events table for one page of events, in one query: approved participants, teams (not the
+	// moderators team, not the single-member teams of an individual event) and the stands of those teams (ready / all).
+	ListEventCounts(ctx context.Context, eventIds []uuid.UUID) ([]ListEventCountsRow, error)
 	// Approved participants who never submitted an attempt, with how many tasks
 	// they opened. total is the full count; the list is cut at row_limit.
 	ListEventDropOffParticipants(ctx context.Context, arg ListEventDropOffParticipantsParams) ([]ListEventDropOffParticipantsRow, error)
@@ -907,7 +1110,7 @@ type Querier interface {
 	ListEventIDsByTag(ctx context.Context, tag string) ([]uuid.UUID, error)
 	// In-app notifications of the event per type: how many, how many read.
 	ListEventInAppStats(ctx context.Context, arg ListEventInAppStatsParams) ([]ListEventInAppStatsRow, error)
-	// Event analytics, «Доброчесність» (docs/EVENT-ANALYTICS.md §6.6, docs/ANTI-CHEAT.md).
+	// Event analytics, "Integrity" (docs/EVENT-ANALYTICS.md §6.6, docs/ANTI-CHEAT.md).
 	// The raw facts the per-solve signals in eventAnalyticsModel read. No IP or
 	// user agent is kept anywhere (§9.3). Hidden teams and the moderators team are
 	// never counted (event_team_visible). Answers are cut to 200 characters.
@@ -962,7 +1165,7 @@ type Querier interface {
 	// ones the archive does not hold yet, or all while they are kept), up to
 	// limit_rows, as JSON lines in the archive format.
 	ListEventLabObservationsAfter(ctx context.Context, arg ListEventLabObservationsAfterParams) ([]ListEventLabObservationsAfterRow, error)
-	// The event's screens in the editor order; the first one is «Екран 1» of the
+	// The event's screens in the editor order; the first one is "Screen 1" of the
 	// old single-screen routes.
 	ListEventLiveScreens(ctx context.Context, eventID uuid.UUID) ([]EventLiveScreen, error)
 	// Every management membership of the Event (owner, moderator, viewer).
@@ -971,10 +1174,17 @@ type Querier interface {
 	// Dispatch targets of the event's notifications per type, channel and
 	// status (done: handed to the transport, error: failed) in the window.
 	ListEventNotificationDispatchStats(ctx context.Context, arg ListEventNotificationDispatchStatsParams) ([]ListEventNotificationDispatchStatsRow, error)
+	// Everyone who manages at least one event, for the organizer filter.
+	ListEventOrganizers(ctx context.Context) ([]ListEventOrganizersRow, error)
 	ListEventPages(ctx context.Context, eventID uuid.UUID) ([]EventPage, error)
 	// Every participant of the event with the latest registration answers (NULL
 	// when none): the input of the «missing required fields» recount.
 	ListEventParticipantRegistrationAnswers(ctx context.Context, eventID uuid.UUID) ([]ListEventParticipantRegistrationAnswersRow, error)
+	// One row per solved task of a visible team: the participant whose submission was the first correct one (the
+	// flag was SUBMITTED by them; teammates may have found it), when, the minutes from the event start and from the
+	// team's first open of the task, and the wrong attempts before it by that participant and by the whole team.
+	// No IP or user agent exists in the data (§9.3).
+	ListEventParticipantSubmissions(ctx context.Context, eventID uuid.UUID) ([]ListEventParticipantSubmissionsRow, error)
 	// Moderation list: one query for the page including profile, pseudonym and
 	// team names (no per-row lookups). status_filter < 0 means "any status";
 	// kind '' means any, otherwise participants | applications | invitations.
@@ -1001,7 +1211,7 @@ type Querier interface {
 	ListEventRegistrySecrets(ctx context.Context, eventID uuid.UUID) ([]EventRegistrySecret, error)
 	// The secrets the periodic check covers: those of events that are not finished and not archived.
 	ListEventRegistrySecretsToCheck(ctx context.Context, now time.Time) ([]ListEventRegistrySecretsToCheckRow, error)
-	// Event analytics, «Звіт по заходу» (docs/EVENT-ANALYTICS.md §6.8): the
+	// Event analytics, "Event report" (docs/EVENT-ANALYTICS.md §6.8): the
 	// ranking, the per-task table and the funnel tail. The key numbers and the
 	// activity series come from the overview statements.
 	// The final table of the ranked teams (admitted, not hidden), live scores.
@@ -1009,6 +1219,8 @@ type Querier interface {
 	// Per-task statistics over all teams but the moderators team, in board order.
 	ListEventReportTasks(ctx context.Context, eventID uuid.UUID) ([]ListEventReportTasksRow, error)
 	ListEventResultChangesAfter(ctx context.Context, arg ListEventResultChangesAfterParams) ([]EventResultChange, error)
+	// The latest changes of the event's schedule (who, when, from what to what), newest first.
+	ListEventScheduleChanges(ctx context.Context, eventID uuid.UUID) ([]ListEventScheduleChangesRow, error)
 	// Same cutoff rules as ListEventScoreboard.
 	ListEventScoreTimeline(ctx context.Context, arg ListEventScoreTimelineParams) ([]ListEventScoreTimelineRow, error)
 	// Ranked public teams. A NULL cutoff reads live scores; a cutoff reads the
@@ -1030,7 +1242,7 @@ type Querier interface {
 	// per device. Devices without a usage reading count only toward devices and
 	// restarts.
 	ListEventStandResources(ctx context.Context, arg ListEventStandResourcesParams) ([]ListEventStandResourcesRow, error)
-	// Event analytics, «Стенди» (docs/EVENT-ANALYTICS.md §6.5). The moderators
+	// Event analytics, "Stands" (docs/EVENT-ANALYTICS.md §6.5). The moderators
 	// team is never counted.
 	// Every team of the event with the current status of its stand (0: no stand
 	// yet).
@@ -1079,7 +1291,7 @@ type Querier interface {
 	// collector's cumulative counters. They carry no time series, so they cover
 	// the whole event, not the period.
 	ListEventUsageTouches(ctx context.Context, eventID uuid.UUID) ([]ListEventUsageTouchesRow, error)
-	// Event analytics, «Використання»: per participant VPN connection state and
+	// Event analytics, "Usage": per participant VPN connection state and
 	// lab access over the VPN and the web proxy. Counts and times only, never an
 	// address. The moderators team is never counted.
 	// Every participant of a team (outside the moderators team) with the name an
@@ -1113,6 +1325,9 @@ type Querier interface {
 	// platform default, else 7).
 	ListEventsDueStartReminder(ctx context.Context, nowAt time.Time) ([]ListEventsDueStartReminderRow, error)
 	ListEventsPage(ctx context.Context, arg ListEventsPageParams) ([]Event, error)
+	// The active attachments (status 0: neither superseded nor detached) of an exercise in events, with what each runs
+	// now: its pinned version and how many team laboratories of it are running. Read by the import warning.
+	ListExerciseActiveAttachments(ctx context.Context, arg ListExerciseActiveAttachmentsParams) ([]ListExerciseActiveAttachmentsRow, error)
 	// The authors of the exercises the viewer may read (viewer_id NULL: every exercise), by use, for the author filter.
 	// Only the first and last name, never the email; search matches either; ids (non-empty) keeps only those authors
 	// (the names of the chosen ones).
@@ -1120,10 +1335,13 @@ type Querier interface {
 	// Card decorations for a page of exercises in one query: owner event name,
 	// fork source name, infrastructure and a pending proposal.
 	ListExerciseCardExtras(ctx context.Context, ids []uuid.UUID) ([]ListExerciseCardExtrasRow, error)
+	// Recorded answers per board challenge of the active attachments of an exercise: every attempt, and the teams that
+	// solved it (a correct attempt that is not practice).
+	ListExerciseChallengeAnswerCounts(ctx context.Context, exerciseID uuid.UUID) ([]ListExerciseChallengeAnswerCountsRow, error)
 	// Which of the files the task stores as its copy of a content (a co-author's upload found by the hash lookup).
 	ListExerciseHeldFiles(ctx context.Context, arg ListExerciseHeldFilesParams) ([]uuid.UUID, error)
 	ListExerciseProposals(ctx context.Context, status pgtype.Int2) ([]ListExerciseProposalsRow, error)
-	// Newest first; status and exercise narrow the list (a null argument does not filter).
+	// Newest first; status, exercise and author narrow the list (a null argument does not filter).
 	ListExerciseResourceElevations(ctx context.Context, arg ListExerciseResourceElevationsParams) ([]ListExerciseResourceElevationsRow, error)
 	// Tags of existing exercises by use; an empty prefix returns the most used.
 	// Prefix matching is literal (%, _ are not LIKE wildcards) and
@@ -1191,6 +1409,9 @@ type Querier interface {
 	// Pending, not yet announced invitations of started events; the use case
 	// applies the exact expiry rule of the event lifecycle.
 	ListInvitationExpiryCandidates(ctx context.Context, nowAt time.Time) ([]ListInvitationExpiryCandidatesRow, error)
+	// The lab groups whose activity the daemon pulls: the groups of the events whose statistics collection is on (final or
+	// continuous) while the event runs and for an hour after it ends (the laboratory keeps a short ring).
+	ListLabActivityGroups(ctx context.Context, arg ListLabActivityGroupsParams) ([]string, error)
 	// The archive chunks of an event after the given id, a page at a time.
 	ListLabArchiveChunksForScrub(ctx context.Context, arg ListLabArchiveChunksForScrubParams) ([]ListLabArchiveChunksForScrubRow, error)
 	// The challenges that share one Lab of a team.
@@ -1240,15 +1461,19 @@ type Querier interface {
 	// otherwise the Event id.
 	ListNotificationBroadcasts(ctx context.Context, arg ListNotificationBroadcastsParams) ([]ListNotificationBroadcastsRow, error)
 	ListNotificationSettings(ctx context.Context) ([]NotificationSetting, error)
+	ListObjectRemovals(ctx context.Context, arg ListObjectRemovalsParams) ([]string, error)
 	// Sessions a new handshake may still extend: those ending at or after
 	// ended_after.
 	ListOpenEventVPNSessions(ctx context.Context, arg ListOpenEventVPNSessionsParams) ([]EventVpnSession, error)
+	// The imports of the user that are running or failed and not closed by the user (a running one silent since
+	// stale_before has stopped: the caller reads it as failed).
+	ListOpenExerciseImportJobs(ctx context.Context, createdBy uuid.UUID) ([]ExerciseImportJob, error)
 	ListOpenResourceAlarmsOfReservation(ctx context.Context, reservationID uuid.UUID) ([]ResourceAlarm, error)
 	// touched_at < touched_before (the same GC grace cutoff DeleteUnreferencedFiles
 	// uses) gives a concurrent dedup upload of this exact content a grace window
 	// to complete its CreateFile bump before GC ever considers the blob a
 	// deletion candidate — see file_blobs.touched_at, migration 0015.
-	ListOrphanBlobs(ctx context.Context, touchedBefore time.Time) ([]string, error)
+	ListOrphanBlobs(ctx context.Context, touchedBefore time.Time) ([]ListOrphanBlobsRow, error)
 	ListOrphanEventLabs(ctx context.Context, limitVal int32) ([]EventTeamLab, error)
 	// The caller's team roster with each member's public name (pseudonym when
 	// allowed and set, else the real name). Captain first, then by name.
@@ -1275,10 +1500,13 @@ type Querier interface {
 	ListPendingLabGroupCleanupRequests(ctx context.Context) ([]string, error)
 	ListPendingStoppedEventTeamLabs(ctx context.Context, arg ListPendingStoppedEventTeamLabsParams) ([]EventTeamLab, error)
 	ListPendingTeamInvitations(ctx context.Context, arg ListPendingTeamInvitationsParams) ([]ListPendingTeamInvitationsRow, error)
+	// The blobs still stored plain that the encryption pass has to move, after the cursor: every plain blob except one that
+	// only public images use (some file of it is referenced by a public kind and none by any other).
+	ListPlainBlobs(ctx context.Context, arg ListPlainBlobsParams) ([]ListPlainBlobsRow, error)
 	// Active platform administrators (super admins and admins; read-only admin
 	// viewers cannot act on requests).
 	ListPlatformAdminUserIDs(ctx context.Context) ([]uuid.UUID, error)
-	// Platform analytics «Заходи» (docs/EVENT-ANALYTICS.md §8). Aggregates only,
+	// Platform analytics "Events" (docs/EVENT-ANALYTICS.md §8). Aggregates only,
 	// across events; the moderators team is never counted. Period bounds are
 	// [from_at, to_at), aligned to UTC days. Lifecycle status codes match
 	// eventModel.LifecycleStatus: 0 not published, 1 published, 2 started,
@@ -1298,7 +1526,14 @@ type Querier interface {
 	// effective finish is the earlier of the scheduled and the manual finish
 	// (the epoch when there is none).
 	ListPlatformAnalyticsEvents(ctx context.Context, arg ListPlatformAnalyticsEventsParams) ([]ListPlatformAnalyticsEventsRow, error)
-	// Platform analytics «Каталог завдань» (docs/EVENT-ANALYTICS.md §8). Usage and
+	// The events of the period (same scope as the status counts), filtered by a search over the tag and the name,
+	// sorted by a column of the table and cut to one page. total is the size of the filtered scope. The figures
+	// are aggregates per event: registered participants, teams (the moderators
+	// team excluded), solves and the teams with at least one solve. The
+	// effective finish is the earlier of the scheduled and the manual finish
+	// (the epoch when there is none).
+	ListPlatformAnalyticsEventsPage(ctx context.Context, arg ListPlatformAnalyticsEventsPageParams) ([]ListPlatformAnalyticsEventsPageRow, error)
+	// Platform analytics "Task catalog" (docs/EVENT-ANALYTICS.md §8). Usage and
 	// calibration of catalog tasks across the events that start in the period
 	// [from_at, to_at). The catalog is the exercises table (scope 0); a task is
 	// one (exercise, task) pair, an event challenge is its use in one event. The
@@ -1337,7 +1572,7 @@ type Querier interface {
 	// status transitions to failed (source 'lab'), stands counts stand transitions
 	// to failed (source 'stand').
 	ListPlatformInfraFailures(ctx context.Context, arg ListPlatformInfraFailuresParams) ([]ListPlatformInfraFailuresRow, error)
-	// Platform analytics, «Інфраструктура»: the active time split by lab kind. The
+	// Platform analytics, "Infrastructure": the active time split by lab kind. The
 	// kinds are the event teams' stands, the moderators team stand and the catalog
 	// test labs (exercise test deploys). A test lab is active from the creation of
 	// its deploy to its removal (exercise_test_deploy_runs, written by triggers);
@@ -1357,7 +1592,7 @@ type Querier interface {
 	// ListPlatformInfraPeaks, over the chosen kinds: with_stands = team stands
 	// (event and moderators), with_tests = catalog test labs. Both = every lab.
 	ListPlatformInfraPeaksByKind(ctx context.Context, arg ListPlatformInfraPeaksByKindParams) ([]ListPlatformInfraPeaksByKindRow, error)
-	// Platform analytics, «Інфраструктура» (docs/EVENT-ANALYTICS.md §8). Aggregates
+	// Platform analytics, "Infrastructure" (docs/EVENT-ANALYTICS.md §8). Aggregates
 	// only: no IP addresses, no VPN client addresses, no lab payloads.
 	//
 	// A stand is ACTIVE while its status is creating (1) or ready (2), the same
@@ -1389,7 +1624,7 @@ type Querier interface {
 	// every type seen in the period on the chosen channel (test sends only with
 	// include_tests), whatever the transport and type filters are.
 	ListPlatformMailOptions(ctx context.Context, arg ListPlatformMailOptionsParams) ([]ListPlatformMailOptionsRow, error)
-	// Platform analytics, «Сповіщення» (docs/EVENT-ANALYTICS.md §8): delivery health
+	// Platform analytics, "Notifications" (docs/EVENT-ANALYTICS.md §8): delivery health
 	// of the notification channels. One row of notification_dispatch_targets is one
 	// delivery: status 'done' is sent, 'error' is failed, 'deferred' is held back by
 	// the SMTP send limit. The channel filter ('' = all, 'email', 'in_app') narrows
@@ -1425,7 +1660,7 @@ type Querier interface {
 	// when the lab is stopped or its expired lease is cleaned up.
 	// A static test (no group, no lab name, no event) is not a laboratory and never appears here.
 	ListPlatformTestLabs(ctx context.Context, arg ListPlatformTestLabsParams) ([]ListPlatformTestLabsRow, error)
-	// Platform analytics, «Користувачі» (docs/EVENT-ANALYTICS.md §8). Extends
+	// Platform analytics, "Users" (docs/EVENT-ANALYTICS.md §8). Extends
 	// the admin user stats (CountUsersByRoleAll, CountUsersByStatus, the new /
 	// active counts of platform_analytics_overview.sql) with period-bound
 	// aggregates. Windows are half-open [from, to) of UTC days. Only
@@ -1441,9 +1676,15 @@ type Querier interface {
 	// counted for these rows only (distinct team tasks with an effectively
 	// correct attempt of the account). Per-user data: super_admin only.
 	ListPlatformUsersPeople(ctx context.Context, limitVal int32) ([]ListPlatformUsersPeopleRow, error)
+	// Every account that joined an event (approved, the moderators team excluded), filtered by a search over the name and
+	// the email, sorted by a column and cut to one page; total is the size of the filtered list. Solves are the distinct
+	// team tasks with an effectively correct attempt of the account. Per-user data: super_admin only.
+	ListPlatformUsersPeoplePage(ctx context.Context, arg ListPlatformUsersPeoplePageParams) ([]ListPlatformUsersPeoplePageRow, error)
 	// What the resource totals of a page of exercises need from their published versions: per variant its id and
 	// the container-device fields that decide a device's size (never the image, env vars or secrets).
 	ListPublishedVariantDevices(ctx context.Context, ids []uuid.UUID) ([]ListPublishedVariantDevicesRow, error)
+	// The judged answers of the run since a moment, oldest first (the answer rate limit).
+	ListRecentAssistantRunAnswers(ctx context.Context, arg ListRecentAssistantRunAnswersParams) ([]ListRecentAssistantRunAnswersRow, error)
 	// Open alarms first, then the resolved ones, newest first; only_open leaves the resolved out.
 	ListResourceAlarms(ctx context.Context, arg ListResourceAlarmsParams) ([]ListResourceAlarmsRow, error)
 	// Newest first; status and event narrow it (a null argument matches everything).
@@ -1456,11 +1697,13 @@ type Querier interface {
 	ListResourceReservationsInWindow(ctx context.Context, arg ListResourceReservationsInWindowParams) ([]ResourceReservation, error)
 	ListRetiringEventLabs(ctx context.Context, limitVal int32) ([]EventTeamLab, error)
 	ListRetryableEmptyEventLabRevealBarriers(ctx context.Context, eventID uuid.UUID) ([]uuid.UUID, error)
+	// Failed Labs the agent never accepted (deployed_at is empty) whose canonical Lab still waits for its first
+	// creation: the stand engine retries them after a backoff. One row per Lab (its first binding); the sets that
+	// are not due yet (a later stage) are left alone. An old failure without failed_at counts from its creation.
+	ListRetryableFailedLabBindings(ctx context.Context, arg ListRetryableFailedLabBindingsParams) ([]ListRetryableFailedLabBindingsRow, error)
 	ListRevealSetLabs(ctx context.Context, arg ListRevealSetLabsParams) ([]EventTeamLab, error)
 	// The labs of an event that still run in the given team groups (their cluster reservation is ending).
 	ListRunningEventTeamLabsInGroups(ctx context.Context, arg ListRunningEventTeamLabsInGroupsParams) ([]uuid.UUID, error)
-	// The imports of the user that still run (a running one silent since stale_before has stopped and is left out).
-	ListRunningExerciseImportJobs(ctx context.Context, arg ListRunningExerciseImportJobsParams) ([]ExerciseImportJob, error)
 	// The poll: rows revoked after the watermark (the caller passes watermark - the 10 s overlap).
 	ListSessionRevocationsSince(ctx context.Context, revokedAt time.Time) ([]SessionRevocation, error)
 	// The entries that may be closed after this pass. Chosen before the pass scrubs: anything that could still carry the
@@ -1497,6 +1740,8 @@ type Querier interface {
 	ListTeamBoardChallenges(ctx context.Context, arg ListTeamBoardChallengesParams) ([]ListTeamBoardChallengesRow, error)
 	// GetTeamChallengeAttemptLimit for every limited team challenge of one team (the participant board).
 	ListTeamChallengeAttemptLimits(ctx context.Context, eventTeamID uuid.UUID) ([]ListTeamChallengeAttemptLimitsRow, error)
+	// Every team copy of the tasks of one event set, with the team name, for the organizers' "copies differ" check.
+	ListTeamChallengeCopies(ctx context.Context, eventExerciseID uuid.UUID) ([]ListTeamChallengeCopiesRow, error)
 	// Every prerequisite edge of the team's assigned challenges, named by the
 	// team's own snapshot of the prerequisite (fallback: the board snapshot) and
 	// marked solved when the team solved it.
@@ -1521,6 +1766,8 @@ type Querier interface {
 	// A historical dispatched generation with no persisted requests is unknown,
 	// never a zero-capacity certificate. Unlaunched objective pins do not hold CPU.
 	ListUnaccountedEventLabStarts(ctx context.Context) ([]ListUnaccountedEventLabStartsRow, error)
+	// The tasks of the event's active sets that are not published to participants yet (the readiness view).
+	ListUnpublishedEventChallenges(ctx context.Context, eventID uuid.UUID) ([]ListUnpublishedEventChallengesRow, error)
 	// Rows (tags) of the platform digests the tag collector may remove: every row of the digest was uploaded before
 	// $1 (the grace filter, applied first), and no exercise version (draft, published, any status) has a device image
 	// platform:<name>@<digest> (the name may differ). Variants that are not an array, or a "devices" that is null or
@@ -1528,19 +1775,31 @@ type Querier interface {
 	// an old short tag makes one) is never a candidate: removing that tag could remove what serves the other digest; its
 	// rows stay until the other digest's row goes. At most 500 rows a pass; the rest wait for the next one.
 	ListUnreferencedPlatformImages(ctx context.Context, before time.Time) ([]PlatformImage, error)
+	// The judged answers whose verdict the brain was not told yet.
+	ListUnsentAssistantRunAnswers(ctx context.Context, runID uuid.UUID) ([]ListUnsentAssistantRunAnswersRow, error)
+	// The saves the leader still has to finish: a queued import to follow, or an outcome (task or failure) the brain was not
+	// told yet. Rows older than the cutoff are left alone.
+	ListUnsettledAssistantSaves(ctx context.Context, arg ListUnsettledAssistantSavesParams) ([]ListUnsettledAssistantSavesRow, error)
 	// (a part holding back a shrink is sent again: the admin may force it, or the labs may be gone.)
 	ListUnsyncedClusterReservationAgents(ctx context.Context) ([]uuid.UUID, error)
 	// The events a user is a member of, for the exercises app rights summary.
 	ListUserEventMemberships(ctx context.Context, userID uuid.UUID) ([]ListUserEventMembershipsRow, error)
+	// Every user, deleted ones too, after the cursor: the pass that moves legacy avatars probes avatars/<id> for each.
+	ListUserIDsAfter(ctx context.Context, arg ListUserIDsAfterParams) ([]ListUserIDsAfterRow, error)
 	// First and last name of the authors an exercise response shows (never the email).
 	ListUserNames(ctx context.Context, ids []uuid.UUID) ([]ListUserNamesRow, error)
+	// Where the person takes part (a participant, with the team and the role in it) or works (an event manager), newest
+	// event first. One query for the admin user card.
+	ListUserParticipations(ctx context.Context, userID uuid.UUID) ([]ListUserParticipationsRow, error)
+	ListUserPasskeys(ctx context.Context, userID uuid.UUID) ([]UserPasskey, error)
+	ListUserProvidersForUsers(ctx context.Context, userIds []uuid.UUID) ([]ListUserProvidersForUsersRow, error)
 	ListUserSettings(ctx context.Context, userID uuid.UUID) ([]NotificationUserSetting, error)
 	ListUserVPNConfigs(ctx context.Context, userID uuid.UUID) ([]UserVpnConfig, error)
 	ListUsersCursor(ctx context.Context, arg ListUsersCursorParams) ([]User, error)
 	// Offset mode is used by the admin table: column sorting and a page count
 	// cannot be expressed by the legacy created_at cursor.
 	ListUsersPage(ctx context.Context, arg ListUsersPageParams) ([]User, error)
-	// The flag candidates of every task of pinned versions, by variant position.
+	// The answer (type and values) of every task of pinned versions, by variant position.
 	ListVersionTaskFlags(ctx context.Context, ids []uuid.UUID) ([]ListVersionTaskFlagsRow, error)
 	// The same reduced variants for specific versions (an event pins versions, not "the published one").
 	ListVersionVariantDevices(ctx context.Context, ids []uuid.UUID) ([]ListVersionVariantDevicesRow, error)
@@ -1622,6 +1881,10 @@ type Querier interface {
 	MarkLabBindingDeployed(ctx context.Context, arg MarkLabBindingDeployedParams) (int64, error)
 	MarkLabBindingDestroyed(ctx context.Context, id uuid.UUID) (int64, error)
 	MarkLabBindingFailedWithReason(ctx context.Context, arg MarkLabBindingFailedWithReasonParams) (int64, error)
+	// The pending Lab of the leader binding (shared by the tasks of its exercise) waits for something that is
+	// not a failure: wait_reason is a machine code, empty clears it. wait_since keeps the first moment of the wait
+	// while the reason changes, so a long wait raises the alarm.
+	MarkLabBindingWaiting(ctx context.Context, arg MarkLabBindingWaitingParams) (int64, error)
 	// The labs of one team group of an event are gone (its cluster reservation ended).
 	MarkLabGroupBindingsDestroyed(ctx context.Context, arg MarkLabGroupBindingsDestroyedParams) (int64, error)
 	MarkLabGroupCleanupRequestDestroyed(ctx context.Context, arg MarkLabGroupCleanupRequestDestroyedParams) (int64, error)
@@ -1634,10 +1897,13 @@ type Querier interface {
 	// time an invitation email was queued for a still unconfirmed account; the
 	// retention clock of unconfirmed accounts runs from it.
 	MarkUserInvitationSent(ctx context.Context, arg MarkUserInvitationSentParams) (int64, error)
+	MarkUserPasskeyCompromised(ctx context.Context, arg MarkUserPasskeyCompromisedParams) (int64, error)
 	// A Request already allocated a new revision and reset its fingerprint. A
 	// boundary-derived policy change allocates exactly one more revision before RPC.
 	MaterializeEventLabAccessPolicy(ctx context.Context, arg MaterializeEventLabAccessPolicyParams) (EventLabAccessSync, error)
 	MaxEventChallengeOrder(ctx context.Context, eventExerciseID uuid.UUID) (int32, error)
+	// A moderator moves a non-captain member from the exact current team to another one.
+	MoveEventParticipantTeam(ctx context.Context, arg MoveEventParticipantTeamParams) (int64, error)
 	// Archive of the raw lab observations (docs/LAB-TRAFFIC-ACCOUNTING.md): the
 	// rows are written as zstd NDJSON chunks, one event and hour at a time,
 	// before the retention job may delete them.
@@ -1646,6 +1912,10 @@ type Querier interface {
 	// and before closed_before (only closed hours are archived, so a chunk never
 	// grows afterwards). No row when nothing is left to archive.
 	NextEventLabObservationArchiveRange(ctx context.Context, arg NextEventLabObservationArchiveRangeParams) ([]NextEventLabObservationArchiveRangeRow, error)
+	// The next free deployment generation of a team's Lab of the exercise the challenge belongs to: above the
+	// binding's own generation and above every canonical Lab the team ever had for that exercise, so a recreate
+	// never collides with (event_team_id, event_exercise_id, generation).
+	NextEventTeamLabGeneration(ctx context.Context, arg NextEventTeamLabGenerationParams) (int32, error)
 	ObserveClusterReservation(ctx context.Context, arg ObserveClusterReservationParams) error
 	OpenEventStandRollout(ctx context.Context, arg OpenEventStandRolloutParams) error
 	OpenReadyEventLabRevealBarriers(ctx context.Context, arg OpenReadyEventLabRevealBarriersParams) (int64, error)
@@ -1677,7 +1947,7 @@ type Querier interface {
 	// this removes everything else that belongs to the person and anonymizes
 	// their public alias. The tombstone row stays: challenge attempts, teams and
 	// scoreboards keep referencing it, and it is presented as the generic
-	// "Учасник" (event_participant_public_name) once the pseudonym is gone.
+	// the default public participant name (event_participant_public_name) once the pseudonym is gone.
 	PurgeDeletedAccountsPersonalData(ctx context.Context, arg PurgeDeletedAccountsPersonalDataParams) (int64, error)
 	PurgeErrorGroups(ctx context.Context, lastSeenAt time.Time) (int64, error)
 	PurgeErrorNotFound(ctx context.Context, before pgtype.Date) (int64, error)
@@ -1738,6 +2008,9 @@ type Querier interface {
 	// Signals finished (delivered to every hook, or given up) before the cutoff;
 	// their hook executions go with them (cascade).
 	PurgeFinishedSignals(ctx context.Context, arg PurgeFinishedSignalsParams) (int64, error)
+	// Drops the figures of labs nothing needs any more: no event binding names the lab (the event or its lab is gone, or it was a
+	// test lab) and nothing was reported for it since the cutoff; then the cursors of groups left without a lab.
+	PurgeLabActivity(ctx context.Context, before time.Time) error
 	// The delivery journal: a dispatch and (cascade) its per-channel targets,
 	// which hold the recipient address and transport errors.
 	PurgeNotificationDispatches(ctx context.Context, arg PurgeNotificationDispatchesParams) (int64, error)
@@ -1812,6 +2085,8 @@ type Querier interface {
 	// Kept rows are never touched, so the delete CTE cannot collide with the
 	// insert (same-statement visibility).
 	ReplaceFileReferences(ctx context.Context, arg ReplaceFileReferencesParams) error
+	// One ticket per (account, Google identity): a new sign-in replaces the earlier one (fresh ticket, no code, new life).
+	ReplaceGoogleLinkTicket(ctx context.Context, arg ReplaceGoogleLinkTicketParams) error
 	// Reconnect: the same cluster enrolled again for new keys. The record, its priority and its lab groups stay.
 	ReplaceInfrastructureAgentCredentials(ctx context.Context, arg ReplaceInfrastructureAgentCredentialsParams) (int64, error)
 	RequestEventLabAccessSync(ctx context.Context, arg RequestEventLabAccessSyncParams) (EventLabAccessSync, error)
@@ -1841,7 +2116,7 @@ type Querier interface {
 	ResolveInboxBySubjectRef(ctx context.Context, arg ResolveInboxBySubjectRefParams) (int64, error)
 	// Closes a single request without a subject (one recipient's copy).
 	ResolveInboxItem(ctx context.Context, arg ResolveInboxItemParams) (int64, error)
-	// Only the observed failed/stale attempt may be replaced. Old queued arguments
+	// Only the observed failed/stale attempt may be replaced (a queued one is stale much later than a started one). Old queued arguments
 	// normalize generation zero to the migrated generation one in the worker.
 	RestartExerciseImportJob(ctx context.Context, arg RestartExerciseImportJobParams) (ExerciseImportJob, error)
 	// Puts archived raw rows (JSON objects as the archive holds them) back into
@@ -1851,9 +2126,12 @@ type Querier interface {
 	// replacing its contents with the selected historical version. The source
 	// must belong to this exercise; a foreign id produces zero rows.
 	RestoreVersionPreservingDraft(ctx context.Context, arg RestoreVersionPreservingDraftParams) (RestoreVersionPreservingDraftRow, error)
+	// Failed -> pending again for the Lab of the leader binding; the reason of the last failure stays visible while
+	// the retry runs. Conditional on the attempt count the caller read, so two passes never retry the same failure.
+	RetryFailedLabBinding(ctx context.Context, arg RetryFailedLabBindingParams) (int64, error)
 	RetrySignalHookExecution(ctx context.Context, arg RetrySignalHookExecutionParams) (int64, error)
 	RetrySignalOutbox(ctx context.Context, arg RetrySignalOutboxParams) (int64, error)
-	// «Вимкнути»: the screen has no working link afterwards.
+	// "Disable": the screen has no working link afterwards.
 	RevokeEventLiveScreenLinks(ctx context.Context, arg RevokeEventLiveScreenLinksParams) (int64, error)
 	// Ending a session deletes its row and writes the revocation row in ONE statement (a session never ends
 	// without its revocation). expires_at is when the cookie would die by itself: the smaller of sign-in + absolute TTL
@@ -1911,9 +2189,34 @@ type Querier interface {
 	// person's names (the real one and the pseudonym).
 	ScrubRawLabObservations(ctx context.Context, arg ScrubRawLabObservationsParams) (int64, error)
 	SelectEventStageRetainedLab(ctx context.Context, arg SelectEventStageRetainedLabParams) error
+	// The WireGuard client made for the run, recorded before the run is started so a crash leaves a revocable record.
+	SetAssistantRunAccessClient(ctx context.Context, arg SetAssistantRunAccessClientParams) (int64, error)
+	SetAssistantRunAnswerSent(ctx context.Context, arg SetAssistantRunAnswerSentParams) (int64, error)
+	// The brain was answered the outbox request this lab was made for.
+	SetAssistantRunAnswered(ctx context.Context, arg SetAssistantRunAnsweredParams) (int64, error)
+	// The activity figures of the run's lab (or that none are reported); the first decision stays.
+	SetAssistantRunLabActivity(ctx context.Context, arg SetAssistantRunLabActivityParams) (int64, error)
+	// The first moment the run's test lab was seen ready (later calls keep the first).
+	SetAssistantRunLabReady(ctx context.Context, arg SetAssistantRunLabReadyParams) (int64, error)
+	// The final aggregate the brain sent with run_finished.
+	SetAssistantRunMeasurement(ctx context.Context, arg SetAssistantRunMeasurementParams) (int64, error)
+	// The brain accepted the run.
+	SetAssistantRunRunning(ctx context.Context, arg SetAssistantRunRunningParams) (int64, error)
+	// Since when the event stream cannot be read (a zero time clears it).
+	SetAssistantRunStreamDown(ctx context.Context, arg SetAssistantRunStreamDownParams) (int64, error)
+	// The claim's background import was queued.
+	SetAssistantSaveJob(ctx context.Context, arg SetAssistantSaveJobParams) (int64, error)
+	// The brain was told the task.
+	SetAssistantSaveNotified(ctx context.Context, arg SetAssistantSaveNotifiedParams) (int64, error)
+	// A renewed client certificate with its new key (the tenant is the certificate CN and stays).
+	SetBrainConnectionCertificate(ctx context.Context, arg SetBrainConnectionCertificateParams) (int64, error)
+	// Moves the outbox cursor forward; it never goes back.
+	SetBrainOutboxSeq(ctx context.Context, arg SetBrainOutboxSeqParams) (int64, error)
 	SetDispatchStatus(ctx context.Context, arg SetDispatchStatusParams) error
 	SetErrorGroupStatus(ctx context.Context, arg SetErrorGroupStatusParams) (ErrorGroup, error)
 	SetErrorTelegramChatFailing(ctx context.Context, arg SetErrorTelegramChatFailingParams) error
+	// Sets the event's own mode (0 rows: no such event).
+	SetEventAssistantStatsMode(ctx context.Context, arg SetEventAssistantStatsModeParams) (int64, error)
 	SetEventCapacityEstimate(ctx context.Context, arg SetEventCapacityEstimateParams) (int64, error)
 	SetEventChallengeBoardOrder(ctx context.Context, arg SetEventChallengeBoardOrderParams) (int64, error)
 	// A move to another group places the challenge after that group's ordered
@@ -1948,6 +2251,8 @@ type Querier interface {
 	SetEventVPNCursor(ctx context.Context, arg SetEventVPNCursorParams) error
 	// The ending notice of the run's cluster reservation: when the lab is deleted unless extended (narrow write).
 	SetExerciseTestDeployEndingAt(ctx context.Context, arg SetExerciseTestDeployEndingAtParams) (int64, error)
+	// A fresh mailed code replaces the earlier one and has all its attempts again.
+	SetGoogleLinkTicketCode(ctx context.Context, arg SetGoogleLinkTicketCodeParams) (int64, error)
 	SetImportedExercisePointers(ctx context.Context, arg SetImportedExercisePointersParams) error
 	// A rotated access key: the new key signs from now on, the previous ones are recorded as retired.
 	SetInfrastructureAgentAccessKey(ctx context.Context, arg SetInfrastructureAgentAccessKeyParams) (int64, error)
@@ -1995,6 +2300,9 @@ type Querier interface {
 	// The same lock for background jobs: false instead of waiting while a request or another job holds it.
 	TryLockExerciseTestDeploysOf(ctx context.Context, owner string) (bool, error)
 	TryRemoveEventTeamMember(ctx context.Context, arg TryRemoveEventTeamMemberParams) (int64, error)
+	// A Lab that never reached the agent is reset in place: its bindings forget the canonical Lab (the stand engine
+	// prepares a new one from the current version) and go back to pending with their retry state cleared.
+	UnlinkUnbornLabBindings(ctx context.Context, id uuid.UUID) (int64, error)
 	UnpublishEventExerciseChallenges(ctx context.Context, eventExerciseID uuid.UUID) error
 	UpdateEmailBlockPreset(ctx context.Context, arg UpdateEmailBlockPresetParams) (NotificationEmailBlockPreset, error)
 	UpdateEmailTemplate(ctx context.Context, arg UpdateEmailTemplateParams) (NotificationEmailTemplate, error)
@@ -2007,6 +2315,9 @@ type Querier interface {
 	UpdateEventChallengeContent(ctx context.Context, arg UpdateEventChallengeContentParams) (int64, error)
 	UpdateEventChallengeGroup(ctx context.Context, arg UpdateEventChallengeGroupParams) (EventChallengeGroup, error)
 	UpdateEventChallengeScoring(ctx context.Context, arg UpdateEventChallengeScoringParams) (EventChallenge, error)
+	// A source switch whose version re-issued the task ids (a re-import) keeps the board row and points it at the
+	// task of the new version that replaces the old one.
+	UpdateEventChallengeTask(ctx context.Context, arg UpdateEventChallengeTaskParams) (int64, error)
 	// Whole-aggregate write; excludes event_id/created_at (immutable). Optimistic
 	// lock on updated_at (a fresh config from CreateEventConfig has updated_at set
 	// to created_at, so the lock has a non-null baseline from the first write).
@@ -2073,7 +2384,7 @@ type Querier interface {
 	UpdateResourceAlarm(ctx context.Context, arg UpdateResourceAlarmParams) (int64, error)
 	UpdateResourceReservation(ctx context.Context, arg UpdateResourceReservationParams) (int64, error)
 	UpdateSiteBanner(ctx context.Context, arg UpdateSiteBannerParams) (SiteBanner, error)
-	// content_changed marks a participant-visible change («Оновлено»).
+	// content_changed marks a participant-visible change ("Updated").
 	UpdateTeamChallengeContent(ctx context.Context, arg UpdateTeamChallengeContentParams) (int64, error)
 	UpdateTeamChallengeReadiness(ctx context.Context, arg UpdateTeamChallengeReadinessParams) (int64, error)
 	// Whole-aggregate write for the User entity: the repository maps the full
@@ -2082,6 +2393,8 @@ type Querier interface {
 	// (immutable). updated_at comes from the domain (touch), not now().
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (int64, error)
 	UpdateUserLastSeen(ctx context.Context, arg UpdateUserLastSeenParams) (int64, error)
+	// Sets the platform default mode of a source.
+	UpsertAssistantStatsDefault(ctx context.Context, arg UpsertAssistantStatsDefaultParams) (int64, error)
 	// attempts is the real number of delivery attempts of this run (dispatcher
 	// rounds plus an SMTP fallback), added to any earlier run of the same target.
 	UpsertDispatchTarget(ctx context.Context, arg UpsertDispatchTargetParams) error
@@ -2108,6 +2421,13 @@ type Querier interface {
 	// Serialize family writers on the identity first, then use PostgreSQL's
 	// partial-unique conflict target. ON CONFLICT sees a concurrent first draft
 	// even when it committed after this statement's read snapshot was taken.
+	// expected_updated_at is the revision the writer started from: the draft is
+	// replaced only when it still has it, and a first draft is created only when
+	// the writer saw none (NULL). Zero rows: the draft was changed (or created or
+	// discarded) meanwhile, the caller reads the current revision and says so.
+	// ignore_revision is for tests and tools that own the exercise (never an API writer).
+	// cur locks the working copy at the revision the writer saw (it is empty when that is no longer the case: the copy was
+	// discarded or saved meanwhile), so a first insert is never mistaken for a replace of a copy that is gone.
 	UpsertExerciseDraft(ctx context.Context, arg UpsertExerciseDraftParams) (UpsertExerciseDraftRow, error)
 	// The whole push state of one blob in one statement (queued, failed).
 	UpsertImageBlobPush(ctx context.Context, arg UpsertImageBlobPushParams) error
@@ -2130,12 +2450,17 @@ type Querier interface {
 	UpsertTeamChallengePracticeSolve(ctx context.Context, arg UpsertTeamChallengePracticeSolveParams) error
 	UpsertTeamChallengeSolve(ctx context.Context, arg UpsertTeamChallengeSolveParams) error
 	UpsertUserSetting(ctx context.Context, arg UpsertUserSettingParams) error
+	// Refuses (no row) a new table key once the person holds max_tables of them; changing a known one always works.
+	UpsertUserTablePrefs(ctx context.Context, arg UpsertUserTablePrefsParams) (int64, error)
 	UpsertUserUIPreference(ctx context.Context, arg UpsertUserUIPreferenceParams) error
 	// Store (or replace) a user's VPN config for a scope. The unique
 	// (user_id, scope, scope_ref) constraint (NULLS NOT DISTINCT) makes this an
 	// upsert: re-issuing within the same scope overwrites the ciphertext. Timestamps
 	// come from the domain factory, not DB defaults.
 	UpsertUserVPNConfig(ctx context.Context, arg UpsertUserVPNConfigParams) (UserVpnConfig, error)
+	// Records a sign-in. The counter must move forward (or stay at zero for authenticators that have none): a
+	// replayed or cloned assertion matches no row, so two parallel uses of one counter value cannot both win.
+	UseUserPasskey(ctx context.Context, arg UseUserPasskeyParams) (int64, error)
 	VacateEventChallengeGroupOrders(ctx context.Context, eventID uuid.UUID) error
 	VacateEventChallengeOrders(ctx context.Context, eventExerciseID uuid.UUID) error
 }

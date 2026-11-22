@@ -7,15 +7,15 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventConfigRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventTeamRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/participantRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	eventTeamModel "github.com/cybericebox/daemon/internal/model/eventTeam"
-	participantModel "github.com/cybericebox/daemon/internal/model/participant"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventConfigRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventTeamRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/participantRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	eventTeamModel "github.com/cybericebox/backend/internal/model/eventTeam"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 // TestParticipationModel_NamesAdmissionAndTabs covers the W2 SQL rules:
@@ -84,7 +84,7 @@ func TestParticipationModel_NamesAdmissionAndTabs(t *testing.T) {
 		t.Fatalf("clearing must always work: affected=%d err=%v", affected, setErr)
 	}
 	if profile, _ = participants.Profile(ctx, event.ID, memberID); profile.DisplayName != "Учасник" {
-		t.Fatalf("a nameless profile falls back to «Учасник»: %+v", profile)
+		t.Fatalf("a nameless profile falls back to Participant: %+v", profile)
 	}
 
 	// Admission: team mode defaults to a minimum of two members.
@@ -140,7 +140,7 @@ func TestParticipationModel_IndividualTeamUsesPublicName(t *testing.T) {
 		t.Fatal(err)
 	}
 	userID := mustSeedUser(t, db, "w2-solo@test.test")
-	if _, err := db.Pool.Exec(ctx, `UPDATE users SET first_name = 'Іван', last_name = 'Мельник' WHERE id = $1`, userID); err != nil {
+	if _, err := db.Pool.Exec(ctx, `UPDATE users SET first_name = 'Ivan', last_name = 'Melnyk' WHERE id = $1`, userID); err != nil {
 		t.Fatal(err)
 	}
 	solo, err := eventTeamModel.NewIndividual(event.ID, userID, "Solo-12345678", "individual-join-code", epNow)
@@ -151,7 +151,7 @@ func TestParticipationModel_IndividualTeamUsesPublicName(t *testing.T) {
 		t.Fatal(err)
 	}
 	rows, err := db.Queries.ListEventScoreboard(ctx, postgres.ListEventScoreboardParams{EventID: event.ID})
-	if err != nil || len(rows) != 1 || rows[0].TeamName != "Іван Мельник" {
+	if err != nil || len(rows) != 1 || rows[0].TeamName != "Ivan Melnyk" {
 		t.Fatalf("scoreboard must show the participant name: %+v, %v", rows, err)
 	}
 }

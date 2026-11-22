@@ -15,18 +15,18 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
-	payloads "github.com/cybericebox/daemon/internal/model/notification/types/payloads"
-	temporalCodeModel "github.com/cybericebox/daemon/internal/model/temporalCode"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
-	"github.com/cybericebox/daemon/internal/useCase/auth"
-	"github.com/cybericebox/daemon/pkg/password"
-	"github.com/cybericebox/daemon/pkg/secret"
-	"github.com/cybericebox/daemon/pkg/token"
-	"github.com/cybericebox/daemon/pkg/worker"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
+	payloads "github.com/cybericebox/backend/internal/model/notification/types/payloads"
+	temporalCodeModel "github.com/cybericebox/backend/internal/model/temporalCode"
+	userModel "github.com/cybericebox/backend/internal/model/user"
+	"github.com/cybericebox/backend/internal/useCase/auth"
+	"github.com/cybericebox/backend/pkg/password"
+	"github.com/cybericebox/backend/pkg/secret"
+	"github.com/cybericebox/backend/pkg/token"
+	"github.com/cybericebox/backend/pkg/worker"
 	"github.com/stretchr/testify/require"
 )
 
@@ -191,5 +191,53 @@ func TestConfirmEmailChange_NoticeAndSessionRevocationCommitTogether(t *testing.
 			require.Equal(t, !fail, runtime.Revocations.Revoked(rows[0].SessionID), "local session revocation follows the committed database state")
 			require.True(t, tx.restored)
 		})
+	}
+}
+
+// "Not confirmed": the same address again is a resend of the confirmation of the account's own address.
+func TestRequestEmailChange_OwnAddressResendsTheConfirmation(t *testing.T) {
+	uc, repo, notifier := newEmailUC(t)
+	uid := uuid.Must(uuid.NewV7())
+	repo.EXPECT().GetUserByID(gomock.Any(), uid).Return(accountWithPassword(t, uid), nil).Times(2)
+	repo.EXPECT().GetUserByEmail(gomock.Any(), "old@b.test").Return(postgres.User{ID: uid, Email: "old@b.test"}, nil)
+	repo.EXPECT().CreateTemporalCode(gomock.Any(), gomock.Any()).Return(postgres.TemporalCode{}, nil)
+
+	if err := uc.RequestEmailChange(context.Background(), uid, "Old@b.test", "Correct!1"); err != nil {
+		t.Fatalf("resend: %v", err)
+	}
+	if notifier.calls != 1 || notifier.lastRecipientEmail != "old@b.test" {
+		t.Fatalf("notify: calls=%d recipient=%q", notifier.calls, notifier.lastRecipientEmail)
+	}
+	// The same limit as any mail request: an immediate second resend waits.
+	tooMany(t, uc.RequestEmailChange(context.Background(), uid, "old@b.test", "Correct!1"))
+}
+
+// Confirming the address the account already has only confirms it: sessions, Google link and the old-address
+// notice are untouched (no DeleteUserProviders, RevokeUserSessions or notification is expected).
+func TestConfirmEmailChange_OwnAddressOnlyConfirms(t *testing.T) {
+	uc, repo, notifier := newEmailUC(t)
+	uid := uuid.Must(uuid.NewV7())
+	data, _ := json.Marshal(temporalCodeModel.TemporalEmailChangeCodeData{UserID: uid, Email: "old@b.test"})
+	bsCode := strings.ReplaceAll(base64.StdEncoding.EncodeToString([]byte(rawCode)), "=", "")
+	repo.EXPECT().GetTemporalCodeByCode(gomock.Any(), auth.ExportHashTemporalCode(rawCode)).Return(postgres.TemporalCode{
+		ID: uuid.Must(uuid.NewV7()), Type: temporalCodeModel.EmailChangeCodeType, Data: data, ExpiresAt: time.Now().Add(time.Hour),
+	}, nil)
+	repo.EXPECT().DeleteTemporalCode(gomock.Any(), gomock.Any()).Return(int64(1), nil)
+	repo.EXPECT().GetUserByEmail(gomock.Any(), "old@b.test").Return(postgres.User{ID: uid}, nil)
+	repo.EXPECT().GetUserByID(gomock.Any(), gomock.Any()).Return(postgres.User{ID: uid, Email: "old@b.test", Status: "active"}, nil)
+	repo.EXPECT().UpdateUser(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, arg postgres.UpdateUserParams) (int64, error) {
+			if arg.Email != "old@b.test" || !arg.EmailConfirmed {
+				return 0, fmt.Errorf("must confirm the same address: %+v", arg)
+			}
+			return 1, nil
+		})
+	repo.EXPECT().DeleteTemporalCodesForUser(gomock.Any(), postgres.DeleteTemporalCodesForUserParams{Type: temporalCodeModel.EmailChangeCodeType, UserID: uid.String()}).Return(int64(1), nil)
+
+	if err := uc.ConfirmEmailChange(context.Background(), bsCode); err != nil {
+		t.Fatalf("confirm: %v", err)
+	}
+	if notifier.calls != 0 {
+		t.Fatalf("no notice for the same address, got %d", notifier.calls)
 	}
 }

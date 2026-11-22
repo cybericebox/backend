@@ -10,9 +10,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	"github.com/cybericebox/daemon/pkg/err"
-	"github.com/cybericebox/daemon/pkg/overload"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	"github.com/cybericebox/backend/pkg/err"
+	"github.com/cybericebox/backend/pkg/overload"
 )
 
 func overloadBody(t *testing.T, rec *httptest.ResponseRecorder) int {

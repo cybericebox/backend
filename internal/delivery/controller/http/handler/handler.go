@@ -4,29 +4,31 @@ import (
 	"context"
 	"time"
 
-	adminAuditHandler "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/adminAudit"
+	adminAuditHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/adminAudit"
+	assistantHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/assistant"
+	dashboardHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/dashboard"
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/config"
-	authHandler "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/auth"
-	errorJournalHandler "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/errorJournal"
-	eventHandler "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/event"
-	eventAnalyticsHandler "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/eventAnalytics"
-	eventselfHandler "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/eventself"
-	exerciseHandler "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/exercise"
-	imageRegistryHandler "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/imageRegistry"
-	infrastructureHandler "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/infrastructure"
-	mailHandler "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/mail"
-	messagingHandler "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/messaging"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/handler/notification"
-	platformAnalyticsHandler "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/platformAnalytics"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/handler/platformSettings"
-	resourceCalendarHandler "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/resourceCalendar"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/handler/user"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/middleware"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/config"
+	authHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/auth"
+	errorJournalHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/errorJournal"
+	eventHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/event"
+	eventAnalyticsHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/eventAnalytics"
+	eventselfHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/eventself"
+	exerciseHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/exercise"
+	imageRegistryHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/imageRegistry"
+	infrastructureHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/infrastructure"
+	mailHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/mail"
+	messagingHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/messaging"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/handler/notification"
+	platformAnalyticsHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/platformAnalytics"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/handler/platformSettings"
+	resourceCalendarHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/resourceCalendar"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/handler/user"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 type (
@@ -53,9 +55,14 @@ type (
 		infrastructureHandler.IUseCase
 		resourceCalendarHandler.IUseCase
 		adminAuditHandler.IUseCase
+		dashboardHandler.IUseCase
 		errorJournalHandler.IUseCase
 		mailHandler.IUseCase
 		imageRegistryHandler.IUseCase
+		assistantHandler.IUseCase
+		assistantHandler.IStatsUseCase
+		assistantHandler.IMeasureUseCase
+		assistantHandler.IOpponentUseCase
 
 		// ResolveEventByTag backs the participant-route tenant-resolution
 		// middleware (see Init) — the aggregator builds
@@ -91,6 +98,7 @@ func (h *Handler) Init(router *gin.Engine) {
 		platformSettings.NewSettingAPIHandler(h.useCase, h.prot).Init(baseAPI)
 		imageRegistryHandler.New(h.useCase, h.prot).Init(baseAPI)
 		adminAuditHandler.New(h.useCase, h.prot).Init(baseAPI)
+		dashboardHandler.New(h.useCase, h.prot).Init(baseAPI)
 		errorJournalHandler.New(h.useCase, h.prot).Init(baseAPI)
 
 		user.NewUserAPIHandler(h.useCase, h.prot).Init(baseAPI)
@@ -104,6 +112,10 @@ func (h *Handler) Init(router *gin.Engine) {
 		messagingHandler.NewMessagingAPIHandler(h.useCase, h.prot).Init(baseAPI)
 
 		exerciseHandler.NewExerciseAPIHandler(h.useCase, h.prot).Init(baseAPI)
+		assistantHandler.New(h.useCase, h.prot).Init(baseAPI)
+		assistantHandler.NewStats(h.useCase, h.prot).Init(baseAPI)
+		assistantHandler.NewMeasure(h.useCase, h.prot).Init(baseAPI)
+		assistantHandler.NewOpponent(h.useCase, h.prot).Init(baseAPI)
 
 		eventHandler.NewEventAPIHandler(h.useCase, h.prot).Init(baseAPI)
 		eventAnalyticsHandler.NewEventAnalyticsAPIHandler(h.useCase, h.prot).Init(baseAPI)

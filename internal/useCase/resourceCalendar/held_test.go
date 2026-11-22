@@ -2,8 +2,8 @@ package resourceCalendarUseCase
 
 import (
 	"context"
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
-	calModel "github.com/cybericebox/daemon/internal/model/resourceCalendar"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
+	calModel "github.com/cybericebox/backend/internal/model/resourceCalendar"
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 	"testing"

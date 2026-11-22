@@ -10,9 +10,9 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	"github.com/cybericebox/daemon/internal/model/notification/emaildefaults"
-	"github.com/cybericebox/daemon/internal/model/notification/inappdefaults"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/model/notification/emaildefaults"
+	"github.com/cybericebox/backend/internal/model/notification/inappdefaults"
 )
 
 // startupSeededTypes are the notification types whose settings and default email template are

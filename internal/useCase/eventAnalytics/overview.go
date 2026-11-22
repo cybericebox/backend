@@ -8,11 +8,11 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventAnalyticsRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventAnalyticsModel "github.com/cybericebox/daemon/internal/model/eventAnalytics"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventAnalyticsRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventAnalyticsModel "github.com/cybericebox/backend/internal/model/eventAnalytics"
 )
 
 // feedLimit is how many moments the overview feed shows.
@@ -40,7 +40,7 @@ func feedOf(items []eventAnalyticsRepo.FeedItem, freezeAt *time.Time, now time.T
 	return out
 }
 
-// GetEventAnalyticsOverview is the «Огляд» report: the §6.1 counters and the
+// GetEventAnalyticsOverview is the "Overview" report: the §6.1 counters and the
 // 5-minute activity series over the period (nil bounds: the event's own
 // window). It is the reference section: event read → period → cached load.
 func (u *EventAnalyticsUseCase) GetEventAnalyticsOverview(ctx context.Context, eventID uuid.UUID, from, to *time.Time) (OverviewView, error) {

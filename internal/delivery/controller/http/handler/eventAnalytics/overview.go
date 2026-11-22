@@ -7,9 +7,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	eventAnalyticsUseCase "github.com/cybericebox/daemon/internal/useCase/eventAnalytics"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/model/usertext"
+	eventAnalyticsUseCase "github.com/cybericebox/backend/internal/useCase/eventAnalytics"
 )
 
 type (
@@ -136,7 +137,7 @@ type (
 
 // overview godoc
 // @Summary Event analytics overview (counters and the 5-minute activity series)
-// @Description §6.1 «Огляд». Without from/to the period is the event's own window (start to finish, or to now while it runs). The series has a point per 5 minutes; values are cached for a few seconds.
+// @Description §6.1 Overview. Without from/to the period is the event's own window (start to finish, or to now while it runs). The series has a point per 5 minutes; values are cached for a few seconds.
 // @Tags event-analytics
 // @Produce json
 // @Param id path string true "event ID"
@@ -250,7 +251,7 @@ func (h *Handler) exportOverview(ctx *gin.Context) {
 		return
 	}
 	w := startAnalyticsCSV(ctx, "overview")
-	_ = w.Write([]string{"Початок інтервалу (UTC)", "Спроби", "Правильні спроби", "Розвʼязання", "Відкриття завдань"})
+	_ = w.Write([]string{usertext.ColIntervalStartUTC, usertext.ColAttempts, usertext.ColCorrectAttempts, usertext.ColSolves, usertext.ColTaskOpens})
 	for _, p := range v.Series {
 		_ = w.Write([]string{p.At.UTC().Format(time.RFC3339), strconv.FormatInt(p.Attempts, 10), strconv.FormatInt(p.Correct, 10),
 			strconv.FormatInt(p.Solves, 10), strconv.FormatInt(p.Opens, 10)})

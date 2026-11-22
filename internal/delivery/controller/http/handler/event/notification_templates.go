@@ -9,14 +9,14 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/middleware"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	notificationModel "github.com/cybericebox/daemon/internal/model/notification"
-	emailModel "github.com/cybericebox/daemon/internal/model/notification/email"
-	inAppModel "github.com/cybericebox/daemon/internal/model/notification/inapp"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
-	emailUseCase "github.com/cybericebox/daemon/internal/useCase/notification/channels/email"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	notificationModel "github.com/cybericebox/backend/internal/model/notification"
+	emailModel "github.com/cybericebox/backend/internal/model/notification/email"
+	inAppModel "github.com/cybericebox/backend/internal/model/notification/inapp"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
+	emailUseCase "github.com/cybericebox/backend/internal/useCase/notification/channels/email"
 )
 
 const eventEmailImageMultipartSlack = 1 << 20

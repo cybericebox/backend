@@ -11,12 +11,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	eventHandler "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/event"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventManagerModel "github.com/cybericebox/daemon/internal/model/eventManager"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	eventHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/event"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventManagerModel "github.com/cybericebox/backend/internal/model/eventManager"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 type accessContractUC struct {

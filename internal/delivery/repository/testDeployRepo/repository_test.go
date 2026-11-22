@@ -9,10 +9,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	testDeployRepo "github.com/cybericebox/daemon/internal/delivery/repository/testDeployRepo"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	testDeployRepo "github.com/cybericebox/backend/internal/delivery/repository/testDeployRepo"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 func TestRepository_CreateAndGetOwned(t *testing.T) {

@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/model/rbac"
 )
 
 func (fakeUseCase) OpenOwnChallenge(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) error {

@@ -5,7 +5,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	inboxModel "github.com/cybericebox/daemon/internal/model/notification/inbox"
+	inboxModel "github.com/cybericebox/backend/internal/model/notification/inbox"
 )
 
 // TypeSMTPTest is the journal kind of an SMTP test send from the mail

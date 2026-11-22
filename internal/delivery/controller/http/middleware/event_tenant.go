@@ -19,12 +19,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventManagerModel "github.com/cybericebox/daemon/internal/model/eventManager"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	"github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventManagerModel "github.com/cybericebox/backend/internal/model/eventManager"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/useCase/event"
 )
 
 // EventTenant is the resolved tenant event for a request — the one bundle

@@ -10,21 +10,21 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventConfigRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventManagerRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventTeamRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/exerciseRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	"github.com/cybericebox/daemon/internal/delivery/repository/userRepo"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	eventManagerModel "github.com/cybericebox/daemon/internal/model/eventManager"
-	eventTeamModel "github.com/cybericebox/daemon/internal/model/eventTeam"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
-	"github.com/cybericebox/daemon/internal/testhelpers"
-	"github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventConfigRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventManagerRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventTeamRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/exerciseRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/delivery/repository/userRepo"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	eventManagerModel "github.com/cybericebox/backend/internal/model/eventManager"
+	eventTeamModel "github.com/cybericebox/backend/internal/model/eventTeam"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	userModel "github.com/cybericebox/backend/internal/model/user"
+	"github.com/cybericebox/backend/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/useCase/event"
 )
 
 // variantEvent is a static-only team event with one per-team task of three
@@ -90,16 +90,25 @@ func newVariantEvent(t *testing.T, weights []int) *variantEvent {
 	taskID := uuid.Must(uuid.NewV7())
 	variants := make([]exerciseModel.Variant, 3)
 	for i := range variants {
-		variants[i] = exerciseModel.Variant{ID: uuid.Must(uuid.NewV7()), Index: int32(i), Tasks: []exerciseModel.Task{{
-			ID: taskID, Name: "Find the flag", Description: json.RawMessage(`{"blocks":[]}`),
-			Difficulty: exerciseModel.DifficultyEasy, Flag: []string{fmt.Sprintf("ICE{v%d}", i)},
-		}}}
+		variants[i] = exerciseModel.Variant{
+			ID:    uuid.Must(uuid.NewV7()),
+			Index: int32(i),
+			Tasks: []exerciseModel.Task{
+				{
+					ID:          taskID,
+					Name:        "Find the flag",
+					Description: json.RawMessage(`{"blocks":[]}`),
+					Difficulty:  exerciseModel.DifficultyEasy,
+					Check:       exerciseModel.FlagCheck(fmt.Sprintf("ICE{v%d}", i)),
+				},
+			},
+		}
 		variants[i].Topology.Devices = []exerciseModel.Device{}
 		if i < len(weights) {
 			variants[i].Weight = weights[i]
 		}
 	}
-	draft, err := exercises.UpsertDraft(ctx, value.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{Variants: variants}, now, uuid.NullUUID{})
+	draft, err := exercises.ForceUpsertDraft(ctx, value.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{Variants: variants}, now, uuid.NullUUID{})
 	if err != nil {
 		t.Fatal(err)
 	}

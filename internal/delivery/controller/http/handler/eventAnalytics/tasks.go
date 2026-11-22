@@ -11,21 +11,22 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/download"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	eventAnalyticsUseCase "github.com/cybericebox/daemon/internal/useCase/eventAnalytics"
-	"github.com/cybericebox/daemon/pkg/tools"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/download"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/model/usertext"
+	eventAnalyticsUseCase "github.com/cybericebox/backend/internal/useCase/eventAnalytics"
+	"github.com/cybericebox/backend/pkg/tools"
 )
 
-// TasksUseCase is the «Завдання» part of IUseCase.
+// TasksUseCase is the Tasks part of IUseCase.
 type TasksUseCase interface {
 	GetEventAnalyticsTasks(ctx context.Context, eventID uuid.UUID, from, to *time.Time) (eventAnalyticsUseCase.TasksView, error)
 	GetEventAnalyticsTaskDetail(ctx context.Context, eventID, challengeID uuid.UUID, from, to *time.Time) (eventAnalyticsUseCase.TaskDetailView, error)
 	GetEventAnalyticsTaskWrongAnswers(ctx context.Context, eventID, challengeID uuid.UUID, from, to *time.Time) (eventAnalyticsUseCase.WrongAnswersView, error)
 }
 
-// initTasks registers the «Завдання» routes on the analytics group. The wrong
+// initTasks registers the Tasks routes on the analytics group. The wrong
 // answer texts are behind requireSensitive; nothing else is.
 func (h *Handler) initTasks(router *gin.RouterGroup) {
 	analytics := router.Group("events/:id/manage/analytics", h.prot.RequirePermission(rbac.PermSelf))
@@ -132,7 +133,7 @@ type (
 
 // tasks godoc
 // @Summary Per-task analytics with the difficulty calibration and group summary
-// @Description §6.3 «Завдання». Attempts, solves, solve rate (solvers ÷ teams that tried), median time to solve from the start and from the first open, first blood, hints and points spent, over the period (default: the event's window).
+// @Description §6.3 Tasks. Attempts, solves, solve rate (solvers ÷ teams that tried), median time to solve from the start and from the first open, first blood, hints and points spent, over the period (default: the event's window).
 // @Tags event-analytics
 // @Produce json
 // @Param id path string true "event ID"
@@ -181,8 +182,8 @@ func (h *Handler) exportTasks(ctx *gin.Context) {
 		return
 	}
 	w := startAnalyticsCSV(ctx, "tasks")
-	_ = w.Write([]string{"Завдання", "Група", "Складність", "Бали", "Спроби", "Правильні спроби", "Команд пробувало", "Команд відкривало", "Розвʼязань",
-		"Частка розвʼязань", "Медіана від старту (с)", "Медіана від відкриття (с)", "Перша кров", "Час першої крові (UTC)", "Підказок", "Витрачено балів", "Калібрування"})
+	_ = w.Write([]string{usertext.ColTask, usertext.ColGroup, usertext.ColDifficulty, usertext.ColPoints, usertext.ColAttempts, usertext.ColCorrectAttempts, usertext.ColTeamsTried, usertext.ColTeamsOpened, usertext.ColSolveCount,
+		usertext.ColSolveShare, usertext.ColMedianFromStartSeconds, usertext.ColMedianFromOpenSeconds, usertext.ColFirstBlood, usertext.ColFirstBloodTimeUTC, usertext.ColHints, usertext.ColPointsSpent, usertext.ColCalibration})
 	for _, t := range v.Tasks {
 		_ = w.Write([]string{csvCellText(t.Name), csvCellText(t.GroupName), t.Difficulty, strconv.Itoa(int(t.Points)),
 			strconv.FormatInt(t.Attempts, 10), strconv.FormatInt(t.Correct, 10), strconv.FormatInt(t.TeamsTried, 10), strconv.FormatInt(t.TeamsOpened, 10),

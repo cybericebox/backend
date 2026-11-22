@@ -16,17 +16,17 @@ import (
 	"github.com/riverqueue/river/rivermigrate"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	"github.com/cybericebox/daemon/internal/delivery/repository/temporalCodeRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/userRepo"
-	temporalCodeModel "github.com/cybericebox/daemon/internal/model/temporalCode"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
-	"github.com/cybericebox/daemon/internal/testhelpers"
-	"github.com/cybericebox/daemon/internal/useCase/auth"
-	dispatcherUseCase "github.com/cybericebox/daemon/internal/useCase/notification/dispatcher"
-	"github.com/cybericebox/daemon/pkg/secret"
-	"github.com/cybericebox/daemon/pkg/worker"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/delivery/repository/temporalCodeRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/userRepo"
+	temporalCodeModel "github.com/cybericebox/backend/internal/model/temporalCode"
+	userModel "github.com/cybericebox/backend/internal/model/user"
+	"github.com/cybericebox/backend/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/useCase/auth"
+	dispatcherUseCase "github.com/cybericebox/backend/internal/useCase/notification/dispatcher"
+	"github.com/cybericebox/backend/pkg/secret"
+	"github.com/cybericebox/backend/pkg/worker"
 )
 
 type liveAuthQueue struct {

@@ -13,7 +13,6 @@ import (
 	"math/big"
 	"net"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -21,7 +20,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/cybericebox/daemon/internal/config"
+	"github.com/cybericebox/backend/internal/config"
 )
 
 type testCA struct {
@@ -128,7 +127,7 @@ func startTLS(t *testing.T, clientAuth string) *tlsStand {
 	router.GET("/secret", func(c *gin.Context) { c.String(http.StatusOK, "secret "+c.Request.Proto) })
 	RegisterHealth(router)
 
-	srv := NewServer(&st.cfg, "127.0.0.1", router)
+	srv := NewServer(&st.cfg, "127.0.0.1", router, config.HostsConfig{})
 	srv.Start()
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -258,7 +257,7 @@ func TestTLSAndPlainListenersCanRunTogether(t *testing.T) {
 	}
 	router := gin.New()
 	router.GET("/secret", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
-	srv := NewServer(&cfg, "127.0.0.1", router)
+	srv := NewServer(&cfg, "127.0.0.1", router, config.HostsConfig{})
 	srv.Start()
 	t.Cleanup(func() { srv.Stop(context.Background()) })
 	st.tlsAddr = "127.0.0.1:" + secure
@@ -274,7 +273,7 @@ func TestTLSAndPlainListenersCanRunTogether(t *testing.T) {
 
 func TestTLSOnlyHasNoPlainListener(t *testing.T) {
 	st := startTLS(t, "off") // Port is empty
-	if len(NewServer(&st.cfg, "127.0.0.1", gin.New()).listeners) != 2 {
+	if len(NewServer(&st.cfg, "127.0.0.1", gin.New(), config.HostsConfig{}).listeners) != 2 {
 		t.Fatal("TLS only with a health port: HTTPS + health, no plain API listener")
 	}
 }
@@ -312,7 +311,7 @@ func TestPlainOnlyIsTheDefault(t *testing.T) {
 	if cfg.TLSEnabled() {
 		t.Fatal("TLS is off without cert and key")
 	}
-	ls := NewServer(&cfg, "127.0.0.1", gin.New()).listeners
+	ls := NewServer(&cfg, "127.0.0.1", gin.New(), config.HostsConfig{}).listeners
 	if len(ls) != 1 || ls[0].tls || ls[0].name != "HTTP" {
 		t.Fatalf("plain only: %+v", ls)
 	}
@@ -324,7 +323,7 @@ func TestPlainModeServesOnePortAndNoHealthListener(t *testing.T) {
 	cfg := config.HTTPServerConfig{Host: "127.0.0.1", Port: port, ReadTimeout: time.Second, WriteTimeout: time.Second, MaxHeaderMegabytes: 1}
 	router := gin.New()
 	router.GET("/secret", func(c *gin.Context) { c.String(http.StatusOK, "plain") })
-	srv := NewServer(&cfg, "127.0.0.1", router)
+	srv := NewServer(&cfg, "127.0.0.1", router, config.HostsConfig{})
 	srv.Start()
 	t.Cleanup(func() { srv.Stop(context.Background()) })
 	waitListening(t, "127.0.0.1:"+port)
@@ -342,7 +341,7 @@ func TestInternalListenerServesTheSameHandlerInPlainHTTP(t *testing.T) {
 	cfg := config.HTTPServerConfig{Host: "127.0.0.1", Port: freePort(t), InternalPort: port, ReadTimeout: time.Second, WriteTimeout: time.Second, MaxHeaderMegabytes: 1}
 	router := gin.New()
 	router.GET("/secret", func(c *gin.Context) { c.String(http.StatusOK, "api") })
-	srv := NewServer(&cfg, "127.0.0.1", router)
+	srv := NewServer(&cfg, "127.0.0.1", router, config.HostsConfig{})
 	srv.Start()
 	t.Cleanup(func() { srv.Stop(context.Background()) })
 	waitListening(t, "127.0.0.1:"+port)
@@ -401,70 +400,5 @@ func TestRenewalKeepsServingTheOldCertificateWhenTheNewFilesAreBroken(t *testing
 	_ = os.Chtimes(certFile, later, later)
 	if c, err := r.GetCertificate(nil); err != nil || c == nil {
 		t.Fatalf("the old certificate stays: %v", err)
-	}
-}
-
-// Client address selection.
-
-func originRouter(clientAuth bool) *gin.Engine {
-	mode := "off"
-	if clientAuth {
-		mode = "require"
-	}
-	gin.SetMode(gin.TestMode)
-	r := gin.New()
-	cfg := config.HTTPControllerConfig{MaxBodyBytes: 1 << 20}
-	cfg.Server.TLS = config.HTTPServerTLSConfig{CertFile: "c", KeyFile: "k", ClientCAFile: "ca", ClientAuth: mode}
-	if err := hardenRouter(r, &cfg); err != nil {
-		panic(err)
-	}
-	r.GET("/ip", func(c *gin.Context) { c.String(http.StatusOK, c.ClientIP()) })
-	return r
-}
-
-func ipVia(r *gin.Engine, remote, cf string, state *tls.ConnectionState) string {
-	req := httptest.NewRequest(http.MethodGet, "/ip", nil)
-	req.RemoteAddr = remote
-	if cf != "" {
-		req.Header.Set("CF-Connecting-IP", cf)
-	}
-	req.TLS = state
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-	return w.Body.String()
-}
-
-func verified() *tls.ConnectionState {
-	return &tls.ConnectionState{VerifiedChains: [][]*x509.Certificate{{{}}}}
-}
-
-func TestClientIPComesFromCloudflareOnAVerifiedMTLSConnection(t *testing.T) {
-	r := originRouter(true)
-	for _, tc := range []struct{ name, cf, want string }{
-		{"v4", "198.51.100.7", "198.51.100.7"},
-		{"v6", "2001:db8::1", "2001:db8::1"},
-		{"missing falls back to the peer", "", "10.0.0.5"},
-		{"garbage falls back to the peer", "not-an-ip", "10.0.0.5"},
-		{"a list falls back to the peer", "1.2.3.4, 5.6.7.8", "10.0.0.5"},
-	} {
-		if got := ipVia(r, "10.0.0.5:4000", tc.cf, verified()); got != tc.want {
-			t.Errorf("%s: got %s want %s", tc.name, got, tc.want)
-		}
-	}
-}
-
-func TestCloudflareHeaderIsNeverTrustedOnAnUnverifiedConnection(t *testing.T) {
-	// mTLS on, but the connection is plain (the internal listener) or TLS without a verified chain.
-	r := originRouter(true)
-	if got := ipVia(r, "10.0.0.5:4000", "198.51.100.7", nil); got != "10.0.0.5" {
-		t.Fatalf("plain: %s", got)
-	}
-	if got := ipVia(r, "10.0.0.5:4000", "198.51.100.7", &tls.ConnectionState{}); got != "10.0.0.5" {
-		t.Fatalf("unverified TLS: %s", got)
-	}
-	// mTLS off: the header is ignored even on a TLS connection that happens to carry a chain.
-	off := originRouter(false)
-	if got := ipVia(off, "10.0.0.5:4000", "198.51.100.7", verified()); got != "10.0.0.5" {
-		t.Fatalf("mTLS off: %s", got)
 	}
 }

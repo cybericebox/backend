@@ -8,17 +8,18 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	eventAnalyticsUseCase "github.com/cybericebox/daemon/internal/useCase/eventAnalytics"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/model/usertext"
+	eventAnalyticsUseCase "github.com/cybericebox/backend/internal/useCase/eventAnalytics"
 )
 
-// StandsUseCase is the «Стенди» part of IUseCase.
+// StandsUseCase is the Stands part of IUseCase.
 type StandsUseCase interface {
 	GetEventAnalyticsStands(ctx context.Context, eventID uuid.UUID, from, to *time.Time) (eventAnalyticsUseCase.StandsView, error)
 }
 
-// initStands registers the «Стенди» routes on the analytics group.
+// initStands registers the Stands routes on the analytics group.
 func (h *Handler) initStands(router *gin.RouterGroup) {
 	analytics := router.Group("events/:id/manage/analytics", h.prot.RequirePermission(rbac.PermSelf))
 	analytics.GET("stands", h.requireSections, h.stands)
@@ -108,7 +109,7 @@ type (
 
 // stands godoc
 // @Summary Team stands: deploy time, status, failures, telemetry, VPN
-// @Description §6.5 «Стенди». Empty (Available=false) for an event without infrastructure. The period bounds the telemetry and VPN figures; deploy and failure history is the event's.
+// @Description §6.5 Stands. Empty (Available=false) for an event without infrastructure. The period bounds the telemetry and VPN figures; deploy and failure history is the event's.
 // @Tags event-analytics
 // @Produce json
 // @Param id path string true "event ID"
@@ -200,8 +201,8 @@ func (h *Handler) exportStands(ctx *gin.Context) {
 	w.Flush()
 }
 
-var standsCSVHeader = []string{"Команда", "Статус", "Причина", "Розгортання (с)", "Розгортань", "Збоїв", "Не усунено", "Середнє відновлення (с)", "Найдовше відновлення (с)",
-	"Пристроїв", "Пік CPU (міліядер)", "Пік памʼяті (байт)", "Перезапусків", "VPN сесій", "VPN учасників", "Учасників у команді", "VPN секунд", "VPN отримано (байт)", "VPN надіслано (байт)", "Остання VPN активність (UTC)"}
+var standsCSVHeader = []string{usertext.ColTeam, usertext.ColStatus, usertext.ColReason, usertext.ColDeploySeconds, usertext.ColDeploys, usertext.ColFailures, usertext.ColUnresolved, usertext.ColRecoveryAvgSeconds, usertext.ColRecoveryMaxSeconds,
+	usertext.ColDevices, usertext.ColCPUPeakMillicores, usertext.ColMemoryPeakBytes, usertext.ColRestarts, usertext.ColVPNSessions, usertext.ColVPNParticipants, usertext.ColTeamParticipants, usertext.ColVPNSeconds, usertext.ColVPNReceivedBytes, usertext.ColVPNSentBytes, usertext.ColLastVPNActivityUTC}
 
 func standsCSVRow(t eventAnalyticsUseCase.StandTeamView) []string {
 	n := func(v int64) string { return strconv.FormatInt(v, 10) }

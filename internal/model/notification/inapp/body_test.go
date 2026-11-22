@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	inAppModel "github.com/cybericebox/daemon/internal/model/notification/inapp"
+	inAppModel "github.com/cybericebox/backend/internal/model/notification/inapp"
 )
 
 // The reported gap: an in-app body was trusted HTML, defended only by the browser's sanitizer.

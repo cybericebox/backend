@@ -14,14 +14,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	notificationModel "github.com/cybericebox/daemon/internal/model/notification"
-	"github.com/cybericebox/daemon/internal/model/notification/branding"
-	emailModel "github.com/cybericebox/daemon/internal/model/notification/email"
-	emailUseCase "github.com/cybericebox/daemon/internal/useCase/notification/channels/email"
-	"github.com/cybericebox/daemon/pkg/tools"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	notificationModel "github.com/cybericebox/backend/internal/model/notification"
+	"github.com/cybericebox/backend/internal/model/notification/branding"
+	emailModel "github.com/cybericebox/backend/internal/model/notification/email"
+	emailUseCase "github.com/cybericebox/backend/internal/useCase/notification/channels/email"
+	"github.com/cybericebox/backend/pkg/tools"
 )
 
 // fakePresets is an in-memory preset source for TemplateImages.

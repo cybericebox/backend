@@ -3,7 +3,7 @@ package exercise
 import (
 	"github.com/gofrs/uuid"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 type CreateExerciseInput struct {
@@ -37,6 +37,8 @@ type UpdateExerciseInput struct {
 	Description string
 	Tags        []string
 	UpdatedBy   uuid.UUID
+	// Revision is the revision of the working copy the editor started from (opaque, "" when it saw none).
+	Revision string
 }
 
 type ExercisesFilter struct {

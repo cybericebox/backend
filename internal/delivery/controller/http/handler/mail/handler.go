@@ -1,5 +1,5 @@
 // Package mail is the HTTP layer of the W7 mail settings: the platform SMTP
-// providers (admin «Налаштування → Пошта») and the Event mail section (sender, Reply-To,
+// providers (admin Settings → Mail) and the Event mail section (sender, Reply-To,
 // optional Event SMTP, delivery journal). Both levels share one model:
 // sender + Reply-To + SMTP (the platform has a prioritized list of providers,
 // an Event at most one server).
@@ -9,18 +9,18 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/middleware"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
 	"io"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/handler/notification/stats"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	mailModel "github.com/cybericebox/daemon/internal/model/mail"
-	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	mailUseCase "github.com/cybericebox/daemon/internal/useCase/mail"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/handler/notification/stats"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	mailModel "github.com/cybericebox/backend/internal/model/mail"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	mailUseCase "github.com/cybericebox/backend/internal/useCase/mail"
 )
 
 type (

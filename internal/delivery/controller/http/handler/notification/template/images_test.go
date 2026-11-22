@@ -14,9 +14,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	notificationModel "github.com/cybericebox/daemon/internal/model/notification"
-	"github.com/cybericebox/daemon/internal/model/notification/branding"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	notificationModel "github.com/cybericebox/backend/internal/model/notification"
+	"github.com/cybericebox/backend/internal/model/notification/branding"
 )
 
 // ── fakeUseCase: images ──

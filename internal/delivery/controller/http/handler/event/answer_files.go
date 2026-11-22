@@ -8,12 +8,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/download"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/middleware"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventFormModel "github.com/cybericebox/daemon/internal/model/eventForm"
-	"github.com/cybericebox/daemon/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/download"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventFormModel "github.com/cybericebox/backend/internal/model/eventForm"
+	"github.com/cybericebox/backend/internal/model/rbac"
 )
 
 // maxAnswerFileRequestBytes caps the multipart body before it is parsed: the
@@ -28,7 +28,7 @@ type answerFileResponse struct {
 }
 
 // uploadManagedAnswerFile godoc
-// @Summary  Upload a file for a team «Файл» question on behalf of a team
+// @Summary  Upload a file for a team File question on behalf of a team
 // @Tags     events
 // @Accept   multipart/form-data
 // @Produce  json

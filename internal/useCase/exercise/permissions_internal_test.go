@@ -6,9 +6,9 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	eventManagerModel "github.com/cybericebox/daemon/internal/model/eventManager"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	"github.com/cybericebox/daemon/internal/model/rbac"
+	eventManagerModel "github.com/cybericebox/backend/internal/model/eventManager"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	"github.com/cybericebox/backend/internal/model/rbac"
 )
 
 // Proposing an event exercise to the catalog follows the owner event's

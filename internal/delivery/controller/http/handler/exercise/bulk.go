@@ -7,10 +7,10 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	"github.com/cybericebox/daemon/internal/model"
-	exerciseUseCase "github.com/cybericebox/daemon/internal/useCase/exercise"
-	appErr "github.com/cybericebox/daemon/pkg/err"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	"github.com/cybericebox/backend/internal/model"
+	exerciseUseCase "github.com/cybericebox/backend/internal/useCase/exercise"
+	appErr "github.com/cybericebox/backend/pkg/err"
 )
 
 type (

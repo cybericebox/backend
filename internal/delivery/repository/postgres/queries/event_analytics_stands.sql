@@ -1,4 +1,4 @@
--- Event analytics, «Стенди» (docs/EVENT-ANALYTICS.md §6.5). The moderators
+-- Event analytics, "Stands" (docs/EVENT-ANALYTICS.md §6.5). The moderators
 -- team is never counted.
 
 -- name: ListEventStandTeams :many

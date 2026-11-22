@@ -7,16 +7,16 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventAnalyticsRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventConfigRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventTeamRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	"github.com/cybericebox/daemon/internal/delivery/repository/retentionRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/userRepo"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	eventTeamModel "github.com/cybericebox/daemon/internal/model/eventTeam"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventAnalyticsRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventConfigRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventTeamRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/delivery/repository/retentionRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/userRepo"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	eventTeamModel "github.com/cybericebox/backend/internal/model/eventTeam"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 var rtNow = time.Date(2026, 9, 29, 3, 0, 0, 0, time.UTC)

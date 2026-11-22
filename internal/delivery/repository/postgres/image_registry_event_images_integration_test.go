@@ -8,12 +8,12 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/exerciseRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/imageRegistryRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/exerciseRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/imageRegistryRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 // The availability check reads every active attachment's pinned images: all
@@ -41,7 +41,7 @@ func TestListEventExerciseImages(t *testing.T) {
 	variants = append(variants, second)
 
 	ex := mustCreateExercise(t, exercises, "IT images exercise")
-	version, err := exercises.UpsertDraft(ctx, ex.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{Variants: variants}, itNow, uuid.NullUUID{})
+	version, err := exercises.ForceUpsertDraft(ctx, ex.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{Variants: variants}, itNow, uuid.NullUUID{})
 	if err != nil {
 		t.Fatal(err)
 	}

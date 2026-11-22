@@ -7,9 +7,9 @@ import (
 
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	imageRegistryModel "github.com/cybericebox/daemon/internal/model/imageRegistry"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	imageRegistryModel "github.com/cybericebox/backend/internal/model/imageRegistry"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
 )
 
 // dockerHub is an in-process stand-in for Docker Hub: library/* is public,

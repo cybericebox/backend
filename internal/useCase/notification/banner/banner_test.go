@@ -9,9 +9,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	siteBannerModel "github.com/cybericebox/daemon/internal/model/siteBanner"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	siteBannerModel "github.com/cybericebox/backend/internal/model/siteBanner"
 )
 
 func validInput() siteBannerModel.Input {

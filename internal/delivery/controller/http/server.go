@@ -9,14 +9,16 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/middleware"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/entry"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
 )
 
 type (
@@ -35,6 +37,8 @@ type (
 		name string
 		srv  *http.Server
 		tls  bool
+		// entry is the transparent proxy that owns the port and hands this listener its own connections; nil is off.
+		entry *entry.Proxy
 	}
 
 	// fileStamp is what identifies a version of a file: a renewal swaps the file (or the symlink that points to
@@ -183,7 +187,7 @@ func healthHandler() http.Handler {
 }
 
 // NewServer builds the listeners for cfg. healthBind is HEALTH_BIND.
-func NewServer(cfg *config.HTTPServerConfig, healthBind string, handler http.Handler) *Server {
+func NewServer(cfg *config.HTTPServerConfig, healthBind string, handler http.Handler, hosts config.HostsConfig) *Server {
 	newHTTP := func(addr string, h http.Handler, tlsCfg *tls.Config) *http.Server {
 		return &http.Server{
 			Addr:           addr,
@@ -197,15 +201,32 @@ func NewServer(cfg *config.HTTPServerConfig, healthBind string, handler http.Han
 	}
 	s := &Server{}
 	plain := handler
+	// With the entry proxy on, only the backend's own host is served here, over TCP and QUIC alike: the TLS
+	// config refuses any other server name, whatever reached it.
+	tlsFor := func() *tls.Config {
+		tlsCfg := newTLSConfig(&cfg.TLS)
+		if cfg.Entry.Enabled() {
+			onlyServerName(tlsCfg, hosts.API)
+		}
+		return tlsCfg
+	}
 	if cfg.HTTP3.Enabled && cfg.TLSEnabled() {
-		s.h3 = newH3Listener(cfg, newTLSConfig(&cfg.TLS), handler)
+		s.h3 = newH3Listener(cfg, tlsFor(), handler)
 		handler = altSvc(handler, cfg.HTTP3.AdvertisedPort)
 	}
 	if cfg.Port != "" {
 		s.listeners = append(s.listeners, &listener{name: "HTTP", srv: newHTTP(net.JoinHostPort(cfg.Host, cfg.Port), plain, nil)})
 	}
 	if cfg.TLSEnabled() {
-		s.listeners = append(s.listeners, &listener{name: "HTTPS", srv: newHTTP(net.JoinHostPort(cfg.Host, cfg.HTTPSPort), handler, newTLSConfig(&cfg.TLS)), tls: true})
+		https := &listener{
+			name: "HTTPS",
+			srv:  newHTTP(net.JoinHostPort(cfg.Host, cfg.HTTPSPort), handler, tlsFor()),
+			tls:  true,
+		}
+		if cfg.Entry.Enabled() {
+			https.entry = entry.New(entry.NewPolicy(hosts, cfg.Entry), entry.Config{IdleTimeout: cfg.IdleTimeout})
+		}
+		s.listeners = append(s.listeners, https)
 	}
 	if cfg.HealthPort != "" {
 		s.listeners = append(s.listeners, &listener{name: "health", srv: newHTTP(net.JoinHostPort(healthBind, cfg.HealthPort), healthHandler(), nil)})
@@ -233,15 +254,48 @@ func (s *Server) Start() {
 	for _, l := range s.listeners {
 		go func() {
 			var err error
-			if l.tls {
+			switch {
+			case l.entry != nil:
+				err = l.serveEntry()
+			case l.tls:
 				err = l.srv.ListenAndServeTLS("", "")
-			} else {
+			default:
 				err = l.srv.ListenAndServe()
 			}
 			if err != nil && !errors.Is(err, http.ErrServerClosed) {
 				log.Error().Err(err).Str("listener", l.name).Msg("Can not start HTTP(S) server")
 			}
 		}()
+	}
+}
+
+// serveEntry owns the public port with the entry proxy: it routes by server name and the HTTPS server serves the
+// connections that are for the backend itself.
+func (l *listener) serveEntry() error {
+	ln, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", l.srv.Addr)
+	if err != nil {
+		return err
+	}
+	go func() {
+		if serveErr := l.entry.Serve(ln); serveErr != nil && !errors.Is(serveErr, net.ErrClosed) {
+			log.Error().Err(serveErr).Str("listener", l.name).Msg("Entry proxy stopped")
+		}
+	}()
+	return l.srv.ServeTLS(l.entry.OwnListener(), "", "")
+}
+
+// onlyServerName makes every handshake with a server name other than host fail (also one without a name), on top
+// of the config's own client-certificate handling.
+func onlyServerName(cfg *tls.Config, host string) {
+	inner := cfg.GetConfigForClient
+	cfg.GetConfigForClient = func(hello *tls.ClientHelloInfo) (*tls.Config, error) {
+		if !strings.EqualFold(hello.ServerName, host) {
+			return nil, errors.New("server name is not served here")
+		}
+		if inner != nil {
+			return inner(hello)
+		}
+		return nil, nil
 	}
 }
 
@@ -263,6 +317,9 @@ func (s *Server) Stop(ctx context.Context) {
 			defer wg.Done()
 			if err := l.srv.Shutdown(ctx); err != nil {
 				log.Error().Err(err).Str("listener", l.name).Msg("Can not stop HTTP(S) server")
+			}
+			if l.entry != nil {
+				l.entry.Close()
 			}
 		}()
 	}

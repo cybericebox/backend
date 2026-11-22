@@ -11,10 +11,11 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	participantModel "github.com/cybericebox/daemon/internal/model/participant"
-	event "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
+	"github.com/cybericebox/backend/internal/model/usertext"
+	event "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 // The participation read is derived from the caller's own participant row:
@@ -36,7 +37,7 @@ func TestGetParticipationStatsReadsOnlyTheCallersTeam(t *testing.T) {
 		{TeamID: teamID, TeamName: "Own", Points: 100, Solved: 1},
 	}, nil).AnyTimes()
 	q.EXPECT().ListTeamScoreTimeline(gomock.Any(), teamID).Return([]postgres.ListTeamScoreTimelineRow{{Points: 100, SolvedAt: now}}, nil)
-	q.EXPECT().ListParticipationSolves(gomock.Any(), postgres.ListParticipationSolvesParams{EventID: eventID, EventTeamID: teamID}).Return([]postgres.ListParticipationSolvesRow{
+	q.EXPECT().ListParticipationSolves(gomock.Any(), postgres.ListParticipationSolvesParams{EventID: eventID, EventTeamID: teamID, OtherCategory: usertext.UngroupedChallenges}).Return([]postgres.ListParticipationSolvesRow{
 		{ChallengeName: "Web 1", Category: "Web", Points: 100, SolvedAt: now, SolvedBy: userID, SolvedByName: "Me", FirstBlood: true},
 	}, nil)
 	q.EXPECT().ListParticipationMembers(gomock.Any(), postgres.ListParticipationMembersParams{EventID: eventID, EventTeamID: teamID}).Return([]postgres.ListParticipationMembersRow{

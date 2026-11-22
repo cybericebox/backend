@@ -9,7 +9,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
-	eventAnalyticsModel "github.com/cybericebox/daemon/internal/model/eventAnalytics"
+	eventAnalyticsModel "github.com/cybericebox/backend/internal/model/eventAnalytics"
 )
 
 var journalT0 = time.Date(2026, 10, 26, 10, 0, 0, 0, time.UTC)

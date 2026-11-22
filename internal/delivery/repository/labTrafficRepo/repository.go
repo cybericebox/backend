@@ -12,8 +12,8 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	labTraffic "github.com/cybericebox/daemon/internal/model/labTraffic"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	labTraffic "github.com/cybericebox/backend/internal/model/labTraffic"
 )
 
 type Queries interface {

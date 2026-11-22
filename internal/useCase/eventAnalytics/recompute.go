@@ -8,8 +8,8 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventAnalyticsRepo"
-	"github.com/cybericebox/daemon/internal/model"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventAnalyticsRepo"
+	"github.com/cybericebox/backend/internal/model"
 )
 
 const (

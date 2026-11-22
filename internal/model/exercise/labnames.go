@@ -1,8 +1,11 @@
 package exerciseModel
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
+
+	labnames "github.com/cybericebox/laboratory/pkg/names"
 )
 
 // LabDeviceNames returns the name every device of the topology gets inside the lab, index-aligned
@@ -31,4 +34,50 @@ func LabDeviceNames(devices []Device) []string {
 		names[i] = name
 	}
 	return names
+}
+
+// ValidateDeviceNames refuses the first device of the variants named like a platform endpoint (or like the control gateway and its
+// switch of a tools device, which the platform adds to a lab), or with ':' in its name or in
+// the name of one of its variables (see ErrNameHasSeparator). A switch or a hub has a display name only, is named in the
+// lab by its id and holds no variables, so it is not checked.
+func ValidateDeviceNames(variants []Variant) error {
+	for vi, variant := range variants {
+		for _, device := range variant.Topology.Devices {
+			// The control gateway and its switch are added by the platform to the lab of a tools device: no device, gateway or switch of
+			// an author may take their names.
+			for _, reserved := range []string{ControlGatewayName, controlSwitchName} {
+				if strings.EqualFold(strings.TrimSpace(device.Name), reserved) {
+					return ErrDeviceNameReserved.WithPublicContext("variant", vi+1).
+						WithPublicContext("device", device.Name).
+						Err()
+				}
+			}
+			if !device.IsNode() {
+				continue
+			}
+			if strings.Contains(device.Name, ":") {
+				return ErrNameHasSeparator.WithPublicContext("variant", vi+1).
+					WithPublicContext("device", device.Name).
+					WithPublicContext("field", "device").
+					Err()
+			}
+			for ei, env := range device.Bootstrap.Env {
+				if strings.Contains(env.Name, ":") {
+					return ErrNameHasSeparator.WithPublicContext("variant", vi+1).
+						WithPublicContext("device", device.Name).
+						WithPublicContext("field", fmt.Sprintf("env[%d].name", ei+1)).
+						WithPublicContext("name", env.Name).
+						Err()
+				}
+			}
+			for _, reserved := range labnames.ReservedDeviceNames {
+				if strings.EqualFold(strings.TrimSpace(device.Name), reserved) {
+					return ErrDeviceNameReserved.WithPublicContext("variant", vi+1).
+						WithPublicContext("device", device.Name).
+						Err()
+				}
+			}
+		}
+	}
+	return nil
 }

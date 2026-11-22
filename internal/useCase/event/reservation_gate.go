@@ -8,12 +8,12 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/daemon/internal/model"
-	eventExerciseModel "github.com/cybericebox/daemon/internal/model/eventExercise"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	calModel "github.com/cybericebox/daemon/internal/model/resourceCalendar"
-	resourcesModel "github.com/cybericebox/daemon/internal/model/resources"
+	"github.com/cybericebox/backend/internal/model"
+	eventExerciseModel "github.com/cybericebox/backend/internal/model/eventExercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	calModel "github.com/cybericebox/backend/internal/model/resourceCalendar"
+	resourcesModel "github.com/cybericebox/backend/internal/model/resources"
 )
 
 // ResourceGate is the resource calendar's check of a running event: whether the event's reservation can hold a

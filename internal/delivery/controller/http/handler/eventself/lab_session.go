@@ -7,10 +7,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/handler/labview"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	"github.com/cybericebox/daemon/pkg/labaccess"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/handler/labview"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	"github.com/cybericebox/backend/pkg/labaccess"
 )
 
 // labLinkOpener is the optional web-link capability of the use case. It is
@@ -26,15 +26,17 @@ type labLinkRequest struct {
 }
 
 type labLinkResponse struct {
-	LabID     uuid.UUID `json:"LabID"`
-	Revision  string    `json:"Revision"`
+	LabID    uuid.UUID `json:"LabID"`
+	Revision string    `json:"Revision"`
+	// URL is https://<host>/_auth, without a query or a fragment; Grant is posted to it in the form field `grant`.
 	URL       string    `json:"URL"`
+	Grant     string    `json:"Grant"`
 	ExpiresAt time.Time `json:"ExpiresAt"`
 }
 
 // openLabLink godoc
-// @Summary Get the link that opens one web device of a task's lab
-// @Description Returns https://<device>-<code>.<base>/_auth?t=..., signed for the caller's team lab group and client. The link lives about two minutes. It is a stateless signed token (no jti, by the proxy protocol), so it is NOT single use within that time: treat it like a password and do not share it. The page fetches it on every click and opens it. The laboratory proxy turns it into its own session cookie; the platform sets no cookie. expires_at is the end of the session the link grants.
+// @Summary Get the access grant that opens one web device of a task's lab
+// @Description Returns URL (https://<device>-<code><letter>.<base>/_auth, no query) and Grant, a JWS signed for the caller's team lab group, lab, device and client; the page posts Grant to URL in a form (field grant, optional next). A grant is a bearer without replay memory: treat it like a password, never put it in an address. It lasts until the event ends (plus a buffer), capped by the laboratory's limit; the page fetches a new one on every click. The laboratory proxy turns it into its own session cookie; the platform sets no cookie. ExpiresAt is the end of the grant.
 // @Tags events-self
 // @Accept json
 // @Produce json
@@ -73,7 +75,7 @@ func (h *Handler) openLabLink(ctx *gin.Context) {
 		return
 	}
 	ctx.Header("Cache-Control", "private, no-store")
-	response.AbortWithData(ctx, labLinkResponse{URL: link.URL, ExpiresAt: link.ExpiresAt, LabID: link.LabID, Revision: link.Revision})
+	response.AbortWithData(ctx, labLinkResponse{URL: link.URL, Grant: link.Grant, ExpiresAt: link.ExpiresAt, LabID: link.LabID, Revision: link.Revision})
 }
 
 // labLifecycle godoc

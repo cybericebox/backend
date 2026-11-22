@@ -13,10 +13,10 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
-	event "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
+	event "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 func liveScreenUseCase(t *testing.T) (*event.EventUseCase, *postgresMocks.MockQuerier) {
@@ -39,7 +39,7 @@ func liveScreenRow(t *testing.T, eventID, screenID uuid.UUID, name string) postg
 func expectFirstScreen(t *testing.T, q *postgresMocks.MockQuerier, eventID uuid.UUID) uuid.UUID {
 	t.Helper()
 	screenID := uuid.Must(uuid.NewV7())
-	q.EXPECT().GetFirstEventLiveScreen(gomock.Any(), eventID).Return(liveScreenRow(t, eventID, screenID, "Екран 1"), nil)
+	q.EXPECT().GetFirstEventLiveScreen(gomock.Any(), eventID).Return(liveScreenRow(t, eventID, screenID, "Screen 1"), nil)
 	return screenID
 }
 
@@ -49,7 +49,7 @@ func TestIssueLiveScreenLinkStoresOnlyTheHash(t *testing.T) {
 	started := startedEvent(eventID, time.Now().UTC())
 	q.EXPECT().GetEventByID(gomock.Any(), eventID).Return(started, nil)
 	screenID := uuid.Must(uuid.NewV7())
-	q.EXPECT().GetEventLiveScreen(gomock.Any(), postgres.GetEventLiveScreenParams{ID: screenID, EventID: eventID}).Return(liveScreenRow(t, eventID, screenID, "Фойє"), nil)
+	q.EXPECT().GetEventLiveScreen(gomock.Any(), postgres.GetEventLiveScreenParams{ID: screenID, EventID: eventID}).Return(liveScreenRow(t, eventID, screenID, "Foyer"), nil)
 	var written postgres.IssueEventLiveScreenLinkParams
 	q.EXPECT().IssueEventLiveScreenLink(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, p postgres.IssueEventLiveScreenLinkParams) error {
 		written = p
@@ -78,7 +78,7 @@ func TestIssueLiveScreenLinkWithoutExpiry(t *testing.T) {
 			t.Fatalf("the single-screen route must issue the first screen's link: %+v", p)
 		}
 		if p.ExpiresAt.Valid {
-			t.Fatalf("«Без обмеження» wrote an expiry: %+v", p.ExpiresAt)
+			t.Fatalf("No limit wrote an expiry: %+v", p.ExpiresAt)
 		}
 		return nil
 	})
@@ -123,7 +123,7 @@ func TestRegenerateWithoutALinkIsNotFound(t *testing.T) {
 func TestGetAndRevokeLiveScreenLink(t *testing.T) {
 	uc, q := liveScreenUseCase(t)
 	eventID, screenID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
-	q.EXPECT().GetEventLiveScreen(gomock.Any(), postgres.GetEventLiveScreenParams{ID: screenID, EventID: eventID}).Return(liveScreenRow(t, eventID, screenID, "Фойє"), nil).Times(2)
+	q.EXPECT().GetEventLiveScreen(gomock.Any(), postgres.GetEventLiveScreenParams{ID: screenID, EventID: eventID}).Return(liveScreenRow(t, eventID, screenID, "Foyer"), nil).Times(2)
 	q.EXPECT().GetActiveEventLiveScreenLink(gomock.Any(), gomock.Any()).Return(postgres.EventLiveScreenLink{}, pgx.ErrNoRows)
 	if link, err := uc.GetLiveScreenLink(context.Background(), eventID, screenID); err != nil || link != nil {
 		t.Fatalf("no link = %+v, %v", link, err)

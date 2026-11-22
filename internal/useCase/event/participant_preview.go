@@ -11,21 +11,21 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventExerciseRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/exerciseRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/participantPreviewRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/platformSettingsRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	eventActivityModel "github.com/cybericebox/daemon/internal/model/eventActivity"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	"github.com/cybericebox/daemon/internal/model/flagpattern"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	preview "github.com/cybericebox/daemon/internal/model/participantPreview"
-	settingsModel "github.com/cybericebox/daemon/internal/model/platformSettings"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	teamChallengeModel "github.com/cybericebox/daemon/internal/model/teamChallenge"
-	"github.com/cybericebox/daemon/pkg/labaccess"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventExerciseRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/exerciseRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/participantPreviewRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/platformSettingsRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	eventActivityModel "github.com/cybericebox/backend/internal/model/eventActivity"
+	eventChallengeModel "github.com/cybericebox/backend/internal/model/eventChallenge"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	preview "github.com/cybericebox/backend/internal/model/participantPreview"
+	settingsModel "github.com/cybericebox/backend/internal/model/platformSettings"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	teamChallengeModel "github.com/cybericebox/backend/internal/model/teamChallenge"
+	"github.com/cybericebox/backend/pkg/labaccess"
 	"github.com/gofrs/uuid"
 )
 
@@ -131,7 +131,7 @@ func (u *EventUseCase) previewVersion(ctx context.Context, event, versionID, var
 // is never asked here: a preview lab takes the starting staff member's test lease at launch. Static variants and the
 // platform defaults (no event) always can.
 func (u *EventUseCase) previewInfrastructureReason(ctx context.Context, event uuid.UUID, variant exerciseModel.Variant) (string, error) {
-	if event == uuid.Nil || len(variant.Topology.Devices) == 0 {
+	if event == uuid.Nil || !variant.Topology.HasLab() {
 		return "", nil
 	}
 	ev, err := u.events.GetByID(ctx, event)
@@ -505,7 +505,7 @@ func (u *EventUseCase) previewCatalogItem(ctx context.Context, event uuid.UUID, 
 		if e != nil {
 			continue
 		}
-		if event != uuid.Nil && len(variant.Topology.Devices) > 0 {
+		if event != uuid.Nil && variant.Topology.HasLab() {
 			if u.previewLabs == nil {
 				noCapacity = true
 				continue
@@ -520,8 +520,8 @@ func (u *EventUseCase) previewCatalogItem(ctx context.Context, event uuid.UUID, 
 			}
 		}
 		item.ID, item.Name = entry.ID, entry.Name
-		item.Variants = append(item.Variants, PreviewCatalogVariant{ID: variant.ID, Index: variant.Index, Position: position, Infrastructure: len(variant.Topology.Devices) > 0})
-		item.Infrastructure = item.Infrastructure || len(variant.Topology.Devices) > 0
+		item.Variants = append(item.Variants, PreviewCatalogVariant{ID: variant.ID, Index: variant.Index, Position: position, Infrastructure: variant.Topology.HasLab()})
+		item.Infrastructure = item.Infrastructure || variant.Topology.HasLab()
 	}
 	if len(item.Variants) > 0 {
 		return item, "", nil
@@ -609,7 +609,7 @@ func (u *EventUseCase) withPreviewRun(ctx context.Context, event, user, selectio
 		return PreviewRunView{}, previewFailure(err)
 	}
 	now := time.Now()
-	dynamic := len(variant.Topology.Devices) > 0
+	dynamic := variant.Topology.HasLab()
 	if !missing {
 		run.ExpiresAt = u.previewLeaseEnd(txCtx, user, run)
 	}
@@ -637,10 +637,11 @@ func (u *EventUseCase) withPreviewRun(ctx context.Context, event, user, selectio
 		}
 		run = preview.NewRun(event, user, selection, now)
 		for _, task := range variant.Tasks {
-			if dynamic && task.LinkedDeviceID.Valid {
+			// A lab pins the value of every answer task itself (the test lab checks them); a state task has none.
+			if (dynamic && task.Check.Answer != nil) || task.Check.Answer == nil {
 				continue
 			}
-			flag, e := flagpattern.Resolve(task.Flag, u.flagRandomBytes, rand.Reader)
+			flag, e := task.Check.Answer.Resolve(u.flagRandomBytes, rand.Reader)
 			if e != nil {
 				return PreviewRunView{}, previewFailure(e)
 			}
@@ -710,7 +711,7 @@ func (u *EventUseCase) SubmitPreviewFlag(ctx context.Context, event, user, selec
 		if e != nil {
 			return e
 		}
-		if run.DeployID.Valid && task.LinkedDeviceID.Valid {
+		if run.DeployID.Valid {
 			result.Correct, e = u.previewLabs.CheckTestFlag(ctx, user, run.DeployID.UUID, taskID, flag)
 			if e != nil {
 				return e
@@ -719,7 +720,10 @@ func (u *EventUseCase) SubmitPreviewFlag(ctx context.Context, event, user, selec
 				result.FirstSolve = run.MarkSolved(taskID, time.Now())
 			}
 		} else {
-			result.Correct, result.FirstSolve = run.Check(taskID, flag, time.Now())
+			answer := eventChallengeModel.SnapshotAnswerFor(task)
+			result.Correct, result.FirstSolve = run.CheckWith(taskID, time.Now(), func(expected string) bool {
+				return answer.Matches(expected, strings.TrimSpace(flag), flag)
+			})
 		}
 		run.RecordAttempt(taskID, result.Correct)
 		return nil
@@ -789,7 +793,7 @@ func (u *EventUseCase) PreviewBoard(ctx context.Context, event, user uuid.UUID) 
 		if e != nil {
 			continue
 		}
-		if len(variant.Topology.Devices) > 0 && u.previewLabs == nil {
+		if variant.Topology.HasLab() && u.previewLabs == nil {
 			continue
 		}
 		selection := selectionIdentity(item.ExerciseVersionID, item.VariantID)
@@ -814,11 +818,11 @@ func (u *EventUseCase) PreviewBoard(ctx context.Context, event, user uuid.UUID) 
 			if e != nil {
 				return PreviewBoard{}, previewFailure(e)
 			}
-			canStart := len(variant.Topology.Devices) == 0
+			canStart := !variant.Topology.HasLab()
 			if !canStart && u.previewLabs != nil {
 				canStart, _ = u.previewLabs.CanStartEventPreview(ctx, event, item.ExerciseVersionID, item.VariantID)
 			}
-			challenge := PreviewChallenge{OwnChallengeView: OwnChallengeView{ID: task.ID, EventChallengeID: task.ID, EventExerciseID: selection, Snapshot: snapshot, Readiness: teamChallengeModel.ReadinessPublished, Points: 100, Order: int32(len(out.Challenges)), Infrastructure: len(variant.Topology.Devices) > 0, HintsEnabled: true, Files: []ChallengeFileView{}, Hints: previewHints(task, active), Prerequisites: []ChallengePrerequisiteView{}, BoardPublished: true, GroupName: settings.GroupName, GroupID: &groupID}, PreviewSelectionID: selection, PreviewDynamic: len(variant.Topology.Devices) > 0, PreviewCanStart: canStart}
+			challenge := PreviewChallenge{OwnChallengeView: OwnChallengeView{ID: task.ID, EventChallengeID: task.ID, EventExerciseID: selection, Snapshot: snapshot, Readiness: teamChallengeModel.ReadinessPublished, Points: 100, Order: int32(len(out.Challenges)), Infrastructure: variant.Topology.HasLab(), HintsEnabled: true, Files: []ChallengeFileView{}, Hints: previewHints(task, active), Prerequisites: []ChallengePrerequisiteView{}, BoardPublished: true, GroupName: settings.GroupName, GroupID: &groupID}, PreviewSelectionID: selection, PreviewDynamic: variant.Topology.HasLab(), PreviewCanStart: canStart}
 			for _, file := range task.Attachments {
 				challenge.Files = append(challenge.Files, ChallengeFileView{FileID: file.FileID, Name: file.Name})
 			}

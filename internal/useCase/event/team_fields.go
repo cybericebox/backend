@@ -7,12 +7,12 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventAnswerFileRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventTeamRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	eventFormModel "github.com/cybericebox/daemon/internal/model/eventForm"
-	eventTeamModel "github.com/cybericebox/daemon/internal/model/eventTeam"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventAnswerFileRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventTeamRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	eventFormModel "github.com/cybericebox/backend/internal/model/eventForm"
+	eventTeamModel "github.com/cybericebox/backend/internal/model/eventTeam"
 )
 
 // Team fields use the same document and answer validation as participant

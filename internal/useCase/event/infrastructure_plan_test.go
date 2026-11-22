@@ -3,7 +3,7 @@ package event
 import (
 	"testing"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 func TestInfrastructurePlan_StaticOnlyStartsWithoutLaboratories(t *testing.T) {
@@ -23,7 +23,7 @@ func TestInfrastructurePlan_AvailabilityDoesNotDependOnAttachedLabs(t *testing.T
 func TestInfrastructurePlan_AnyDynamicVariantRequiresHealthyLaboratories(t *testing.T) {
 	plan := infrastructurePlan([]exerciseModel.Topology{
 		{},
-		{Devices: []exerciseModel.Device{{Name: "target"}}, VPN: exerciseModel.NetworkSpec{Enabled: true}},
+		{Devices: []exerciseModel.Device{{Name: "target"}, {Name: "attack", Type: exerciseModel.DeviceTypeVPNGateway}}},
 	}, false)
 	if !plan.HasDynamicLabs || !plan.RequiresVPN || plan.CanStart || plan.Reason == nil || *plan.Reason != "infrastructure_unavailable" {
 		t.Fatalf("dynamic plan = %+v, want blocked dynamic/VPN event", plan)

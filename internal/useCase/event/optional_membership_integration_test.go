@@ -3,9 +3,9 @@ package event_test
 import (
 	"context"
 	"errors"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventManagerRepo"
-	manager "github.com/cybericebox/daemon/internal/model/eventManager"
-	event "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventManagerRepo"
+	manager "github.com/cybericebox/backend/internal/model/eventManager"
+	event "github.com/cybericebox/backend/internal/useCase/event"
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 	"testing"

@@ -9,13 +9,13 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/download"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/middleware"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	utils "github.com/cybericebox/daemon/internal/delivery/controller/http/utils"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
-	"github.com/cybericebox/daemon/pkg/pagination"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/download"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	utils "github.com/cybericebox/backend/internal/delivery/controller/http/utils"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
+	"github.com/cybericebox/backend/pkg/pagination"
 )
 
 // moderatorsBoardItemResponse is the participant board item shape

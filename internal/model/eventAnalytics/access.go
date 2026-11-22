@@ -5,8 +5,8 @@
 package eventAnalyticsModel
 
 import (
-	eventManagerModel "github.com/cybericebox/daemon/internal/model/eventManager"
-	"github.com/cybericebox/daemon/internal/model/rbac"
+	eventManagerModel "github.com/cybericebox/backend/internal/model/eventManager"
+	"github.com/cybericebox/backend/internal/model/rbac"
 )
 
 // Access is what one viewer may see in the analytics of one event.
@@ -21,7 +21,7 @@ type Access struct {
 	// moderator (observer) and an admin viewer read it on the screen.
 	Export bool
 	// People: per-person rows (names, last visits, VPN sessions) of
-	// «Використання». A read-only moderator gets the aggregates only.
+	// "Usage". A read-only moderator gets the aggregates only.
 	People bool
 }
 

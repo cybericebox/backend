@@ -135,7 +135,7 @@ func NewEventExercise(name, description string, tags []string, eventID, createdB
 	return e, nil
 }
 
-// NewFork builds the event-owned copy of source ("Налаштувати під захід"): same
+// NewFork builds the event-owned copy of source (the "Customize for event" action): same
 // identity texts, remembering the source exercise and version.
 func NewFork(source Exercise, sourceVersionID, eventID, createdBy uuid.UUID, now time.Time) (Exercise, error) {
 	e, err := NewEventExercise(source.Name, source.Description, source.Tags, eventID, createdBy, now)

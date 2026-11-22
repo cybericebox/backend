@@ -1,6 +1,6 @@
 -- Several live screens per event (up to 10, a limit the application keeps):
 -- each has its own name, published layout, draft and screen link. The single
--- layout and draft of the event become its first screen «Екран 1», unchanged,
+-- layout and draft of the event become its first screen ("Screen 1" in Ukrainian), unchanged,
 -- and the event's screen link belongs to that screen. Re-running is a no-op.
 CREATE TABLE IF NOT EXISTS event_live_screens
 (
@@ -36,7 +36,7 @@ $$
 $$;
 
 -- Events without a screen (none after the copy above) and every new event get
--- «Екран 1» with the default layout.
+-- "Screen 1" with the default layout.
 INSERT INTO event_live_screens (id, event_id, position, name)
 SELECT gen_random_uuid(), e.id, 0, 'Екран 1'
 FROM events AS e

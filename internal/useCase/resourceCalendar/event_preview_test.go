@@ -2,7 +2,7 @@ package resourceCalendarUseCase
 
 import (
 	"context"
-	calModel "github.com/cybericebox/daemon/internal/model/resourceCalendar"
+	calModel "github.com/cybericebox/backend/internal/model/resourceCalendar"
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 	"sync"

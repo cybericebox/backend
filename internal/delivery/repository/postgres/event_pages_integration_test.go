@@ -2,15 +2,15 @@ package postgres_test
 
 import (
 	"context"
-	"github.com/cybericebox/daemon/internal/model/eventContent/testutil"
+	"github.com/cybericebox/backend/internal/model/eventContent/testutil"
 	"testing"
 	"time"
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventContentRepo"
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventContentRepo"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 func TestEventPageDraftsPublishAndNavigationOrderRoundTrip(t *testing.T) {

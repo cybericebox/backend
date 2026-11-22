@@ -9,8 +9,8 @@ import (
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	imageRegistryModel "github.com/cybericebox/daemon/internal/model/imageRegistry"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	imageRegistryModel "github.com/cybericebox/backend/internal/model/imageRegistry"
 )
 
 // PlatformImages records the images pushed to the platform registry (one row per digest and tag) for the tag

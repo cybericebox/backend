@@ -5,19 +5,20 @@ import (
 	"fmt"
 	"net"
 	"net/mail"
-	"net/netip"
 	"net/url"
 	"os"
 	"regexp"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/caarlos0/env/v11"
 	"github.com/rs/zerolog/log"
 
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	resourcesModel "github.com/cybericebox/daemon/internal/model/resources"
-	retentionModel "github.com/cybericebox/daemon/internal/model/retention"
-	"github.com/cybericebox/daemon/pkg/secret"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	resourcesModel "github.com/cybericebox/backend/internal/model/resources"
+	retentionModel "github.com/cybericebox/backend/internal/model/retention"
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
 type (
@@ -43,13 +44,46 @@ type (
 		RateLimit      RateLimitConfig      `                                   envPrefix:"RATE_LIMIT_"`
 		Inflight       InflightConfig       `                                   envPrefix:"HTTP_INFLIGHT_"`
 		Retention      RetentionConfig      `                                   envPrefix:"RETENTION_"`
-		LabAccess      LabAccessConfig      `                                   envPrefix:"LAB_ACCESS_"`
 		LabSession     LabSessionConfig     `                                   envPrefix:"LAB_SESSION_"`
 		Tunables       TunablesConfig       `                                   envPrefix:""`
+		Files          FilesConfig          `                                   envPrefix:"FILES_"`
 		VPN            VPNConfig            `                                   envPrefix:"VPN_"`
 		Platform       PlatformConfig       `                                   envPrefix:"PLATFORM_"`
+		Keys           KeysConfig           `                                   envPrefix:""`
 		ErrorJournal   ErrorJournalConfig   `                                   envPrefix:"ERROR_JOURNAL_"`
 		Telegram       TelegramConfig       `                                   envPrefix:"TELEGRAM_"`
+		Brain          BrainConfig          `                                   envPrefix:"BRAIN_"`
+	}
+
+	// BrainConfig connects the platform to cyber-brain, the external service behind the authoring assistant. The
+	// connection lives in the database like a lab agent: with Endpoint and EnrollmentToken set and no stored
+	// connection for that endpoint, the daemon enrolls once at start-up. The token is ignored afterwards. Without an
+	// Endpoint the assistant is off and its routes answer 503.
+	BrainConfig struct {
+		// Endpoint is host:port of cyber-brain (HTTPS). Empty switches the feature off.
+		Endpoint string `env:"ENDPOINT"`
+		// EnrollmentToken is the one-time enrollment token of the platform's tenant at the brain.
+		EnrollmentToken string `env:"ENROLLMENT_TOKEN"`
+		// CAFile verifies the brain's server certificate for the first enrollment only; empty means the system roots. The
+		// CA the brain returns is then pinned for every later call and renewal.
+		CAFile string `env:"CA_FILE"`
+		// RunGrace is how long the platform keeps trying to reopen the event stream of a run before it tears the run's lab
+		// down and marks the run failed (brain_unreachable).
+		RunGrace time.Duration `env:"RUN_GRACE" envDefault:"60s"`
+		// ConsoleMaxLifetime is how long a console session may last in the laboratory (the chart's terminal.limits.maxLifetime,
+		// 8h by default); the statistics cap a console session that never reported its end at it.
+		ConsoleMaxLifetime time.Duration `env:"CONSOLE_MAX_LIFETIME" envDefault:"8h"`
+		// RunMaxDuration is the longest a run may last, the start of its lab included; then it is torn down as failed.
+		RunMaxDuration time.Duration `env:"RUN_MAX_DURATION" envDefault:"30m"`
+		// ToolsImage is the image of the platform tools device an automated actor works from (a container with the tools and
+		// the runner, reached over the lab network). It has no default: unset, provide_device for tools and the opponent runs
+		// answer not_supported_yet.
+		ToolsImage string `env:"TOOLS_IMAGE"`
+		// OpponentActions, OpponentTokens and OpponentSeconds are the budget every opponent run gets (the author never sets
+		// one): how many actions and tokens it may spend and for how long (seconds).
+		OpponentActions int `env:"OPPONENT_ACTIONS" envDefault:"100"`
+		OpponentTokens  int `env:"OPPONENT_TOKENS" envDefault:"500000"`
+		OpponentSeconds int `env:"OPPONENT_SECONDS" envDefault:"1200"`
 	}
 
 	// TelegramConfig is the one bot of the platform's operator notifications (the error journal).
@@ -90,16 +124,7 @@ type (
 		WatchInterval time.Duration `env:"WATCH_INTERVAL" envDefault:"1m"`
 	}
 
-	// LabAccessConfig sets how long the lab access tokens (the /_auth links) of the laboratory L7
-	// proxy can be opened. They are signed with the access key of the agent that holds the lab group
-	// (every agent is a tenant with its own key), never with a platform-wide key.
-	LabAccessConfig struct {
-		// TokenTTL is how long an access token can be opened: it is exchanged for
-		// the proxy's own cookie at once. Each agent's proxy states its own cap, which this never exceeds.
-		TokenTTL time.Duration `env:"TOKEN_TTL" envDefault:"1m"`
-	}
-
-	// LabSessionConfig is how long a lab web session lasts when the caller names no end (LAB_SESSION_TTL).
+	// LabSessionConfig is how long a lab access grant lasts when the caller names no end (LAB_SESSION_TTL).
 	LabSessionConfig struct {
 		TTL time.Duration `env:"TTL" envDefault:"24h"`
 	}
@@ -238,7 +263,7 @@ type (
 		// MaxConns sizes the pool requests and use cases share. A statement waits at most AcquireTimeout for a
 		// free connection, then the request is answered 503 (Retry-After) instead of queueing until the client
 		// gives up. Connections are replaced after MaxConnLifetime and closed after MaxConnIdleTime unused.
-		MaxConns        int           `env:"MAX_CONNS"          envDefault:"32"`
+		MaxConns        int           `env:"MAX_CONNS"          envDefault:"24"`
 		AcquireTimeout  time.Duration `env:"ACQUIRE_TIMEOUT"    envDefault:"3s"`
 		MaxConnLifetime time.Duration `env:"MAX_CONN_LIFETIME"  envDefault:"30m"`
 		MaxConnIdleTime time.Duration `env:"MAX_CONN_IDLE_TIME" envDefault:"5m"`
@@ -251,8 +276,21 @@ type (
 	AuthConfig struct {
 		Hosts HostsConfig `                                            envPrefix:""`
 		// SupportEmail is the default Reply-To of all mail and the contact in the mail footer.
-		SupportEmail   string `env:"SUPPORT_EMAIL,required"`
+		SupportEmail string `env:"SUPPORT_EMAIL,required"`
+		// MainSiteURL (MAIN_SITE_URL, optional) is the address of the installation's own public site. Set: mail footers use
+		// it as {site_url}. Empty: the ID site is used where mail needs a site address. Nothing else follows from it
+		// (no origin, cookie or redirect), see Hosts.Root for the root domain.
+		MainSiteURL string `env:"MAIN_SITE_URL"`
+		// TermsURL (TERMS_URL) and PrivacyURL (PRIVACY_URL), optional, are the installation's Terms and Privacy Policy.
+		// Empty means the document does not exist: it is not linked and not required on account creation.
+		TermsURL   string `env:"TERMS_URL"`
+		PrivacyURL string `env:"PRIVACY_URL"`
+		// TokenSignature (JWT_TOKEN_SIGNATURE) is deprecated: the signature of the setup links now comes from the master key
+		// (purpose jwt-setup, see SetupTokenKeys). Set next to a master key it only verifies the links already mailed, and
+		// can be removed once SETUP_TOKEN_TTL has passed. Without a master key it is the one signing value, as before.
 		TokenSignature string `env:"JWT_TOKEN_SIGNATURE"`
+		// SetupTokenKeys are the signing keys of the setup links, current first, settled by ResolveKeys.
+		SetupTokenKeys []secret.SigningKey
 		// SetupTokenTTL is the life of a setup link (account setup and invitations).
 		SetupTokenTTL time.Duration `env:"SETUP_TOKEN_TTL" envDefault:"168h"`
 		// SessionIdleTTL is the life of a session cookie after it was issued: a cookie in use is re-issued, so the
@@ -263,8 +301,17 @@ type (
 		// SessionEncryptionKey seals the session cookie (AES-256-GCM): one 64-hex-char key, or a keyring of
 		// id:hex entries whose first key seals and every key opens (rotation without signing everyone out). Secret.
 		SessionEncryptionKey string `env:"SESSION_ENCRYPTION_KEY"`
+		// SessionEncryptionKeyDir (SESSION_ENCRYPTION_KEY_DIR) is the same keyring read from a directory (one <id>.key
+		// file per key and a CURRENT file naming the sealing key); it wins over SESSION_ENCRYPTION_KEY.
+		SessionEncryptionKeyDir string `env:"SESSION_ENCRYPTION_KEY_DIR"`
+		// SessionEncryptionSeal (SESSION_ENCRYPTION_SEAL) is "derived" (default with a master key: the key derived from
+		// SECRETS_MASTER_KEY seals, the explicit key above only opens) or "explicit" (the explicit key seals).
+		SessionEncryptionSeal string `env:"SESSION_ENCRYPTION_SEAL"`
 		// RenderSecret is shared with the event-frontend server, the only caller of /api/render/*. Secret.
 		RenderSecret string `env:"RENDER_SECRET"`
+		// RenderSecretNext (RENDER_SECRET_NEXT) is a second value of the render secret that is accepted too: rotation puts
+		// the new value here, switches the event frontend, then moves it to RENDER_SECRET and clears this one. Empty: off.
+		RenderSecretNext string `env:"RENDER_SECRET_NEXT"`
 		// SessionRevocationStaleAfter is how long the poll of the revoked-session list may keep failing before the
 		// replica refuses signed-in requests rather than trust a stale list.
 		SessionRevocationStaleAfter time.Duration `env:"SESSION_REVOCATION_STALE_AFTER" envDefault:"30s"`
@@ -301,8 +348,13 @@ type (
 	OAuthConfig struct {
 		Google              OAuthProviderConfig `envPrefix:"GOOGLE_"`
 		RedirectURLTemplate string              // derived from Domain in MustGetConfig
-		StateSignature      string              `                    env:"OAUTH_STATE_SIGNATURE"`
-		StateTTL            time.Duration       `                    env:"OAUTH_STATE_TTL"       envDefault:"15m"`
+		// StateSignature (OAUTH_STATE_SIGNATURE) is deprecated: the state is now signed with a key derived from the master
+		// key (purpose oauth-state, see StateKeys). Set next to a master key it only verifies states already issued;
+		// without a master key it is the one signing value, as before.
+		StateSignature string `                    env:"OAUTH_STATE_SIGNATURE"`
+		// StateKeys are the signing keys of the Google sign-in state, current first, settled by ResolveKeys.
+		StateKeys []secret.SigningKey
+		StateTTL  time.Duration `                    env:"OAUTH_STATE_TTL"       envDefault:"15m"`
 	}
 
 	OAuthProviderConfig struct {
@@ -333,11 +385,6 @@ type (
 	HTTPControllerConfig struct {
 		Server            HTTPServerConfig `envPrefix:"HTTP_SERVER_"`
 		EnableSwaggerDocs bool
-		// TrustedProxies are the networks (CIDRs or addresses) of the proxies in front of the daemon (the
-		// ingress, the CDN). The client address is taken from X-Forwarded-For only for a request that comes
-		// from one of them; with none listed (the default) it is the connection's own address and the header
-		// is ignored, so a client cannot choose its address.
-		TrustedProxies []string `env:"TRUSTED_PROXIES"`
 		// HealthBind is the address the optional health listener and the optional internal listener bind to
 		// (HEALTH_BIND); the deploy sets it to the pod IP.
 		HealthBind string `env:"HEALTH_BIND" envDefault:"0.0.0.0"`
@@ -369,6 +416,22 @@ type (
 		InternalPort string `env:"INTERNAL_PORT"`
 		// HTTP3 is the optional HTTP/3 (QUIC, UDP) listener next to the HTTPS one (HTTP_SERVER_HTTP3_*).
 		HTTP3 HTTP3Config `envPrefix:"HTTP3_"`
+		// Entry is the optional transparent proxy by server name (HTTP_SERVER_ENTRY_*); off by default.
+		Entry EntryConfig `envPrefix:"ENTRY_"`
+	}
+
+	// EntryConfig is the optional transparent proxy by TLS server name (HTTP_SERVER_ENTRY_*) for the platform's own
+	// frontends: the backend owns the public HTTPS port, terminates TLS for its own API host and passes the TLS
+	// stream of a frontend host, untouched, to the address set here for that host's class. Each value is host:port
+	// of the frontend service. A class left empty is not served: its host gets a TLS alert. All empty (the
+	// default) is off and the backend is the only thing on the port. The host names are never set here: they derive
+	// from DOMAIN (main = DOMAIN, id, admin, exercises, and one label under DOMAIN for an event site).
+	EntryConfig struct {
+		Main      string `env:"MAIN"`
+		ID        string `env:"ID"`
+		Admin     string `env:"ADMIN"`
+		Exercises string `env:"EXERCISES"`
+		Event     string `env:"EVENT"`
 	}
 
 	// HTTP3Config is the HTTP/3 listener: it serves the same handler with the same certificate as the HTTPS
@@ -412,16 +475,50 @@ type (
 		GCGrace   time.Duration `env:"GC_GRACE"         envDefault:"24h"`
 	}
 
+	// FilesConfig is the key that wraps the per-file keys of the objects in the files bucket. The files themselves are
+	// sealed with a random key of their own; this key only wraps those keys, which sit in the database.
+	FilesConfig struct {
+		SecretsKey string `env:"SECRETS_KEY"` // 64 hex chars → AES-256
+		// SecretsKeyDir (FILES_SECRETS_KEY_DIR) is the keyring read from a directory instead; it wins over the key above.
+		SecretsKeyDir string `env:"SECRETS_KEY_DIR"`
+		// SecretsSeal (FILES_SECRETS_SEAL) is "derived" (default with a master key) or "explicit": see SessionEncryptionSeal.
+		SecretsSeal string `env:"SECRETS_SEAL"`
+	}
+
 	// VPNConfig seals the stored VPN client configs (participants' and test deploys'
 	// keys). Empty key disables VPN config storage; an invalid one is fatal.
 	VPNConfig struct {
 		SecretsKey string `env:"SECRETS_KEY"` // 64 hex chars → AES-256
+		// SecretsKeyDir (VPN_SECRETS_KEY_DIR) is the keyring read from a directory instead; it wins over the key above.
+		SecretsKeyDir string `env:"SECRETS_KEY_DIR"`
+		// SecretsSeal (…_SECRETS_SEAL) is "derived" (default with a master key) or "explicit": see SessionEncryptionSeal.
+		SecretsSeal string `env:"SECRETS_SEAL"`
+	}
+
+	// KeysConfig is how the daemon treats the keys of the sealed data (see the key directories above).
+	KeysConfig struct {
+		// SecretsMasterKey (SECRETS_MASTER_KEY) is the one key of the platform: one 64-hex-char key, or a keyring of
+		// id:hex master versions whose first one is current. The key of each purpose (platform, vpn, exercise, session, files)
+		// is derived from it with HKDF-SHA256. The per-purpose variables stay as the way to load keys sealed before the
+		// master key existed, or to override one purpose. Secret.
+		SecretsMasterKey string `env:"SECRETS_MASTER_KEY"`
+		// SecretsMasterKeyDir (SECRETS_MASTER_KEY_DIR) is the master keyring read from a directory (one <id>.key file
+		// per master version and a CURRENT file); it wins over SECRETS_MASTER_KEY.
+		SecretsMasterKeyDir string `env:"SECRETS_MASTER_KEY_DIR"`
+		// SecretsGuard (SECRETS_GUARD) is what start-up does when stored ciphertext names a key that is not loaded, or
+		// belongs to a family with no key: "warn" logs an error and starts (default), "refuse" stops the start, "off"
+		// skips the check. A lost key is otherwise silent: a registry token reads as not set, an agent is skipped.
+		SecretsGuard string `env:"SECRETS_GUARD" envDefault:"warn"`
 	}
 
 	// PlatformConfig seals platform-level settings secrets (SMTP/mail passwords and
 	// the like). Empty key disables them; an invalid one is fatal.
 	PlatformConfig struct {
 		SecretsKey string `env:"SECRETS_KEY"` // 64 hex chars → AES-256
+		// SecretsKeyDir (PLATFORM_SECRETS_KEY_DIR) is the keyring read from a directory instead; it wins over the key above.
+		SecretsKeyDir string `env:"SECRETS_KEY_DIR"`
+		// SecretsSeal (…_SECRETS_SEAL) is "derived" (default with a master key) or "explicit": see SessionEncryptionSeal.
+		SecretsSeal string `env:"SECRETS_SEAL"`
 	}
 
 	// ResourcesConfig is the platform's device resources model (RESOURCES_*): a device is one of the preset sizes,
@@ -461,7 +558,11 @@ type (
 	// ExerciseConfig holds catalog secret handling and flag generation policy.
 	// Empty key disables exercise secret env vars (saving one yields a 409).
 	ExerciseConfig struct {
-		SecretsKey      string `env:"SECRETS_KEY"` // 64 hex chars → AES-256
+		SecretsKey string `env:"SECRETS_KEY"` // 64 hex chars → AES-256
+		// SecretsKeyDir (EXERCISE_SECRETS_KEY_DIR) is the keyring read from a directory instead; it wins over the key above.
+		SecretsKeyDir string `env:"SECRETS_KEY_DIR"`
+		// SecretsSeal (EXERCISE_SECRETS_SEAL) is "derived" (default with a master key) or "explicit".
+		SecretsSeal     string `env:"SECRETS_SEAL"`
 		FlagRandomBytes int    `env:"FLAG_RANDOM_BYTES" envDefault:"20"`
 		FlagWarningBits int    `env:"FLAG_WARNING_BITS" envDefault:"20"`
 		// MaxActiveTestDeploys is how many test labs one user may run at the same time.
@@ -475,6 +576,10 @@ type (
 		// into the platform image cache (the agent's PrewarmImages); 0 turns it off. With the
 		// default 30 minutes deploy lead the images are warmed an hour before the start.
 		StandPrewarmLead time.Duration `env:"STAND_PREWARM_LEAD" envDefault:"30m"`
+		// StandPrewarmWait is the longest an event's initial stand deploy waits for the prewarm of its images to settle (all
+		// done, or failed): the deploy then goes on anyway and says so in the log. 0: the deploy never waits. The wait counts
+		// from the deploy time, ends at the event start, and does not apply when there is no image cache to warm.
+		StandPrewarmWait time.Duration `env:"STAND_PREWARM_WAIT" envDefault:"10m"`
 		// LabSweepInterval is how often the backend looks for stand and test lab groups whose event,
 		// team or test deploy is gone, and deletes them; LabSweepGrace is how old a group must be
 		// before it is judged (so a deploy that is still creating its group is never raced).
@@ -509,11 +614,11 @@ type LimitsConfig struct {
 	SignInFailureWindow time.Duration `env:"SIGN_IN_FAILURE_WINDOW" envDefault:"15m"`
 	SignInLockBase      time.Duration `env:"SIGN_IN_LOCK_BASE"      envDefault:"1m"`
 	SignInLockMax       time.Duration `env:"SIGN_IN_LOCK_MAX"       envDefault:"15m"`
-	// AccountMailGap is the least time between two account mails of one kind
-	// (sign-up confirmation, password reset, email change) to one address;
-	// AccountMailPerHour caps them per kind and hour.
+	// AccountMailGap is the least time between two requests of account mail
+	// (sign-up confirmation, password reset, email change, and their resends) for one address;
+	// AccountMailPerHour caps them per hour, all kinds together.
 	AccountMailGap     time.Duration `env:"ACCOUNT_MAIL_GAP"      envDefault:"1m"`
-	AccountMailPerHour int           `env:"ACCOUNT_MAIL_PER_HOUR" envDefault:"3"`
+	AccountMailPerHour int           `env:"ACCOUNT_MAIL_PER_HOUR" envDefault:"5"`
 	// EmailChangesPerHour bounds the email-change mails one account can cause.
 	EmailChangesPerHour int `env:"EMAIL_CHANGES_PER_HOUR" envDefault:"5"`
 	// AccountActions requests per AccountActionsWindow of one signed-in user on
@@ -651,6 +756,24 @@ func (c FlagRateLimitConfig) Validate() error {
 	return nil
 }
 
+// Validate checks the endpoint is host:port when the feature is on. Without an endpoint the other settings are unused.
+func (c BrainConfig) Validate() error {
+	if strings.TrimSpace(c.Endpoint) == "" {
+		return nil
+	}
+	host, port, err := net.SplitHostPort(strings.TrimSpace(c.Endpoint))
+	if err != nil || host == "" || port == "" {
+		return errors.New("cyber-brain: BRAIN_ENDPOINT must be host:port")
+	}
+	if c.OpponentActions < 0 || c.OpponentTokens < 0 || c.OpponentSeconds < 0 {
+		return errors.New("cyber-brain: BRAIN_OPPONENT_ACTIONS, BRAIN_OPPONENT_TOKENS and BRAIN_OPPONENT_SECONDS must not be negative")
+	}
+	if c.RunGrace < 0 || c.RunMaxDuration < 0 || c.ConsoleMaxLifetime < 0 {
+		return errors.New("cyber-brain: BRAIN_RUN_GRACE, BRAIN_RUN_MAX_DURATION and BRAIN_CONSOLE_MAX_LIFETIME must not be negative")
+	}
+	return nil
+}
+
 var instanceIDPattern = regexp.MustCompile(`^[A-Za-z0-9]([-A-Za-z0-9_.]{0,61}[A-Za-z0-9])?$`)
 
 // Validate checks the instance id is a valid Kubernetes label value: it is used as one.
@@ -663,13 +786,6 @@ func (c AgentConfig) Validate() error {
 
 // Validate checks the proxy list and the body cap.
 func (c HTTPControllerConfig) Validate() error {
-	for _, entry := range c.TrustedProxies {
-		if _, err := netip.ParsePrefix(entry); err != nil {
-			if _, addrErr := netip.ParseAddr(entry); addrErr != nil {
-				return fmt.Errorf("TRUSTED_PROXIES: %q is not an address or a CIDR", entry)
-			}
-		}
-	}
 	if c.MaxBodyBytes < 1 {
 		return errors.New("MAX_REQUEST_BODY_BYTES must be at least 1")
 	}
@@ -679,12 +795,43 @@ func (c HTTPControllerConfig) Validate() error {
 // TLSEnabled reports whether the TLS listener runs: the certificate and the key are both set.
 func (c HTTPServerConfig) TLSEnabled() bool { return c.TLS.CertFile != "" && c.TLS.KeyFile != "" }
 
+// Enabled reports whether the proxy mode is on: at least one upstream is set.
+func (e EntryConfig) Enabled() bool {
+	return e.Main != "" || e.ID != "" || e.Admin != "" || e.Exercises != "" || e.Event != ""
+}
+
+// validate checks every set upstream is host:port with a numeric port.
+func (e EntryConfig) validate() error {
+	for name, value := range map[string]string{
+		"HTTP_SERVER_ENTRY_MAIN": e.Main, "HTTP_SERVER_ENTRY_ID": e.ID, "HTTP_SERVER_ENTRY_ADMIN": e.Admin,
+		"HTTP_SERVER_ENTRY_EXERCISES": e.Exercises, "HTTP_SERVER_ENTRY_EVENT": e.Event,
+	} {
+		if value == "" {
+			continue
+		}
+		host, port, err := net.SplitHostPort(value)
+		if err != nil || host == "" {
+			return fmt.Errorf("%s must be host:port, got %q", name, value)
+		}
+		if n, convErr := strconv.Atoi(port); convErr != nil || n < 1 || n > 65535 {
+			return fmt.Errorf("%s: %q is not a port", name, port)
+		}
+	}
+	return nil
+}
+
 // ClientAuthOn reports whether client certificates are asked for (optional or require).
 func (c HTTPServerConfig) ClientAuthOn() bool {
 	return c.TLSEnabled() && (c.TLS.ClientAuth == "optional" || c.TLS.ClientAuth == "require")
 }
 
 func (c HTTPServerConfig) validate() error {
+	if err := c.Entry.validate(); err != nil {
+		return err
+	}
+	if c.Entry.Enabled() && !c.TLSEnabled() {
+		return errors.New("HTTP_SERVER_ENTRY_* needs HTTP_SERVER_TLS_CERT_FILE and HTTP_SERVER_TLS_KEY_FILE")
+	}
 	if (c.TLS.CertFile == "") != (c.TLS.KeyFile == "") {
 		return errors.New("HTTP_SERVER_TLS_CERT_FILE and HTTP_SERVER_TLS_KEY_FILE must be set together")
 	}
@@ -839,6 +986,9 @@ func (c ExerciseConfig) Validate() error {
 	if c.StandPrewarmLead < 0 || c.StandPrewarmLead > 24*time.Hour {
 		return errors.New("exercise: EXERCISE_STAND_PREWARM_LEAD must be between 0 and 24h")
 	}
+	if c.StandPrewarmWait < 0 || c.StandPrewarmWait > 2*time.Hour {
+		return errors.New("exercise: EXERCISE_STAND_PREWARM_WAIT must be between 0 and 2h")
+	}
 	if c.LabSweepInterval < 10*time.Second || c.LabSweepInterval > 24*time.Hour {
 		return errors.New("exercise: EXERCISE_LAB_SWEEP_INTERVAL must be between 10s and 24h")
 	}
@@ -915,6 +1065,9 @@ func (c MediaConfig) Validate() error {
 	return nil
 }
 
+// MinRenderSecretLen is the shortest RENDER_SECRET (and RENDER_SECRET_NEXT) accepted.
+const MinRenderSecretLen = 32
+
 // ValidateSession checks the session lifetimes and that the cookie key opens as a key or keyring.
 func (c AuthConfig) ValidateSession() error {
 	if c.SessionEncryptionKey == "" {
@@ -923,8 +1076,16 @@ func (c AuthConfig) ValidateSession() error {
 	if _, err := secret.New(c.SessionEncryptionKey); err != nil {
 		return fmt.Errorf("session: SESSION_ENCRYPTION_KEY is invalid (one 64-hex-char key, or a keyring of id:hex entries): %w", err)
 	}
-	if len(c.RenderSecret) < 32 {
+	if len(c.RenderSecret) < MinRenderSecretLen {
 		return errors.New("render: RENDER_SECRET is required (at least 32 characters, shared with the event frontend)")
+	}
+	if c.RenderSecretNext != "" {
+		if len(c.RenderSecretNext) < MinRenderSecretLen {
+			return fmt.Errorf("render: RENDER_SECRET_NEXT must be at least %d characters", MinRenderSecretLen)
+		}
+		if c.RenderSecretNext == c.RenderSecret {
+			return errors.New("render: RENDER_SECRET_NEXT must differ from RENDER_SECRET")
+		}
 	}
 	if c.SessionIdleTTL < time.Minute {
 		return errors.New("session: SESSION_IDLE_TTL must be at least 1m")
@@ -952,12 +1113,17 @@ const MinRecaptchaScore = 0.3
 // logged, so a throw-away development key keeps working.
 func (c AuthConfig) Weaknesses() []string {
 	var out []string
-	if len(c.TokenSignature) < MinSigningSecretBytes {
+	// The signing keys come from the master key, or from the explicit value. An explicit value is checked wherever it is
+	// set: next to a master key it still verifies, so a weak one would still be accepted.
+	switch {
+	case c.TokenSignature != "" && len(c.TokenSignature) < MinSigningSecretBytes:
 		out = append(out, fmt.Sprintf("JWT_TOKEN_SIGNATURE must be random and at least %d bytes", MinSigningSecretBytes))
+	case c.TokenSignature == "" && len(c.SetupTokenKeys) == 0:
+		out = append(out, "there is no key for the setup links: set a master key (SECRETS_MASTER_KEY) or JWT_TOKEN_SIGNATURE")
 	}
 	switch {
-	case c.OAuth.Google.ClientID != "" && c.OAuth.StateSignature == "":
-		out = append(out, "GOOGLE_CLIENT_ID is set but OAUTH_STATE_SIGNATURE is empty: Google sign-in would be silently disabled")
+	case c.OAuth.Google.ClientID != "" && c.OAuth.StateSignature == "" && len(c.OAuth.StateKeys) == 0:
+		out = append(out, "GOOGLE_CLIENT_ID is set but there is no key for the sign-in state: set a master key or OAUTH_STATE_SIGNATURE; Google sign-in would be silently disabled")
 	case c.OAuth.StateSignature != "" && len(c.OAuth.StateSignature) < MinSigningSecretBytes:
 		out = append(out, fmt.Sprintf("OAUTH_STATE_SIGNATURE must be random and at least %d bytes", MinSigningSecretBytes))
 	}
@@ -1025,6 +1191,17 @@ func MustGetConfig() *Config {
 		log.Fatal().Msg("Config: SUPPORT_EMAIL must be a bare email address")
 	}
 
+	if err = instance.Auth.ValidateSiteLinks(); err != nil {
+		log.Fatal().Err(err).Msg("Config: invalid site links")
+	}
+
+	if err = instance.ResolveKeys(); err != nil {
+		log.Fatal().Err(err).Msg("Config: invalid keys")
+	}
+	if err = instance.Keys.Validate(); err != nil {
+		log.Fatal().Err(err).Msg("Config: invalid key settings")
+	}
+
 	instance.populateForAllConfig()
 
 	if err = instance.Auth.ValidateCaptcha(); err != nil {
@@ -1085,6 +1262,9 @@ func MustGetConfig() *Config {
 	if err = instance.Infrastructure.Agent.Validate(); err != nil {
 		log.Fatal().Err(err).Msg("Config: invalid infrastructure agent configuration")
 	}
+	if err = instance.Brain.Validate(); err != nil {
+		log.Fatal().Err(err).Msg("Config: invalid cyber-brain configuration")
+	}
 	if err = instance.Retention.Policy().Validate(); err != nil {
 		log.Fatal().Err(err).Msg("Config: invalid retention configuration")
 	}
@@ -1122,11 +1302,13 @@ type LabLifecycleConfig struct {
 	Batch    int32         `env:"BATCH" envDefault:"100"`
 	RetryMin time.Duration `env:"RETRY_MIN" envDefault:"10s"`
 	RetryMax time.Duration `env:"RETRY_MAX" envDefault:"5m"`
+	// Workers is how many labs one pass observes and moves at the same time (each lab is handled by one worker).
+	Workers int `env:"WORKERS" envDefault:"16"`
 }
 
 func (c LabLifecycleConfig) Validate() error {
-	if c.Interval < time.Second || c.Interval > time.Hour || c.Batch < 1 || c.Batch > 1000 || c.RetryMin < time.Second || c.RetryMax < c.RetryMin || c.RetryMax > time.Hour {
-		return fmt.Errorf("invalid EVENT_LAB_LIFECYCLE interval, batch or retry bounds")
+	if c.Interval < time.Second || c.Interval > time.Hour || c.Batch < 1 || c.Batch > 1000 || c.RetryMin < time.Second || c.RetryMax < c.RetryMin || c.RetryMax > time.Hour || c.Workers < 1 || c.Workers > 128 {
+		return fmt.Errorf("invalid EVENT_LAB_LIFECYCLE interval, batch, workers or retry bounds")
 	}
 	return nil
 }

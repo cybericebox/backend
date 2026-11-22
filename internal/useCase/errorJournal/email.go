@@ -6,8 +6,9 @@ import (
 	"html"
 	"strings"
 
-	"github.com/cybericebox/daemon/internal/model/notification/branding"
-	"github.com/cybericebox/daemon/internal/useCase/notification/channels/render"
+	"github.com/cybericebox/backend/internal/model/notification/branding"
+	"github.com/cybericebox/backend/internal/model/usertext"
+	"github.com/cybericebox/backend/internal/useCase/notification/channels/render"
 	"github.com/gofrs/uuid"
 )
 
@@ -43,7 +44,7 @@ func (j *Journal) emailHTML(text string) (string, error) {
 	vars := map[string]any{}
 	for _, line := range lines[1:] {
 		prefix, value, ok := strings.Cut(line, ": ")
-		labels := map[string]string{"Source": "Джерело", "Total": "Випадків", "Request": "Запит", "User": "Користувач"}
+		labels := map[string]string{"Source": usertext.ErrorMailSource, "Total": usertext.ErrorMailTotal, "Request": usertext.ErrorMailRequest, "User": usertext.ErrorMailUser}
 		if label := labels[prefix]; ok && label != "" {
 			key := fmt.Sprintf("fact%d", len(facts))
 			vars[key] = value // substitute once: diagnostics containing {{...}} remain literal.
@@ -55,17 +56,17 @@ func (j *Journal) emailHTML(text string) (string, error) {
 	if len(facts) > 0 {
 		blocks = append(blocks, map[string]any{"type": "facts", "items": facts})
 	}
-	label := "Відкрити помилку"
+	label := usertext.ErrorMailOpenError
 	if action == "" && j.cfg.AdminURL != "" {
 		action = strings.TrimRight(j.cfg.AdminURL, "/") + "/errors/"
-		label = "Відкрити журнал"
+		label = usertext.ErrorMailOpenJournal
 	}
 	if action != "" {
 		blocks = append(blocks, map[string]any{"type": "button", "label": label, "url": action, "align": "left"})
 	}
 	if strings.TrimSpace(details) != "" {
 		blocks = append(blocks, map[string]any{"type": "divider"})
-		addText("heading", "h2", "Деталі помилки")
+		addText("heading", "h2", usertext.ErrorMailDetails)
 	}
 	body, err := json.Marshal(blocks)
 	if err != nil {

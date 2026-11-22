@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"testing"
 
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
-	eventFormModel "github.com/cybericebox/daemon/internal/model/eventForm"
-	participantModel "github.com/cybericebox/daemon/internal/model/participant"
-	pkgerr "github.com/cybericebox/daemon/pkg/err"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
+	eventFormModel "github.com/cybericebox/backend/internal/model/eventForm"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
+	pkgerr "github.com/cybericebox/backend/pkg/err"
 )
 
 func TestMissingRequiredAnswerIsABadRequestNamingTheField(t *testing.T) {

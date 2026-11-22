@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/platformAnalyticsRepo"
-	labMonitoringModel "github.com/cybericebox/daemon/internal/model/labMonitoring"
-	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
-	platformAnalyticsModel "github.com/cybericebox/daemon/internal/model/platformAnalytics"
+	"github.com/cybericebox/backend/internal/delivery/repository/platformAnalyticsRepo"
+	labMonitoringModel "github.com/cybericebox/backend/internal/model/labMonitoring"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
+	platformAnalyticsModel "github.com/cybericebox/backend/internal/model/platformAnalytics"
 )
 
 // infraMailStore serves the infrastructure and mail ports and records what

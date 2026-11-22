@@ -3,11 +3,11 @@ package infrastructure
 import (
 	"net/http"
 
-	"github.com/cybericebox/daemon/internal/model"
-	"github.com/cybericebox/daemon/pkg/err"
+	"github.com/cybericebox/backend/internal/model"
+	"github.com/cybericebox/backend/pkg/err"
 )
 
-// next free detail code: 20 (18 was retired with the per-agent publish check)
+// next free detail code: 21 (18 was retired with the per-agent publish check)
 
 var (
 	// ErrInfrastructureUnavailable blocks any operation that needs the lab
@@ -105,6 +105,12 @@ var (
 	ErrNoAgentFitsTask = err.ErrConflict.WithObjectCode(model.InfrastructureObjectCode).
 				WithMessage("No laboratory can run this task within its resource limits").
 				WithDetailCode(19)
+
+	// ErrAgentFeatureUnavailable: the operation needs a feature the laboratory agent of the group does not report
+	// (the public context names it: confirmed_runtime, retained_restart).
+	ErrAgentFeatureUnavailable = err.ErrConflict.WithObjectCode(model.InfrastructureObjectCode).
+					WithMessage("The laboratory agent lacks a feature this operation needs").
+					WithDetailCode(20)
 
 	ErrDevicePersistenceUnavailable = err.ErrConflict.WithObjectCode(model.InfrastructureObjectCode).
 					WithMessage("The laboratory does not offer device state persistence").

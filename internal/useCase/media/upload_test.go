@@ -15,12 +15,12 @@ import (
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	imageRegistryModel "github.com/cybericebox/daemon/internal/model/imageRegistry"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	media "github.com/cybericebox/daemon/internal/useCase/media"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	imageRegistryModel "github.com/cybericebox/backend/internal/model/imageRegistry"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	media "github.com/cybericebox/backend/internal/useCase/media"
 )
 
 var uploadCfg = config.MediaConfig{MaxUploadBytes: 100, UploadChunkBytes: 4, UploadTTL: time.Hour}
@@ -29,7 +29,7 @@ func uploadUC(t *testing.T) (*media.MediaUseCase, *postgresMocks.MockQuerier, *f
 	t.Helper()
 	q := postgresMocks.NewMockQuerier(gomock.NewController(t))
 	st := newFakeStorage()
-	return media.NewMediaUseCase(media.Dependencies{Repo: q, Storage: st, Config: uploadCfg}), q, st
+	return media.NewMediaUseCase(media.Dependencies{Repo: q, Storage: st, FilesSealer: testSealer(t), Config: uploadCfg}), q, st
 }
 
 func row(id, owner uuid.UUID, size int64, received int32) postgres.MediaUpload {
@@ -193,19 +193,21 @@ func TestCompleteUpload_AssemblesChecksAndRecords(t *testing.T) {
 	sum := sha256.Sum256(payload)
 	hexSum := hex.EncodeToString(sum[:])
 	q.EXPECT().GetMediaUpload(gomock.Any(), id).Return(row(id, owner, 10, 3), nil)
-	q.EXPECT().CreateFile(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, p postgres.CreateFileParams) (postgres.File, error) {
+	q.EXPECT().GetFileBlob(gomock.Any(), hexSum).Return(postgres.GetFileBlobRow{}, pgx.ErrNoRows)
+	var proposed postgres.CreateFileParams
+	q.EXPECT().CreateFile(gomock.Any(), gomock.Any()).DoAndReturn(echoCreateFile(func(p postgres.CreateFileParams) {
+		proposed = p
 		if p.ContentHash != hexSum || p.SizeBytes != 10 || p.Name != "dump.bin" || p.CreatedBy.UUID != owner {
 			t.Fatalf("params %+v", p)
 		}
-		return postgres.File{ID: p.ID, Name: p.Name, ContentHash: p.ContentHash, SizeBytes: p.SizeBytes}, nil
-	})
+	}))
 	q.EXPECT().DeleteMediaUpload(gomock.Any(), id).Return(int64(1), nil)
 	file, err := uc.CompleteUpload(context.Background(), id, owner, hexSum)
 	if err != nil || file.ContentHash != hexSum {
 		t.Fatalf("file %+v err %v", file, err)
 	}
-	if string(st.objects[mediaModel.BlobKey(hexSum)]) != string(payload) {
-		t.Fatal("the assembled blob must be stored under its hash")
+	if got := plainOf(t, st, proposed.ObjectKey, proposed.WrappedKey, hexSum); string(got) != string(payload) {
+		t.Fatalf("the assembled blob must open to the payload, got %q", got)
 	}
 	for i := 0; i < 3; i++ {
 		if _, ok := st.objects[mediaModel.ChunkKey(id, i)]; ok {
@@ -332,18 +334,21 @@ func TestCompleteUpload_PromoteSurvivesACancelledClient(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	st := &dropStorage{fakeStorage: newFakeStorage(), cancel: cancel}
-	uc := media.NewMediaUseCase(media.Dependencies{Repo: q, Storage: st, Config: uploadCfg})
+	uc := media.NewMediaUseCase(media.Dependencies{Repo: q, Storage: st, FilesSealer: testSealer(t), Config: uploadCfg})
 	id, owner := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 	payload := []byte("0123456789")
 	stored(st.fakeStorage, id, payload)
 	sum := sha256.Sum256(payload)
 	hexSum := hex.EncodeToString(sum[:])
 	q.EXPECT().GetMediaUpload(gomock.Any(), id).Return(row(id, owner, 10, 3), nil)
-	q.EXPECT().CreateFile(gomock.Any(), gomock.Any()).DoAndReturn(func(c context.Context, p postgres.CreateFileParams) (postgres.File, error) {
+	q.EXPECT().GetFileBlob(gomock.Any(), hexSum).Return(postgres.GetFileBlobRow{}, pgx.ErrNoRows)
+	var proposed postgres.CreateFileParams
+	q.EXPECT().CreateFile(gomock.Any(), gomock.Any()).DoAndReturn(func(c context.Context, p postgres.CreateFileParams) (postgres.CreateFileRow, error) {
 		if c.Err() != nil {
 			t.Fatalf("the file row was written on a cancelled context: %v", c.Err())
 		}
-		return postgres.File{ID: p.ID, Name: p.Name, ContentHash: p.ContentHash, SizeBytes: p.SizeBytes}, nil
+		proposed = p
+		return echoCreateFile(nil)(c, p)
 	})
 	q.EXPECT().DeleteMediaUpload(gomock.Any(), id).Return(int64(1), nil)
 	if _, err := uc.CompleteUpload(ctx, id, owner, hexSum); err != nil {
@@ -352,8 +357,8 @@ func TestCompleteUpload_PromoteSurvivesACancelledClient(t *testing.T) {
 	if st.copyCtxErr != nil {
 		t.Fatalf("the promote saw a cancelled context: %v", st.copyCtxErr)
 	}
-	if string(st.objects[mediaModel.BlobKey(hexSum)]) != string(payload) {
-		t.Fatal("the blob must be promoted")
+	if got := plainOf(t, st.fakeStorage, proposed.ObjectKey, proposed.WrappedKey, hexSum); string(got) != string(payload) {
+		t.Fatalf("the blob must be promoted, got %q", got)
 	}
 }
 

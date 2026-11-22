@@ -12,12 +12,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	notificationModel "github.com/cybericebox/daemon/internal/model/notification"
-	inboxModel "github.com/cybericebox/daemon/internal/model/notification/inbox"
-	"github.com/cybericebox/daemon/internal/useCase/notification/inbox"
-	"github.com/cybericebox/daemon/pkg/tools"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	notificationModel "github.com/cybericebox/backend/internal/model/notification"
+	inboxModel "github.com/cybericebox/backend/internal/model/notification/inbox"
+	"github.com/cybericebox/backend/internal/useCase/notification/inbox"
+	"github.com/cybericebox/backend/pkg/tools"
 )
 
 func TestListInbox_PaginatesAndMapsReadState(t *testing.T) {
@@ -97,7 +97,7 @@ func TestInboxSince_DeltaAdvancesCursorAndIncludesReadState(t *testing.T) {
 	oldTime := time.Now().Add(-time.Minute).UTC()
 	newTime := oldTime.Add(time.Second)
 	since := &inboxModel.Cursor{ID: oldID, CreatedAt: oldTime}
-	repo.EXPECT().ListNewInboxSince(gomock.Any(), postgres.ListNewInboxSinceParams{UserID: uid, SinceCreatedAt: oldTime, SinceID: oldID}).Return([]postgres.ListNewInboxSinceRow{{ID: newID, UserID: uid, Title: "Нове", CreatedAt: newTime}}, nil)
+	repo.EXPECT().ListNewInboxSince(gomock.Any(), postgres.ListNewInboxSinceParams{UserID: uid, SinceCreatedAt: oldTime, SinceID: oldID}).Return([]postgres.ListNewInboxSinceRow{{ID: newID, UserID: uid, Title: "New", CreatedAt: newTime}}, nil)
 	repo.EXPECT().CountUnreadInbox(gomock.Any(), postgres.CountUnreadInboxParams{UserID: uid}).Return(int64(4), nil)
 	repo.EXPECT().CountInboxByCategory(gomock.Any(), postgres.CountInboxByCategoryParams{UserID: uid}).Return(postgres.CountInboxByCategoryRow{}, nil)
 
@@ -105,7 +105,7 @@ func TestInboxSince_DeltaAdvancesCursorAndIncludesReadState(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, result.NewInbox, 1)
 	assert.Equal(t, newID, result.Cursor.ID)
-	assert.Equal(t, "Нове", result.NewInbox[0].Title)
+	assert.Equal(t, "New", result.NewInbox[0].Title)
 	assert.Equal(t, int64(4), result.UnreadCount)
 }
 
@@ -226,7 +226,7 @@ func TestListInbox_CategoryAndResolutionReachDomain(t *testing.T) {
 	})).Return([]postgres.ListInAppByUserRow{{
 		ID: tools.NewUUIDv7(), UserID: uid, NotificationType: "event.lab.failed", Category: "requests", ActionRequired: true,
 		SubjectRef: pgtype.Text{String: "stand:x:y", Valid: true}, ResolvedAt: pgtype.Timestamptz{Time: resolved, Valid: true},
-		Resolution: pgtype.Text{String: "fixed", Valid: true}, ResolvedBy: uuid.NullUUID{UUID: resolver, Valid: true}, ResolvedByName: "Іван П.",
+		Resolution: pgtype.Text{String: "fixed", Valid: true}, ResolvedBy: uuid.NullUUID{UUID: resolver, Valid: true}, ResolvedByName: "John P.",
 	}}, nil)
 
 	got, err := uc.ListInbox(context.Background(), uid, nil, inboxModel.CategoryRequests, nil)
@@ -239,7 +239,7 @@ func TestListInbox_CategoryAndResolutionReachDomain(t *testing.T) {
 	assert.Equal(t, "fixed", item.Resolution)
 	require.NotNil(t, item.ResolvedBy)
 	assert.Equal(t, resolver, *item.ResolvedBy)
-	assert.Equal(t, "Іван П.", item.ResolvedByName)
+	assert.Equal(t, "John P.", item.ResolvedByName)
 }
 
 func TestResolveRequest_ResolvesEverySubjectCopy(t *testing.T) {

@@ -1,111 +1,111 @@
-# Нагрузочный тест: 15 команд, один владелец за рулём
+# Load test: 15 teams, one owner at the wheel
 
-Копия лежит в `/Volumes/Projects/My/CyberICEBox/docs/loadtest/` (корневая папка не под git; папка `docs/` демона в .gitignore, поэтому файл здесь, рядом с инструментом). Правьте обе.
+A copy lives in `/Volumes/Projects/My/CyberICEBox/docs/loadtest/` (the root folder is not under git; the backend repository's `docs/` folder is in .gitignore, so the file is kept here, next to the tool). Edit both.
 
 
-Дата подготовки: 2026-10-20. Тест запускает владелец вручную. Инструменты подготовлены и проверены только на локальном стенде (отдельный Postgres, демон `make run-local`-стиля, без кластера). Ничего из этого не запускалось против AWS.
+Prepared on: 2026-10-20. The owner runs the test by hand. The tools were prepared and checked only on a local stand (a separate Postgres, a daemon started in the `make run-local` style, no cluster). None of this was run against AWS.
 
-Сценарий владельца: отдельное мероприятие, резервация ресурсов начинается за 2 часа до старта, одну команду из 2 участников владелец регистрирует руками, остальные 14 команд (до 15 участников в каждой) создаёт скрипт. Размеры узлов и расчёт воркеров: `docs/reviews/loadtest-sizing.md` в корне проекта.
+The owner's scenario: a separate event, resource reservation starting 2 hours before the start, one team of 2 participants registered by hand by the owner, the other 14 teams (up to 15 participants each) created by the script. Node sizes and the worker calculation: `docs/reviews/loadtest-sizing.md` in the project root.
 
-## Что в комплекте
+## What is included
 
-| Что | Где | Зачем |
+| What | Where | Purpose |
 |---|---|---|
-| `loadtest-users` | `daemon`, ветка `feat/loadtest-tools`, `cmd/loadtest-users`; бинарь `/app/loadtest-users` в образе бэкенда | создаёт и удаляет тестовые аккаунты (`create`, `delete`) |
-| `loadtest` | `daemon`, `tools/loadtest` (чистый stdlib, собирается на ноутбуке владельца) | сценарий участников и отчёт |
-| `loadtest-users-job.yaml` | `tools/loadtest/` | Job для `delete` в кластере. Никем не применён |
-| Этот файл | `tools/loadtest/RUNBOOK.md` | порядок действий |
+| `loadtest-users` | `backend` (renamed from `daemon` on 2026-11-22), branch `feat/loadtest-tools`, `cmd/loadtest-users`; binary `/app/loadtest-users` in the backend image | creates and deletes test accounts (`create`, `delete`) |
+| `loadtest` | `backend`, `tools/loadtest` (pure stdlib, builds on the owner's laptop) | participant scenario and report |
+| `loadtest-users-job.yaml` | `tools/loadtest/` | Job for `delete` in the cluster. Never applied |
+| This file | `tools/loadtest/RUNBOOK.md` | order of actions |
 
-Аккаунты: `lt-<run>-NNN@loadtest.invalid`, роль `user`, подтверждённый адрес, случайный пароль, одна открытая сессия на аккаунт. Метка `lt-<run>-` в адресе единственная привязка к прогону: `delete --run <run>` трогает только такие адреса и никогда не удаляет не-`user` роли. Капча и любые настройки безопасности не меняются: сессию выписывает сам сервис тем же шифром, что и обычный вход. Пароли в файле на случай стенда без капчи (там скрипт сам входит по паролю); в проде капча включена, поэтому скрипт берёт готовую куку.
+Accounts: `lt-<run>-NNN@loadtest.invalid`, role `user`, confirmed address, random password, one open session per account. The `lt-<run>-` label in the address is the only link to a run: `delete --run <run>` touches only such addresses and never deletes non-`user` roles. The captcha and all security settings are unchanged: the session is issued by the service itself with the same cipher as a normal sign-in. The passwords are in the file for a stand without a captcha (there the script signs in by password itself); in production the captcha is on, so the script takes a ready cookie.
 
-## Что проверено, а что нет
+## What was checked and what was not
 
-Проверено локально (Postgres 17 в Docker, демон из этой ветки, мероприятие из `cmd/seed`):
+Checked locally (Postgres 17 in Docker, the daemon from this branch, an event from `cmd/seed`):
 
-- `loadtest-users create/delete` на реальной БД: аккаунты активны, пароль подходит, кука открывается кодеком демона, `GET /api/auth/me` отвечает 200, `delete` мягко удаляет, отзывает сессии, второй `delete` ничего не делает, чужие аккаунты и другой прогон целы (интеграционный тест `internal/loadtest`).
-- `--out -` отдаёт чистый JSON в stdout (логи идут в stderr).
-- Скрипт: регистрация, вступление в мероприятие, создание команды, вход по коду, закрытие состава, ожидание старта (прогрев), доска, опрос табло. Юнит-тест с имитацией API прогоняет весь сценарий с детектором гонок.
+- `loadtest-users create/delete` on a real database: the accounts are active, the password works, the cookie opens with the daemon's codec, `GET /api/auth/me` answers 200, `delete` soft-deletes and revokes sessions, a second `delete` does nothing, other people's accounts and another run are intact (integration test `internal/loadtest`).
+- `--out -` writes clean JSON to stdout (logs go to stderr).
+- The script: registration, joining the event, creating a team, joining by code, closing the roster, waiting for the start (warm-up), the board, scoreboard polling. A unit test with a mocked API runs the whole scenario with the race detector.
 
-Не проверено и вы увидите впервые на стенде:
+Not checked; you will see it for the first time on the stand:
 
-- Динамические лабы (`Ready`, время старта, VPN-конфиг, ссылка на веб-устройство): локально нет лабораторного агента. Эти шаги покрыты только имитацией API по документированным полям (`Phase`, `Ready`, `VPNReady`, `Config`).
-- Job и `kubectl exec` в живом кластере.
-- Живой экран с настоящей ссылкой экрана.
-- Потоки SSE (`/results/live`). Настоящий сайт мероприятия получает табло через SSE и опрашивает раз в 30 с запасным способом; скрипт опрашивает `/results` и `/results/changes` раз в 30 с (как запасной путь). Нагрузку от открытых SSE-потоков (лимит `HTTP_INFLIGHT_STREAMS_MAX=200` на реплику) тест не создаёт.
+- Dynamic labs (`Ready`, start time, VPN config, link to the web device): there is no lab agent locally. These steps are covered only by an API mock built from the documented fields (`Phase`, `Ready`, `VPNReady`, `Config`).
+- The Job and `kubectl exec` in a live cluster.
+- The live screen with a real screen link.
+- SSE streams (`/results/live`). The real event site receives the scoreboard through SSE and polls every 30 s as a fallback; the script polls `/results` and `/results/changes` every 30 s (as the fallback path). The test does not create the load of open SSE streams (limit `HTTP_INFLIGHT_STREAMS_MAX=200` per replica).
 
-## Что нашёл локальный прогон (учтите заранее)
+## What the local run found (take into account in advance)
 
-1. **Регистрация закрывается в момент старта** (`closed_at_start`, `roster_frozen_at_start`). Вступление в мероприятие и в команды нужно закончить до старта. Скрипт поэтому разделён на стадии: `prepare` (до старта) и `run` (сам тест).
-2. **Максимальный размер команды** в настройках мероприятия должен быть не меньше 15 (в сидовом мероприятии он 3, из-за этого 6 из 12 входов в команды получили 409). Число команд должно быть не меньше 15 (14 скрипта + ваша).
-3. Доска (`GET /api/events/{id}/teams/challenges/mine`) для пользователя, который не участник мероприятия, отвечала **500**. Исправлено в этой же ветке: теперь 403 (`ErrParticipantAccessForbidden`, как у лаб-маршрутов). Если в тесте доска даёт 403, вход участника в мероприятие не удался.
-4. Кука сессии идёт по сети в виде `url.QueryEscape(значение)` (gin раскодирует её при чтении). Скрипт так и делает; если будете проверять `curl`-ом, кодируйте `+ / =`.
+1. **Registration closes at the moment of the start** (`closed_at_start`, `roster_frozen_at_start`). Joining the event and the teams must be finished before the start. The script is therefore split into stages: `prepare` (before the start) and `run` (the test itself).
+2. **The maximum team size** in the event settings must be at least 15 (in the seeded event it is 3, so 6 of 12 team joins got 409). The number of teams must be at least 15 (14 from the script + yours).
+3. The board (`GET /api/events/{id}/teams/challenges/mine`) answered **500** for a user who is not an event participant. Fixed in this same branch: it is now 403 (`ErrParticipantAccessForbidden`, as for the lab routes). If the board gives 403 during the test, the participant's join of the event failed.
+4. The session cookie travels over the network as `url.QueryEscape(value)` (gin decodes it on read). The script does exactly this; if you check with `curl`, encode `+ / =`.
 
-## Предусловия (чек-лист до начала)
+## Preconditions (checklist before starting)
 
-Мероприятие (создаёт владелец, в «Панели платформи»):
+The event (created by the owner, in the platform panel):
 
-- [ ] Отдельное мероприятие (чтобы статистика настоящих осталась чистой), его тег = `--event-slug`. Опубликовано, вход открыт, ручное одобрение участников выключено.
-- [ ] Максимальный размер команды не меньше 15, число команд не меньше 15, старт не раньше чем через время подготовки (см. таймлайн), длительность не меньше длительности прогона.
-- [ ] Завдання: 6 динамических (все `micro`, см. sizing) и статические из боевого каталога. Опубликованы на доске, режим показа как у боевых.
-- [ ] Резервация ресурсов на мероприятие, начало за 2 часа до старта: `PUT /api/infrastructure/calendar/events/{eventID}/reservation` (через панель). Проверка: `GET` того же пути.
-- [ ] Ваша команда из 2 участников зарегистрирована руками. Если её имя занято скриптом: скрипт называет команды `LT Team 01` ... `LT Team 14`.
-- [ ] Если нужны правильные флаги: файл `flags.json` `{"<название завдання или ID челленджа>": "<флаг>"}`. Для динамических завдань с флагом внутри лабы скрипт отправляет только неверные флаги. Без файла скрипт тоже работает, правильных ответов не будет.
-- [ ] Для живого экрана: в «Панели заходу» создана ссылка экрана, её токен идёт в `--live-token`.
-- [ ] Почта: адреса `*@loadtest.invalid` не доставляются. Бэкенд из этой ветки вообще не отправляет письма на зарезервированные домены RFC 2606 (`.invalid`, `.test`, `.example`, `.localhost`): цель рассылки помечается выполненной с текстом «Пропущено: зарезервований домен (RFC 2606), лист не надсилався», без повторов и записей об ошибках. Убедитесь, что на стенде работает именно такой образ, иначе сигналы (например, напоминание о старте) уйдут на эти адреса.
+- [ ] A separate event (so the statistics of real ones stay clean), its tag = `--event-slug`. Published, entry open, manual approval of participants off.
+- [ ] Maximum team size at least 15, number of teams at least 15, start no sooner than the preparation time (see the timeline), duration at least the run duration.
+- [ ] Tasks: 6 dynamic ones (all `micro`, see sizing) and static ones from the production catalog. Published on the board, display mode as for production events.
+- [ ] Resource reservation for the event, starting 2 hours before the start: `PUT /api/infrastructure/calendar/events/{eventID}/reservation` (through the panel). Check: `GET` of the same path.
+- [ ] Your team of 2 participants is registered by hand. If its name is taken by the script: the script names teams `LT Team 01` ... `LT Team 14`.
+- [ ] If correct flags are needed: a `flags.json` file `{"<task name or challenge ID>": "<flag>"}`. For dynamic tasks with the flag inside the lab the script sends only wrong flags. Without the file the script also works, there will be no correct answers.
+- [ ] For the live screen: a screen link is created in the event panel, its token goes into `--live-token`.
+- [ ] Mail: addresses `*@loadtest.invalid` are not delivered. The backend from this branch does not send mail to RFC 2606 reserved domains at all (`.invalid`, `.test`, `.example`, `.localhost`): the delivery target is marked as done with a "skipped: reserved domain (RFC 2606), mail was not sent" note (shown to the user in Ukrainian), with no retries and no error records. Make sure the stand runs exactly such an image, otherwise signals (for example the start reminder) will go to these addresses.
 
-Образ и бинарь:
+Image and binary:
 
-- [ ] Бэкенд развёрнут из образа, собранного с этой веткой (в Dockerfile добавлена вторая сборка и `COPY`). Проверка: `kubectl exec -n <NS> deploy/backend -- /app/loadtest-users` печатает usage. Если образ старый, сначала релиз, иначе `create` негде запускать.
-- [ ] `loadtest` собран на машине владельца: `cd daemon && GOWORK=off go build -o /tmp/loadtest ./tools/loadtest` (Go 1.27).
+- [ ] The backend is deployed from an image built with this branch (a second build and a `COPY` were added to the Dockerfile). Check: `kubectl exec -n <NS> deploy/backend -- /app/loadtest-users` prints usage. If the image is old, release first, otherwise there is nowhere to run `create`.
+- [ ] `loadtest` is built on the owner's machine: `cd backend && GOWORK=off go build -o /tmp/loadtest ./tools/loadtest` (Go 1.27).
 
-Инфраструктура:
+Infrastructure:
 
-- [ ] Лаборатория v1.4.0, Cluster Autoscaler установлен и проверен на дымовом прогоне, оператор Фазы 3 (бюджет мощности) выпущен.
-- [ ] CA на максимум 10 узлов: `LAB_WORKER_MAX=10` (группа `<кластер>-lab-worker-*`), бюджет `LAB_BUDGET_CPU` и `LAB_BUDGET_MEMORY` заданы (и совпадают с `capacity.budget` чарта). Тип узла `m7i.xlarge` (`LAB_WORKER_INSTANCE_TYPE`). Проверка: `make aws asg ARGS=status`.
-- [ ] Образы прогреты (`PrewarmImages`) для 6 динамических завдань, метки узлов `cybericebox.io/lab=true`, `laboratory.cybericebox.com/node-agent-ready=true` (раздел 7 sizing).
-- [ ] Реплики: для 210 сессий и 15 x 15 браузерных потоков стоит включить `BACKEND_REPLICAS=2` и `EVENT_FRONTEND_REPLICAS=2` или HPA (`PLATFORM_HPA=true`), заранее (см. [infrastructure/docs/event-scaling.md](../../../infrastructure/docs/event-scaling.md)). Проверка бюджета соединений с БД по формуле из того же документа.
-- [ ] Cloudflare: сейчас прокси выключен по умолчанию. Если включён, весь тест идёт с одного адреса, и режим атаки/правила могут его срезать; решите заранее. Все лимиты бэкенда считаются на аккаунт, а не на адрес (пользователь 1200 в минуту, всплеск 600; отправка флагов 5 за 30 с на завдання и 20 в минуту на команду; одновременно 8 запросов на сессию).
-- [ ] Метрики: `metrics-server` отвечает (`make aws kube ARGS='top pods -n <NS>'`).
+- [ ] Laboratory v1.4.0, Cluster Autoscaler installed and checked in a smoke run, the Phase 3 operator (capacity budget) released.
+- [ ] CA limited to at most 10 nodes: `LAB_WORKER_MAX=10` (group `<cluster>-lab-worker-*`), the budget `LAB_BUDGET_CPU` and `LAB_BUDGET_MEMORY` set (and equal to the chart's `capacity.budget`). Node type `m7i.xlarge` (`LAB_WORKER_INSTANCE_TYPE`). Check: `make aws asg ARGS=status`.
+- [ ] Images are pre-warmed (`PrewarmImages`) for the 6 dynamic tasks, node labels `cybericebox.io/lab=true`, `laboratory.cybericebox.com/node-agent-ready=true` (section 7 of sizing).
+- [ ] Replicas: for 210 sessions and 15 x 15 browser streams it is worth enabling `BACKEND_REPLICAS=2` and `EVENT_FRONTEND_REPLICAS=2` or the HPA (`PLATFORM_HPA=true`), in advance (see [infrastructure/docs/event-scaling.md](../../../../infrastructure/docs/event-scaling.md)). Check the database connection budget with the formula from the same document.
+- [ ] Cloudflare: the proxy is currently off by default. If it is on, the whole test comes from one address, and attack mode/rules may cut it off; decide in advance. All backend limits are counted per account, not per address (user 1200 per minute, burst 600; flag submission 5 per 30 s per task and 20 per minute per team; 8 concurrent requests per session).
+- [ ] Metrics: `metrics-server` answers (`make aws kube ARGS='top pods -n <NS>'`).
 
-Бюджет (деньги):
+Budget (money):
 
-- `m7i.xlarge` по sizing: 0,2016 USD в час за узел. Ожидаемо 3 узла: около 0,60 USD в час. Верхняя граница по CA: 10 узлов, около 2,02 USD в час (без дисков и NLB).
-- Окно: резервация за 2 часа + прогон около 1 часа + спуск CA около 15 минут: порядка 3,5 часа. Ожидаемо около 2 USD, потолок около 7 USD, если CA поднимет все 10.
-- Узлы на Spot (`WORKER_SPOT`) тест не использует, прерывание узла испортило бы замер.
+- `m7i.xlarge` per sizing: 0.2016 USD per hour per node. Expected 3 nodes: about 0.60 USD per hour. Upper bound by CA: 10 nodes, about 2.02 USD per hour (without disks and NLB).
+- Window: reservation 2 hours before + run about 1 hour + CA scale-down about 15 minutes: roughly 3.5 hours. Expected about 2 USD, ceiling about 7 USD if CA brings up all 10.
+- The test does not use Spot nodes (`WORKER_SPOT`); a node interruption would spoil the measurement.
 
-## Таймлайн (T = старт мероприятия)
+## Timeline (T = event start)
 
-| Когда | Что |
+| When | What |
 |---|---|
-| T-3h | предусловия, проверка образа и CA, `LAB_WORKER_*` |
-| T-2h | начинается резервация, CA готовит узлы, идёт прогрев образов |
-| T-75 мин | создать аккаунты (куки живут `SESSION_IDLE_TTL`, 12 часов) |
-| T-45 мин | стадия `prepare`: вход, вступление, команды |
-| T-10 мин | стадия `run` стартует сама, ждёт старт и прогревает страницы (`--prewarm`) |
-| T | старт, участники открывают доску, лабы поднимаются |
-| T+60 мин | конец прогона (`--duration`), отчёт |
-| после | очистка |
+| T-3h | preconditions, check of the image and CA, `LAB_WORKER_*` |
+| T-2h | the reservation begins, CA prepares nodes, images are pre-warmed |
+| T-75 min | create the accounts (cookies live `SESSION_IDLE_TTL`, 12 hours) |
+| T-45 min | stage `prepare`: sign-in, joining, teams |
+| T-10 min | stage `run` starts by itself, waits for the start and warms up the pages (`--prewarm`) |
+| T | start, participants open the board, labs come up |
+| T+60 min | end of the run (`--duration`), report |
+| after | cleanup |
 
-Если резервация или узлы ведут себя неожиданно до старта, переносите старт: регистрация закрыта только после T.
+If the reservation or the nodes behave unexpectedly before the start, move the start: registration is closed only after T.
 
-## Команды
+## Commands
 
-Все пути от каталога `/Volumes/Projects/My/CyberICEBox`. Переменные один раз:
+All paths are relative to the directory `/Volumes/Projects/My/CyberICEBox`. Variables, once:
 
 ```bash
 NS=<platform_namespace>                       # make aws kube ARGS='get ns'
-RUN=lt1                                       # 3-20 символов a-z0-9, новый для каждого теста
-DOMAIN=<домен стенда>                         # DOMAIN бэкенда, без api.
-SLUG=<тег тестового мероприятия>
+RUN=lt1                                       # 3-20 characters a-z0-9, new for every test
+DOMAIN=<stand domain>                         # the backend's DOMAIN, without api.
+SLUG=<tag of the test event>
 OUT=/Volumes/Projects/My/CyberICEBox/infrastructure/private/generated/aws/loadtest
 KUBECONFIG=/Volumes/Projects/My/CyberICEBox/infrastructure/private/generated/aws/kubeconfig.yaml
 export KUBECONFIG
 mkdir -p "$OUT" && chmod 700 "$OUT"
 ```
 
-Не используйте `make aws kube` для `create`: `make` печатает свою командную строку в stdout, и она попадёт в файл с секретами. Прямой `kubectl` с этим kubeconfig пишет в stdout только ответ процесса.
+Do not use `make aws kube` for `create`: `make` prints its own command line to stdout, and it would end up in the file with secrets. A direct `kubectl` with this kubeconfig writes only the process's answer to stdout.
 
-### 1. Создать аккаунты (14 команд x 15 = 210, плюс 3 ручных)
+### 1. Create the accounts (14 teams x 15 = 210, plus 3 manual)
 
 ```bash
 kubectl exec -n "$NS" deploy/backend -- /app/loadtest-users create --run "$RUN" --count 210 --manual 3 --out - > "$OUT/$RUN.json"
@@ -113,126 +113,126 @@ chmod 600 "$OUT/$RUN.json"
 python3 -c "import json,sys; d=json.load(open('$OUT/$RUN.json')); print(len(d['accounts']), 'accounts,', sum(a.get('manual', False) for a in d['accounts']), 'manual; cookies valid until', d['cookieExpiresAt'])"
 ```
 
-`--manual` (по умолчанию 3) создаёт ещё столько же аккаунтов, помеченных `"manual": true`. Они подтверждены, с паролем, но без сессии, а скрипт их не трогает: не входит под ними, не регистрирует и не добавляет в команды. Подробности ниже, раздел «Ручные аккаунты».
+`--manual` (3 by default) creates that many more accounts, marked `"manual": true`. They are confirmed, with a password but without a session, and the script does not touch them: it does not sign in as them, register them or add them to teams. Details below, in the section "Manual accounts".
 
-Секреты идут по потоку `kubectl exec` к вам и не попадают в лог пода и на диск пода. Если с командой участников меньше 15 (`--members-min`), лишние аккаунты остаются неиспользованными.
+The secrets travel through the `kubectl exec` stream to you and do not end up in the pod log or on the pod's disk. If a team has fewer than 15 participants (`--members-min`), the extra accounts stay unused.
 
-Если ошибка в середине (`account N of 210`): часть аккаунтов уже создана. Удалите прогон (`delete --run`, ниже) и создайте заново с новым `RUN`.
+If an error occurs in the middle (`account N of 210`): some accounts are already created. Delete the run (`delete --run`, below) and create again with a new `RUN`.
 
-### 2. План без нагрузки
+### 2. Plan without load
 
 ```bash
 /tmp/loadtest --dry-run --domain "$DOMAIN" --event-slug "$SLUG" --creds "$OUT/$RUN.json" --teams 14 --members-min 10 --members 15 --seed 1
 ```
 
-Печатает команды, размеры и капитанов. Тот же `--seed` даёт ту же раскладку в обеих стадиях.
+Prints the teams, sizes and captains. The same `--seed` gives the same layout in both stages.
 
-### 3. Стадия prepare (до старта)
+### 3. Stage prepare (before the start)
 
 ```bash
 /tmp/loadtest --domain "$DOMAIN" --confirm-domain "$DOMAIN" --event-slug "$SLUG" --creds "$OUT/$RUN.json" \
   --stage prepare --teams 14 --members-min 10 --members 15 --seed 1 --ramp-up 5m --report "$OUT/$RUN-prepare.json" 2>&1 | tee "$OUT/$RUN-prepare.log"
 ```
 
-`--confirm-domain` обязателен: инструмент нагружает тот стенд, на который указан, и не запускается без повторения домена. Ожидается 0 ошибок. Если в мероприятии нужны дополнительные поля команды: `--team-fields '{"поле":"значение"}'`.
+`--confirm-domain` is mandatory: the tool loads the stand it points to and does not start without repeating the domain. 0 errors are expected. If the event needs extra team fields: `--team-fields '{"field":"value"}'`.
 
-### 4. Стадия run (прогрев, старт, игра)
+### 4. Stage run (warm-up, start, play)
 
 ```bash
 /tmp/loadtest --domain "$DOMAIN" --confirm-domain "$DOMAIN" --event-slug "$SLUG" --creds "$OUT/$RUN.json" \
   --stage run --teams 14 --members-min 10 --members 15 --seed 1 \
   --ramp-up 3m --prewarm 10m --duration 60m --lab-timeout 20m \
-  --flags "$OUT/flags.json" --live-token "<токен ссылки экрана>" --live-viewers 3 \
+  --flags "$OUT/flags.json" --live-token "<screen link token>" --live-viewers 3 \
   --report "$OUT/$RUN-run.json" 2>&1 | tee "$OUT/$RUN-run.log"
 ```
 
-Что делает участник: проверка сессии, информация о мероприятии, доска, прогрев (раз в 30 с главная страница и табло), после старта: опрос табло (30 с), капитан наблюдает все лабы команды, каждый ждёт `VPNReady` и один раз берёт VPN-конфиг, затем в цикле с паузами 8–45 с обновляет доску, смотрит решения, открывает завдання, для динамических проверяет лабу и берёт ссылку, отправляет флаг (верный при `--correct-ratio`, иначе неверный; не больше `--max-wrong` неверных на завдання). Время старта лабы считается от старта мероприятия (если прогон начался позже, от старта).
+What a participant does: session check, event information, the board, warm-up (the main page and the scoreboard every 30 s), after the start: scoreboard polling (30 s), the captain watches all the team's labs, everyone waits for `VPNReady` and fetches the VPN config once, then in a loop with 8–45 s pauses refreshes the board, looks at solutions, opens tasks, for dynamic ones checks the lab and takes the link, submits a flag (a correct one with probability `--correct-ratio`, otherwise a wrong one; no more than `--max-wrong` wrong ones per task). The lab start time is counted from the event start (if the run began later, from the run start).
 
-Одной командой обе стадии: `--stage all` (тогда укладывайте `prepare` в окно до старта). Ctrl-C останавливает чисто и печатает отчёт.
+Both stages in one command: `--stage all` (then fit `prepare` into the window before the start). Ctrl-C stops cleanly and prints the report.
 
-Отчёт: таблица по ручкам (p50/p95/p99/max, доля ошибок, коды), по минутам (запросы, ошибки, 429, 5xx, p95), время старта лаб (p50/p95/max, самые медленные, сколько не готово), счётчики исходов. JSON в `--report`.
+The report: a table per endpoint (p50/p95/p99/max, error share, codes), per minute (requests, errors, 429, 5xx, p95), lab start time (p50/p95/max, slowest, how many are not ready), outcome counters. JSON in `--report`.
 
-## Ручные аккаунты (для владельца)
+## Manual accounts (for the owner)
 
-В файле `$OUT/$RUN.json` последние три записи `accounts` имеют `"manual": true`: это `lt-<run>-211`, `-212`, `-213` (`@loadtest.invalid`) с паролем в поле `password`. Под ними владелец сам в браузере проходит весь путь участника: вход через ID (капча включена, это обычный вход по почте и паролю), регистрация в мероприятие, создание команды и остальное. Скрипт их не использует ни в `prepare`, ни в `run`. Почта на эти адреса не уходит (зарезервированный домен), поэтому подтверждения по письму не будет, но аккаунты уже подтверждены. `delete --run` удаляет их вместе с остальными, как все `lt-<run>-*`. Получить их: `python3 -c "import json; [print(a['email'], a['password']) for a in json.load(open('$OUT/$RUN.json'))['accounts'] if a.get('manual')]"`.
+In the file `$OUT/$RUN.json` the last three `accounts` entries have `"manual": true`: these are `lt-<run>-211`, `-212`, `-213` (`@loadtest.invalid`) with the password in the `password` field. With them the owner goes through the whole participant path in the browser: sign-in through ID (the captcha is on, this is a normal sign-in by email and password), registration in the event, creating a team and the rest. The script does not use them in `prepare` or in `run`. Mail is not sent to these addresses (reserved domain), so there will be no confirmation by mail, but the accounts are already confirmed. `delete --run` deletes them together with the others, like all `lt-<run>-*`. To get them: `python3 -c "import json; [print(a['email'], a['password']) for a in json.load(open('$OUT/$RUN.json'))['accounts'] if a.get('manual')]"`.
 
-Если сам вход этих адресов отвергается как недопустимый домен (проверка формы на ID), скажите: тогда нужен другой домен-маркер.
+If the sign-in of these addresses is itself rejected as an invalid domain (the form check on ID), say so: then another marker domain is needed.
 
-## Что смотреть во время прогона
+## What to watch during the run
 
-Окно 1: вывод скрипта (раз в 15 с строка «recent minutes»). Остальное в отдельных терминалах из `infrastructure/`:
+Window 1: the script output (a "recent minutes" line every 15 s). The rest in separate terminals from `infrastructure/`:
 
-| Что | Команда | Норма |
+| What | Command | Norm |
 |---|---|---|
-| Узлы Cluster Autoscaler | `make aws kube ARGS='get nodes -L cybericebox.io/lab,cybericebox.io/asg -w'` и `make aws asg ARGS=status` | узлы появляются и становятся `Ready` за минуты, не больше 10 |
-| Решения CA | `make aws kube ARGS='-n kube-system get cm cluster-autoscaler-status -o yaml'` и логи его пода (`get deploy -n kube-system`, найти autoscaler) | нет `NotTriggerScaleUp` надолго, нет упёртости в бюджет |
-| Лаб-группы и снятия (withdrawals) | `make aws kube ARGS='get labgroups.laboratory.cybericebox.com -A'`, `get labs.laboratory.cybericebox.com -A`; причина `Withdrawn` в статусе группы | снятий нет; единичное снятие с повтором допустимо |
-| Предупреждения ёмкости | `make aws kube ARGS='get tenants.laboratory.cybericebox.com -A -o yaml'`, искать `CapacityShortfall` | отсутствует |
-| Поды в ожидании | `make aws kube ARGS='get pods -A --field-selector=status.phase=Pending'` | пик при старте, затем уменьшается |
-| Троттлинг и перегрузка | колонки `429` и `5xx` в минутной таблице скрипта; `make aws kube ARGS='logs -n <NS> deploy/backend --since=5m'` (искать `rate limit`, `overload`, `503`) | 429 и 503 около нуля. 503 с `Retry-After: 1` означает упор в `HTTP_INFLIGHT_MAX` или пул БД |
-| Журнал ошибок | «Панель платформи», журнал ошибок (API `admin/errors`) | не растут новые группы |
-| Задержки API | таблица скрипта, минутный p95; `make aws kube ARGS='top pods -n <NS>'` | `challenges/mine`, `submit`, `results` p95 в пределах 1 с |
-| Бэкенд и HPA | `make aws kube ARGS='get hpa,deploy -n <NS>'`, перезапуски: `get pods -n <NS>` | нет рестартов, нет OOM |
-| Соединения БД | запрос из [event-scaling.md](../../../infrastructure/docs/event-scaling.md) (раздел про бюджет соединений) | меньше `max_connections` с запасом |
+| Cluster Autoscaler nodes | `make aws kube ARGS='get nodes -L cybericebox.io/lab,cybericebox.io/asg -w'` and `make aws asg ARGS=status` | nodes appear and become `Ready` within minutes, at most 10 |
+| CA decisions | `make aws kube ARGS='-n kube-system get cm cluster-autoscaler-status -o yaml'` and its pod's logs (`get deploy -n kube-system`, find the autoscaler) | no long-lasting `NotTriggerScaleUp`, no hitting the budget |
+| Lab groups and withdrawals | `make aws kube ARGS='get labgroups.laboratory.cybericebox.com -A'`, `get labs.laboratory.cybericebox.com -A`; the `Withdrawn` reason in the group status | no withdrawals; a single withdrawal with a retry is acceptable |
+| Capacity warnings | `make aws kube ARGS='get tenants.laboratory.cybericebox.com -A -o yaml'`, look for `CapacityShortfall` | absent |
+| Pending pods | `make aws kube ARGS='get pods -A --field-selector=status.phase=Pending'` | a peak at the start, then decreasing |
+| Throttling and overload | the `429` and `5xx` columns in the script's per-minute table; `make aws kube ARGS='logs -n <NS> deploy/backend --since=5m'` (look for `rate limit`, `overload`, `503`) | 429 and 503 near zero. A 503 with `Retry-After: 1` means hitting `HTTP_INFLIGHT_MAX` or the database pool |
+| Error journal | the platform panel, error journal (API `admin/errors`) | no new groups growing |
+| API latency | the script's table, per-minute p95; `make aws kube ARGS='top pods -n <NS>'` | `challenges/mine`, `submit`, `results` p95 within 1 s |
+| Backend and HPA | `make aws kube ARGS='get hpa,deploy -n <NS>'`, restarts: `get pods -n <NS>` | no restarts, no OOM |
+| Database connections | the query from [event-scaling.md](../../../../infrastructure/docs/event-scaling.md) (the section on the connection budget) | below `max_connections` with headroom |
 
-Наблюдайте также за VPN в трёх режимах demux: этот шаг владелец делает сам, с runbook переключения режимов от infra ([infrastructure/docs/vpn-demux-modes.md](../../../infrastructure/docs/vpn-demux-modes.md)); скрипт VPN-туннель не поднимает, только проверяет выдачу конфига.
+Also watch the VPN in the three demux modes: the owner does this step by hand, with the mode-switching runbook from infra ([infrastructure/docs/vpn-demux-modes.md](../../../../infrastructure/docs/vpn-demux-modes.md)); the script does not bring up a VPN tunnel, it only checks that the config is issued.
 
-## Критерии остановки
+## Stop criteria
 
-Скрипт сам останавливается, если за последние 1-2 минуты (не менее 200 запросов) доля ошибок и 429 выше 50% (`--abort-error-rate`; `0` выключает). Остальное решает владелец. Рекомендуемые пороги (предложение, не договорённость):
+The script stops by itself if over the last 1-2 minutes (at least 200 requests) the share of errors and 429s is above 50% (`--abort-error-rate`; `0` disables it). The owner decides the rest. Recommended thresholds (a proposal, not an agreement):
 
-1. 5xx выше 5% две минуты подряд, или любые перезапуски/OOM подов бэкенда.
-2. p95 доски, отправки флага или табло выше 3 с три минуты подряд.
-3. Соединения БД выше 85% `max_connections`.
-4. Лабы в `Failed` выше 20%, или больше одного снятия группы (`Withdrawn`), или `CapacityShortfall`.
-5. CA не добавил узел за 10 минут при Pending-подах лаб, или число узлов упёрлось в бюджет, а лабы не готовы.
-6. Расход вышел за план: узлов группы больше ожидаемых 3 без причины, или тест идёт дольше окна.
-7. Неожиданные побочные эффекты на других тенантах/мероприятиях.
+1. 5xx above 5% for two minutes in a row, or any restarts/OOM of backend pods.
+2. p95 of the board, flag submission or scoreboard above 3 s for three minutes in a row.
+3. Database connections above 85% of `max_connections`.
+4. Labs in `Failed` above 20%, or more than one group withdrawal (`Withdrawn`), or `CapacityShortfall`.
+5. CA did not add a node within 10 minutes with Pending lab pods, or the node count hit the budget while labs are not ready.
+6. Spending went beyond the plan: more group nodes than the expected 3 without a reason, or the test runs longer than the window.
+7. Unexpected side effects on other tenants/events.
 
-Остановка: Ctrl-C в окне скрипта (отчёт сохранится), затем очистка. Сам тест лабы не останавливает: они живут до удаления мероприятия или конца резервации.
+To stop: Ctrl-C in the script window (the report is saved), then cleanup. The test itself does not stop the labs: they live until the event is deleted or the reservation ends.
 
-## Очистка
+## Cleanup
 
-Порядок важен: аккаунты не удаляются жёстко, пока на них ссылаются команды и попытки (их уберёт удаление мероприятия).
+The order matters: accounts are not hard-deleted while teams and attempts reference them (deleting the event removes those).
 
-1. Остановить скрипт (Ctrl-C), сохранить отчёты и журналы из `$OUT`.
-2. Владелец удаляет тестовое мероприятие в «Панели платформи» (команды, участники, попытки, лабы уйдут вместе с ним). Резервацию отменить, если мероприятие не нужно (`DELETE .../reservation`).
-3. Удалить аккаунты. Сначала пробный запуск (только считает):
+1. Stop the script (Ctrl-C), save the reports and logs from `$OUT`.
+2. The owner deletes the test event in the platform panel (teams, participants, attempts and labs go with it). Cancel the reservation if the event is not needed (`DELETE .../reservation`).
+3. Delete the accounts. First a dry run (it only counts):
    ```bash
    kubectl exec -n "$NS" deploy/backend -- /app/loadtest-users delete --run "$RUN" --dry-run
    kubectl exec -n "$NS" deploy/backend -- /app/loadtest-users delete --run "$RUN"
    ```
-   Либо Job `tools/loadtest/loadtest-users-job.yaml` (подставить `<NS>`, `<IMAGE>`, `<PG>`, `<RUN>`; по умолчанию в `args` стоит `--dry-run`, уберите для настоящего удаления). Результат: аккаунты мягко удалены (адрес освобождён, имя и почта очищены), сессии отозваны. Повторный запуск безопасен. Остальное в БД уберёт штатная очистка удалённых аккаунтов.
-4. Файлы с секретами: `shred -u "$OUT/$RUN.json"` (или `rm -P`) и удалить `$RUN-*.log`, если в них есть адреса.
-5. Вернуть группу лаб-воркеров:
-   - при работающем CA узлы уйдут сами после паузы спуска (по умолчанию около 10 минут простоя); проверьте `make aws asg ARGS=status`;
-   - если вы поднимали руками или CA не спустил: `make aws asg ARGS='desired=0'` (вниз скрипт отказывает при живых лабораториях, сначала удалите мероприятие/группы; `--force` только осознанно);
-   - вернуть `LAB_WORKER_MAX` и бюджет к обычным значениям, реплики/HPA к прежним (`BACKEND_REPLICAS`, `PLATFORM_HPA`), применить платформу.
-6. Проверка чистоты: `get labgroups,labs -A` пусто, `get nodes` без лишних узлов группы, в списке пользователей нет `lt-<run>-`, настройки типа макс. размера команды вернулись, если менялись не на тестовом мероприятии.
+   Or the Job `tools/loadtest/loadtest-users-job.yaml` (fill in `<NS>`, `<IMAGE>`, `<PG>`, `<RUN>`; `args` has `--dry-run` by default, remove it for a real deletion). Result: the accounts are soft-deleted (the address is freed, name and email cleared), sessions revoked. Running it again is safe. The regular cleanup of deleted accounts removes the rest in the database.
+4. Files with secrets: `shred -u "$OUT/$RUN.json"` (or `rm -P`) and delete `$RUN-*.log` if they contain addresses.
+5. Return the lab worker group:
+   - with CA running the nodes leave by themselves after the scale-down delay (by default about 10 minutes idle); check `make aws asg ARGS=status`;
+   - if you raised them by hand or CA did not scale down: `make aws asg ARGS='desired=0'` (the script refuses to go down while labs are alive, delete the event/groups first; `--force` only deliberately);
+   - return `LAB_WORKER_MAX` and the budget to the usual values, replicas/HPA to the previous ones (`BACKEND_REPLICAS`, `PLATFORM_HPA`), apply the platform.
+6. Cleanliness check: `get labgroups,labs -A` is empty, `get nodes` has no extra group nodes, the user list has no `lt-<run>-`, settings such as the maximum team size are restored if they were changed anywhere other than on the test event.
 
-## Параметры `loadtest`
+## `loadtest` parameters
 
-| Флаг | По умолчанию | Смысл |
+| Flag | Default | Meaning |
 |---|---|---|
-| `--domain`, `--confirm-domain` | нет | домен стенда; второй обязан совпасть |
-| `--event-slug` | нет | тег мероприятия (сайт `<slug>.<domain>`) |
-| `--creds` | нет | файл от `loadtest-users create` |
-| `--teams`, `--members`, `--members-min` | 14, 15, равно `--members` | команды и размер (размер случайный в диапазоне, зависит от `--seed`) |
-| `--account-offset` | 0 | пропустить аккаунты файла |
+| `--domain`, `--confirm-domain` | none | stand domain; the second must match |
+| `--event-slug` | none | event tag (site `<slug>.<domain>`) |
+| `--creds` | none | file from `loadtest-users create` |
+| `--teams`, `--members`, `--members-min` | 14, 15, equal to `--members` | teams and size (the size is random within the range, depends on `--seed`) |
+| `--account-offset` | 0 | skip the file's first accounts |
 | `--stage` | all | `prepare`, `run`, `all` |
-| `--ramp-up` | 2m | разнести старт участников |
-| `--prewarm` | 0 | минимум ожидания на странице до старта (иначе до `StartTime`) |
-| `--max-start-wait` | 3h | дольше этого до старта скрипт не ждёт |
-| `--duration` | 30m | сколько играть после старта |
-| `--lab-timeout` | 20m | сколько ждать `Ready` |
-| `--think-min/--think-max` | 8s/45s | паузы между действиями |
-| `--lab-poll`, `--results-poll`, `--warm-poll` | 5s, 30s, 30s | интервалы опроса |
-| `--correct-ratio`, `--max-wrong` | 0.35, 3 | доля верных ответов (если флаг известен) и лимит неверных |
-| `--flags`, `--live-token`, `--live-viewers` | пусто, пусто, 3 | флаги, токен экрана, зрителей |
-| `--form-teams` | true | капитан закрывает состав |
-| `--team-fields` | пусто | JSON дополнительных полей команды |
-| `--abort-error-rate` | 0.5 | авто-остановка |
-| `--api-url`, `--api-host`, `--insecure` | нет | локальный стенд (`http://127.0.0.1:18080`, Host `api.<domain>`) |
-| `--report` | нет | JSON отчёта |
+| `--ramp-up` | 2m | spread out the participants' start |
+| `--prewarm` | 0 | minimum wait on the page before the start (otherwise until `StartTime`) |
+| `--max-start-wait` | 3h | the script does not wait longer than this before the start |
+| `--duration` | 30m | how long to play after the start |
+| `--lab-timeout` | 20m | how long to wait for `Ready` |
+| `--think-min/--think-max` | 8s/45s | pauses between actions |
+| `--lab-poll`, `--results-poll`, `--warm-poll` | 5s, 30s, 30s | polling intervals |
+| `--correct-ratio`, `--max-wrong` | 0.35, 3 | share of correct answers (if the flag is known) and the wrong-answer limit |
+| `--flags`, `--live-token`, `--live-viewers` | empty, empty, 3 | flags, screen token, viewers |
+| `--form-teams` | true | the captain closes the roster |
+| `--team-fields` | empty | JSON of extra team fields |
+| `--abort-error-rate` | 0.5 | automatic stop |
+| `--api-url`, `--api-host`, `--insecure` | none | local stand (`http://127.0.0.1:18080`, Host `api.<domain>`) |
+| `--report` | none | JSON report |
 
-Локальный дымовой прогон (повторить на своей машине): Postgres в Docker, `.env` с `ENV=development`, `DOMAIN=stand.example.com`, `CAPTCHA_PROVIDER=none` и секретами, `go run ./cmd/seed --start-in 4m --event-tag seedload`, затем `loadtest-users create`, `loadtest --api-url http://127.0.0.1:18080`.
+Local smoke run (repeat on your own machine): Postgres in Docker, `.env` with `ENV=development`, `DOMAIN=stand.example.com`, `CAPTCHA_PROVIDER=none` and the secrets, `go run ./cmd/seed --start-in 4m --event-tag seedload`, then `loadtest-users create`, `loadtest --api-url http://127.0.0.1:18080`.

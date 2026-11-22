@@ -8,7 +8,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	eventAnalyticsUseCase "github.com/cybericebox/daemon/internal/useCase/eventAnalytics"
+	eventAnalyticsUseCase "github.com/cybericebox/backend/internal/useCase/eventAnalytics"
 )
 
 func TestOverviewFeedIsSerialized(t *testing.T) {

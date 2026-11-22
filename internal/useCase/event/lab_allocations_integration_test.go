@@ -3,13 +3,13 @@ package event_test
 import (
 	"context"
 	"encoding/json"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	"github.com/cybericebox/daemon/internal/delivery/repository/resourceCalendarRepo"
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	calModel "github.com/cybericebox/daemon/internal/model/resourceCalendar"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/delivery/repository/resourceCalendarRepo"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	calModel "github.com/cybericebox/backend/internal/model/resourceCalendar"
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 	"testing"
@@ -279,4 +279,34 @@ func TestManagedInitialReadinessAdoptsUIDButRequiresExactRunningCertificate(t *t
 	require.True(t, current.RuntimeReady)
 	require.Equal(t, current.Revision, current.ObservedRevision)
 	require.EqualValues(t, 0, f.readiness(t, f.blueID, f.infraOne), "missing current ACL certificate must still prevent publication")
+}
+
+// khctf: with an unplaced part in the reservation the placed teams were refused too. Now the placed team is
+// admitted and only the team beyond the placed units waits.
+func TestAdmissionIsPerTeamWhileTheReservationHasAnUnplacedPart(t *testing.T) {
+	f := newStandFixture(t)
+	f.attachSharedSet(t)
+	f.uc.SetAllocationAccounting(true)
+	f.pass(t)
+	ctx := context.Background()
+	now := time.Now()
+	r, err := calModel.NewEventReservation(calModel.EventInput{EventID: f.eventID, Window: calModel.Window{Start: now.Add(-time.Hour), End: now.Add(time.Hour)}, Teams: 2, PerTeam: calModel.Amount{CPUMillicores: 1125, MemoryBytes: 896 << 20}}, f.ownerID, now)
+	require.NoError(t, err)
+	r.SetPlacement([]calModel.Share{{AgentID: uuid.Must(uuid.NewV7()), Units: 1}}, 1, now)
+	require.NoError(t, resourceCalendarRepo.New(f.db.Queries).CreateReservation(ctx, r))
+	rows, err := f.db.Queries.ListEventLabAllocations(ctx, f.eventID)
+	require.NoError(t, err)
+	var blue, red uuid.UUID
+	for _, row := range rows {
+		switch {
+		case row.EventTeamID == f.blueID && blue == uuid.Nil:
+			blue = row.ID
+		case row.EventTeamID == f.redID && red == uuid.Nil:
+			red = row.ID
+		}
+	}
+	need := eventLabModel.Compute{CPUMillicores: 750, MemoryBytes: 512 << 20}
+	require.NoError(t, f.uc.AdmitEventLabStart(ctx, f.eventID, f.blueID, blue, need, 0), "the placed team is admitted")
+	err = f.uc.AdmitEventLabStart(ctx, f.eventID, f.redID, red, need, 0)
+	require.ErrorIs(t, err, calModel.ErrNotEnoughReserved.Err(), "the team beyond the placed units waits")
 }

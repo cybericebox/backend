@@ -7,9 +7,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	resourcesModel "github.com/cybericebox/daemon/internal/model/resources"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	resourcesModel "github.com/cybericebox/backend/internal/model/resources"
 )
 
 func TestInitialGroupAllocationKeepsGroupPodsGuaranteed(t *testing.T) {

@@ -7,15 +7,15 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/repository"
-	"github.com/cybericebox/daemon/internal/delivery/repository/retentionRepo"
-	retentionUseCase "github.com/cybericebox/daemon/internal/useCase/retention"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/repository"
+	"github.com/cybericebox/backend/internal/delivery/repository/retentionRepo"
+	retentionUseCase "github.com/cybericebox/backend/internal/useCase/retention"
 )
 
 // RunEraseLabTelemetry is the `erase-lab-telemetry <user id>` subcommand: it erases one person from the lab
 // telemetry on request (an objection), whether or not the account still exists. The VPN client name becomes a random
-// pseudonym in every table (minutes, journal, raw rows, current state, archive); IPs and counters stay. It does not
+// pseudonym in every table (minutes, journal, raw rows, current state, archive); the person's IPs are erased as well (erase_ip, set by an objection), counters stay. It does not
 // migrate (the server does) and refuses a database whose schema is not current. The summary goes to out; it never
 // prints the pseudonym, so nothing ties the person to it outside the database.
 func RunEraseLabTelemetry(ctx context.Context, cfg *config.Config, userID string, out io.Writer) error {

@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 	"github.com/gofrs/uuid"
 )
 
@@ -35,7 +35,10 @@ func TestParticipantRuntimeOmitsSchedulerDiagnostics(t *testing.T) {
 	}{{"Queued", false}, {"Running", true}} {
 		t.Run(state.phase, func(t *testing.T) {
 			status := exerciseModel.LabDeployStatus{Phase: state.phase, Ready: state.ready,
-				VPNCIDR: "10.8.0.0/24", InternetCIDR: "10.9.0.0/24",
+				Gateways: []exerciseModel.LabDeployedGateway{
+					{Name: "attack", Kind: "vpn", CIDR: "10.8.0.0/24", Ready: true, ReverseConnections: true, Reverse: "allowed"},
+					{Name: "out", Kind: "internet", CIDR: "10.9.0.0/24", Ready: true},
+				},
 				Access: []exerciseModel.LabAccess{{Device: "web", Port: 80, Protocol: "http", URL: "http://10.8.0.2"}},
 				Queue:  &exerciseModel.LabQueue{Position: 2, Length: 8, Reason: "NodeStarting", Message: "private scheduler detail", Pods: 4, Pending: 2, Attempt: 3, RetryAt: at, WaitingSince: at},
 			}
@@ -66,5 +69,32 @@ func TestParticipantRuntimeOmitsSchedulerDiagnostics(t *testing.T) {
 				t.Fatalf("generic runtime status or task access lost: %s", w.Body.String())
 			}
 		})
+	}
+}
+
+// A poll that refreshes the description addresses must never be answered from a cache.
+func TestParticipantRuntimeIsNeverCached(t *testing.T) {
+	eventID, userID, challengeID := uuid.Must(
+		uuid.NewV7(),
+	), uuid.Must(
+		uuid.NewV7(),
+	), uuid.Must(
+		uuid.NewV7(),
+	)
+	h := NewEventSelfAPIHandler(
+		runtimeContractUseCase{eventID: eventID, userID: userID, challengeID: challengeID},
+		allowAllProtection{},
+	)
+	w := httptest.NewRecorder()
+	participantPagesRouter(
+		h,
+		userID,
+		eventID,
+	).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/events/"+eventID.String()+"/teams/challenges/"+challengeID.String()+"/lab", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("runtime status=%d body=%s", w.Code, w.Body.String())
+	}
+	if got := w.Header().Get("Cache-Control"); got != "private, no-store" {
+		t.Fatalf("Cache-Control = %q, want private, no-store", got)
 	}
 }

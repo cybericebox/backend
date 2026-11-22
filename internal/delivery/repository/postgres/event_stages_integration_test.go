@@ -13,12 +13,13 @@ import (
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/challengeAttemptRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/challengeAttemptRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
+	"github.com/cybericebox/backend/internal/model/usertext"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 // stT0 is the start of the seeded event (anSeed: 10:00-14:00).
@@ -188,7 +189,7 @@ func TestStagePhaseGatesBoardAccessAndHints(t *testing.T) {
 		{"closed", stH(3), true, 3, true, false},
 	}
 	for _, c := range cases {
-		board, err := db.Queries.ListTeamBoardChallenges(ctx, postgres.ListTeamBoardChallengesParams{EventTeamID: f.team, PublishedOnly: true, At: c.at})
+		board, err := db.Queries.ListTeamBoardChallenges(ctx, postgres.ListTeamBoardChallengesParams{EventTeamID: f.team, PublishedOnly: true, At: c.at, OtherGroupName: usertext.UngroupedChallenges})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -199,7 +200,7 @@ func TestStagePhaseGatesBoardAccessAndHints(t *testing.T) {
 		if found && (row.StagePhase != c.phase || !row.StageID.Valid || row.StageID.UUID != stage) {
 			t.Fatalf("%s: row phase=%d stage=%v", c.name, row.StagePhase, row.StageID)
 		}
-		moderators, err := db.Queries.ListTeamBoardChallenges(ctx, postgres.ListTeamBoardChallengesParams{EventTeamID: f.moderators, PublishedOnly: false, At: c.at})
+		moderators, err := db.Queries.ListTeamBoardChallenges(ctx, postgres.ListTeamBoardChallengesParams{EventTeamID: f.moderators, PublishedOnly: false, At: c.at, OtherGroupName: usertext.UngroupedChallenges})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -240,11 +241,11 @@ func TestEmptyCategoriesAbsentFromBoard(t *testing.T) {
 	rtExec(t, db, `UPDATE event_challenges SET group_id = $2 WHERE id = $1`, f.challenge, group)
 	stage := stMustStage(t, db, f.event, "Later", 2, 3, false)
 	rtExec(t, db, `UPDATE event_exercises SET stage_id = $2 WHERE id = $1`, stSetOf(t, db, f.challenge), stage)
-	board, err := db.Queries.ListTeamBoardChallenges(ctx, postgres.ListTeamBoardChallengesParams{EventTeamID: f.team, PublishedOnly: true, At: stH(1)})
+	board, err := db.Queries.ListTeamBoardChallenges(ctx, postgres.ListTeamBoardChallengesParams{EventTeamID: f.team, PublishedOnly: true, At: stH(1), OtherGroupName: usertext.UngroupedChallenges})
 	if err != nil || len(board) != 0 {
 		t.Fatalf("an upcoming stage's task must not reach the board, so its group is absent: %d rows err=%v", len(board), err)
 	}
-	board, err = db.Queries.ListTeamBoardChallenges(ctx, postgres.ListTeamBoardChallengesParams{EventTeamID: f.team, PublishedOnly: true, At: stH(2.5)})
+	board, err = db.Queries.ListTeamBoardChallenges(ctx, postgres.ListTeamBoardChallengesParams{EventTeamID: f.team, PublishedOnly: true, At: stH(2.5), OtherGroupName: usertext.UngroupedChallenges})
 	if err != nil || len(board) != 1 || board[0].GroupName != "Hidden group" {
 		t.Fatalf("once the stage opens the group shows with its task: %+v err=%v", board, err)
 	}
@@ -472,7 +473,7 @@ SELECT $1, event_exercise_id, $2, order_index + 1, points, hints_enabled, true, 
 	}
 	// the board shows the practice solve to the team
 	rtExec(t, db, `UPDATE event_challenges SET published = true`)
-	board, err := db.Queries.ListTeamBoardChallenges(ctx, postgres.ListTeamBoardChallengesParams{EventTeamID: f.team, PublishedOnly: true, At: stH(1)})
+	board, err := db.Queries.ListTeamBoardChallenges(ctx, postgres.ListTeamBoardChallengesParams{EventTeamID: f.team, PublishedOnly: true, At: stH(1), OtherGroupName: usertext.UngroupedChallenges})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -16,13 +16,13 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/middleware"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/sse"
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/sse"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 // The screen link check of the fake use case: only this token opens the
@@ -50,8 +50,8 @@ func (f fakeUseCase) GetLiveScreen(ctx context.Context, eventID uuid.UUID, token
 		return eventUseCase.LiveScreenView{}, err
 	}
 	opens := time.Date(2026, 10, 19, 10, 0, 0, 0, time.UTC)
-	return eventUseCase.LiveScreenView{Event: eventUseCase.EventInfoView{EventID: eventID, Name: "Screen"}, ScreenID: fakeScreenID, ScreenName: "Фойє", Layout: eventContentModel.DefaultLiveLayout(),
-		Stages: []eventUseCase.LiveScreenStageView{{Name: "Етап 1", OpensAt: opens, ClosesAt: opens.Add(2 * time.Hour)}}}, nil
+	return eventUseCase.LiveScreenView{Event: eventUseCase.EventInfoView{EventID: eventID, Name: "Screen"}, ScreenID: fakeScreenID, ScreenName: "Foyer", Layout: eventContentModel.DefaultLiveLayout(),
+		Stages: []eventUseCase.LiveScreenStageView{{Name: "Stage 1", OpensAt: opens, ClosesAt: opens.Add(2 * time.Hour)}}}, nil
 }
 
 func (f fakeUseCase) GetLiveScreenVersion(ctx context.Context, eventID uuid.UUID, token string) (eventUseCase.LiveScreenVersionView, error) {
@@ -174,8 +174,8 @@ func TestLiveScreenReturnsTheEventLayoutAndStages(t *testing.T) {
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/live-screen?token="+fakeScreenToken, nil))
 	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"Name":"Screen"`) || !strings.Contains(w.Body.String(), `"widgets"`) ||
-		!strings.Contains(w.Body.String(), `"Stages":[{"Name":"Етап 1","OpensAt":"2026-10-19T10:00:00Z","ClosesAt":"2026-10-19T12:00:00Z"}]`) ||
-		!strings.Contains(w.Body.String(), `"Screen":{"ID":"`+fakeScreenID.String()+`","Name":"Фойє"}`) {
+		!strings.Contains(w.Body.String(), `"Stages":[{"Name":"Stage 1","OpensAt":"2026-10-19T10:00:00Z","ClosesAt":"2026-10-19T12:00:00Z"}]`) ||
+		!strings.Contains(w.Body.String(), `"Screen":{"ID":"`+fakeScreenID.String()+`","Name":"Foyer"}`) {
 		t.Fatalf("live screen = %d %s", w.Code, w.Body.String())
 	}
 	w = httptest.NewRecorder()
@@ -340,7 +340,7 @@ func TestScreenLinkOpensItsOwnUnpublishedEventOnly(t *testing.T) {
 	h := NewEventSelfAPIHandler(fakeUseCase{}, nil)
 	serve := func(eventID uuid.UUID, origin, token string) *httptest.ResponseRecorder {
 		r := gin.New()
-		resolve := middleware.ResolveEventTenant(unpublishedResolver{eventID: eventID}, config.HostsConfig{Main: "example.test", API: "api.example.test", ID: "id.example.test", Admin: "admin.example.test", Exercises: "exercises.example.test", EventDomain: "example.test"})
+		resolve := middleware.ResolveEventTenant(unpublishedResolver{eventID: eventID}, config.HostsConfig{Root: "example.test", API: "api.example.test", ID: "id.example.test", Admin: "admin.example.test", Exercises: "exercises.example.test", EventDomain: "example.test"})
 		r.GET("/api/events/self/live-screen", h.liveScreenGate, resolve, h.liveScreen)
 		req := httptest.NewRequest(http.MethodGet, "/api/events/self/live-screen?token="+token, nil)
 		req.Header.Set("Origin", origin)

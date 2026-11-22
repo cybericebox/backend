@@ -10,17 +10,17 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	exercise "github.com/cybericebox/daemon/internal/useCase/exercise"
-	"github.com/cybericebox/daemon/pkg/secret"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	exercise "github.com/cybericebox/backend/internal/useCase/exercise"
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
 // exportUnder exports the fixture task (four distinct attachments of 7-20 bytes, a document of a few KiB) under lim.
 func exportUnder(t *testing.T, lim exerciseModel.ArchiveLimits) ([]byte, error) {
 	t.Helper()
 	q := postgresMocks.NewMockQuerier(gomock.NewController(t))
-	expectExport(t, q, exportExerciseID, "Експорт", exportFixtureVersions())
+	expectExport(t, q, exportExerciseID, "Export", exportFixtureVersions())
 	uc := exercise.NewExerciseUseCase(exercise.Dependencies{Repo: q, Media: exportFixtureMedia()})
 	return uc.ExportExerciseArchive(context.Background(), exportExerciseID, exercise.ExportOptions{}, lim)
 }
@@ -73,7 +73,7 @@ func TestExportThenImport_HighlyCompressibleFile(t *testing.T) {
 	require.NoError(t, err)
 	for _, opts := range []exercise.ExportOptions{{}, {IncludeSecrets: true, Password: "pw"}} {
 		q := postgresMocks.NewMockQuerier(gomock.NewController(t))
-		expectExport(t, q, exportExerciseID, "Експорт", exportFixtureVersions())
+		expectExport(t, q, exportExerciseID, "Export", exportFixtureVersions())
 		uc := exercise.NewExerciseUseCase(exercise.Dependencies{Repo: q, Media: media, Cipher: cipher})
 		data, err := uc.ExportExerciseArchive(context.Background(), exportExerciseID, opts, exercise.DefaultLimits())
 		require.NoError(t, err)

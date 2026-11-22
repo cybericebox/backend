@@ -6,7 +6,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/model"
+	"github.com/cybericebox/backend/internal/model"
 )
 
 // MaxBulkExercises caps the tasks of one bulk request of the catalog table. The routes refuse more with 400

@@ -1,7 +1,7 @@
 package labTraffic
 
 import (
-	labBindingModel "github.com/cybericebox/daemon/internal/model/labBinding"
+	labBindingModel "github.com/cybericebox/backend/internal/model/labBinding"
 	"testing"
 	"time"
 

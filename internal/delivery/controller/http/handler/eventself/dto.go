@@ -6,12 +6,12 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/handler/labview"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	siteBannerModel "github.com/cybericebox/daemon/internal/model/siteBanner"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
-	"github.com/cybericebox/daemon/pkg/pagination"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/handler/labview"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	siteBannerModel "github.com/cybericebox/backend/internal/model/siteBanner"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
+	"github.com/cybericebox/backend/pkg/pagination"
 )
 
 type ownChallengeResponse struct {
@@ -285,9 +285,6 @@ type publicEventPageContentResponse struct {
 	Document any    `json:"Document"`
 }
 
-func toPublicEventContentResponse(v eventUseCase.PublicEventContentView) publicEventContentResponse {
-	return publicEventContentResponse{Landing: v.Landing, Live: v.Live, Variables: v.Variables}
-}
 func toPublicEventPageResponse(v eventUseCase.PublicEventPageView) publicEventPageResponse {
 	return publicEventPageResponse{
 		Page:      publicEventPageContentResponse{Slug: v.Page.Slug, Title: v.Page.Title, Document: v.Page.Document},
@@ -324,12 +321,14 @@ func toParticipantFormAnswerResponse(v eventUseCase.ParticipantFormAnswerView) p
 }
 
 type labStatusResponse struct {
-	Lab          *labview.ParticipantLabResponse `json:"Lab"`
-	Phase        string                          `json:"Phase"`
-	Ready        bool                            `json:"Ready"`
-	VPNCIDR      string                          `json:"VPNCIDR"`
-	InternetCIDR string                          `json:"InternetCIDR"`
-	Access       []labAccessResponse             `json:"Access"`
+	// State: ready | starting | restarting | unavailable | failed | closed. Access holds addresses only when ready.
+	State string                          `json:"State"`
+	Lab   *labview.ParticipantLabResponse `json:"Lab"`
+	Phase string                          `json:"Phase"`
+	Ready bool                            `json:"Ready"`
+	// Gateways are the VPN entries and Internet exits of the lab with their /24 and readiness; empty for a lab without any.
+	Gateways []labview.GatewayResponse `json:"Gateways"`
+	Access   []labAccessResponse       `json:"Access"`
 }
 
 type labVPNConfigResponse struct {
@@ -373,13 +372,6 @@ func toScoreboardEntryResponse(v eventUseCase.ScoreboardEntryView) scoreboardEnt
 }
 func toOwnScoreTimelineEntryResponse(v eventUseCase.OwnScoreTimelineEntryView) ownScoreTimelineEntryResponse {
 	return ownScoreTimelineEntryResponse{EventChallengeID: v.EventChallengeID, Points: v.Points, SolvedAt: v.SolvedAt}
-}
-func toOwnResultsResponse(v eventUseCase.OwnResultsView) ownResultsResponse {
-	timeline := make([]ownScoreTimelineEntryResponse, 0, len(v.Timeline))
-	for _, item := range v.Timeline {
-		timeline = append(timeline, toOwnScoreTimelineEntryResponse(item))
-	}
-	return ownResultsResponse{Entry: toScoreboardEntryResponse(v.Entry), Timeline: timeline}
 }
 func toOwnTeamResultsResponse(v eventUseCase.OwnTeamResultsView) ownTeamResultsResponse {
 	timeline := make([]ownScoreTimelineEntryResponse, 0, len(v.Timeline))

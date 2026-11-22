@@ -5,7 +5,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 type ExerciseView struct {
@@ -19,7 +19,7 @@ type ExerciseView struct {
 
 	ArchivedAt *time.Time
 	// HasChanges: the working copy differs from the published version (or
-	// nothing is published yet). Drives the "Опубліковано · є зміни" badge.
+	// nothing is published yet). Drives the "published, with changes" badge.
 	HasChanges bool
 
 	ExerciseScopeView
@@ -31,6 +31,13 @@ type ExerciseView struct {
 	UpdatedAt     time.Time
 	UpdatedBy     *uuid.UUID
 	UpdatedByName string
+
+	// DraftRevision is the revision of the working copy ("" when there is none): opaque, to be sent back with the next
+	// write of it. DraftUpdatedAt / DraftUpdatedBy(Name) are when and by whom it was last saved (the "being edited by" hint).
+	DraftRevision      string
+	DraftUpdatedAt     *time.Time
+	DraftUpdatedBy     *uuid.UUID
+	DraftUpdatedByName string
 }
 
 type ExerciseListItem struct {
@@ -80,6 +87,11 @@ type ExerciseScopeView struct {
 	OriginEventID  *uuid.UUID
 	ForkedFrom     *ExerciseForkSource
 	Infrastructure bool
+	// UsesConsole: some device of the published version has a terminal access entry (a console). Not meant for events.
+	UsesConsole bool
+	// HasMissingSecrets: the visible version has secret variables with no value yet ("created automatically, these values are
+	// still needed"); the version page lists them.
+	HasMissingSecrets bool
 	// Resources is the total of the published version (min and max over its variants); zero without one.
 	// ResourceHeavy: an approved elevation holds a device of the published version above the platform frame.
 	Resources         ResourceRange
@@ -281,12 +293,22 @@ type VersionView struct {
 	// FileHashes is the sha256 hex of each attached file's bytes by file id.
 	SecretGroups [][][]int
 	FileHashes   map[uuid.UUID]string
+	// MissingSecrets lists the secret variables that have no value yet (a task made automatically declares them empty);
+	// HasMissingSecrets is whether there are any. Publishing is refused while there are.
+	MissingSecrets    []exerciseModel.MissingSecret
+	HasMissingSecrets bool
 
 	VariantCount int
 	CreatedAt    time.Time
 	CreatedBy    *uuid.UUID
 	AuthorName   string // first and last name of CreatedBy; "" when unknown
 	PublishedAt  *time.Time
+	// Revision is the opaque revision of the version (for the working copy: what the next write must send back);
+	// UpdatedAt/UpdatedBy(Name) are when and by whom it was last written.
+	Revision      string
+	UpdatedAt     time.Time
+	UpdatedBy     *uuid.UUID
+	UpdatedByName string
 	// Resources: the totals of the version (min and max over its variants, per variant), the devices outside
 	// the platform frame and whether the task is resource-heavy.
 	Resources VersionResources
@@ -325,5 +347,11 @@ func toVersionView(v exerciseModel.ExerciseVersion) VersionView {
 		CreatedAt:    v.CreatedAt,
 		CreatedBy:    uuidPtr(v.CreatedBy),
 		PublishedAt:  v.PublishedAt,
+		Revision:     v.Revision(),
+		UpdatedAt:    v.UpdatedAt,
+		UpdatedBy:    uuidPtr(v.UpdatedBy),
+		// Computed from the stored content before it is masked.
+		MissingSecrets:    exerciseModel.MissingSecrets(v.Variants),
+		HasMissingSecrets: len(exerciseModel.MissingSecrets(v.Variants)) > 0,
 	}
 }

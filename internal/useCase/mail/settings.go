@@ -4,20 +4,22 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"time"
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/dispatchRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	mailModel "github.com/cybericebox/daemon/internal/model/mail"
-	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
-	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
-	"github.com/cybericebox/daemon/pkg/email"
-	liberr "github.com/cybericebox/daemon/pkg/err"
-	"github.com/cybericebox/daemon/pkg/tools"
+	"github.com/cybericebox/backend/internal/delivery/repository/dispatchRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	mailModel "github.com/cybericebox/backend/internal/model/mail"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
+	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
+	"github.com/cybericebox/backend/internal/model/usertext"
+	"github.com/cybericebox/backend/pkg/email"
+	liberr "github.com/cybericebox/backend/pkg/err"
+	"github.com/cybericebox/backend/pkg/tools"
 )
 
 const (
@@ -363,7 +365,7 @@ func (u *MailUseCase) PreviewPlatformFooter(ctx context.Context, content json.Ra
 	if err != nil {
 		return FooterPreview{}, err
 	}
-	footer := renderFooter(doc, identity.ReplyToAddress, mailModel.PlatformSite(u.domain))
+	footer := renderFooter(doc, identity.ReplyToAddress, u.siteURL, u.privacyURL)
 	return FooterPreview{HTML: footer.HTML, Text: footer.Text}, nil
 }
 
@@ -455,6 +457,9 @@ func (u *MailUseCase) ReorderPlatformProviders(ctx context.Context, ids []uuid.U
 // Stored-provider form tests count against its allowance and update its error.
 // A new connection's successful tests are imported when that user saves it.
 func (u *MailUseCase) TestPlatformProvider(ctx context.Context, id *uuid.UUID, in *mailModel.SMTPInput, userID uuid.UUID) (TestResult, error) {
+	if err := u.claimTestMail(userID); err != nil {
+		return TestResult{}, err
+	}
 	res, err := u.testPlatformProvider(ctx, id, in, userID)
 	if err == nil {
 		u.journalTest(ctx, userID, nil, dispatchModel.TransportPlatform, res)
@@ -515,7 +520,7 @@ func (u *MailUseCase) testPlatformProvider(ctx context.Context, id *uuid.UUID, i
 		}
 		t = route.transports[0]
 	}
-	return u.testSend(ctx, t, t.identity, recipient, "платформи"), nil
+	return u.testSend(ctx, t, t.identity, recipient, usertext.TestMailLabelPlatform), nil
 }
 
 // --- Event ---
@@ -671,7 +676,7 @@ func (u *MailUseCase) testEventSMTP(ctx context.Context, eventID uuid.UUID, in *
 		return TestResult{Recipient: recipient, Error: "Event SMTP is not configured"}, nil
 	}
 	t.source = dispatchModel.TransportEvent
-	return u.testSend(ctx, t, identity, recipient, "заходу"), nil
+	return u.testSend(ctx, t, identity, recipient, usertext.TestMailLabelEvent), nil
 }
 
 // ListEventMailJournal is the delivery journal restricted to one Event.
@@ -853,9 +858,9 @@ func (u *MailUseCase) testSend(ctx context.Context, t transport, identity mailMo
 		SMTPConnectionKey: t.smtpConnectionKey, SMTPProviderID: t.providerID}
 	msg := withIdentity(email.Message{
 		To:      recipient,
-		Subject: "Перевірка пошти Cyber ICE Box",
-		HTML:    "<p>Це тестовий лист: налаштування SMTP " + label + " працюють.</p>",
-		Text:    "Це тестовий лист: налаштування SMTP " + label + " працюють.",
+		Subject: usertext.TestMailSubject,
+		HTML:    usertext.TestMailHTML(label),
+		Text:    usertext.TestMailText(label),
 	}, identity)
 	if err := u.send(ctx, t, msg); err != nil {
 		result.Error = err.Error()
@@ -863,4 +868,26 @@ func (u *MailUseCase) testSend(ctx context.Context, t transport, identity mailMo
 	}
 	result.Sent = true
 	return result
+}
+
+// testMailCooldown is the least time between two test emails of one administrator.
+const testMailCooldown = 10 * time.Second
+
+// claimTestMail admits a test email of the administrator, or refuses it with the seconds to wait.
+func (u *MailUseCase) claimTestMail(userID uuid.UUID) error {
+	u.testMu.Lock()
+	defer u.testMu.Unlock()
+	now := u.now()
+	if last, ok := u.testAt[userID]; ok && now.Sub(last) < testMailCooldown {
+		seconds := int64(math.Ceil((testMailCooldown - now.Sub(last)).Seconds()))
+		return mailModel.ErrTestMailTooSoon.WithDetail(liberr.DetailRetryAfterSeconds, seconds).
+			Err()
+	}
+	for id, at := range u.testAt {
+		if now.Sub(at) >= testMailCooldown {
+			delete(u.testAt, id)
+		}
+	}
+	u.testAt[userID] = now
+	return nil
 }

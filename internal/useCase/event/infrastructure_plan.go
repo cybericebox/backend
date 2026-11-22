@@ -5,10 +5,10 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/model"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventExerciseModel "github.com/cybericebox/daemon/internal/model/eventExercise"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	"github.com/cybericebox/backend/internal/model"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventExerciseModel "github.com/cybericebox/backend/internal/model/eventExercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 // EventInfrastructurePlan is a derived, non-secret preflight projection. It
@@ -25,11 +25,11 @@ type EventInfrastructurePlan struct {
 func infrastructurePlan(topologies []exerciseModel.Topology, laboratoriesAvailable bool) EventInfrastructurePlan {
 	plan := EventInfrastructurePlan{CanStart: true, LaboratoriesAvailable: laboratoriesAvailable}
 	for _, topology := range topologies {
-		if len(topology.Devices) == 0 {
+		if !topology.HasLab() {
 			continue
 		}
 		plan.HasDynamicLabs = true
-		if topology.VPN.Enabled {
+		if topology.HasGateway(exerciseModel.DeviceTypeVPNGateway) {
 			plan.RequiresVPN = true
 		}
 	}

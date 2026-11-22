@@ -1,6 +1,6 @@
 package auth
 
-import "github.com/cybericebox/daemon/pkg/password"
+import "github.com/cybericebox/backend/pkg/password"
 
 // PasswordPolicy returns the active password complexity rules (static, from config).
 func (u *AuthUseCase) PasswordPolicy() PasswordPolicy {

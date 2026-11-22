@@ -9,9 +9,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/participantRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	"github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/repository/participantRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/useCase/event"
 )
 
 func TestListParticipantsTable_DefaultsSortAndMapsQuery(t *testing.T) {
@@ -64,7 +64,7 @@ func TestListParticipantsTable_AnswerKeysLoadAnswersAndTeamSortsByName(t *testin
 
 	_, err := uc.ListParticipantsTable(context.Background(), event.ParticipantsTableQuery{
 		EventID: uuid.Must(uuid.NewV7()), Kind: participantRepo.KindAll, Sort: event.TableSort{Key: "@team"},
-		Filters: []event.AnswerFilter{{Key: "city", Op: event.AnswerFilterContains, Value: "Київ"}},
+		Filters: []event.AnswerFilter{{Key: "city", Op: event.AnswerFilterContains, Value: "Kyiv"}},
 	})
 	if err != nil {
 		t.Fatalf("ListParticipantsTable: %v", err)

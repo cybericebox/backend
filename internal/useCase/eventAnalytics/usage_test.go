@@ -8,8 +8,8 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventAnalyticsRepo"
-	eventAnalyticsModel "github.com/cybericebox/daemon/internal/model/eventAnalytics"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventAnalyticsRepo"
+	eventAnalyticsModel "github.com/cybericebox/backend/internal/model/eventAnalytics"
 )
 
 type usageFixture struct {
@@ -21,7 +21,7 @@ type usageFixture struct {
 	team       *uuid.UUID
 }
 
-// Default (empty) answers of the «Використання» reads for the shared fakeStore.
+// Default (empty) answers of the "Usage" reads for the shared fakeStore.
 func (s *fakeStore) UsageUsers(context.Context, uuid.UUID, *uuid.UUID) ([]eventAnalyticsRepo.UsageUser, error) {
 	return nil, nil
 }

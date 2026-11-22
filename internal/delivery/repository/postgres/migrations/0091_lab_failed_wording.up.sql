@@ -1,5 +1,5 @@
--- Owner wording (2026-09-29): the failure notice is «Лабораторія впала»,
--- never «стенд». Only the seeded platform texts change; a template an admin
+-- Owner wording (2026-09-29): the failure notice says the lab is down,
+-- never calls it a stand. Only the seeded platform texts change; a template an admin
 -- already edited keeps its wording.
 UPDATE notification_in_app_templates
 SET title = 'Лабораторія впала',

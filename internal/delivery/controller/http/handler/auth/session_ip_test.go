@@ -8,83 +8,28 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	authHandler "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/auth"
+	authHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/auth"
 )
 
-// The session keeps the client address only when it is trusted and public: X-Forwarded-For counts only from a
-// TRUSTED_PROXIES peer (gin's ClientIP), and a private, CGNAT, loopback or link-local result is dropped.
-func TestSignIn_SessionIPOnlyFromATrustedSourceAndPublic(t *testing.T) {
+// The session keeps the connection's peer address only when it is public; a forwarding header never counts, and a
+// private, CGNAT, loopback or link-local peer is dropped.
+func TestSignIn_SessionIPIsThePublicPeerNeverAHeader(t *testing.T) {
 	cases := []struct {
-		name    string
-		trusted []string
-		peer    string
-		xff     string
-		wantIP  string
+		name, peer, xff, wantIP string
 	}{
-		{
-			"no trusted proxy: the header is ignored, the pod peer is dropped",
-			nil,
-			"10.64.3.2:5000",
-			"203.0.113.9",
-			"",
-		},
-		{
-			"no trusted proxy: a public peer is the client, a spoofed header is ignored",
-			nil,
-			"198.51.100.4:5000",
-			"203.0.113.9",
-			"198.51.100.4",
-		},
-		{
-			"trusted ingress: the forwarded public client",
-			[]string{"10.0.0.0/8"},
-			"10.64.3.2:5000",
-			"203.0.113.9",
-			"203.0.113.9",
-		},
-		{
-			"trusted ingress: a forwarded private address is dropped",
-			[]string{"10.0.0.0/8"},
-			"10.64.3.2:5000",
-			"192.168.1.5",
-			"",
-		},
-		{
-			"trusted ingress: a forwarded CGNAT address is dropped",
-			[]string{"10.0.0.0/8"},
-			"10.64.3.2:5000",
-			"100.64.2.3",
-			"",
-		},
-		{
-			"trusted ingress: a public IPv6 client",
-			[]string{"10.0.0.0/8"},
-			"10.64.3.2:5000",
-			"2001:4860:4860::8888",
-			"2001:4860:4860::8888",
-		},
-		{
-			"trusted ingress: a link-local IPv6 is dropped",
-			[]string{"10.0.0.0/8"},
-			"10.64.3.2:5000",
-			"fe80::1",
-			"",
-		},
-		{
-			"an untrusted peer between: its own address, private, is dropped",
-			[]string{"10.0.0.0/8"},
-			"172.20.0.4:5000",
-			"203.0.113.9",
-			"",
-		},
-		{"loopback peer without a proxy", nil, "127.0.0.1:5000", "", ""},
-		{"IPv6 loopback peer", nil, "[::1]:5000", "", ""},
+		{"a pod peer is dropped, the header is ignored", "10.64.3.2:5000", "203.0.113.9", ""},
+		{"a public peer is the client, a spoofed header is ignored", "198.51.100.4:5000", "203.0.113.9", "198.51.100.4"},
+		{"a public IPv6 peer", "[2001:4860:4860::8888]:5000", "", "2001:4860:4860::8888"},
+		{"a CGNAT peer is dropped", "100.64.2.3:5000", "203.0.113.9", ""},
+		{"a link-local IPv6 peer is dropped", "[fe80::1]:5000", "", ""},
+		{"loopback peer", "127.0.0.1:5000", "", ""},
+		{"IPv6 loopback peer", "[::1]:5000", "", ""},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			gin.SetMode(gin.TestMode)
 			r := gin.New()
-			if err := r.SetTrustedProxies(c.trusted); err != nil {
+			if err := r.SetTrustedProxies(nil); err != nil {
 				t.Fatal(err)
 			}
 			uc := &fakeUC{cookie: "c", redirect: "l"}

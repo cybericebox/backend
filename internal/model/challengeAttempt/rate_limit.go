@@ -4,7 +4,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/cybericebox/daemon/pkg/err"
+	"github.com/cybericebox/backend/pkg/err"
 )
 
 // RateLimit bounds flag submissions in a sliding window: at most Attempts

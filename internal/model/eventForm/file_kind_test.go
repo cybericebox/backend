@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"testing"
 
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
 )
 
 func zipOf(t *testing.T, entries map[string]string) []byte {
@@ -60,7 +60,7 @@ func TestDetectFileKindUsesContent(t *testing.T) {
 		{"project.rar", []byte("Rar!\x1a\x07\x01\x00"), FileKindArchive},
 		{"project.tar", tarOf(), FileKindArchive},
 		{"project.tgz", []byte{0x1F, 0x8B, 0x08, 0x00}, FileKindArchive},
-		{"notes.txt", []byte("Привіт, світ\n"), FileKindText},
+		{"notes.txt", []byte("Héllo, wörld\n"), FileKindText},
 		{"README.md", []byte("\xEF\xBB\xBF# Title\n"), FileKindText},
 		{"list.csv", []byte("name,score\nA,1\n"), FileKindText},
 		{"letter.rtf", []byte(`{\rtf1\ansi Hello}`), FileKindText},

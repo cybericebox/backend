@@ -6,10 +6,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 type liveScreenLinkResponse struct {
@@ -174,7 +174,7 @@ func (h *Handler) serveRegenerateLiveScreenLink(ctx *gin.Context, screenID uuid.
 }
 
 // revokeLiveScreenLink godoc
-// @Summary Turn the first screen's link off («Вимкнути»)
+// @Summary Turn the first screen's link off (Turn off)
 // @Tags events
 // @Param id path string true "event ID"
 // @Success 204
@@ -184,7 +184,7 @@ func (h *Handler) revokeLiveScreenLink(ctx *gin.Context) {
 }
 
 // revokeLiveScreenLinkOf godoc
-// @Summary Turn a screen's link off («Вимкнути»)
+// @Summary Turn a screen's link off (Turn off)
 // @Tags events
 // @Param id path string true "event ID"
 // @Param screenID path string true "screen ID"

@@ -4,19 +4,19 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	imageRegistryModel "github.com/cybericebox/daemon/internal/model/imageRegistry"
-	imageRegistryUseCase "github.com/cybericebox/daemon/internal/useCase/imageRegistry"
+	imageRegistryModel "github.com/cybericebox/backend/internal/model/imageRegistry"
+	imageRegistryUseCase "github.com/cybericebox/backend/internal/useCase/imageRegistry"
 	"slices"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/exerciseRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
+	"github.com/cybericebox/backend/internal/delivery/repository/exerciseRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	userModel "github.com/cybericebox/backend/internal/model/user"
 	"github.com/gofrs/uuid"
 )
 
@@ -104,11 +104,14 @@ func (u *ExerciseUseCase) currentImportActor(ctx context.Context, q interface {
 
 // confirmImportTargets performs no writes and is repeated under sorted parent
 // locks after uploads. Its revision binds source bytes/snapshot + target state.
-func (u *ExerciseUseCase) confirmImportTargets(ctx context.Context, actor Actor, in CommitArchiveInput, tasks []ParsedExerciseArchive, choices map[string]ImportTarget, sourceHash string) error {
+func (u *ExerciseUseCase) confirmImportTargets(ctx context.Context, actor Actor, in CommitArchiveInput, tasks []ParsedExerciseArchive, choices map[string]ImportTarget, sourceHash string) (map[string]time.Time, error) {
+	// revisions is, per update target, the revision of the working copy the confirmation was made against (the zero time:
+	// there was none); the write that follows must still find exactly that.
+	revisions := map[string]time.Time{}
 	confirmed := map[string]ConfirmedImportUpdate{}
 	for _, c := range in.ConfirmedUpdates {
 		if c.ItemKey == "" || confirmed[c.ItemKey].ItemKey != "" || choices[c.ItemKey].Mode != "update" {
-			return importItemError(exerciseModel.ErrImportConfirmationRequired.Err(), c.ItemKey, "confirmation")
+			return nil, importItemError(exerciseModel.ErrImportConfirmationRequired.Err(), c.ItemKey, "confirmation")
 		}
 		confirmed[c.ItemKey] = c
 	}
@@ -116,31 +119,31 @@ func (u *ExerciseUseCase) confirmImportTargets(ctx context.Context, actor Actor,
 		choice := choices[task.ItemKey]
 		if choice.Mode == "new" {
 			if err := u.AuthorizeImport(ctx, actor, in.OwnerEventID); err != nil {
-				return importItemError(err, task.ItemKey, "target")
-			}
-			if err := u.requireImportedPublishable(ctx, task.Versions, in.OwnerEventID); err != nil {
-				return importItemError(err, task.ItemKey, "")
+				return nil, importItemError(err, task.ItemKey, "target")
 			}
 			continue
 		}
 		e, v, err := u.previewTarget(ctx, actor, choice.ExerciseID)
 		if err != nil {
-			return importItemError(err, task.ItemKey, "target")
+			return nil, importItemError(err, task.ItemKey, "target")
 		}
 		selected := workingImportVersion(task.Versions)
 		source := task.Versions[selected]
 		if err = u.requireInfrastructureAllowed(ctx, e, source.Variants); err != nil {
-			return importItemError(err, task.ItemKey, "target")
+			return nil, importItemError(err, task.ItemKey, "target")
 		}
 		c := confirmed[task.ItemKey]
 		if c.Revision == "" || (e.DraftVersionID.Valid && !c.ReplaceDraft) {
-			return importItemError(exerciseModel.ErrImportConfirmationRequired.Err(), task.ItemKey, "confirmation")
+			return nil, importItemError(exerciseModel.ErrImportConfirmationRequired.Err(), task.ItemKey, "confirmation")
 		}
 		if c.Revision != previewRevision(in.PreviewArchiveInput, sourceHash, task.ItemKey, selected, choice, e, v) {
-			return importItemError(exerciseModel.ErrImportConfirmationStale.Err(), task.ItemKey, "confirmation")
+			return nil, importItemError(exerciseModel.ErrImportConfirmationStale.Err(), task.ItemKey, "confirmation")
+		}
+		if e.DraftVersionID.Valid {
+			revisions[task.ItemKey] = v.UpdatedAt
 		}
 	}
-	return nil
+	return revisions, nil
 }
 
 type preparedArchiveCommit struct {
@@ -155,16 +158,8 @@ func (u *ExerciseUseCase) prepareArchiveCommit(ctx context.Context, actor Actor,
 		return nil, err
 	}
 	for i := range tasks {
-		if err = u.validateImportContent(&tasks[i], read.protected); err != nil {
+		if err = u.validateImportContent(ctx, &tasks[i], read.protected); err != nil {
 			return nil, importItemError(err, tasks[i].ItemKey, "")
-		}
-		for vi := range tasks[i].Versions {
-			v := &tasks[i].Versions[vi]
-			if v.Status.IsPublished() {
-				if err = v.ValidateForPublish(); err != nil {
-					return nil, importItemError(withImportedPath(err, vi, v.Variants), tasks[i].ItemKey, "")
-				}
-			}
 		}
 	}
 	choices, err := previewChoices(tasks, in.PreviewArchiveInput)
@@ -178,12 +173,29 @@ func (u *ExerciseUseCase) prepareArchiveCommit(ctx context.Context, actor Actor,
 			choices[task.ItemKey] = ImportTarget{ItemKey: task.ItemKey, Mode: "new"}
 		}
 	}
+	// An update keeps the identity of what is stored: the prepared copies are matched like the preview's.
+	for i := range tasks {
+		choice := choices[tasks[i].ItemKey]
+		if choice.Mode != "update" {
+			continue
+		}
+		_, stored, loadErr := u.previewTarget(ctx, actor, choice.ExerciseID)
+		if loadErr != nil {
+			return nil, importItemError(loadErr, tasks[i].ItemKey, "target")
+		}
+		if selected := workingImportVersion(tasks[i].Versions); selected >= 0 {
+			if _, _, err = importIdentity(&tasks[i].Versions[selected], stored); err != nil {
+				failure := model.ErrPlatform.WithError(err).WithMessage("Failed to match the import with the exercise").Err()
+				return nil, importItemError(failure, tasks[i].ItemKey, "")
+			}
+		}
+	}
 	_, hashes, err := u.inspectImportImages(ctx, tasks)
 	if err != nil {
 		return nil, err
 	}
 	sourceHash := previewSourceFingerprint(read, hashes)
-	if err = u.confirmImportTargets(ctx, actor, *in, tasks, choices, sourceHash); err != nil {
+	if _, err = u.confirmImportTargets(ctx, actor, *in, tasks, choices, sourceHash); err != nil {
 		return nil, err
 	}
 	return &preparedArchiveCommit{tasks: tasks, choices: choices, sourceHash: sourceHash}, nil
@@ -198,30 +210,64 @@ func (u *ExerciseUseCase) commitArchiveRead(ctx context.Context, actor Actor, in
 	progress.tasksTotal(ctx, len(tasks))
 	// All archive/policy/confirmation checks precede external staging. The final
 	// check below uses these original snapshots before generated IDs are stored.
-	refs, err := u.pushArchiveImages(ctx, tasks, actor.UserID, progress)
-	if err != nil {
-		return ArchiveImportStart{}, err
-	}
 	// Keep the unmodified prepared source for exact revision recomputation; the
 	// stage copies are parsed independently to avoid aliasing IDs/ciphertext.
 	staged, err := parseArchiveRead(read)
 	if err != nil {
 		return ArchiveImportStart{}, err
 	}
+	reports := make(map[string]exerciseModel.ImportReport, len(staged))
 	for i := range staged {
-		if err = u.validateImportContent(&staged[i], read.protected); err != nil {
+		if err = u.validateImportContent(ctx, &staged[i], read.protected); err != nil {
 			return ArchiveImportStart{}, err
 		}
-		if choices[staged[i].ItemKey].Mode == "update" {
+		choice := choices[staged[i].ItemKey]
+		var report exerciseModel.ImportReport
+		if choice.Mode == "update" {
 			selected := workingImportVersion(staged[i].Versions)
 			staged[i].Versions = []exerciseModel.ExerciseVersion{staged[i].Versions[selected]}
+			target, stored, loadErr := u.previewTarget(ctx, actor, choice.ExerciseID)
+			if loadErr != nil {
+				return ArchiveImportStart{}, importItemError(loadErr, staged[i].ItemKey, "target")
+			}
+			diff, warnings, matchErr := importIdentity(&staged[i].Versions[0], stored)
+			if matchErr != nil {
+				failure := model.ErrPlatform.WithError(matchErr).WithMessage("Failed to match the import with the exercise").Err()
+				return ArchiveImportStart{}, importItemError(failure, staged[i].ItemKey, "")
+			}
+			if report, err = u.importReport(ctx, &target, staged[i].Versions[0], diff, warnings, false); err != nil {
+				return ArchiveImportStart{}, importItemError(err, staged[i].ItemKey, "")
+			}
+		} else if report, err = u.importReport(ctx, nil, staged[i].Versions[0], newImportDiff(staged[i].Versions[0]), nil, staged[i].SourceExerciseID == uuid.Nil); err != nil {
+			return ArchiveImportStart{}, importItemError(err, staged[i].ItemKey, "")
 		}
+		reports[staged[i].ItemKey] = report
 		if err = u.encryptImportedSecrets(staged[i].Versions); err != nil {
 			return ArchiveImportStart{}, err
 		}
+	}
+	// Registry references are fixed by digest before anything is pushed or uploaded: an image that cannot be resolved
+	// fails the import with nothing left behind (the pending archive images are not references and are not looked up).
+	pinDeadline := time.Now().Add(importPinBudget)
+	for i := range staged {
+		scope, scopeErr := u.importImageScope(ctx, in.OwnerEventID, choices[staged[i].ItemKey])
+		if scopeErr != nil {
+			return ArchiveImportStart{}, importItemError(scopeErr, staged[i].ItemKey, "target")
+		}
+		if err = u.pinImportImages(ctx, pinDeadline, scope, staged[i].Versions); err != nil {
+			return ArchiveImportStart{}, importItemError(err, staged[i].ItemKey, "")
+		}
+	}
+	refs, err := u.pushArchiveImages(ctx, tasks, actor.UserID, progress)
+	if err != nil {
+		return ArchiveImportStart{}, err
+	}
+	for i := range staged {
 		if err = replaceImageMarkers(staged[i].Versions, refs); err != nil {
 			return ArchiveImportStart{}, err
 		}
+	}
+	for i := range staged {
 		if err = u.copyImportedAttachments(ctx, &staged[i], actor.UserID); err != nil {
 			return ArchiveImportStart{}, err
 		}
@@ -270,7 +316,8 @@ func (u *ExerciseUseCase) commitArchiveRead(ctx context.Context, actor Actor, in
 	if err = session.lockArchiveImportSource(ctx, q, actor, in.PreviewArchiveInput); err != nil {
 		return ArchiveImportStart{}, err
 	}
-	if err = session.confirmImportTargets(ctx, actor, in, tasks, choices, sourceHash); err != nil {
+	revisions, err := session.confirmImportTargets(ctx, actor, in, tasks, choices, sourceHash)
+	if err != nil {
 		return ArchiveImportStart{}, err
 	}
 	result := ArchiveImportStart{Exercises: []ExerciseView{}, Results: []exerciseModel.ImportResult{}}
@@ -290,7 +337,7 @@ func (u *ExerciseUseCase) commitArchiveRead(ctx context.Context, actor Actor, in
 				mode = ImportModeUnchanged
 				result.Unchanged++
 			} else if err == nil {
-				view, err = session.storeStagedUpdate(ctx, choice.ExerciseID, parsed.Versions[0], actor.UserID)
+				view, err = session.storeStagedUpdate(ctx, choice.ExerciseID, parsed.Versions[0], actor.UserID, revisions[parsed.ItemKey])
 				result.Updated++
 			}
 		}
@@ -298,7 +345,8 @@ func (u *ExerciseUseCase) commitArchiveRead(ctx context.Context, actor Actor, in
 			return ArchiveImportStart{}, importItemError(err, parsed.ItemKey, "")
 		}
 		result.Exercises = append(result.Exercises, view)
-		result.Results = append(result.Results, exerciseModel.ImportResult{ItemKey: parsed.ItemKey, Mode: mode, ExerciseID: view.ID})
+		report := reports[parsed.ItemKey]
+		result.Results = append(result.Results, exerciseModel.ImportResult{ItemKey: parsed.ItemKey, Mode: mode, ExerciseID: view.ID, Report: &report})
 	}
 	if job != nil {
 		done := *job
@@ -309,7 +357,7 @@ func (u *ExerciseUseCase) commitArchiveRead(ctx context.Context, actor Actor, in
 		}
 		done.Finish(ids, u.timeNow())
 		if progress != nil {
-			done.Progress = progress.job.Progress
+			done.Progress = progress.current()
 			done.Finish(ids, u.timeNow())
 		}
 		n, saveErr := session.exercises.SaveImportJob(ctx, done)
@@ -326,7 +374,7 @@ func (u *ExerciseUseCase) commitArchiveRead(ctx context.Context, actor Actor, in
 	return result, nil
 }
 
-func (u *ExerciseUseCase) storeStagedUpdate(ctx context.Context, id uuid.UUID, source exerciseModel.ExerciseVersion, by uuid.UUID) (ExerciseView, error) {
+func (u *ExerciseUseCase) storeStagedUpdate(ctx context.Context, id uuid.UUID, source exerciseModel.ExerciseVersion, by uuid.UUID, expected time.Time) (ExerciseView, error) {
 	e, err := u.loadEditable(ctx, id)
 	if err != nil {
 		return ExerciseView{}, err
@@ -337,14 +385,17 @@ func (u *ExerciseUseCase) storeStagedUpdate(ctx context.Context, id uuid.UUID, s
 	if err = u.adoptFiles(ctx, id, source.Variants); err != nil {
 		return ExerciseView{}, err
 	}
-	saved, err := u.exercises.UpsertDraft(ctx, id, freshID(), source, u.timeNow(), uuid.NullUUID{UUID: by, Valid: by != uuid.Nil})
+	saved, err := u.exercises.UpsertDraft(ctx, id, freshID(), source, u.timeNow(), uuid.NullUUID{UUID: by, Valid: by != uuid.Nil}, expected)
 	if err != nil {
+		if repositoryTools.IsObjectNotFoundError(err) {
+			return ExerciseView{}, u.draftModified(ctx, id)
+		}
 		return ExerciseView{}, err
 	}
 	metadata := e.WithVersionMetadata(source)
 	metadata.UpdatedAt = u.timeNow()
 	metadata.UpdatedBy = uuid.NullUUID{UUID: by, Valid: by != uuid.Nil}
-	saved, err = u.exercises.SaveDraftIdentity(ctx, metadata, e.UpdatedAt, freshID())
+	saved, err = u.exercises.SaveDraftIdentity(ctx, metadata, e.UpdatedAt, freshID(), saved.UpdatedAt)
 	if err != nil {
 		return ExerciseView{}, classifyExerciseWriteError(err, "import draft metadata")
 	}
@@ -360,13 +411,8 @@ func (u *ExerciseUseCase) storeStagedUpdate(ctx context.Context, id uuid.UUID, s
 
 func (u *ExerciseUseCase) storeStagedNewImport(ctx context.Context, q CatalogRepository, parsed *ParsedExerciseArchive, by uuid.UUID, eventID *uuid.UUID, refresh bool) (ExerciseView, error) {
 	source := parsed.Exercise
+	// The parser leaves exactly one version, the draft.
 	selected := workingImportVersion(parsed.Versions)
-	for i := range parsed.Versions {
-		if parsed.Versions[i].Status.IsPublished() {
-			selected = i
-			break
-		}
-	}
 	if selected >= 0 {
 		source = source.WithVersionMetadata(parsed.Versions[selected])
 	}

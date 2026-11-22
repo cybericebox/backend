@@ -8,11 +8,11 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	inboxModel "github.com/cybericebox/daemon/internal/model/notification/inbox"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	siteModel "github.com/cybericebox/daemon/internal/model/site"
-	siteBannerModel "github.com/cybericebox/daemon/internal/model/siteBanner"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	inboxModel "github.com/cybericebox/backend/internal/model/notification/inbox"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	siteModel "github.com/cybericebox/backend/internal/model/site"
+	siteBannerModel "github.com/cybericebox/backend/internal/model/siteBanner"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 type fakeBanners struct{ items []siteBannerModel.Banner }
@@ -127,7 +127,7 @@ func TestFreezeBannerIsSynthesizedOnlyWhereItApplies(t *testing.T) {
 	}
 
 	frozenAt := t0
-	r.freeze.view = eventUseCase.ResultsFreezeView{Applied: true, Active: true, FrozenAt: &frozenAt, BannerText: "Підсумки згодом.", BannerLevel: siteBannerModel.LevelCritical}
+	r.freeze.view = eventUseCase.ResultsFreezeView{Applied: true, Active: true, FrozenAt: &frozenAt, BannerText: "Results later.", BannerLevel: siteBannerModel.LevelCritical}
 	started := version(t, r, site, guest)
 	if started == before {
 		t.Fatal("the start of the freeze must change the version")
@@ -137,12 +137,12 @@ func TestFreezeBannerIsSynthesizedOnlyWhereItApplies(t *testing.T) {
 		t.Fatalf("items = %+v", list.Items)
 	}
 	got := list.Items[0]
-	if got.ID != FreezeBannerIDPrefix+event.String() || got.Kind != KindSystem || got.Text != "Підсумки згодом." || got.Level != siteBannerModel.LevelCritical || got.Dismissible {
+	if got.ID != FreezeBannerIDPrefix+event.String() || got.Kind != KindSystem || got.Text != "Results later." || got.Level != siteBannerModel.LevelCritical || got.Dismissible {
 		t.Fatalf("freeze banner = %+v", got)
 	}
 
 	// A new text changes the version of the banner and of the list.
-	r.freeze.view.BannerText = "Інший текст."
+	r.freeze.view.BannerText = "Other text."
 	if edited := version(t, r, site, guest); edited == started {
 		t.Fatal("a changed freeze text must change the version")
 	}
@@ -219,7 +219,7 @@ func TestPersonalBannersAreMergedAndStampedIntoTheVersion(t *testing.T) {
 	signedIn := Viewer{UserID: &user, Role: rbac.RoleUser}
 	plain := version(t, r, mainUI, signedIn)
 
-	n := inboxModel.InAppNotification{ID: uuid.Must(uuid.NewV7()), Title: "Привіт", Body: "Текст", Tone: "warning", Dismissible: true, Surface: "banner", CreatedAt: t0}
+	n := inboxModel.InAppNotification{ID: uuid.Must(uuid.NewV7()), Title: "Hello", Body: "Text", Tone: "warning", Dismissible: true, Surface: "banner", CreatedAt: t0}
 	r.inbox.banners = []inboxModel.InAppNotification{n}
 	r.inbox.pulse = inboxModel.Pulse{PersonalBanners: 1, PersonalBannersLatest: t0}
 	with := version(t, r, mainUI, signedIn)
@@ -227,7 +227,7 @@ func TestPersonalBannersAreMergedAndStampedIntoTheVersion(t *testing.T) {
 		t.Fatal("a personal banner must change the version")
 	}
 	list, _ := r.uc.Banners(context.Background(), mainUI, signedIn)
-	if len(list.Items) != 1 || list.Items[0].Kind != KindPersonal || list.Items[0].Level != siteBannerModel.LevelWarning || list.Items[0].Text != "Текст" || !list.Items[0].Dismissible {
+	if len(list.Items) != 1 || list.Items[0].Kind != KindPersonal || list.Items[0].Level != siteBannerModel.LevelWarning || list.Items[0].Text != "Text" || !list.Items[0].Dismissible {
 		t.Fatalf("items = %+v", list.Items)
 	}
 	// A guest never gets them.

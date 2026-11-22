@@ -13,12 +13,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	notificationModel "github.com/cybericebox/daemon/internal/model/notification"
-	inAppModel "github.com/cybericebox/daemon/internal/model/notification/inapp"
-	inAppUseCase "github.com/cybericebox/daemon/internal/useCase/notification/channels/inapp"
-	"github.com/cybericebox/daemon/pkg/tools"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	notificationModel "github.com/cybericebox/backend/internal/model/notification"
+	inAppModel "github.com/cybericebox/backend/internal/model/notification/inapp"
+	inAppUseCase "github.com/cybericebox/backend/internal/useCase/notification/channels/inapp"
+	"github.com/cybericebox/backend/pkg/tools"
 )
 
 func sampleInAppTemplate(notifType string, status notificationModel.TemplateStatus) postgres.NotificationInAppTemplate {

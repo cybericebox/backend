@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cybericebox/daemon/pkg/ratelimit"
+	"github.com/cybericebox/backend/pkg/ratelimit"
 )
 
 type fakeClock struct{ t time.Time }
@@ -149,5 +149,42 @@ func TestRecipientReservationCanBeReleasedWithoutErasingEarlierMail(t *testing.T
 	now = now.Add(2 * time.Minute)
 	if limiter.Allow("reset", "a@example.test") {
 		t.Fatal("release must preserve the first committed mail")
+	}
+}
+
+func TestRecipientTake_OneBudgetForAllKindsWithTheWait(t *testing.T) {
+	now := time.Date(2026, 10, 31, 12, 0, 0, 0, time.UTC)
+	r := ratelimit.NewRecipient(time.Minute, 5).WithClock(func() time.Time { return now })
+
+	if ok, _, _ := r.Take("a@b.test"); !ok {
+		t.Fatal("first request must pass")
+	}
+	ok, wait, _ := r.Take("a@b.test")
+	if ok || wait != time.Minute {
+		t.Fatalf("second request inside the gap: want refused with 1m, got %v %v", ok, wait)
+	}
+	for i := 1; i < 5; i++ {
+		now = now.Add(61 * time.Second)
+		if ok, _, _ = r.Take("a@b.test"); !ok {
+			t.Fatalf("request %d must pass", i+1)
+		}
+	}
+	now = now.Add(61 * time.Second)
+	ok, wait, _ = r.Take("a@b.test")
+	if ok || wait <= 0 || wait > time.Hour {
+		t.Fatalf("sixth request inside the hour: want refused with a wait, got %v %v", ok, wait)
+	}
+	if ok, _, _ = r.Take("other@b.test"); !ok {
+		t.Fatal("another address has its own budget")
+	}
+}
+
+func TestRecipientTake_ReleaseGivesTheRequestBack(t *testing.T) {
+	now := time.Now()
+	r := ratelimit.NewRecipient(time.Minute, 5).WithClock(func() time.Time { return now })
+	_, _, release := r.Take("a@b.test")
+	release()
+	if ok, _, _ := r.Take("a@b.test"); !ok {
+		t.Fatal("a released request must not count")
 	}
 }

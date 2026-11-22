@@ -7,10 +7,10 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/imageRegistryRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	imageRegistryModel "github.com/cybericebox/daemon/internal/model/imageRegistry"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/imageRegistryRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	imageRegistryModel "github.com/cybericebox/backend/internal/model/imageRegistry"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 func TestEventRegistrySecretsAreScopedByEvent(t *testing.T) {

@@ -2,8 +2,8 @@ package labagent
 
 import (
 	"context"
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
-	labAccessModel "github.com/cybericebox/daemon/internal/model/labAccess"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
+	labAccessModel "github.com/cybericebox/backend/internal/model/labAccess"
 	"github.com/gofrs/uuid"
 	"testing"
 )

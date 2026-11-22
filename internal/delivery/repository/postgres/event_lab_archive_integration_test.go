@@ -10,9 +10,9 @@ import (
 	"github.com/gofrs/uuid" //nolint:depguard // the uuid package of the whole repository
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventAnalyticsRepo"
-	eventAnalyticsModel "github.com/cybericebox/daemon/internal/model/eventAnalytics"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventAnalyticsRepo"
+	eventAnalyticsModel "github.com/cybericebox/backend/internal/model/eventAnalytics"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 // archiveAll archives chunks until nothing is left before closedBefore and

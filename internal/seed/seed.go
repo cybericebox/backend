@@ -15,18 +15,18 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventTeamRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/participantRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	"github.com/cybericebox/daemon/internal/delivery/repository/userRepo"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
-	exerciseUseCase "github.com/cybericebox/daemon/internal/useCase/exercise"
-	"github.com/cybericebox/daemon/pkg/password"
-	"github.com/cybericebox/daemon/pkg/secret"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventTeamRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/participantRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/delivery/repository/userRepo"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	userModel "github.com/cybericebox/backend/internal/model/user"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
+	exerciseUseCase "github.com/cybericebox/backend/internal/useCase/exercise"
+	"github.com/cybericebox/backend/pkg/password"
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
 // Profile is the size of the seeded event.
@@ -98,6 +98,9 @@ type Deps struct {
 	Queries  *postgres.Queries
 	Pool     *pgxpool.Pool
 	Password *password.Client
+	// RequiredDocuments are the documents the installation requires on account creation (config RequiredDocuments);
+	// the seeded accounts accept exactly these. Empty: nothing is required and nothing is recorded.
+	RequiredDocuments []string
 	// Cipher encrypts exercise secret env vars; the seeded exercises have none, so nil is fine.
 	Cipher *secret.Cipher
 }

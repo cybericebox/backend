@@ -18,12 +18,12 @@ import (
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	imageRegistryModel "github.com/cybericebox/daemon/internal/model/imageRegistry"
-	"github.com/cybericebox/daemon/pkg/ociregistry"
-	"github.com/cybericebox/daemon/pkg/ociregistry/provider"
-	"github.com/cybericebox/daemon/pkg/secret"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	imageRegistryModel "github.com/cybericebox/backend/internal/model/imageRegistry"
+	"github.com/cybericebox/backend/pkg/ociregistry"
+	"github.com/cybericebox/backend/pkg/ociregistry/provider"
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
 var t0 = time.Date(2026, 10, 17, 9, 0, 0, 0, time.UTC)

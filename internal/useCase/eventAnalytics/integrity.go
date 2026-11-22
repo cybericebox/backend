@@ -10,12 +10,12 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventAnalyticsRepo"
-	"github.com/cybericebox/daemon/internal/model"
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
-	eventAnalyticsModel "github.com/cybericebox/daemon/internal/model/eventAnalytics"
-	labTraffic "github.com/cybericebox/daemon/internal/model/labTraffic"
-	"github.com/cybericebox/daemon/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventAnalyticsRepo"
+	"github.com/cybericebox/backend/internal/model"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
+	eventAnalyticsModel "github.com/cybericebox/backend/internal/model/eventAnalytics"
+	labTraffic "github.com/cybericebox/backend/internal/model/labTraffic"
+	"github.com/cybericebox/backend/internal/model/rbac"
 )
 
 // isPlatformAdmin reports whether the caller is platform staff who may write
@@ -27,7 +27,7 @@ func isPlatformAdmin(ctx context.Context) bool {
 	return ok && claims.Role.HasPermission(rbac.PermEventsWrite)
 }
 
-// IntegrityStore is the statement port of «Доброчесність».
+// IntegrityStore is the statement port of "Integrity".
 type IntegrityStore interface {
 	IntegrityFacts(ctx context.Context, eventID uuid.UUID) (eventAnalyticsModel.IntegrityFacts, error)
 	SolveReviews(ctx context.Context, eventID uuid.UUID) ([]eventAnalyticsRepo.SolveReview, error)
@@ -70,7 +70,7 @@ type IntegrityFilter struct {
 }
 
 type (
-	// SolveReviewView is a stored «перевірено» note.
+	// SolveReviewView is a stored "reviewed" note.
 	SolveReviewView struct {
 		Note       string
 		ReviewedBy string
@@ -83,7 +83,7 @@ type (
 		Review *SolveReviewView
 	}
 
-	// IntegrityView is the «Доброчесність» report (§6.6): the flagged solves
+	// IntegrityView is the "Integrity" report (§6.6): the flagged solves
 	// to review. It is sensitive (other teams' names), so callers gate it
 	// with LevelSensitive.
 	IntegrityView struct {
@@ -112,7 +112,7 @@ type (
 		CrossFlagTimes []time.Time
 	}
 
-	// DismissalView is a stored «не підсвічувати такі випадки».
+	// DismissalView is a stored "stop highlighting such cases".
 	DismissalView struct {
 		ID            uuid.UUID
 		Scope         eventAnalyticsModel.DismissScope
@@ -327,7 +327,7 @@ func (u *EventAnalyticsUseCase) GetEventAnalyticsIntegrityFlags(ctx context.Cont
 	return flags, nil
 }
 
-// ReviewEventSolve stores the organizer's «перевірено» note of a solve.
+// ReviewEventSolve stores the organizer's "reviewed" note of a solve.
 func (u *EventAnalyticsUseCase) ReviewEventSolve(ctx context.Context, eventID, teamChallengeID, reviewer uuid.UUID, note string) error {
 	note = strings.TrimSpace(note)
 	if utf8.RuneCountInString(note) > eventAnalyticsModel.MaxReviewNoteLength {
@@ -361,7 +361,7 @@ func (u *EventAnalyticsUseCase) UnreviewEventSolve(ctx context.Context, eventID,
 	return nil
 }
 
-// DismissIntegrityPattern stores «не підсвічувати такі випадки» for the
+// DismissIntegrityPattern stores "stop highlighting such cases" for the
 // catalog task behind a team task of the event: the signal kind plus its key
 // (for shared_wrong the wrong value, otherwise none), for this event or for
 // every event that uses the catalog exercise (the sensitive-access route gate applies: owner, write moderators, platform admins).

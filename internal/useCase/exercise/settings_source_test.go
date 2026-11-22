@@ -13,11 +13,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	"github.com/cybericebox/daemon/internal/useCase/exercise"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	"github.com/cybericebox/backend/internal/useCase/exercise"
 )
 
 // fakeSettings is the platform settings source: the archive limits and test run leases in force, or a failure.
@@ -26,6 +26,7 @@ type fakeSettings struct {
 	leases       exerciseModel.TestRunLeases
 	err          error
 	archiveReads int
+	profiles     exerciseModel.SupportedProfiles
 }
 
 func (f *fakeSettings) ArchiveLimits(context.Context) (exerciseModel.ArchiveLimits, error) {
@@ -35,6 +36,10 @@ func (f *fakeSettings) ArchiveLimits(context.Context) (exerciseModel.ArchiveLimi
 
 func (f *fakeSettings) TestRunLeases(context.Context) (exerciseModel.TestRunLeases, error) {
 	return f.leases, f.err
+}
+
+func (f *fakeSettings) NodeProfiles(context.Context) (exerciseModel.SupportedProfiles, error) {
+	return f.profiles, f.err
 }
 
 func captureLog(t *testing.T) *bytes.Buffer {

@@ -7,7 +7,7 @@ import (
 
 	"golang.org/x/sync/singleflight"
 
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
 )
 
 const (

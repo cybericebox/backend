@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 // The email_changed type has no migration: its setting and default template are created at start,
@@ -32,13 +32,13 @@ func TestSeedNotificationDefaultsIsIdempotent(t *testing.T) {
 	}
 
 	// An admin edit (new published version) is left alone.
-	if _, err = db.Pool.Exec(ctx, `UPDATE notification_email_templates SET subject = 'Мій текст' WHERE notification_type = 'email_changed'`); err != nil {
+	if _, err = db.Pool.Exec(ctx, `UPDATE notification_email_templates SET subject = 'My text' WHERE notification_type = 'email_changed'`); err != nil {
 		t.Fatal(err)
 	}
 	if err = Seed(ctx, db.Queries); err != nil {
 		t.Fatal(err)
 	}
-	if tpl, _ = db.Queries.GetPublishedEmailTemplate(ctx, postgres.GetPublishedEmailTemplateParams{NotificationType: "email_changed"}); tpl.Subject != "Мій текст" {
+	if tpl, _ = db.Queries.GetPublishedEmailTemplate(ctx, postgres.GetPublishedEmailTemplateParams{NotificationType: "email_changed"}); tpl.Subject != "My text" {
 		t.Fatalf("an edited template was overwritten: %q", tpl.Subject)
 	}
 }
@@ -63,13 +63,13 @@ func TestSeedInAppDefaultsIsIdempotent(t *testing.T) {
 			t.Fatalf("%s: published template %+v, %v", typ, tpl, err)
 		}
 	}
-	if _, err := db.Pool.Exec(ctx, `UPDATE notification_in_app_templates SET title = 'Мій заголовок' WHERE notification_type = 'exercise.elevation.approved'`); err != nil {
+	if _, err := db.Pool.Exec(ctx, `UPDATE notification_in_app_templates SET title = 'My title' WHERE notification_type = 'exercise.elevation.approved'`); err != nil {
 		t.Fatal(err)
 	}
 	if err := Seed(ctx, db.Queries); err != nil {
 		t.Fatal(err)
 	}
-	if tpl, _ := db.Queries.GetPublishedInAppTemplate(ctx, postgres.GetPublishedInAppTemplateParams{NotificationType: "exercise.elevation.approved"}); tpl.Title != "Мій заголовок" {
+	if tpl, _ := db.Queries.GetPublishedInAppTemplate(ctx, postgres.GetPublishedInAppTemplateParams{NotificationType: "exercise.elevation.approved"}); tpl.Title != "My title" {
 		t.Fatalf("an edited template was overwritten: %q", tpl.Title)
 	}
 }

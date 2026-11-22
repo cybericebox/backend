@@ -10,11 +10,11 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	eventHandler "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/event"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventExerciseModel "github.com/cybericebox/daemon/internal/model/eventExercise"
-	eventManagerModel "github.com/cybericebox/daemon/internal/model/eventManager"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	eventHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/event"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventExerciseModel "github.com/cybericebox/backend/internal/model/eventExercise"
+	eventManagerModel "github.com/cybericebox/backend/internal/model/eventManager"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 // bulkUC answers the bulk actions; the first ID is applied, every other one is refused like a single detach.

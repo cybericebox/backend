@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -73,9 +74,20 @@ func slowWork(t *testing.T, long bool, work time.Duration) (status int, ctxErr e
 	if long {
 		handlers = append(handlers, LongOperation())
 	}
+	// The handler runs on the server's goroutine and may still be running when the client gives up: what it saw is read under a lock.
+	var mu sync.Mutex
+	var seen error
+	handlerCtxErr := func() error {
+		mu.Lock()
+		defer mu.Unlock()
+		return seen
+	}
 	handlers = append(handlers, func(ctx *gin.Context) {
 		time.Sleep(work)
-		ctxErr = ctx.Request.Context().Err()
+		got := ctx.Request.Context().Err()
+		mu.Lock()
+		seen = got
+		mu.Unlock()
 		ctx.String(http.StatusOK, "done")
 	})
 	engine.POST("/work", handlers...)
@@ -86,11 +98,11 @@ func slowWork(t *testing.T, long bool, work time.Duration) (status int, ctxErr e
 	defer server.Close()
 	resp, err := server.Client().Post(server.URL+"/work", "text/plain", strings.NewReader(""))
 	if err != nil {
-		return 0, ctxErr, err
+		return 0, handlerCtxErr(), err
 	}
 	defer func() { _ = resp.Body.Close() }()
 	_, err = io.ReadAll(resp.Body)
-	return resp.StatusCode, ctxErr, err
+	return resp.StatusCode, handlerCtxErr(), err
 }
 
 func TestLongOperationOutlivesTheGenericDeadline(t *testing.T) {

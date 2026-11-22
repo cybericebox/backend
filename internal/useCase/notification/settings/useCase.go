@@ -1,7 +1,7 @@
 package settingsUseCase
 
 import (
-	"github.com/cybericebox/daemon/internal/delivery/repository/notificationSettingsRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/notificationSettingsRepo"
 )
 
 type (

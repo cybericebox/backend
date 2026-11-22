@@ -10,7 +10,7 @@ ALTER TABLE event_team_field_configs
     ADD COLUMN block_submissions boolean NOT NULL DEFAULT false;
 
 -- Denormalized count of required fields a participant or a team has not
--- filled (0 = complete or not asked); it drives the «не заповнено» table
+-- filled (0 = complete or not asked); it drives the "not filled" table
 -- filter and the submission block. The use case recomputes it whenever
 -- answers or the form change.
 ALTER TABLE event_participants ADD COLUMN fields_missing integer NOT NULL DEFAULT 0;

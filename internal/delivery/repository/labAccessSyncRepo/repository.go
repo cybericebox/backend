@@ -5,8 +5,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
 	"github.com/gofrs/uuid"
 )
 

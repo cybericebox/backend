@@ -5,9 +5,9 @@ import (
 	"math"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/platformAnalyticsRepo"
-	labMonitoringModel "github.com/cybericebox/daemon/internal/model/labMonitoring"
-	platformAnalyticsModel "github.com/cybericebox/daemon/internal/model/platformAnalytics"
+	"github.com/cybericebox/backend/internal/delivery/repository/platformAnalyticsRepo"
+	labMonitoringModel "github.com/cybericebox/backend/internal/model/labMonitoring"
+	platformAnalyticsModel "github.com/cybericebox/backend/internal/model/platformAnalytics"
 )
 
 const (

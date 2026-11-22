@@ -3,6 +3,8 @@ package platformSettingsModel
 import (
 	"maps"
 	"slices"
+
+	"github.com/cybericebox/backend/internal/model/usertext"
 )
 
 // Typed settings: a stored row whose value is a fixed set of integer fields, each with bounds, edited on its own
@@ -13,6 +15,7 @@ const (
 	RetentionKey     = "retention_policy"
 	ArchiveLimitsKey = "exercise_archive_limits"
 	TestRunsKey      = "exercise_test_runs"
+	NodeProfilesKey  = "node_profiles"
 )
 
 // Kind is how a field's integer is read: durations in seconds, sizes in bytes, counts as is.
@@ -42,7 +45,7 @@ type (
 // IsTypedKey tells whether key is a typed setting, never saved through the generic setting path.
 func IsTypedKey(key string) bool {
 	switch key {
-	case RetentionKey, ArchiveLimitsKey, TestRunsKey:
+	case RetentionKey, ArchiveLimitsKey, TestRunsKey, NodeProfilesKey:
 		return true
 	}
 	return false
@@ -85,4 +88,38 @@ func Overlay(base, stored Values, specs []FieldSpec) Values {
 		}
 	}
 	return out
+}
+
+// Description is a setting's human-readable explanation in each interface language.
+type Description struct {
+	Uk string `json:"Uk"`
+	En string `json:"En"`
+}
+
+// DescribeKey returns the description of a platform setting key, or false when it has none. The settings listed
+// are the ones the platform itself reads, so the generic list can show words instead of the raw key.
+func DescribeKey(key string) (Description, bool) {
+	switch key {
+	case RetentionKey:
+		return Description{
+			Uk: usertext.SettingRetention,
+			En: "Data retention periods: sessions, lab and participant telemetry, logs and more.",
+		}, true
+	case ArchiveLimitsKey:
+		return Description{
+			Uk: usertext.SettingArchiveLimits,
+			En: "Size and content limits for imported task archives.",
+		}, true
+	case TestRunsKey:
+		return Description{
+			Uk: usertext.SettingTestRuns,
+			En: "Limits for task test runs: duration, count and resources.",
+		}, true
+	case NodeProfilesKey:
+		return Description{
+			Uk: usertext.SettingNodeProfiles,
+			En: "Cluster node profiles for stands: resources and capacity.",
+		}, true
+	}
+	return Description{}, false
 }

@@ -10,8 +10,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
 )
 
 type pagePublishRepo struct {
@@ -66,7 +66,7 @@ func publishedPageRow(eventID uuid.UUID, slug string, order int32, draft string)
 func TestPublishEventPageAppliesDraftAndNavbarOrderTogether(t *testing.T) {
 	eventID := uuid.Must(uuid.NewV7())
 	rules := publishedPageRow(eventID, "rules", -1, "")
-	faq := publishedPageRow(eventID, "faq", 0, `{"Slug":"faq","Title":"Питання","Document":{"blocks":[]},"Visibility":0,"Navigation":1,"NavigationAfter":"first"}`)
+	faq := publishedPageRow(eventID, "faq", 0, `{"Slug":"faq","Title":"Questions","Document":{"blocks":[]},"Visibility":0,"Navigation":1,"NavigationAfter":"first"}`)
 	r := &pagePublishRepo{pages: []postgres.EventPage{rules, faq}, result: 1}
 	u := NewEventUseCase(Dependencies{Repo: r})
 
@@ -74,7 +74,7 @@ func TestPublishEventPageAppliesDraftAndNavbarOrderTogether(t *testing.T) {
 		t.Fatalf("publish: %v", err)
 	}
 	got := r.published
-	if got == nil || got.Title != "Питання" || !got.ExpectedUpdatedAt.Equal(faq.UpdatedAt) {
+	if got == nil || got.Title != "Questions" || !got.ExpectedUpdatedAt.Equal(faq.UpdatedAt) {
 		t.Fatalf("publish params = %+v", got)
 	}
 	if len(got.PageIDs) != 2 || got.PageIDs[0] != faq.ID || got.PageIDs[1] != rules.ID || got.ChallengesPosition != 1 || got.ResultsPosition != 2 {

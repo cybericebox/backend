@@ -17,23 +17,23 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/handler/labview"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/middleware"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/sse"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventResultRepo"
-	"github.com/cybericebox/daemon/internal/limits"
-	challengeAttemptModel "github.com/cybericebox/daemon/internal/model/challengeAttempt"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventFormModel "github.com/cybericebox/daemon/internal/model/eventForm"
-	eventManagerModel "github.com/cybericebox/daemon/internal/model/eventManager"
-	eventStandModel "github.com/cybericebox/daemon/internal/model/eventStand"
-	eventTeamModel "github.com/cybericebox/daemon/internal/model/eventTeam"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/handler/labview"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/sse"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventResultRepo"
+	"github.com/cybericebox/backend/internal/limits"
+	challengeAttemptModel "github.com/cybericebox/backend/internal/model/challengeAttempt"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventFormModel "github.com/cybericebox/backend/internal/model/eventForm"
+	eventManagerModel "github.com/cybericebox/backend/internal/model/eventManager"
+	eventStandModel "github.com/cybericebox/backend/internal/model/eventStand"
+	eventTeamModel "github.com/cybericebox/backend/internal/model/eventTeam"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 type (
@@ -157,6 +157,7 @@ func (h *Handler) Init(router *gin.RouterGroup, resolveTenant gin.HandlerFunc) {
 		teams.GET("challenges/mine", h.listOwnChallenges)
 		teams.GET("challenges/:challengeID/files/:fileID", h.downloadChallengeAttachment)
 		teams.POST("challenges/:challengeID/open", h.openChallenge)
+		teams.POST("challenges/:challengeID/run-checks", h.runChecks)
 		teams.GET("challenges/:challengeID/solves", h.challengeSolves)
 		// Stands are managed only by moderators (manage/labs); participants
 		// read the lab status, their team stand status and their VPN config.
@@ -652,6 +653,8 @@ func (h *Handler) listOwnChallenges(ctx *gin.Context) {
 		response.AbortWithError(ctx, err)
 		return
 	}
+	// The board carries the lab lifecycle the description addresses are checked against: never served from a cache.
+	ctx.Header("Cache-Control", "private, no-store")
 	response.AbortWithData(ctx, toOwnBoardResponse(board))
 }
 
@@ -738,11 +741,14 @@ func (h *Handler) labStatus(ctx *gin.Context) {
 	}
 	out := toLabStatusResponse(v.Status)
 	out.Lab = labview.ParticipantLab(v.Lab)
+	out.State = v.State
+	// A poll must see the runtime as it is now (addresses of a lab that just became ready): no cache in between.
+	ctx.Header("Cache-Control", "private, no-store")
 	response.AbortWithData(ctx, out)
 }
 
 func toLabStatusResponse(v exerciseModel.LabDeployStatus) labStatusResponse {
-	out := labStatusResponse{Phase: v.Phase, Ready: v.Ready, VPNCIDR: v.VPNCIDR, InternetCIDR: v.InternetCIDR, Access: make([]labAccessResponse, 0, len(v.Access))}
+	out := labStatusResponse{Phase: v.Phase, Ready: v.Ready, Gateways: labview.Gateways(v, false), Access: make([]labAccessResponse, 0, len(v.Access))}
 	for _, a := range v.Access {
 		out.Access = append(out.Access, labAccessResponse{Device: a.Device, Port: a.Port, Protocol: a.Protocol, URL: a.URL})
 	}

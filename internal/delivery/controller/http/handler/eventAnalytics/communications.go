@@ -7,9 +7,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
-	eventAnalyticsUseCase "github.com/cybericebox/daemon/internal/useCase/eventAnalytics"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
+	"github.com/cybericebox/backend/internal/model/usertext"
+	eventAnalyticsUseCase "github.com/cybericebox/backend/internal/useCase/eventAnalytics"
 )
 
 type (
@@ -51,7 +52,7 @@ type (
 
 // communications godoc
 // @Summary Communications analytics
-// @Description §6.7 «Комунікації»: emails and in-app notifications sent per type, errors, the in-app read rate, and the completion of every event form. from/to limit the window (open bounds by default).
+// @Description §6.7 Communications: emails and in-app notifications sent per type, errors, the in-app read rate, and the completion of every event form. from/to limit the window (open bounds by default).
 // @Tags event-analytics
 // @Produce json
 // @Param id path string true "event ID"
@@ -142,12 +143,12 @@ func (h *Handler) exportCommunications(ctx *gin.Context) {
 		return strconv.FormatFloat(*r, 'f', 3, 64)
 	}
 	if table == "types" {
-		_ = w.Write([]string{"Тип", "Листів надіслано", "Листів з помилкою", "Сповіщень надіслано", "Сповіщень з помилкою", "Сповіщень створено", "Прочитано", "Частка прочитаних"})
+		_ = w.Write([]string{usertext.ColType, usertext.ColEmailsSent, usertext.ColEmailsFailed, usertext.ColNotificationsSent, usertext.ColNotificationsFailed, usertext.ColNotificationsCreated, usertext.ColRead, usertext.ColReadShare})
 		for _, t := range v.Types {
 			_ = w.Write([]string{csvCellText(t.Type), n(t.EmailSent), n(t.EmailErrors), n(t.InAppSent), n(t.InAppErrors), n(t.InAppCreated), n(t.InAppRead), rate(t.ReadRate)})
 		}
 	} else {
-		_ = w.Write([]string{"Форма", "Призначено", "Заповнено", "Відповідей", "Частка заповнених"})
+		_ = w.Write([]string{usertext.ColForm, usertext.ColAssigned, usertext.ColFilled, usertext.ColAnswers, usertext.ColFilledShare})
 		for _, f := range v.Forms {
 			_ = w.Write([]string{csvCellText(f.Title), n(f.Assigned), n(f.Completed), n(f.Answers), rate(f.CompletionRate)})
 		}

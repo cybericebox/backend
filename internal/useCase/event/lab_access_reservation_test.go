@@ -11,14 +11,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	labAccessModel "github.com/cybericebox/daemon/internal/model/labAccess"
-	calModel "github.com/cybericebox/daemon/internal/model/resourceCalendar"
-	resourcesModel "github.com/cybericebox/daemon/internal/model/resources"
-	"github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	labAccessModel "github.com/cybericebox/backend/internal/model/labAccess"
+	calModel "github.com/cybericebox/backend/internal/model/resourceCalendar"
+	resourcesModel "github.com/cybericebox/backend/internal/model/resources"
+	"github.com/cybericebox/backend/internal/useCase/event"
 )
 
 type labAccessReservationGate struct {
@@ -138,7 +138,7 @@ func TestReconcilePendingLabAccess_NoLabsWaitsForGroupReservation(t *testing.T) 
 
 	f.gate.reserved = true
 	require.NoError(t, f.uc.ReconcilePendingLabAccess(context.Background()), "the dirty sync must retry as soon as the reservation appears")
-	require.Equal(t, []string{"ensure", "policy", "resume", "group-resume"}, f.infra.operations)
+	require.Equal(t, []string{"ensure", "resume", "policy", "group-resume"}, f.infra.operations)
 	require.Len(t, f.created, 1)
 	require.Equal(t, f.teamID, f.created[0].EventTeamID)
 	require.EqualValues(t, 125, f.created[0].VpnCpuMillicores)
@@ -150,7 +150,7 @@ func TestReconcilePendingLabAccess_NoLabsKeepsLegacyWithoutReservation(t *testin
 	f := newLabAccessReservationFixture(t, false, false)
 	f.expectSync(true, true, 1)
 	require.NoError(t, f.uc.ReconcilePendingLabAccess(context.Background()))
-	require.Equal(t, []string{"ensure", "policy", "resume", "group-resume"}, f.infra.operations)
+	require.Equal(t, []string{"ensure", "resume", "policy", "group-resume"}, f.infra.operations)
 	require.Empty(t, f.created)
 }
 
@@ -241,7 +241,7 @@ func TestReconcilePendingLabAccess_ReservationWaitKeepsRevisionDirtyAfterRevocat
 
 	f.gate.reserved = true
 	require.NoError(t, f.uc.ReconcilePendingLabAccess(context.Background()))
-	require.Equal(t, []string{"policy", "ensure", "policy", "resume", "group-resume"}, f.infra.operations)
+	require.Equal(t, []string{"policy", "ensure", "resume", "policy", "group-resume"}, f.infra.operations)
 	require.EqualValues(t, 2, applied, "reservation arrival retries admission/start and permits acknowledgement")
 	require.Len(t, f.created, 1)
 }

@@ -8,11 +8,11 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
-	"github.com/cybericebox/daemon/internal/model/rbac"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
+	"github.com/cybericebox/backend/internal/model/rbac"
 )
 
 // LiveScreenLinkView is the event's working screen link; the token is never
@@ -20,7 +20,7 @@ import (
 type LiveScreenLinkView struct {
 	ID        uuid.UUID
 	CreatedAt time.Time
-	// ExpiresAt nil = «Без обмеження».
+	// ExpiresAt nil = "No limit".
 	ExpiresAt *time.Time
 }
 
@@ -103,7 +103,7 @@ func (u *EventUseCase) IssueLiveScreenLink(ctx context.Context, eventID, screenI
 	return u.storeLiveScreenLink(ctx, link, token)
 }
 
-// RegenerateLiveScreenLink («Перегенерувати») replaces the working link's
+// RegenerateLiveScreenLink (the "Regenerate" action) replaces the working link's
 // token with the same expiry: the old URL stops working at once.
 func (u *EventUseCase) RegenerateLiveScreenLink(ctx context.Context, eventID, screenID, by uuid.UUID) (IssuedLiveScreenLinkView, error) {
 	display, err := u.liveDisplay(ctx, eventID, screenID)
@@ -133,7 +133,7 @@ func (u *EventUseCase) storeLiveScreenLink(ctx context.Context, link eventConten
 	return IssuedLiveScreenLinkView{LiveScreenLinkView: toLiveScreenLinkView(link), Token: token}, nil
 }
 
-// RevokeLiveScreenLink («Вимкнути») leaves the screen without a link; with
+// RevokeLiveScreenLink (the "Turn off" action) leaves the screen without a link; with
 // none it is a no-op.
 func (u *EventUseCase) RevokeLiveScreenLink(ctx context.Context, eventID, screenID uuid.UUID) error {
 	display, err := u.liveDisplay(ctx, eventID, screenID)

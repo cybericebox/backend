@@ -2,15 +2,16 @@ package event
 
 import (
 	"context"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventConfigRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabAllocationRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabRepo"
-	"github.com/cybericebox/daemon/internal/model"
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	labBindingModel "github.com/cybericebox/daemon/internal/model/labBinding"
-	calModel "github.com/cybericebox/daemon/internal/model/resourceCalendar"
-	resourcesModel "github.com/cybericebox/daemon/internal/model/resources"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventConfigRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabAllocationRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabRepo"
+	"github.com/cybericebox/backend/internal/model"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
+	eventStandModel "github.com/cybericebox/backend/internal/model/eventStand"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	labBindingModel "github.com/cybericebox/backend/internal/model/labBinding"
+	calModel "github.com/cybericebox/backend/internal/model/resourceCalendar"
+	resourcesModel "github.com/cybericebox/backend/internal/model/resources"
 	"github.com/gofrs/uuid"
 	"time"
 )
@@ -231,8 +232,29 @@ func (u *EventUseCase) admitEventAllocation(ctx context.Context, eventID, teamID
 	if teamHeld.CPUMillicores > slot.CPUMillicores || teamHeld.MemoryBytes > slot.MemoryBytes {
 		return calModel.ErrNotEnoughReserved.Err()
 	}
-	if reservation.Unplaced > 0 || len(reservation.Placement) == 0 || !reservation.Window.Contains(time.Now().UTC()) || held.CPUMillicores > reservation.Size.CPUMillicores || held.MemoryBytes > reservation.Size.MemoryBytes || storage > reservation.SizeSnapshotQuotaBytes || (storageBytes > 0 && reservation.SizeSnapshotQuotaBytes == 0) {
-		return calModel.ErrNotEnoughReserved.Err()
+	// Admission is per team: the first PlacedTeams teams of the event are admitted, only the teams beyond the placed
+	// units wait for the unplaced part of the reservation.
+	holding := map[uuid.UUID]bool{teamID: true}
+	for _, l := range labs {
+		if c := l.HeldCompute(); c != (eventLabModel.Compute{}) {
+			holding[l.TeamID] = true
+		}
+	}
+	for _, g := range groups {
+		if g.Lifecycle.HeldCompute() != (eventLabModel.Compute{}) {
+			holding[g.TeamID] = true
+		}
+	}
+	teamsHolding := len(holding)
+	placedSize := reservation.PlacedSize()
+	if !reservation.HoldsTeams(teamsHolding) || len(reservation.Placement) == 0 || !reservation.Window.Contains(time.Now().UTC()) || held.CPUMillicores > placedSize.CPUMillicores || held.MemoryBytes > placedSize.MemoryBytes {
+		return reservationShortage{detail: eventStandModel.WaitDetail{
+			NeedCPUMillicores: held.CPUMillicores, NeedMemoryBytes: held.MemoryBytes,
+			HaveCPUMillicores: placedSize.CPUMillicores, HaveMemoryBytes: placedSize.MemoryBytes,
+		}}
+	}
+	if storage > reservation.SizeSnapshotQuotaBytes || (storageBytes > 0 && reservation.SizeSnapshotQuotaBytes == 0) {
+		return snapshotQuotaShort(storage, reservation.SizeSnapshotQuotaBytes)
 	}
 	if !foundGroup {
 		if err = r.CreateGroup(txCtx, eventLabAllocationRepo.Group{EventID: eventID, TeamID: teamID, Name: lab.Ref.Group, Sizes: sizes, Plan: placement.Plan, CreatedAt: time.Now().UTC()}); err != nil {

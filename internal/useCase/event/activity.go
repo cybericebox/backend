@@ -8,10 +8,10 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventActivityModel "github.com/cybericebox/daemon/internal/model/eventActivity"
-	eventChallengeModel "github.com/cybericebox/daemon/internal/model/eventChallenge"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventActivityModel "github.com/cybericebox/backend/internal/model/eventActivity"
+	eventChallengeModel "github.com/cybericebox/backend/internal/model/eventChallenge"
 )
 
 // activityWriteTimeout bounds one activity log write, which outlives the

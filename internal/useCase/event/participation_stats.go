@@ -8,11 +8,11 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/scoreboardRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	eventManagerModel "github.com/cybericebox/daemon/internal/model/eventManager"
-	participantModel "github.com/cybericebox/daemon/internal/model/participant"
+	"github.com/cybericebox/backend/internal/delivery/repository/scoreboardRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	eventManagerModel "github.com/cybericebox/backend/internal/model/eventManager"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
 )
 
 // ParticipationSolveView is one solved task of the caller's team. It carries no
@@ -56,7 +56,7 @@ type ParticipationTeamStatsView struct {
 	Members         []ParticipationMemberView
 }
 
-// ParticipationStatsView is «Моя участь»: the place in the results, the team
+// ParticipationStatsView is "My participation": the place in the results, the team
 // and the caller's own share of it.
 type ParticipationStatsView struct {
 	// Rank is 0 when the results are not shown to the caller (hidden, private
@@ -142,7 +142,7 @@ func withoutOthersIDs(team ParticipationTeamStatsView, userID uuid.UUID) Partici
 	return team
 }
 
-// GetModeratorsParticipationStats is the «Моя участь» of the organizers' preview:
+// GetModeratorsParticipationStats is the "My participation" of the organizers' preview:
 // the real results of the hidden moderators team (roster, solves, counters,
 // timeline) and the caller's own share as a member of it. Any event manager
 // may read it; there is no rank because the team is not in the results.

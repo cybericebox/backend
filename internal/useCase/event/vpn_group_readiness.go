@@ -2,11 +2,11 @@ package event
 
 import (
 	"context"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabGroupRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	eventStandModel "github.com/cybericebox/daemon/internal/model/eventStand"
-	labBindingModel "github.com/cybericebox/daemon/internal/model/labBinding"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabGroupRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	eventStandModel "github.com/cybericebox/backend/internal/model/eventStand"
+	labBindingModel "github.com/cybericebox/backend/internal/model/labBinding"
 	"github.com/gofrs/uuid"
 	"time"
 )

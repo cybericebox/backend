@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	participantModel "github.com/cybericebox/daemon/internal/model/participant"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
 )
 
 func TestMergeEditableAnswers(t *testing.T) {

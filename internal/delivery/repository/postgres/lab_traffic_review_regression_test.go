@@ -2,9 +2,9 @@ package postgres_test
 
 import (
 	"context"
-	"github.com/cybericebox/daemon/internal/delivery/repository/labTrafficRepo"
-	labTraffic "github.com/cybericebox/daemon/internal/model/labTraffic"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/labTrafficRepo"
+	labTraffic "github.com/cybericebox/backend/internal/model/labTraffic"
+	"github.com/cybericebox/backend/internal/testhelpers"
 	labpb "github.com/cybericebox/laboratory/pkg/agent/protobuf"
 	"testing"
 	"time"

@@ -3,10 +3,11 @@ package config
 import (
 	"net/url"
 	"os"
+	"reflect"
 	"testing"
 	"time"
 
-	retentionModel "github.com/cybericebox/daemon/internal/model/retention"
+	retentionModel "github.com/cybericebox/backend/internal/model/retention"
 )
 
 // testHosts is the set every test config starts with: the domain is required, so MustGetConfig
@@ -186,6 +187,21 @@ func TestSecretKeys_AreThreeSeparateEnvVars(t *testing.T) {
 	}
 }
 
+// A deployment that still sets the retired own-registry variables (PLATFORM_REGISTRY_*) or LAB_ACCESS_TOKEN_TTL starts as if
+// they were not there: the feature is gone from the code, so they cannot enable anything.
+func TestRetiredVariablesAreIgnored(t *testing.T) {
+	t.Setenv("RECAPTCHA_SECRET", "rsecret")
+	want := MustGetConfig()
+	t.Setenv("PLATFORM_REGISTRY_HOST", "laboratory-registry.lab.svc:5000")
+	t.Setenv("PLATFORM_REGISTRY_USERNAME", "platform-writer")
+	t.Setenv("PLATFORM_REGISTRY_PASSWORD", "pw")
+	t.Setenv("LAB_ACCESS_TOKEN_TTL", "5m")
+	got := MustGetConfig()
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("a retired variable changed the configuration:\n got %+v\nwant %+v", got, want)
+	}
+}
+
 func TestExerciseMaxActiveTestDeploys_DefaultsToThreeAndIsValidated(t *testing.T) {
 	t.Setenv("RECAPTCHA_SECRET", "rsecret")
 	got := MustGetConfig().Exercise
@@ -220,6 +236,42 @@ func TestAgentBootstrapConfig(t *testing.T) {
 	}
 }
 
+func TestBrainConfig_DefaultsEnvAndRejectsInvalidEndpoint(t *testing.T) {
+	t.Setenv("RECAPTCHA_SECRET", "rsecret")
+	off := MustGetConfig().Brain
+	if off != (BrainConfig{ConsoleMaxLifetime: 8 * time.Hour, RunGrace: time.Minute, RunMaxDuration: 30 * time.Minute, OpponentActions: 100, OpponentTokens: 500000, OpponentSeconds: 1200}) || off.Validate() != nil {
+		t.Fatalf("the brain is off by default: %+v", off)
+	}
+
+	t.Setenv("BRAIN_ENDPOINT", "brain.example.test:8443")
+	t.Setenv("BRAIN_ENROLLMENT_TOKEN", "one-time")
+	t.Setenv("BRAIN_CA_FILE", "/ca/brain.crt")
+	t.Setenv("BRAIN_RUN_GRACE", "90s")
+	t.Setenv("BRAIN_RUN_MAX_DURATION", "45m")
+	got := MustGetConfig().Brain
+	if got.RunGrace != 90*time.Second || got.RunMaxDuration != 45*time.Minute {
+		t.Fatalf("the run settings come from the environment: %+v", got)
+	}
+	if got.Endpoint != "brain.example.test:8443" || got.EnrollmentToken != "one-time" || got.CAFile != "/ca/brain.crt" {
+		t.Fatalf("brain config from env: %+v", got)
+	}
+
+	for _, bad := range []string{"brain.example.test", ":443", "brain.example.test:", "https://brain.example.test:443"} {
+		if (BrainConfig{Endpoint: bad}).Validate() == nil {
+			t.Fatalf("accepted endpoint %q", bad)
+		}
+	}
+	if (BrainConfig{Endpoint: "brain.example.test:443", RunGrace: -time.Second}).Validate() == nil {
+		t.Fatal("accepted a negative grace")
+	}
+	if (BrainConfig{Endpoint: "brain.example.test:443", OpponentTokens: -1}).Validate() == nil {
+		t.Fatal("accepted a negative opponent budget")
+	}
+	if (BrainConfig{Endpoint: "[::1]:443"}).Validate() != nil {
+		t.Fatal("rejected an IPv6 endpoint")
+	}
+}
+
 func TestExerciseConfigStandDeployBudgetBounds(t *testing.T) {
 	valid := ExerciseConfig{FlagRandomBytes: 20, FlagWarningBits: 20, MaxActiveTestDeploys: 3, StandDeployBudget: 200, LabSweepInterval: 10 * time.Minute, LabSweepGrace: 15 * time.Minute, TestDeployTTL: 2 * time.Hour, TestDeployTTLMax: 8 * time.Hour}
 	if err := valid.Validate(); err != nil {
@@ -248,6 +300,35 @@ func TestExerciseConfigStandPrewarmLeadBounds(t *testing.T) {
 		bad.StandPrewarmLead = lead
 		if bad.Validate() == nil {
 			t.Errorf("lead %v accepted", lead)
+		}
+	}
+}
+
+func TestStandPrewarmWaitAndLabLifecycleWorkersBounds(t *testing.T) {
+	valid := ExerciseConfig{FlagRandomBytes: 20, FlagWarningBits: 20, MaxActiveTestDeploys: 3, StandDeployBudget: 200, LabSweepInterval: 10 * time.Minute, LabSweepGrace: 15 * time.Minute, TestDeployTTL: 2 * time.Hour, TestDeployTTLMax: 8 * time.Hour}
+	for _, wait := range []time.Duration{0, 10 * time.Minute, 2 * time.Hour} {
+		ok := valid
+		ok.StandPrewarmWait = wait
+		if err := ok.Validate(); err != nil {
+			t.Errorf("wait %v rejected: %v", wait, err)
+		}
+	}
+	for _, wait := range []time.Duration{-time.Second, 3 * time.Hour} {
+		bad := valid
+		bad.StandPrewarmWait = wait
+		if bad.Validate() == nil {
+			t.Errorf("wait %v accepted", wait)
+		}
+	}
+	lc := LabLifecycleConfig{Interval: 2 * time.Second, Batch: 100, RetryMin: 10 * time.Second, RetryMax: 5 * time.Minute, Workers: 16}
+	if err := lc.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	for _, workers := range []int{0, -1, 129} {
+		bad := lc
+		bad.Workers = workers
+		if bad.Validate() == nil {
+			t.Errorf("workers %d accepted", workers)
 		}
 	}
 }
@@ -458,7 +539,7 @@ func TestMustGetConfig_HostsFromDomain(t *testing.T) {
 	t.Setenv("DOMAIN", "base.example")
 	cfg := MustGetConfig()
 	h := cfg.Auth.Hosts
-	if h.Main != "base.example" || h.API != "api.base.example" || h.ID != "id.base.example" || h.Admin != "admin.base.example" ||
+	if h.Root != "base.example" || h.API != "api.base.example" || h.ID != "id.base.example" || h.Admin != "admin.base.example" ||
 		h.Exercises != "exercises.base.example" || h.EventDomain != "base.example" {
 		t.Fatalf("Hosts: got %+v", h)
 	}
@@ -486,5 +567,22 @@ func TestExerciseConfigLabSweepBounds(t *testing.T) {
 	short.LabSweepGrace = 30 * time.Second
 	if short.Validate() == nil {
 		t.Error("a grace under a minute accepted: the sweep must not race a group that is still being created")
+	}
+}
+
+// Every new setting is optional: the default configuration starts without them, and each is read from its own variable.
+func TestMustGetConfig_SiteLinks(t *testing.T) {
+	setTestHosts(t)
+	t.Setenv("RECAPTCHA_SECRET", "rsecret")
+	got := MustGetConfig().Auth
+	if got.MainSiteURL != "" || got.TermsURL != "" || got.PrivacyURL != "" {
+		t.Fatalf("defaults must be empty: %+v", got)
+	}
+	t.Setenv("MAIN_SITE_URL", "https://example.org")
+	t.Setenv("TERMS_URL", "https://example.org/terms")
+	t.Setenv("PRIVACY_URL", "https://example.org/privacy")
+	got = MustGetConfig().Auth
+	if got.MainSiteURL != "https://example.org" || got.TermsURL != "https://example.org/terms" || got.PrivacyURL != "https://example.org/privacy" {
+		t.Fatalf("read: %+v", got)
 	}
 }

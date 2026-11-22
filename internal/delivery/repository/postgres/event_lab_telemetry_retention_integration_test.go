@@ -8,8 +8,8 @@ import (
 	"github.com/gofrs/uuid" //nolint:depguard // the uuid package of the whole repository
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/retentionRepo"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/retentionRepo"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 // labTelemetryTables are the derived lab telemetry tables and how many rows a

@@ -2,9 +2,9 @@ package eventLabRetentionRepo
 
 import (
 	"context"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"time"
@@ -60,9 +60,6 @@ func (r *Repository) Orphans(ctx context.Context, limit int32) ([]eventLabModel.
 		return nil, e
 	}
 	return labs(rows)
-}
-func (r *Repository) Pinned(ctx context.Context, l eventLabModel.Lab, now time.Time) (bool, error) {
-	return r.q.HasEventLabRetentionPin(ctx, postgres.HasEventLabRetentionPinParams{LabID: l.ID, Generation: l.Generation, Now: now})
 }
 func (r *Repository) Select(ctx context.Context, eventID, stageID, labID uuid.UUID, now time.Time) error {
 	return r.q.SelectEventStageRetainedLab(ctx, postgres.SelectEventStageRetainedLabParams{EventID: eventID, StageID: stageID, LabID: labID, Now: now})

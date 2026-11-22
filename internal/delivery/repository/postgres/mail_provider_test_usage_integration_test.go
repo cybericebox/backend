@@ -10,9 +10,9 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/mailRepo"
-	mailModel "github.com/cybericebox/daemon/internal/model/mail"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/mailRepo"
+	mailModel "github.com/cybericebox/backend/internal/model/mail"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 func TestCreateProviderImportsSuccessfulUnsavedTestsOnlyOnce(t *testing.T) {

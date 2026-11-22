@@ -7,13 +7,13 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	challengeAttempt "github.com/cybericebox/daemon/internal/model/challengeAttempt"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventActivityModel "github.com/cybericebox/daemon/internal/model/eventActivity"
-	eventTeamModel "github.com/cybericebox/daemon/internal/model/eventTeam"
-	participantModel "github.com/cybericebox/daemon/internal/model/participant"
-	teamChallengeModel "github.com/cybericebox/daemon/internal/model/teamChallenge"
-	pkgerr "github.com/cybericebox/daemon/pkg/err"
+	challengeAttempt "github.com/cybericebox/backend/internal/model/challengeAttempt"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventActivityModel "github.com/cybericebox/backend/internal/model/eventActivity"
+	eventTeamModel "github.com/cybericebox/backend/internal/model/eventTeam"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
+	teamChallengeModel "github.com/cybericebox/backend/internal/model/teamChallenge"
+	pkgerr "github.com/cybericebox/backend/pkg/err"
 )
 
 var at = time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC)

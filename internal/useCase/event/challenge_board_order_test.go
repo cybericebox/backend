@@ -11,11 +11,11 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	eventChallengeModel "github.com/cybericebox/daemon/internal/model/eventChallenge"
-	eventExerciseModel "github.com/cybericebox/daemon/internal/model/eventExercise"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	event "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	eventChallengeModel "github.com/cybericebox/backend/internal/model/eventChallenge"
+	eventExerciseModel "github.com/cybericebox/backend/internal/model/eventExercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	event "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 func TestReorderGroupChallenges_WritesPositionsAcrossSets(t *testing.T) {
@@ -49,7 +49,7 @@ func TestReorderGroupChallenges_RejectsIncompleteOrder(t *testing.T) {
 	eventID := uuid.Must(uuid.NewV7())
 	first := uuid.Must(uuid.NewV7())
 
-	// No group: the «Без групи» bucket.
+	// No group: the "No group" bucket.
 	q.EXPECT().ListEventGroupChallengeIDs(gomock.Any(), postgres.ListEventGroupChallengeIDsParams{EventID: eventID}).
 		Return([]uuid.UUID{first, uuid.Must(uuid.NewV7())}, nil)
 

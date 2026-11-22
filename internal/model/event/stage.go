@@ -224,7 +224,7 @@ type StageEdit struct {
 	Returnable      *bool
 	OpensWithEvent  *bool
 	ClosesWithEvent *bool
-	// CloseNow is «Закрити зараз» on an open stage: closes_at becomes now.
+	// CloseNow is "Close now" on an open stage: closes_at becomes now.
 	CloseNow bool
 }
 
@@ -360,7 +360,7 @@ func CheckStageDelete(stage Stage, sets int, now time.Time) error {
 	return nil
 }
 
-// CheckSetMove is the rule for moving an exercise set between stages (nil is «Весь захід»): nothing leaves a stage
+// CheckSetMove is the rule for moving an exercise set between stages (nil is "Whole event"): nothing leaves a stage
 // that has opened, and a closed stage accepts nothing new. Before a stage opens everything is free.
 func CheckSetMove(from, to *Stage, now time.Time) error {
 	if from != nil && from.Opened(now) {

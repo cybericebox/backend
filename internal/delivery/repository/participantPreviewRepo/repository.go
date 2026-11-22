@@ -4,8 +4,8 @@ package participantPreviewRepo
 import (
 	"context"
 	"encoding/json"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	preview "github.com/cybericebox/daemon/internal/model/participantPreview"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	preview "github.com/cybericebox/backend/internal/model/participantPreview"
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"time"

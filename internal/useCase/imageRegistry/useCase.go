@@ -1,5 +1,5 @@
 // Package imageRegistryUseCase owns the platform image registry settings
-// («Панель платформи»): the provider, account and repository, and the push and
+// (the platform panel): the provider, account and repository, and the push and
 // pull tokens, stored sealed with the platform cipher and never shown back. It
 // also hands the other use cases (image upload, deploy) a ready registry
 // client. The backend starts and works without the settings.
@@ -10,19 +10,21 @@ import (
 	"errors"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/imageRegistryRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	imageRegistryModel "github.com/cybericebox/daemon/internal/model/imageRegistry"
-	"github.com/cybericebox/daemon/pkg/ociregistry"
-	"github.com/cybericebox/daemon/pkg/ociregistry/provider"
-	"github.com/cybericebox/daemon/pkg/secret"
+	"github.com/cybericebox/backend/internal/delivery/repository/imageRegistryRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	imageRegistryModel "github.com/cybericebox/backend/internal/model/imageRegistry"
+	"github.com/cybericebox/backend/internal/secretctx"
+	"github.com/cybericebox/backend/pkg/ociregistry"
+	"github.com/cybericebox/backend/pkg/ociregistry/provider"
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
 // Token sealing contexts: a ciphertext opens only as the token it was sealed as.
 const (
-	pushContext = "image-registry:push"
-	pullContext = "image-registry:pull"
+	PushContext = secretctx.RegistryPush
+	PullContext = secretctx.RegistryPull
 )
 
 type (
@@ -51,16 +53,37 @@ type (
 		// Nil: asking for a blob push is a platform error.
 		Media         MediaSource
 		QueueBlobPush BlobPushQueue
+		// Configs keeps the start configuration of the platform images (entrypoint, cmd, user, working directory) so a lab with
+		// a bootstrap knows what to run after it. Nil: not kept, and a deploy then finds no configuration.
+		Configs ImageConfigStore
+		// ExternalConfigs keeps the start configuration read from the registry for images by reference to an external
+		// registry (no layer is pulled), so a deploy never needs the registry for it. Nil: not kept, and such an image has
+		// no known user.
+		ExternalConfigs ExternalConfigStore
 		// HeadTimeout bounds one registry request of an availability check (default 10 s);
 		// CallTimeout bounds one whole check call (default 30 s).
 		HeadTimeout, CallTimeout time.Duration
 	}
 
+	// ImageConfigStore keeps the start configuration of a platform image by its manifest digest.
+	ImageConfigStore interface {
+		Save(ctx context.Context, digest string, service exerciseModel.ImageService, now time.Time) error
+		Get(ctx context.Context, digests []string) (map[string]exerciseModel.ImageService, error)
+	}
+
+	// ExternalConfigStore keeps the start configuration of an external image by normalized reference and credential scope.
+	ExternalConfigStore interface {
+		Save(ctx context.Context, reference, scope, digest string, service exerciseModel.ImageService, now time.Time) error
+		Get(ctx context.Context, references, scopes []string) (map[string]imageRegistryRepo.ExternalImageConfig, error)
+	}
+
 	ImageRegistryUseCase struct {
-		settings *imageRegistryRepo.Repository
-		secrets  *imageRegistryRepo.EventSecrets
-		images   *imageRegistryRepo.PlatformImages
-		media    MediaSource
+		configs    ImageConfigStore
+		extConfigs ExternalConfigStore
+		settings   *imageRegistryRepo.Repository
+		secrets    *imageRegistryRepo.EventSecrets
+		images     *imageRegistryRepo.PlatformImages
+		media      MediaSource
 
 		blobPushes    *imageRegistryRepo.BlobPushes
 		queueBlobPush BlobPushQueue
@@ -87,7 +110,7 @@ func DefaultClient(p imageRegistryModel.Provider, repository, username, password
 func DefaultExternalClient(host, repository, username, password string) *ociregistry.Client {
 	return ociregistry.New(ociregistry.Options{
 		Host: host, Repository: repository, Username: username, Password: password,
-		Transport: ociregistry.GuardedTransport(nil),
+		Transport: ociregistry.GuardedTransport(nil), RequireHTTPS: true,
 	})
 }
 
@@ -98,6 +121,8 @@ func DefaultAdapter(p imageRegistryModel.Provider) provider.Adapter {
 
 func New(deps Dependencies) *ImageRegistryUseCase {
 	u := &ImageRegistryUseCase{
+		configs:       deps.Configs,
+		extConfigs:    deps.ExternalConfigs,
 		settings:      imageRegistryRepo.New(deps.Repo),
 		secrets:       imageRegistryRepo.NewEventSecrets(deps.Repo),
 		images:        imageRegistryRepo.NewPlatformImages(deps.Repo),
@@ -170,10 +195,10 @@ func (u *ImageRegistryUseCase) platformToken(ctx context.Context, push bool) (im
 	var token string
 	if !push {
 		// a pull token that does not open counts as not set: the push token pulls too
-		token = u.open(s.PullTokenCiphertext, pullContext)
+		token = u.open(s.PullTokenCiphertext, PullContext)
 	}
 	if token == "" {
-		token = u.open(s.PushTokenCiphertext, pushContext)
+		token = u.open(s.PushTokenCiphertext, PushContext)
 	}
 	if token == "" {
 		return imageRegistryModel.Settings{}, "", nil

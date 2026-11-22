@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 var paragraphSplit = regexp.MustCompile(`\n{2,}`)

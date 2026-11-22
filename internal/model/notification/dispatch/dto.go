@@ -5,9 +5,9 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	inboxModel "github.com/cybericebox/daemon/internal/model/notification/inbox"
-	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
+	inboxModel "github.com/cybericebox/backend/internal/model/notification/inbox"
+	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
+	userModel "github.com/cybericebox/backend/internal/model/user"
 )
 
 // NotifyOptions holds optional overrides that callers can pass to Notify.
@@ -154,10 +154,19 @@ type ListDispatchesFilter struct {
 	Status string
 	User   string // UUID string; "" = no filter
 	Event  string // UUID string; "" = no filter
+	// Recipient is a case-insensitive part of the recipient's email or name; "" = no filter.
+	Recipient string
+	// From (inclusive) and To (exclusive) bound the dispatch creation time, RFC 3339; "" = open.
+	From string
+	To   string
 	// Channel, Result (target status) and Transport match a single target.
 	Channel   string
 	Result    string
 	Transport string
 	Cursor    string // last dispatch ID from the previous page; "" = first page
 	Limit     int32
+	// SortBy is type, recipient, event, status or created ("": newest first); SortDir asc or desc. Offset skips
+	// rows for the page-number mode; the cursor and a sort do not go together.
+	SortBy, SortDir string
+	Offset          int32
 }

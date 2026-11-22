@@ -19,12 +19,12 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	imageRegistryModel "github.com/cybericebox/daemon/internal/model/imageRegistry"
-	jobsModel "github.com/cybericebox/daemon/internal/model/jobs"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	"github.com/cybericebox/daemon/pkg/ociregistry"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	imageRegistryModel "github.com/cybericebox/backend/internal/model/imageRegistry"
+	jobsModel "github.com/cybericebox/backend/internal/model/jobs"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	"github.com/cybericebox/backend/pkg/ociregistry"
 )
 
 var (

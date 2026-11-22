@@ -9,9 +9,9 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/daemon/internal/model"
-	imageRegistryModel "github.com/cybericebox/daemon/internal/model/imageRegistry"
-	"github.com/cybericebox/daemon/pkg/ociregistry"
+	"github.com/cybericebox/backend/internal/model"
+	imageRegistryModel "github.com/cybericebox/backend/internal/model/imageRegistry"
+	"github.com/cybericebox/backend/pkg/ociregistry"
 )
 
 // Images inside a task archive (`image: {file: …}`). The import reads each image file of the archive twice, straight
@@ -53,7 +53,7 @@ func (u *ImageRegistryUseCase) InspectImageArchive(ctx context.Context, archive 
 	if err != nil {
 		return ArchiveImageInspection{}, err
 	}
-	have, found, err := u.inspectManifest(ctx, ref.Tag())
+	have, found, err := u.inspectManifest(ctx, ref)
 	if err != nil {
 		return ArchiveImageInspection{}, err
 	}
@@ -68,7 +68,8 @@ func (u *ImageRegistryUseCase) InspectImageArchive(ctx context.Context, archive 
 // with the push token: the preview answers what the push will see. A refusal of the token that was used last is
 // ErrRegistryAccessDenied naming it; an outage stays ErrRegistryUnavailable. The cause is logged (it never carries
 // a token): the HTTP answer of a 409 does not reach the server log otherwise.
-func (u *ImageRegistryUseCase) inspectManifest(ctx context.Context, tag string) (string, bool, error) {
+func (u *ImageRegistryUseCase) inspectManifest(ctx context.Context, ref imageRegistryModel.PlatformRef) (string, bool, error) {
+	tag := ref.Tag()
 	s, pullToken, err := u.platformToken(ctx, false)
 	if err != nil {
 		return "", false, err
@@ -77,7 +78,7 @@ func (u *ImageRegistryUseCase) inspectManifest(ctx context.Context, tag string) 
 		return "", false, imageRegistryModel.ErrRegistryNotConfigured.Err()
 	}
 	type attempt struct{ name, token string }
-	pushToken := u.open(s.PushTokenCiphertext, pushContext)
+	pushToken := u.open(s.PushTokenCiphertext, PushContext)
 	attempts := []attempt{{pushTokenName, pushToken}}
 	if pullToken != pushToken {
 		// a pull token is set: it reads first, the push token is the fallback

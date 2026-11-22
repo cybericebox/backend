@@ -12,11 +12,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	eventHandler "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/event"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	eventHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/event"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 type eventCRUDContractUC struct {
@@ -26,6 +26,7 @@ type eventCRUDContractUC struct {
 	updateInput  eventUseCase.UpdateEventInput
 	listFilter   eventUseCase.ListEventsFilter
 	archiveCalls int
+	facetField   string
 	deleteCalls  int
 	config       eventUseCase.EventConfigView
 	configInput  eventUseCase.UpdateConfigInput
@@ -79,6 +80,10 @@ func (allowEventCRUD) RequirePermission(rbac.Permission) gin.HandlerFunc {
 }
 
 func testEventCRUDRouter(u *eventCRUDContractUC, actor uuid.UUID) *gin.Engine {
+	return testEventCRUDRouterFor(u, actor)
+}
+
+func testEventCRUDRouterFor(u eventHandler.IUseCase, actor uuid.UUID) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(response.WithErrorHandler)

@@ -596,7 +596,7 @@ SELECT tc.id, tc.event_id, tc.event_team_id, tc.event_challenge_id, tc.variant_i
              THEN e.static_points ELSE ec.points END)::integer AS points,
        ec.order_index, ec.group_id, ec.hints_enabled, ec.published,
        ec.hints AS board_hints, ec.hint_costs,
-       COALESCE(ecg.name, 'Інші')::text AS group_name,
+       COALESCE(ecg.name, $2::text)::text AS group_name,
        COALESCE(ecg.order_index, 2147483647)::integer AS group_order,
        (row_number() OVER (PARTITION BY ec.group_id
                            ORDER BY ec.board_order ASC NULLS LAST, ee.created_at ASC, ec.order_index ASC, tc.id ASC) - 1)::integer AS board_position,
@@ -613,18 +613,19 @@ LEFT JOIN team_challenge_solves solved ON solved.team_challenge_id = tc.id
 LEFT JOIN team_challenge_practice_solves practice ON practice.team_challenge_id = tc.id
 LEFT JOIN event_stages stage ON stage.id = ee.stage_id
 LEFT JOIN lab_bindings board_binding ON board_binding.event_team_id=tc.event_team_id AND board_binding.event_challenge_id=tc.event_challenge_id
-WHERE tc.event_team_id = $2
-  AND (ec.published OR NOT $3::boolean)
+WHERE tc.event_team_id = $3
+  AND (ec.published OR NOT $4::boolean)
   -- A task of an upcoming stage is hidden from participants entirely; the moderators board keeps everything.
-  AND (NOT $3::boolean
+  AND (NOT $4::boolean
     OR event_stage_phase(stage.opens_at, stage.closes_at, stage.returnable, $1::timestamptz) <> 0)
 ORDER BY group_order ASC, board_position ASC
 `
 
 type ListTeamBoardChallengesParams struct {
-	At            time.Time `json:"at"`
-	EventTeamID   uuid.UUID `json:"event_team_id"`
-	PublishedOnly bool      `json:"published_only"`
+	At             time.Time `json:"at"`
+	OtherGroupName string    `json:"other_group_name"`
+	EventTeamID    uuid.UUID `json:"event_team_id"`
+	PublishedOnly  bool      `json:"published_only"`
 }
 
 type ListTeamBoardChallengesRow struct {
@@ -666,7 +667,12 @@ type ListTeamBoardChallengesRow struct {
 // static event); board_position: the place inside the group, the order the
 // manage page sets (board_order), then by set attach time and set order.
 func (q *Queries) ListTeamBoardChallenges(ctx context.Context, arg ListTeamBoardChallengesParams) ([]ListTeamBoardChallengesRow, error) {
-	rows, err := q.db.Query(ctx, listTeamBoardChallenges, arg.At, arg.EventTeamID, arg.PublishedOnly)
+	rows, err := q.db.Query(ctx, listTeamBoardChallenges,
+		arg.At,
+		arg.OtherGroupName,
+		arg.EventTeamID,
+		arg.PublishedOnly,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -703,6 +709,61 @@ func (q *Queries) ListTeamBoardChallenges(ctx context.Context, arg ListTeamBoard
 			&i.GroupOrder,
 			&i.BoardPosition,
 			&i.Infrastructure,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTeamChallengeCopies = `-- name: ListTeamChallengeCopies :many
+SELECT tc.id, tc.event_team_id, tc.event_challenge_id, tc.variant_index, tc.snapshot, tc.hints,
+       (solved.solved_at IS NOT NULL)::boolean AS solved, team.moderators,
+       event_team_public_name(team.individual, team.event_id, team.captain_id, team.name)::text AS team_name
+FROM team_challenges tc
+JOIN event_teams team ON team.id = tc.event_team_id
+JOIN event_challenges ec ON ec.id = tc.event_challenge_id
+LEFT JOIN team_challenge_solves solved ON solved.team_challenge_id = tc.id
+WHERE ec.event_exercise_id = $1
+ORDER BY ec.order_index, team.name, tc.id
+`
+
+type ListTeamChallengeCopiesRow struct {
+	ID               uuid.UUID `json:"id"`
+	EventTeamID      uuid.UUID `json:"event_team_id"`
+	EventChallengeID uuid.UUID `json:"event_challenge_id"`
+	VariantIndex     int32     `json:"variant_index"`
+	Snapshot         []byte    `json:"snapshot"`
+	Hints            []byte    `json:"hints"`
+	Solved           bool      `json:"solved"`
+	Moderators       bool      `json:"moderators"`
+	TeamName         string    `json:"team_name"`
+}
+
+// Every team copy of the tasks of one event set, with the team name, for the organizers' "copies differ" check.
+func (q *Queries) ListTeamChallengeCopies(ctx context.Context, eventExerciseID uuid.UUID) ([]ListTeamChallengeCopiesRow, error) {
+	rows, err := q.db.Query(ctx, listTeamChallengeCopies, eventExerciseID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTeamChallengeCopiesRow{}
+	for rows.Next() {
+		var i ListTeamChallengeCopiesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.EventTeamID,
+			&i.EventChallengeID,
+			&i.VariantIndex,
+			&i.Snapshot,
+			&i.Hints,
+			&i.Solved,
+			&i.Moderators,
+			&i.TeamName,
 		); err != nil {
 			return nil, err
 		}
@@ -1022,7 +1083,13 @@ WHERE tc.event_id = $1
    WHERE lb.event_team_id=tc.event_team_id AND lb.event_challenge_id=tc.event_challenge_id AND lb.readiness=1
     AND l.desired_state='Running' AND l.logical_closed_at IS NULL AND l.actual_state='Running' AND l.runtime_ready
     AND l.agent_uid<>'' AND l.agent_generation>0 AND l.observed_revision=l.desired_revision
-    AND (cfg.task_reveal_mode='as_ready' OR (barrier.mode='all_ready' AND barrier.opened_at IS NOT NULL)))))
+    AND (cfg.task_reveal_mode='as_ready'
+     OR (cfg.task_reveal_mode='all_ready' AND (
+        (barrier.mode='all_ready' AND barrier.opened_at IS NOT NULL)
+        -- A team outside the cohort (admitted after the cohort was fixed at the start) never waits for the others:
+        -- it gets each task as soon as its own Lab is ready. The moderators team is not a participant and waits.
+        OR (barrier.event_exercise_id IS NOT NULL AND NOT tc.event_team_id = ANY(barrier.eligible_team_ids)
+            AND NOT EXISTS(SELECT 1 FROM event_teams own WHERE own.id=tc.event_team_id AND own.moderators))))))))
 RETURNING tc.event_team_id
 `
 
@@ -1076,7 +1143,7 @@ type UpdateTeamChallengeContentParams struct {
 	ID             uuid.UUID `json:"id"`
 }
 
-// content_changed marks a participant-visible change («Оновлено»).
+// content_changed marks a participant-visible change ("Updated").
 func (q *Queries) UpdateTeamChallengeContent(ctx context.Context, arg UpdateTeamChallengeContentParams) (int64, error) {
 	result, err := q.db.Exec(ctx, updateTeamChallengeContent,
 		arg.VariantIndex,

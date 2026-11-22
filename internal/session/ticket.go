@@ -10,7 +10,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/pkg/secret"
+	"github.com/cybericebox/backend/internal/secretctx"
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
 var (
@@ -22,7 +23,7 @@ var (
 )
 
 // ticketContext is authenticated with every ticket, so a ciphertext of another secret family never opens here.
-var ticketContext = []byte("cybericebox/session-ticket/v1")
+var ticketContext = secretctx.SessionTicket()
 
 // ticketSize is the plain size of an encoded ticket: two UUIDs and three unix times.
 const ticketSize = 16 + 16 + 3*8

@@ -9,16 +9,16 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	mailModel "github.com/cybericebox/daemon/internal/model/mail"
-	"github.com/cybericebox/daemon/pkg/secret"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	mailModel "github.com/cybericebox/backend/internal/model/mail"
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
 func sealedEventRow(t *testing.T, cipher *secret.Cipher, password string) postgres.MailSmtpConfig {
 	t.Helper()
 	id := uuid.Must(uuid.NewV7())
-	ct, err := cipher.EncryptWithContext([]byte(password), passwordContext(id))
+	ct, err := cipher.EncryptWithContext([]byte(password), PasswordContext(id))
 	require.NoError(t, err)
 	return postgres.MailSmtpConfig{ID: id, Host: "smtp.uni.example", Port: 587, TlsMode: "starttls", Username: "mailer", PasswordCiphertext: ct}
 }

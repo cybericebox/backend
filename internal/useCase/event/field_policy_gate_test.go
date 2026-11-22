@@ -9,11 +9,11 @@ import (
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventFormRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventTeamRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	participantModel "github.com/cybericebox/daemon/internal/model/participant"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventFormRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventTeamRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
 )
 
 // The block is the existing form_required rejection, raised only when the

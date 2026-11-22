@@ -10,7 +10,7 @@ import (
 	"github.com/quic-go/quic-go/http3"
 	"golang.org/x/time/rate"
 
-	"github.com/cybericebox/daemon/internal/config"
+	"github.com/cybericebox/backend/internal/config"
 )
 
 // QUIC limits (the UDP flood posture):
@@ -89,6 +89,7 @@ func (l *h3Listener) serve() error {
 	if err != nil {
 		return err
 	}
+	warnShortUDPBuffers(pc)
 	limiter := rate.NewLimiter(rate.Limit(quicFreeHandshakesPerSec), quicFreeHandshakesBurst)
 	l.tr = &quic.Transport{Conn: pc, VerifySourceAddress: func(net.Addr) bool { return !limiter.Allow() }}
 	ln, err := l.tr.ListenEarly(l.srv.TLSConfig, l.srv.QUICConfig)

@@ -8,12 +8,12 @@ import (
 	"strings"
 	"testing"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 	"github.com/gofrs/uuid"
 	yzip "github.com/yeka/zip"
 )
 
-const layoutDoc = `schema: cib-exercise/1
+const layoutDoc = `schema: cib-exercise/1.0
 exercise:
   name: Layout
 versions:
@@ -296,22 +296,22 @@ func parseLayout(t *testing.T, files map[string][]byte) (ParsedExerciseArchive, 
 
 func TestToParsed_AttachmentByPathAnyFolder(t *testing.T) {
 	parsed, err := parseLayout(t, map[string][]byte{
-		"exercise.yaml":          taskWithAttachments(`{file: docs/notes/Нотатки.txt}`),
-		"docs/notes/Нотатки.txt": []byte("текст"),
+		"exercise.yaml":        taskWithAttachments(`{file: docs/notes/Notes.txt}`),
+		"docs/notes/Notes.txt": []byte("text"),
 	})
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
 	ref := parsed.Versions[0].Variants[0].Tasks[0].Attachments[0]
-	if ref.Name != "Нотатки.txt" || ref.FileID == uuid.Nil {
+	if ref.Name != "Notes.txt" || ref.FileID == uuid.Nil {
 		t.Fatalf("ref = %+v", ref)
 	}
 	meta := parsed.FileMeta[ref.FileID]
-	if meta.Name != "Нотатки.txt" || !strings.HasPrefix(meta.ContentType, "text/plain") {
+	if meta.Name != "Notes.txt" || !strings.HasPrefix(meta.ContentType, "text/plain") {
 		t.Fatalf("meta = %+v", meta)
 	}
 	body, ok := lookupAttachment(&parsed, ref.FileID)
-	if !ok || string(body) != "текст" {
+	if !ok || string(body) != "text" {
 		t.Fatalf("lookup = %q %v", body, ok)
 	}
 }

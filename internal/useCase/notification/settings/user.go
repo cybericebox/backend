@@ -5,8 +5,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/model"
-	settingsModel "github.com/cybericebox/daemon/internal/model/notification/settings"
+	"github.com/cybericebox/backend/internal/model"
+	settingsModel "github.com/cybericebox/backend/internal/model/notification/settings"
 )
 
 func (u *NotificationSettingsUseCase) ListUserSettings(ctx context.Context, userID uuid.UUID) (

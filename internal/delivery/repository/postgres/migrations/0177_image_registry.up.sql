@@ -1,4 +1,4 @@
--- The platform image registry (settings in «Панель платформи»): one settings row
+-- The platform image registry (settings in the platform panel): one settings row
 -- holding the provider, account, repository and the sealed push/pull tokens.
 -- Tokens are stored sealed only (PLATFORM_SECRETS_KEY) and never read back.
 CREATE TABLE image_registry_settings (

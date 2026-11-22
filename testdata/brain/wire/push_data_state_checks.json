@@ -1,0 +1,113 @@
+{
+  "aggregates": [
+    {
+      "source": "academy",
+      "task_ref": "00000000-0000-4000-8000-000000000001",
+      "version": "00000000-0000-4000-8000-000000000002",
+      "image": "3be3c43cd7ee541bb601f8131132ed025ff97406130f73774fe3ffcf6ee8b86d",
+      "solves": 1,
+      "attempts": 0,
+      "solve_rate": 0.3333333333333333,
+      "time": {
+        "median": 1140,
+        "p25": 1140,
+        "p75": 1140
+      },
+      "hints_used": [
+        {
+          "hints": 0,
+          "teams": 2
+        },
+        {
+          "hints": 1,
+          "teams": 1
+        }
+      ],
+      "task_kind": "dynamic",
+      "as_of": "2026-11-16T18:00:00Z",
+      "teams_engaged": 3,
+      "state_checks": [
+        {
+          "subtask_ref": "config_ok",
+          "teams_passed": 1,
+          "time_to_pass_s": {
+            "p25": 900,
+            "median": 900,
+            "p75": 900
+          }
+        },
+        {
+          "subtask_ref": "web_up",
+          "teams_passed": 2,
+          "time_to_pass_s": {
+            "p25": 330,
+            "median": 420,
+            "p75": 510
+          }
+        }
+      ],
+      "egress_enabled": false,
+      "lab_health": {
+        "ready_time_s": {
+          "p25": 31.5,
+          "median": 33,
+          "p75": 38.5
+        },
+        "restarts_per_team": 0.3333333333333333,
+        "broken_share": 0
+      },
+      "egress_share": null,
+      "vpn_bytes_per_team": null,
+      "devices_touched_per_team": null,
+      "console_minutes_per_team": null,
+      "team_records": [
+        {
+          "team_ref": "17ad93f5c2e04b8d9a61f3c7e5b28d40",
+          "solved": false,
+          "wrong_submissions": 0,
+          "hints_used": 0,
+          "state_checks": [
+            {
+              "subtask_ref": "web_up"
+            },
+            {
+              "subtask_ref": "config_ok"
+            }
+          ]
+        },
+        {
+          "team_ref": "5f0c2a7e9b1d4c3a8e6f0b2d7c91a4e3",
+          "solved": true,
+          "solve_time_s": 1140,
+          "wrong_submissions": 0,
+          "hints_used": 0,
+          "state_checks": [
+            {
+              "subtask_ref": "web_up",
+              "time_to_pass_s": 240
+            },
+            {
+              "subtask_ref": "config_ok",
+              "time_to_pass_s": 900
+            }
+          ]
+        },
+        {
+          "team_ref": "c4b8e1d02f7a46c9a3d5e8f1b0627c94",
+          "solved": false,
+          "wrong_submissions": 0,
+          "hints_used": 1,
+          "state_checks": [
+            {
+              "subtask_ref": "web_up",
+              "time_to_pass_s": 600
+            },
+            {
+              "subtask_ref": "config_ok"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

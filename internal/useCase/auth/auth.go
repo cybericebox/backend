@@ -7,23 +7,29 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/repository/sessionRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/temporalCodeRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/delivery/repository/userRepo"
-	"github.com/cybericebox/daemon/internal/model"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
-	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
-	"github.com/cybericebox/daemon/internal/session"
-	"github.com/cybericebox/daemon/pkg/oauth"
-	"github.com/cybericebox/daemon/pkg/password"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/repository/googleLinkTicketRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/passkeyRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/sessionRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/tablePrefsRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/temporalCodeRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/delivery/repository/userExportRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/userRepo"
+	"github.com/cybericebox/backend/internal/model"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
+	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	temporalCodeModel "github.com/cybericebox/backend/internal/model/temporalCode"
+	userModel "github.com/cybericebox/backend/internal/model/user"
+	"github.com/cybericebox/backend/internal/session"
+	"github.com/cybericebox/backend/pkg/oauth"
+	"github.com/cybericebox/backend/pkg/password"
 )
 
 // IRepository is the narrow data port: the User, Session and TemporalCode repos'
@@ -33,6 +39,10 @@ type IRepository interface {
 	userRepo.Queries
 	sessionRepo.Queries
 	temporalCodeRepo.Queries
+	passkeyRepo.Queries
+	userExportRepo.Queries
+	tablePrefsRepo.Queries
+	googleLinkTicketRepo.Queries
 }
 
 // ITokenClient is the crypto port (satisfied by *token.Client).
@@ -82,9 +92,15 @@ type IAvatarStorage interface {
 }
 
 type AuthUseCase struct {
-	sessions           *sessionRepo.Repository
-	users              *userRepo.Repository
-	codes              *temporalCodeRepo.Repository
+	sessions   *sessionRepo.Repository
+	users      *userRepo.Repository
+	codes      *temporalCodeRepo.Repository
+	passkeys   *passkeyRepo.Repository
+	exports    *userExportRepo.Repository
+	tablePrefs *tablePrefsRepo.Repository
+	// webauthn is the relying party of passkey sign-in; nil when the hosts do not allow one.
+	webauthn           *webauthn.WebAuthn
+	googleTickets      *googleLinkTicketRepo.Repository
 	token              ITokenClient
 	password           IPasswordClient
 	notifier           INotifier
@@ -160,6 +176,10 @@ func NewAuthUseCase(deps Dependencies) *AuthUseCase {
 		sessions:          sessionRepo.New(deps.Repo),
 		users:             userRepo.New(deps.Repo),
 		codes:             temporalCodeRepo.New(deps.Repo),
+		passkeys:          passkeyRepo.New(deps.Repo),
+		exports:           userExportRepo.New(deps.Repo),
+		tablePrefs:        tablePrefsRepo.New(deps.Repo),
+		googleTickets:     googleLinkTicketRepo.New(deps.Repo),
 		token:             deps.Token,
 		password:          deps.Password,
 		notifier:          deps.Notifier,
@@ -172,6 +192,11 @@ func NewAuthUseCase(deps Dependencies) *AuthUseCase {
 		rt:                deps.Sessions,
 		limits:            newAuthLimits(),
 		background:        deps.Background,
+	}
+	if rp, err := newWebAuthn(deps.Config.Hosts); err != nil {
+		log.Warn().Err(err).Msg("Passkeys are unavailable: the relying party could not be built")
+	} else {
+		uc.webauthn = rp
 	}
 	if deps.Sessions != nil && deps.Sessions.Seen != nil {
 		deps.Sessions.Seen.SetWriter(uc)
@@ -269,6 +294,18 @@ func (u *AuthUseCase) deleteUserCascade(ctx context.Context, userID uuid.UUID, a
 	if _, err := u.users.DeleteProviders(ctx, userID); err != nil {
 		return model.ErrPlatform.WithError(err).WithMessage("Failed to delete user providers").Err()
 	}
+	// Nothing issued to the old account may survive it: reset links, email-change and setup links.
+	if err := u.revokeCodes(ctx, userID,
+		temporalCodeModel.PasswordResettingCodeType, temporalCodeModel.EmailChangeCodeType, temporalCodeModel.SetupLinkCodeType); err != nil {
+		return err
+	}
+	if err := u.tablePrefs.DeleteAll(ctx, userID); err != nil {
+		return model.ErrPlatform.WithError(err).WithMessage("Failed to delete user table views").Err()
+	}
+	if _, err := u.passkeys.DeleteAll(ctx, userID); err != nil {
+		return model.ErrPlatform.WithError(err).WithMessage("Failed to delete user passkeys").Err()
+	}
+	u.removeAvatars(ctx, userID)
 	if u.inboxRequests != nil {
 		// Best-effort: the account is already removed.
 		if err := u.inboxRequests.UserDeleted(ctx, userID); err != nil {

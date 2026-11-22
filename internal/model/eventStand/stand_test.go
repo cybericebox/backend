@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 var standNow = time.Date(2026, 10, 1, 9, 0, 0, 0, time.UTC)
@@ -83,7 +83,7 @@ func TestReasonIsTrimmedAndBounded(t *testing.T) {
 	if got := Reason("  a \n b  "); got != "a b" {
 		t.Fatalf("Reason = %q", got)
 	}
-	if got := []rune(Reason(strings.Repeat("я", 400))); len(got) != reasonMaxLen {
+	if got := []rune(Reason(strings.Repeat("é", 400))); len(got) != reasonMaxLen {
 		t.Fatalf("Reason length = %d", len(got))
 	}
 }

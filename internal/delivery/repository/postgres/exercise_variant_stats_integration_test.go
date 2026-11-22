@@ -8,12 +8,12 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventTeamRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/exerciseRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	eventTeamModel "github.com/cybericebox/daemon/internal/model/eventTeam"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventTeamRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/exerciseRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	eventTeamModel "github.com/cybericebox/backend/internal/model/eventTeam"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 var (
@@ -34,7 +34,7 @@ func vsID(n int) uuid.UUID {
 func vsVariants() []exerciseModel.Variant {
 	task := func(id uuid.UUID, name string) exerciseModel.Task {
 		return exerciseModel.Task{ID: id, Name: name, Description: json.RawMessage(`{"blocks":[]}`),
-			Difficulty: exerciseModel.DifficultyEasy, Flag: []string{"ICE{x}"}}
+			Difficulty: exerciseModel.DifficultyEasy, Check: exerciseModel.FlagCheck("ICE{x}")}
 	}
 	return []exerciseModel.Variant{
 		{ID: vsVariant0, Index: 0, Tasks: []exerciseModel.Task{task(vsTask1, "One"), task(vsTask2, "Two")}},
@@ -59,7 +59,7 @@ func seedVariantStats(t *testing.T, tag string) *vsSeed {
 	event := mustSeedEventForParticipants(t, db, tag)
 	exercises := exerciseRepo.New(db.Queries)
 	exercise := mustCreateExercise(t, exercises, "Variant stats")
-	if _, err := exercises.UpsertDraft(ctx, exercise.ID, vsVersion1, exerciseModel.ExerciseVersion{Variants: vsVariants()}, itNow, uuid.NullUUID{}); err != nil {
+	if _, err := exercises.ForceUpsertDraft(ctx, exercise.ID, vsVersion1, exerciseModel.ExerciseVersion{Variants: vsVariants()}, itNow, uuid.NullUUID{}); err != nil {
 		t.Fatalf("save draft: %v", err)
 	}
 	if _, err := exercises.Publish(ctx, exercise.ID, itNow); err != nil {
@@ -245,7 +245,7 @@ func TestVariantStats_GrowOnly(t *testing.T) {
 	// Switching the event exercise to another version (same variant ids, as a copy keeps them):
 	// the rewrite of the assignment counts the team once for the new version, the old counts stay.
 	exercises := exerciseRepo.New(s.db.Queries)
-	if _, err := exercises.UpsertDraft(ctx, s.exerciseID, vsVersion2, exerciseModel.ExerciseVersion{Variants: vsVariants()}, itNow, uuid.NullUUID{}); err != nil {
+	if _, err := exercises.ForceUpsertDraft(ctx, s.exerciseID, vsVersion2, exerciseModel.ExerciseVersion{Variants: vsVariants()}, itNow, uuid.NullUUID{}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := exercises.Publish(ctx, s.exerciseID, itNow); err != nil {
@@ -385,7 +385,7 @@ func TestVariantStats_TriggerFailureNeverFailsTheWrite(t *testing.T) {
 
 	// Restore valid content, then make every mark insert fail: the writes still succeed.
 	exercises := exerciseRepo.New(s.db.Queries)
-	if _, err := exercises.UpsertDraft(ctx, s.exerciseID, vsVersion2, exerciseModel.ExerciseVersion{Variants: vsVariants()}, itNow, uuid.NullUUID{}); err != nil {
+	if _, err := exercises.ForceUpsertDraft(ctx, s.exerciseID, vsVersion2, exerciseModel.ExerciseVersion{Variants: vsVariants()}, itNow, uuid.NullUUID{}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.db.Pool.Exec(ctx, `UPDATE exercise_versions SET variants = (SELECT variants FROM exercise_versions WHERE id = $2) WHERE id = $1`, vsVersion1, vsVersion2); err != nil {

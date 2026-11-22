@@ -12,7 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/quic-go/quic-go/http3"
 
-	"github.com/cybericebox/daemon/internal/config"
+	"github.com/cybericebox/backend/internal/config"
 )
 
 // startH3 runs a Server with a self-signed certificate; the chain is a middleware that stamps a header and a
@@ -40,7 +40,7 @@ func startH3(t *testing.T, enabled bool) (port string, pool *x509.CertPool) {
 	router.GET("/limited", func(c *gin.Context) { c.Status(http.StatusTooManyRequests) })
 	RegisterHealth(router)
 
-	srv := NewServer(&cfg, "127.0.0.1", router)
+	srv := NewServer(&cfg, "127.0.0.1", router, config.HostsConfig{})
 	srv.Start()
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)

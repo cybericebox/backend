@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	mailModel "github.com/cybericebox/daemon/internal/model/mail"
-	emailUseCase "github.com/cybericebox/daemon/internal/useCase/notification/channels/email"
+	mailModel "github.com/cybericebox/backend/internal/model/mail"
+	emailUseCase "github.com/cybericebox/backend/internal/useCase/notification/channels/email"
 )
 
 func testEventFooter() mailModel.Footer {

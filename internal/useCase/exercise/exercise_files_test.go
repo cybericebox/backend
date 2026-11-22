@@ -11,10 +11,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	exercise "github.com/cybericebox/daemon/internal/useCase/exercise"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	exercise "github.com/cybericebox/backend/internal/useCase/exercise"
 )
 
 var (
@@ -202,7 +202,7 @@ func TestImportExerciseArchive_UploadsEachContentOnce(t *testing.T) {
 		return arg.FileID, nil
 	})
 	media := newFakeMedia()
-	archive := linkedArchive(t, "draft", `[{"tasks":[{"name":"Перше","attachments":[{"file":"files/a.txt"},{"file":"other/b.txt"}]}]}]`,
+	archive := linkedArchive(t, "draft", `[{"tasks":[{"name":"First","attachments":[{"file":"files/a.txt"},{"file":"other/b.txt"}]}]}]`,
 		map[string]string{"files/a.txt": "same bytes", "other/b.txt": "same bytes"})
 
 	created, err := newTestExerciseUseCase(exercise.Dependencies{Repo: q, Media: media}).

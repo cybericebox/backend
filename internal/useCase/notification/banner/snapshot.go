@@ -9,8 +9,8 @@ import (
 	"github.com/gofrs/uuid"
 	"golang.org/x/sync/singleflight"
 
-	siteModel "github.com/cybericebox/daemon/internal/model/site"
-	siteBannerModel "github.com/cybericebox/daemon/internal/model/siteBanner"
+	siteModel "github.com/cybericebox/backend/internal/model/site"
+	siteBannerModel "github.com/cybericebox/backend/internal/model/siteBanner"
 )
 
 // snapshotTTL is how long the in-memory banner snapshot is served without a reload. Writes on this

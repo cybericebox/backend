@@ -7,18 +7,19 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
+	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventAnalyticsRepo"
-	"github.com/cybericebox/daemon/internal/model"
-	eventAnalyticsModel "github.com/cybericebox/daemon/internal/model/eventAnalytics"
-	eventStandModel "github.com/cybericebox/daemon/internal/model/eventStand"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventAnalyticsRepo"
+	"github.com/cybericebox/backend/internal/model"
+	eventAnalyticsModel "github.com/cybericebox/backend/internal/model/eventAnalytics"
+	eventStandModel "github.com/cybericebox/backend/internal/model/eventStand"
 )
 
 // maxTeamFailures bounds the failures listed per team; the counters cover
 // all of them.
 const maxTeamFailures = 20
 
-// StandStore is the statement port of «Стенди».
+// StandStore is the statement port of "Stands".
 type StandStore interface {
 	StandTeams(ctx context.Context, eventID uuid.UUID) ([]eventAnalyticsRepo.StandTeam, error)
 	StandTransitions(ctx context.Context, eventID uuid.UUID) ([]eventAnalyticsModel.StandTransition, error)
@@ -27,7 +28,7 @@ type StandStore interface {
 }
 
 type (
-	// StandsView is the «Стенди» report (§6.5).
+	// StandsView is the "Stands" report (§6.5).
 	StandsView struct {
 		// Available is false for an event without infrastructure: the rest
 		// is empty and the section is hidden.
@@ -103,7 +104,7 @@ type (
 	}
 )
 
-// GetEventAnalyticsStands is the «Стенди» report. The period bounds the
+// GetEventAnalyticsStands is the "Stands" report. The period bounds the
 // telemetry and VPN figures; the deploy and failure history is the event's.
 func (u *EventAnalyticsUseCase) GetEventAnalyticsStands(ctx context.Context, eventID uuid.UUID, from, to *time.Time) (StandsView, error) {
 	e, err := u.event(ctx, eventID)
@@ -114,6 +115,20 @@ func (u *EventAnalyticsUseCase) GetEventAnalyticsStands(ctx context.Context, eve
 		return StandsView{}, nil
 	}
 	finish := e.Lifecycle.EffectiveFinishAt()
+	if from == nil && u.reservations != nil {
+		// The stands exist from the start of the resource reservation (the labs are prepared before the event).
+		if start, reserved, reservedErr := u.reservations.EventReservationStart(
+			ctx,
+			eventID,
+		); reservedErr != nil {
+			log.Warn().
+				Err(reservedErr).
+				Msg("The reservation start is unavailable for the stands analytics")
+		} else if reserved &&
+			start.Before(e.Lifecycle.StartAt) {
+			from = &start
+		}
+	}
 	period, err := eventAnalyticsModel.NewPeriod(from, to, e.Lifecycle.StartAt, finish, u.now())
 	if err != nil {
 		return StandsView{}, err

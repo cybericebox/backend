@@ -10,14 +10,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/emailTemplateRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	"github.com/cybericebox/daemon/internal/model/notification/branding"
-	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
-	signalModel "github.com/cybericebox/daemon/internal/model/signal"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
-	emailUseCase "github.com/cybericebox/daemon/internal/useCase/notification/channels/email"
+	"github.com/cybericebox/backend/internal/delivery/repository/emailTemplateRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	"github.com/cybericebox/backend/internal/model/notification/branding"
+	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
+	signalModel "github.com/cybericebox/backend/internal/model/signal"
+	userModel "github.com/cybericebox/backend/internal/model/user"
+	emailUseCase "github.com/cybericebox/backend/internal/useCase/notification/channels/email"
 )
 
 type fixedEventBrand struct{ brand emailUseCase.Brand }

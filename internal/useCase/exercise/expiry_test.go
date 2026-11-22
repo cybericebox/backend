@@ -11,11 +11,11 @@ import (
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	vpnModel "github.com/cybericebox/daemon/internal/model/vpn"
-	"github.com/cybericebox/daemon/internal/useCase/exercise"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	vpnModel "github.com/cybericebox/backend/internal/model/vpn"
+	"github.com/cybericebox/backend/internal/useCase/exercise"
 )
 
 func fixedNow() time.Time { return time.Date(2026, 10, 5, 16, 3, 0, 0, time.UTC) }

@@ -6,10 +6,10 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	sessionRepo "github.com/cybericebox/daemon/internal/delivery/repository/sessionRepo"
-	"github.com/cybericebox/daemon/internal/model"
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
-	"github.com/cybericebox/daemon/internal/session"
+	sessionRepo "github.com/cybericebox/backend/internal/delivery/repository/sessionRepo"
+	"github.com/cybericebox/backend/internal/model"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
+	"github.com/cybericebox/backend/internal/session"
 )
 
 // SignOut ends the session: its row goes and the revocation is written.

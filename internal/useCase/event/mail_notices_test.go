@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	signalModel "github.com/cybericebox/daemon/internal/model/signal"
-	event "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	signalModel "github.com/cybericebox/backend/internal/model/signal"
+	event "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 func TestRunEventMailNotices_PublishesOnceAndRecordsState(t *testing.T) {
@@ -30,7 +30,7 @@ func TestRunEventMailNotices_PublishesOnceAndRecordsState(t *testing.T) {
 	teamInvitee := uuid.Must(uuid.NewV7())
 
 	q.EXPECT().ListEventsDueStartReminder(gomock.Any(), gomock.Any()).Return([]postgres.ListEventsDueStartReminderRow{
-		{ID: reminderEvent, Tag: "olymp", Name: "Олімпіада", StartAt: startAt, DaysBeforeStart: 7},
+		{ID: reminderEvent, Tag: "olymp", Name: "Olympiad", StartAt: startAt, DaysBeforeStart: 7},
 	}, nil)
 	q.EXPECT().MarkEventStartReminderSent(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, p postgres.MarkEventStartReminderSentParams) error {
 		require.Equal(t, reminderEvent, p.EventID)

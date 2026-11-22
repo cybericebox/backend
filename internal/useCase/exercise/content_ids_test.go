@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 func TestNormalizeContentIDs_AssignsStablePlaceholderKeys(t *testing.T) {

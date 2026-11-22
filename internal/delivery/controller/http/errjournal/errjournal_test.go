@@ -15,11 +15,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	"github.com/cybericebox/daemon/internal/model"
-	errorJournal "github.com/cybericebox/daemon/internal/model/errorJournal"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	"github.com/cybericebox/daemon/pkg/overload"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	"github.com/cybericebox/backend/internal/model"
+	errorJournal "github.com/cybericebox/backend/internal/model/errorJournal"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	"github.com/cybericebox/backend/pkg/overload"
 )
 
 type fakeSink struct {

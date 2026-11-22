@@ -7,7 +7,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 // The editor compares variants without values: a secret by its ValueGroup, an attachment by its ContentHash (a plain
@@ -45,8 +45,8 @@ func (u *ExerciseUseCase) secretValueGroups(variants []exerciseModel.Variant) []
 	for vi, variant := range variants {
 		out[vi] = make([][]int, len(variant.Topology.Devices))
 		for di, device := range variant.Topology.Devices {
-			out[vi][di] = make([]int, len(device.EnvVars))
-			for ei, env := range device.EnvVars {
+			out[vi][di] = make([]int, len(device.Bootstrap.Env))
+			for ei, env := range device.Bootstrap.Env {
 				if !env.Secret || env.Value == "" {
 					continue
 				}
@@ -54,7 +54,7 @@ func (u *ExerciseUseCase) secretValueGroups(variants []exerciseModel.Variant) []
 				if env.Origin == "" {
 					key = "unknown:" + freshID().String()
 					if u.cipher != nil {
-						if plain, err := u.cipher.DecryptWithContext(env.Value, envSecretContext(variant.ID, device.Name, env.Name)); err == nil {
+						if plain, err := u.cipher.DecryptWithContext(env.Value, EnvSecretContext(variant.ID, device.Name, env.Name)); err == nil {
 							key = "legacy:" + string(plain)
 						}
 					}

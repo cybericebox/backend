@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	eventAnalyticsUseCase "github.com/cybericebox/daemon/internal/useCase/eventAnalytics"
+	eventAnalyticsUseCase "github.com/cybericebox/backend/internal/useCase/eventAnalytics"
 )
 
 func TestUsageLabContractKeepsLabInitiativesAndUnknownDates(t *testing.T) {

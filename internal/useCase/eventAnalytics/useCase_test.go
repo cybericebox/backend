@@ -3,7 +3,7 @@ package eventAnalytics_test
 import (
 	"context"
 	"errors"
-	labBindingModel "github.com/cybericebox/daemon/internal/model/labBinding"
+	labBindingModel "github.com/cybericebox/backend/internal/model/labBinding"
 	"sync"
 	"testing"
 	"time"
@@ -11,13 +11,13 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventAnalyticsRepo"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventAnalyticsModel "github.com/cybericebox/daemon/internal/model/eventAnalytics"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	eventManagerModel "github.com/cybericebox/daemon/internal/model/eventManager"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	"github.com/cybericebox/daemon/internal/useCase/eventAnalytics"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventAnalyticsRepo"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventAnalyticsModel "github.com/cybericebox/backend/internal/model/eventAnalytics"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	eventManagerModel "github.com/cybericebox/backend/internal/model/eventManager"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/useCase/eventAnalytics"
 )
 
 var now = time.Date(2026, 9, 29, 12, 2, 0, 0, time.UTC)

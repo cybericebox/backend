@@ -8,7 +8,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/cybericebox/daemon/pkg/worker"
+	"github.com/cybericebox/backend/pkg/safeconv"
+	"github.com/cybericebox/backend/pkg/worker"
 	"strings"
 	"time"
 
@@ -17,10 +18,10 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	errorJournal "github.com/cybericebox/daemon/internal/model/errorJournal"
-	errorJournalUseCase "github.com/cybericebox/daemon/internal/useCase/errorJournal"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	errorJournal "github.com/cybericebox/backend/internal/model/errorJournal"
+	errorJournalUseCase "github.com/cybericebox/backend/internal/useCase/errorJournal"
 )
 
 // Queries is the narrow slice of the sqlc Querier this repository needs.
@@ -195,16 +196,16 @@ func (r *Repository) ListGroups(ctx context.Context, f errorJournalUseCase.Group
 		kinds = append(kinds, string(k))
 	}
 	query := likeEscape(f.Query)
-	from, to := tsPtr(f.From), tsPtr(f.To)
+	from, to, newSince := tsPtr(f.From), tsPtr(f.To), tsPtr(f.NewSince)
 	rows, err := r.q.ListErrorGroups(ctx, postgres.ListErrorGroupsParams{
-		Kinds: kinds, Status: string(f.Status), FromAt: from, ToAt: to, Query: query, Request: f.Request,
-		LimitVal: int32(f.Limit), OffsetVal: int32(f.Offset),
+		Kinds: kinds, Status: string(f.Status), FromAt: from, ToAt: to, NewSince: newSince, Query: query, Request: f.Request,
+		LimitVal: safeconv.Int32(f.Limit), OffsetVal: safeconv.Int32(f.Offset),
 	})
 	if err != nil {
 		return nil, 0, err
 	}
 	total, err := r.q.CountErrorGroups(ctx, postgres.CountErrorGroupsParams{
-		Kinds: kinds, Status: string(f.Status), FromAt: from, ToAt: to, Query: query, Request: f.Request,
+		Kinds: kinds, Status: string(f.Status), FromAt: from, ToAt: to, NewSince: newSince, Query: query, Request: f.Request,
 	})
 	if err != nil {
 		return nil, 0, err

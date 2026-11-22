@@ -9,10 +9,10 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
 )
 
 type SaveDraftInput struct {
@@ -22,6 +22,9 @@ type SaveDraftInput struct {
 	// was copied from, so a secret kept blank in the copy takes that variant's value.
 	CopyOf  []uuid.NullUUID
 	SavedBy uuid.UUID
+	// Revision is the revision of the working copy the author started from, exactly as the API gave it (opaque; "" when
+	// the author saw no working copy). A save is applied only on top of that revision: otherwise ErrDraftModified.
+	Revision string
 }
 
 // SaveDraft stores the working copy as-is: it may be incomplete (autosave while
@@ -29,6 +32,10 @@ type SaveDraftInput struct {
 // in PublishDraft. Kept secrets are merged and fresh ones encrypted, then the
 // draft slot is upserted in one CTE. Route gate: exercises.write.
 func (u *ExerciseUseCase) SaveDraft(ctx context.Context, exerciseID uuid.UUID, in SaveDraftInput) (VersionView, error) {
+	expected, err := exerciseModel.ParseRevision(in.Revision)
+	if err != nil {
+		return VersionView{}, err
+	}
 	e, err := u.loadEditable(ctx, exerciseID)
 	if err != nil {
 		return VersionView{}, err
@@ -49,12 +56,21 @@ func (u *ExerciseUseCase) SaveDraft(ctx context.Context, exerciseID uuid.UUID, i
 	if err = version.SyncLinkedVariants(); err != nil {
 		return VersionView{}, err
 	}
+	if err = exerciseModel.ValidateDeviceNames(version.Variants); err != nil {
+		return VersionView{}, err
+	}
 	if err = u.requireInfrastructureAllowed(ctx, e, version.Variants); err != nil {
+		return VersionView{}, err
+	}
+	if err = u.requireProfilesSupported(ctx, version.Variants); err != nil {
 		return VersionView{}, err
 	}
 	// The client names the attached files by id: it may attach only what it uploaded or what the exercise
 	// already holds, never another user's file (the table of files is shared by every event).
 	if err = u.requireFilesClaimable(ctx, exerciseID, in.SavedBy, exerciseModel.CollectFileIDs(version.Variants)); err != nil {
+		return VersionView{}, err
+	}
+	if err = u.requireBootstrapSizes(ctx, version.Variants); err != nil {
 		return VersionView{}, err
 	}
 	// Snapshot which secret fields the caller actually submitted BEFORE the
@@ -66,6 +82,14 @@ func (u *ExerciseUseCase) SaveDraft(ctx context.Context, exerciseID uuid.UUID, i
 	if err != nil {
 		return VersionView{}, err
 	}
+	// Registry references are fixed by digest here, outside the transaction (the lookups are network calls); a reference
+	// the stored working copy already fixed under the same name and tag keeps its digest.
+	var storedVariants []exerciseModel.Variant
+	if mergeSource != nil {
+		storedVariants = mergeSource.Variants
+	}
+	// A draft save never fails because of a registry: what cannot be resolved stays as typed, and publishing refuses it.
+	u.pinDraftImages(ctx, exerciseID, version.Variants, storedVariants)
 	copyOf := in.CopyOf
 	if mergeSource != nil {
 		mergeKeptSecrets(version.Variants, mergeSource.Variants)
@@ -108,15 +132,19 @@ func (u *ExerciseUseCase) SaveDraft(ctx context.Context, exerciseID uuid.UUID, i
 	if err = session.requireFilesClaimable(ctx, exerciseID, in.SavedBy, exerciseModel.CollectFileIDs(version.Variants)); err != nil {
 		return VersionView{}, err
 	}
+	if err = session.requireBootstrapSizes(ctx, version.Variants); err != nil {
+		return VersionView{}, err
+	}
 	if err = session.adoptFiles(ctx, exerciseID, version.Variants); err != nil {
 		return VersionView{}, err
 	}
 
 	by := uuid.NullUUID{UUID: in.SavedBy, Valid: in.SavedBy != uuid.Nil}
-	saved, err := session.exercises.UpsertDraft(ctx, exerciseID, uuid.Must(uuid.NewV7()), version, time.Now(), by)
+	saved, err := session.exercises.UpsertDraft(ctx, exerciseID, uuid.Must(uuid.NewV7()), version, time.Now(), by, expected)
 	if err != nil {
 		if repositoryTools.IsObjectNotFoundError(err) {
-			return VersionView{}, exerciseModel.ErrExerciseNotFound.Err()
+			// The row is locked and was read a moment ago, so zero rows is the revision check: say who saved meanwhile.
+			return VersionView{}, session.draftModified(ctx, exerciseID)
 		}
 		return VersionView{}, model.ErrPlatform.WithError(err).WithMessage("Failed to save draft").Err()
 	}
@@ -128,6 +156,33 @@ func (u *ExerciseUseCase) SaveDraft(ctx context.Context, exerciseID uuid.UUID, i
 		return VersionView{}, model.ErrPlatform.WithError(err).WithMessage("Failed to save draft transaction").Err()
 	}
 	return view, nil
+}
+
+// draftModified is the one 409 of the working copy's optimistic check: the writer did not start from the current
+// revision. The public context names the current revision (opaque; "" when the working copy is gone) and who saved it
+// and when, so the editor can offer to reload. A missing exercise is its own error.
+func (u *ExerciseUseCase) draftModified(ctx context.Context, exerciseID uuid.UUID) error {
+	if _, err := u.exercises.GetByID(ctx, exerciseID); err != nil {
+		if repositoryTools.IsObjectNotFoundError(err) {
+			return exerciseModel.ErrExerciseNotFound.Err()
+		}
+		return model.ErrPlatform.WithError(err).WithMessage("Failed to read exercise").Err()
+	}
+	creator := exerciseModel.ErrDraftModified.WithPublicContext("revision", "")
+	current, err := u.exercises.GetDraftRevision(ctx, exerciseID)
+	switch {
+	case err == nil:
+		creator = creator.WithPublicContext("revision", exerciseModel.FormatRevision(current.UpdatedAt)).
+			WithPublicContext("savedAt", current.UpdatedAt.UTC().Format(time.RFC3339))
+		if name := u.authorNames(ctx, current.UpdatedBy)[current.UpdatedBy.UUID]; name != "" {
+			creator = creator.WithPublicContext("savedBy", name)
+		}
+	case repositoryTools.IsObjectNotFoundError(err):
+		// The working copy was discarded or published meanwhile: no revision to echo.
+	default:
+		return model.ErrPlatform.WithError(err).WithMessage("Failed to read the working copy revision").Err()
+	}
+	return creator.Err()
 }
 
 func sameSecretMergeSnapshot(a, b *exerciseModel.ExerciseVersion) bool {
@@ -192,6 +247,11 @@ func (u *ExerciseUseCase) PublishDraft(ctx context.Context, exerciseID uuid.UUID
 		}
 		return VersionView{}, model.ErrPlatform.WithError(err).WithMessage("Failed to get draft").Err()
 	}
+	// The publish gate for images: a published version never holds a bare tag. Pinned first, so the checks below and the
+	// stored start configurations see the references the version will hold.
+	if draft, err = u.pinDraftForPublish(ctx, exerciseID, draft); err != nil {
+		return VersionView{}, err
+	}
 	if err = u.requirePublishable(ctx, e, &draft); err != nil {
 		return VersionView{}, err
 	}
@@ -218,6 +278,12 @@ func (u *ExerciseUseCase) requirePublishable(ctx context.Context, e exerciseMode
 	if err := version.ValidateForPublish(); err != nil {
 		return err
 	}
+	if err := u.requireProfilesSupported(ctx, version.Variants); err != nil {
+		return err
+	}
+	if err := u.requireServiceUsersKnown(ctx, e.ID, version.Variants); err != nil {
+		return err
+	}
 	if err := u.requireInfrastructureAllowed(ctx, e, version.Variants); err != nil {
 		return err
 	}
@@ -226,14 +292,21 @@ func (u *ExerciseUseCase) requirePublishable(ctx context.Context, e exerciseMode
 
 // DiscardDraft deletes the draft slot; the exercise's draft pointer clears via
 // FK (Discard CTE, Task 6). Route gate: exercises.publish.
-func (u *ExerciseUseCase) DiscardDraft(ctx context.Context, exerciseID uuid.UUID) error {
+func (u *ExerciseUseCase) DiscardDraft(ctx context.Context, exerciseID uuid.UUID, revision string) error {
+	expected, err := exerciseModel.ParseRevision(revision)
+	if err != nil {
+		return err
+	}
 	e, err := u.loadEditable(ctx, exerciseID)
 	if err != nil {
 		return err
 	}
-	draftID, err := u.exercises.Discard(ctx, exerciseID)
+	draftID, err := u.exercises.Discard(ctx, exerciseID, expected)
 	if err != nil {
 		if repositoryTools.IsObjectNotFoundError(err) {
+			if _, readErr := u.exercises.GetDraftRevision(ctx, exerciseID); readErr == nil {
+				return u.draftModified(ctx, exerciseID)
+			}
 			return exerciseModel.ErrNoDraft.WithMessage("Exercise has no draft to discard").Err()
 		}
 		return model.ErrPlatform.WithError(err).WithMessage("Failed to discard draft").Err()
@@ -482,6 +555,15 @@ func (u *ExerciseUseCase) ListVersions(ctx context.Context, exerciseID uuid.UUID
 // devices by id, and the secret merge/encrypt passes key by variant id, so
 // every id must exist before either runs — this MUST run before
 // submittedSecretKeys/mergeKeptSecrets/encryptSecrets in SaveDraft.
+// inheritTaskKeys gives a task without a key the key of the first variant's task at the same position.
+func inheritTaskKeys(tasks, first []exerciseModel.Task) {
+	for ti := range min(len(tasks), len(first)) {
+		if tasks[ti].Key == "" {
+			tasks[ti].Key = first[ti].Key
+		}
+	}
+}
+
 func normalizeContentIDs(variants []exerciseModel.Variant) {
 	for vi := range variants {
 		if variants[vi].ID == uuid.Nil {
@@ -517,5 +599,11 @@ func normalizeContentIDs(variants []exerciseModel.Variant) {
 				variants[vi].Topology.Devices[di].ID = uuid.Must(uuid.NewV7())
 			}
 		}
+		// Task keys: a task without one takes the key of the task at its position in the first variant, else a
+		// stable generated one, so {{task.<key>}} and requires mean the same task in every variant.
+		if vi > 0 {
+			inheritTaskKeys(variants[vi].Tasks, variants[0].Tasks)
+		}
+		variants[vi].NormalizeTaskKeys()
 	}
 }

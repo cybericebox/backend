@@ -18,8 +18,8 @@ const (
 // Valid reports whether the mode is one of the two.
 func (m FinishCountdownMode) Valid() bool { return m == FinishBeforeEnd || m == FinishFromStart }
 
-// CountdownSettings says which countdowns the participant «Завдання» and
-// «Результати» pages show: to the start, and to the effective finish during
+// CountdownSettings says which countdowns the participant "Tasks" and
+// "Results" pages show: to the start, and to the effective finish during
 // the last FinishMinutes only (or from the start of the current stage, per FinishMode). One setting per event,
 // applied to the end of every stage.
 type CountdownSettings struct {

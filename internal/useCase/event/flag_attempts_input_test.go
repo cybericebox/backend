@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
 )
 
 func TestOptionalLimitTellsOmittedFromNull(t *testing.T) {

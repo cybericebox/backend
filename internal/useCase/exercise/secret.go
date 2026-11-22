@@ -6,8 +6,9 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/daemon/internal/model"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	"github.com/cybericebox/backend/internal/model"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	"github.com/cybericebox/backend/internal/secretctx"
 )
 
 // secretKey scopes a secret env-var to its variant: device and env-var names
@@ -54,7 +55,7 @@ func mergeKeptSecrets(incoming, current []exerciseModel.Variant) {
 	kept := map[string]exerciseModel.EnvVar{}
 	for vi, v := range current {
 		for _, d := range v.Topology.Devices {
-			for _, ev := range d.EnvVars {
+			for _, ev := range d.Bootstrap.Env {
 				if !ev.Secret || ev.Value == "" {
 					continue
 				}
@@ -69,8 +70,8 @@ func mergeKeptSecrets(incoming, current []exerciseModel.Variant) {
 	for vi := range incoming {
 		for di := range incoming[vi].Topology.Devices {
 			d := &incoming[vi].Topology.Devices[di]
-			for ei := range d.EnvVars {
-				ev := &d.EnvVars[ei]
+			for ei := range d.Bootstrap.Env {
+				ev := &d.Bootstrap.Env[ei]
 				if !ev.Secret || ev.Value != "" {
 					continue
 				}
@@ -95,7 +96,7 @@ func submittedSecretKeys(variants []exerciseModel.Variant) map[string]bool {
 	out := map[string]bool{}
 	for _, v := range variants {
 		for _, d := range v.Topology.Devices {
-			for _, ev := range d.EnvVars {
+			for _, ev := range d.Bootstrap.Env {
 				if ev.Secret && ev.Value != "" {
 					out[secretKey(v.ID, d.Name, ev.Name)] = true
 				}
@@ -165,8 +166,8 @@ func (u *ExerciseUseCase) inheritSecrets(variants []exerciseModel.Variant, sourc
 func (u *ExerciseUseCase) inheritVariantSecrets(target *exerciseModel.Variant, source exerciseModel.Variant, linked bool, submitted map[string]bool) error {
 	for di := range target.Topology.Devices {
 		device := &target.Topology.Devices[di]
-		for ei := range device.EnvVars {
-			env := &device.EnvVars[ei]
+		for ei := range device.Bootstrap.Env {
+			env := &device.Bootstrap.Env[ei]
 			if !env.Secret {
 				continue
 			}
@@ -186,7 +187,7 @@ func (u *ExerciseUseCase) inheritVariantSecrets(target *exerciseModel.Variant, s
 				return err
 			}
 			if env.Value != "" && u.cipher != nil {
-				own, openErr := u.cipher.DecryptWithContext(env.Value, envSecretContext(target.ID, device.Name, env.Name))
+				own, openErr := u.cipher.DecryptWithContext(env.Value, EnvSecretContext(target.ID, device.Name, env.Name))
 				if openErr == nil && string(own) == plain {
 					env.Origin = sourceOrigin
 					continue
@@ -210,7 +211,7 @@ func sourceSecret(source exerciseModel.Variant, deviceName, envName string) (str
 		if device.Name != deviceName {
 			continue
 		}
-		for _, env := range device.EnvVars {
+		for _, env := range device.Bootstrap.Env {
 			if env.Secret && env.Name == envName {
 				return env.Value, env.Origin
 			}
@@ -228,17 +229,17 @@ func (u *ExerciseUseCase) secretPlaintext(variantID uuid.UUID, deviceName, envNa
 	if u.cipher == nil {
 		return "", exerciseModel.ErrSecretsNotConfigured.Err()
 	}
-	plain, err := u.cipher.DecryptWithContext(value, envSecretContext(variantID, deviceName, envName))
+	plain, err := u.cipher.DecryptWithContext(value, EnvSecretContext(variantID, deviceName, envName))
 	if err != nil {
 		return "", model.ErrPlatform.WithError(err).WithMessage("Failed to decrypt the secret env var of the source variant").Err()
 	}
 	return string(plain), nil
 }
 
-// envSecretContext binds the ciphertext of a secret env var to its variant, device and name (the same identity
+// EnvSecretContext binds the ciphertext of a secret env var to its variant, device and name (the same identity
 // the draft merge keeps a secret by): a value copied to another variable does not open there.
-func envSecretContext(variantID uuid.UUID, device, name string) []byte {
-	return []byte("exercise-env:" + variantID.String() + ":" + device + ":" + name)
+func EnvSecretContext(variantID uuid.UUID, device, name string) []byte {
+	return secretctx.ExerciseEnv(variantID, device, name)
 }
 
 // originTypedSecrets gives every secret value the author typed in this save (submitted, before the merge and the
@@ -248,9 +249,10 @@ func originTypedSecrets(variants []exerciseModel.Variant, submitted map[string]b
 	for vi := range variants {
 		for di := range variants[vi].Topology.Devices {
 			d := &variants[vi].Topology.Devices[di]
-			for ei := range d.EnvVars {
-				ev := &d.EnvVars[ei]
-				if ev.Secret && ev.Value != "" && submitted[secretKey(variants[vi].ID, d.Name, ev.Name)] {
+			for ei := range d.Bootstrap.Env {
+				ev := &d.Bootstrap.Env[ei]
+				if ev.Secret && ev.Value != "" &&
+					submitted[secretKey(variants[vi].ID, d.Name, ev.Name)] {
 					ev.Origin = freshID().String()
 				} else if !ev.Secret {
 					ev.Origin = ""
@@ -271,8 +273,8 @@ func originTypedSecrets(variants []exerciseModel.Variant, submitted map[string]b
 		}
 		for di := range variants[vi].Topology.Devices {
 			d := &variants[vi].Topology.Devices[di]
-			for ei := range d.EnvVars {
-				if ev := &d.EnvVars[ei]; ev.Secret && ev.Value != "" {
+			for ei := range d.Bootstrap.Env {
+				if ev := &d.Bootstrap.Env[ei]; ev.Secret && ev.Value != "" {
 					if _, origin := sourceSecret(variants[base], d.Name, ev.Name); origin != "" {
 						ev.Origin = origin
 					}
@@ -289,15 +291,16 @@ func (u *ExerciseUseCase) encryptSecrets(variants []exerciseModel.Variant, rawSu
 	for vi := range variants {
 		for di := range variants[vi].Topology.Devices {
 			d := &variants[vi].Topology.Devices[di]
-			for ei := range d.EnvVars {
-				ev := &d.EnvVars[ei]
-				if !ev.Secret || ev.Value == "" || !rawSubmitted[secretKey(variants[vi].ID, d.Name, ev.Name)] {
+			for ei := range d.Bootstrap.Env {
+				ev := &d.Bootstrap.Env[ei]
+				if !ev.Secret || ev.Value == "" ||
+					!rawSubmitted[secretKey(variants[vi].ID, d.Name, ev.Name)] {
 					continue
 				}
 				if u.cipher == nil {
 					return exerciseModel.ErrSecretsNotConfigured.Err()
 				}
-				ct, err := u.cipher.EncryptWithContext([]byte(ev.Value), envSecretContext(variants[vi].ID, d.Name, ev.Name))
+				ct, err := u.cipher.EncryptWithContext([]byte(ev.Value), EnvSecretContext(variants[vi].ID, d.Name, ev.Name))
 				if err != nil {
 					return model.ErrPlatform.WithError(err).WithMessage("Failed to encrypt secret env var").Err()
 				}
@@ -321,22 +324,22 @@ func (u *ExerciseUseCase) decryptExportedSecrets(versions []exerciseModel.Exerci
 		for variantIndex := range versions[vi].Variants {
 			for deviceIndex := range versions[vi].Variants[variantIndex].Topology.Devices {
 				device := &versions[vi].Variants[variantIndex].Topology.Devices[deviceIndex]
-				for envIndex := range device.EnvVars {
-					env := &device.EnvVars[envIndex]
+				for envIndex := range device.Bootstrap.Env {
+					env := &device.Bootstrap.Env[envIndex]
 					if !env.Secret || env.Value == "" {
 						continue
 					}
 					if u.cipher == nil {
 						return exerciseModel.ErrSecretsNotConfigured.Err()
 					}
-					plain, err := u.cipher.DecryptWithContext(env.Value, envSecretContext(versions[vi].Variants[variantIndex].ID, device.Name, env.Name))
+					plain, err := u.cipher.DecryptWithContext(env.Value, EnvSecretContext(versions[vi].Variants[variantIndex].ID, device.Name, env.Name))
 					if err != nil {
 						return model.ErrPlatform.WithError(err).WithMessage("Failed to decrypt secret env var for export").Err()
 					}
 					env.Value = string(plain)
 				}
-				for envIndex := range device.EnvVars {
-					device.EnvVars[envIndex].Origin = "" // server-side only: never in an archive
+				for envIndex := range device.Bootstrap.Env {
+					device.Bootstrap.Env[envIndex].Origin = "" // server-side only: never in an archive
 				}
 			}
 		}
@@ -355,8 +358,8 @@ func (u *ExerciseUseCase) encryptImportedSecrets(versions []exerciseModel.Exerci
 		for variantIndex := range versions[vi].Variants {
 			for deviceIndex := range versions[vi].Variants[variantIndex].Topology.Devices {
 				device := &versions[vi].Variants[variantIndex].Topology.Devices[deviceIndex]
-				for envIndex := range device.EnvVars {
-					env := &device.EnvVars[envIndex]
+				for envIndex := range device.Bootstrap.Env {
+					env := &device.Bootstrap.Env[envIndex]
 					if !env.Secret || env.Value == "" {
 						continue
 					}
@@ -368,7 +371,7 @@ func (u *ExerciseUseCase) encryptImportedSecrets(versions []exerciseModel.Exerci
 						origin = freshID().String()
 						origins[env.Value] = origin
 					}
-					ciphertext, err := u.cipher.EncryptWithContext([]byte(env.Value), envSecretContext(versions[vi].Variants[variantIndex].ID, device.Name, env.Name))
+					ciphertext, err := u.cipher.EncryptWithContext([]byte(env.Value), EnvSecretContext(versions[vi].Variants[variantIndex].ID, device.Name, env.Name))
 					if err != nil {
 						return model.ErrPlatform.WithError(err).WithMessage("Failed to encrypt imported secret env var").Err()
 					}
@@ -390,15 +393,15 @@ func maskSecrets(variants []exerciseModel.Variant) []exerciseModel.Variant {
 		devices := make([]exerciseModel.Device, len(out[vi].Topology.Devices))
 		copy(devices, out[vi].Topology.Devices)
 		for di := range devices {
-			envs := make([]exerciseModel.EnvVar, len(devices[di].EnvVars))
-			copy(envs, devices[di].EnvVars)
+			envs := make([]exerciseModel.EnvVar, len(devices[di].Bootstrap.Env))
+			copy(envs, devices[di].Bootstrap.Env)
 			for ei := range envs {
 				if envs[ei].Secret {
 					envs[ei].Value = ""
 				}
 				envs[ei].Origin = "" // server-side only
 			}
-			devices[di].EnvVars = envs
+			devices[di].Bootstrap.Env = envs
 		}
 		out[vi].Topology.Devices = devices
 	}

@@ -11,11 +11,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	eventManagerModel "github.com/cybericebox/daemon/internal/model/eventManager"
-	participantModel "github.com/cybericebox/daemon/internal/model/participant"
-	event "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	eventManagerModel "github.com/cybericebox/backend/internal/model/eventManager"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
+	event "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 // expectVPNDownloadLogged expects exactly one config download row: who, event and config type.

@@ -8,7 +8,7 @@ CREATE TABLE event_stages
     name       text        NOT NULL,
     opens_at   timestamptz NOT NULL,
     closes_at  timestamptz NOT NULL,
-    -- "Можна повернутися": after closes_at the stage's tasks stay open until the event finishes. Editable until the
+    -- "Can go back": after closes_at the stage's tasks stay open until the event finishes. Editable until the
     -- stage closes (use case rule); the table cannot see "now" so it does not lock it.
     returnable boolean     NOT NULL DEFAULT false,
     created_at timestamptz NOT NULL,

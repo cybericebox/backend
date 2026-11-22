@@ -9,8 +9,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	eventHandler "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/event"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	eventHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/event"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 type inviteCaptureUC struct {

@@ -7,8 +7,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
-	inboxModel "github.com/cybericebox/daemon/internal/model/notification/inbox"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
+	inboxModel "github.com/cybericebox/backend/internal/model/notification/inbox"
 )
 
 // RegistryCredentialAlert is the snapshot of a registry credential the periodic check reports. It names the

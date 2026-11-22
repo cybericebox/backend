@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/repository"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventAnalyticsRepo"
-	eventAnalyticsUseCase "github.com/cybericebox/daemon/internal/useCase/eventAnalytics"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/repository"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventAnalyticsRepo"
+	eventAnalyticsUseCase "github.com/cybericebox/backend/internal/useCase/eventAnalytics"
 )
 
 // RunRecomputeLabTelemetry is the `recompute-lab-telemetry <event id or tag>` subcommand: it rebuilds the

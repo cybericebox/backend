@@ -27,7 +27,7 @@ func TestManagerAssignmentTemplateVariables(t *testing.T) {
 		"Вас призначено {{.role_name}} заходу {{.event_name}}"))
 }
 
-// The staff link of «Вам надано доступ до заходу» is built from event_url, which the signal planner always fills.
+// The staff link of "You have been given access to the event" is built from event_url, which the signal planner always fills.
 func TestManagerAssignmentLinkUsesTheEventURL(t *testing.T) {
 	require.NoError(t, ValidateTemplateVariables(NotificationType("event.manager.assigned"), NotificationChannelInApp,
 		"{{.event_url}}manage/"))

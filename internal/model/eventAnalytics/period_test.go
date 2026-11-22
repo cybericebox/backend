@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	eventAnalyticsModel "github.com/cybericebox/daemon/internal/model/eventAnalytics"
+	eventAnalyticsModel "github.com/cybericebox/backend/internal/model/eventAnalytics"
 )
 
 func TestNewPeriod(t *testing.T) {

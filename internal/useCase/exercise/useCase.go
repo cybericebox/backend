@@ -7,18 +7,19 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
+	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/repository/exerciseRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	"github.com/cybericebox/daemon/internal/delivery/repository/testDeployRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	eventActivityModel "github.com/cybericebox/daemon/internal/model/eventActivity"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	resourcesModel "github.com/cybericebox/daemon/internal/model/resources"
-	inboxUseCase "github.com/cybericebox/daemon/internal/useCase/notification/inbox"
-	"github.com/cybericebox/daemon/pkg/secret"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/repository/exerciseRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/delivery/repository/testDeployRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	eventActivityModel "github.com/cybericebox/backend/internal/model/eventActivity"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	resourcesModel "github.com/cybericebox/backend/internal/model/resources"
+	inboxUseCase "github.com/cybericebox/backend/internal/useCase/notification/inbox"
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
 // IRepository is the narrow data port: the whole exerciseRepo query slice (which
@@ -71,16 +72,24 @@ type ExerciseUseCase struct {
 	clock func() time.Time
 	// images checks a lab's images and gives its pull credentials; nil: no checks (narrow constructions).
 	images IImageAccess
+	// files reads the stored files a bootstrap names (SetFileReader); nil: such a file cannot be read.
+	files IFileReader
+	// labChecks keeps the results of laboratory checks and the manual runs asked for (SetLabChecks); nil: none shown.
+	labChecks ILabChecks
 	// The background import of archives with image files (SetArchiveImport); nil: such archives are refused.
 	archiveImages  IArchiveImages
 	archiveSources IArchiveSources
 	importQueue    ImportJobQueue
 	importSealer   secret.Sealer
-	// The background export «з образами» (SetArchiveExport, SetImageExporter); nil: such exports are refused.
+	// The background export "with images" (SetArchiveExport, SetImageExporter); nil: such exports are refused.
 	imageExporter IImageExporter
 	exportFiles   IExportFiles
 	exportQueue   ExportJobQueue
 	exportSealer  secret.Sealer
+	// labClients lists the run clients of an owner's lab group (SetLabClientSource); nil: none.
+	labClients LabClientSource
+	// toolsImage is the image of the platform tools device (SetToolsImage); empty: none can be provided.
+	toolsImage string
 }
 
 // IVPNConfigAudit is the event activity log port the deploy status route logs
@@ -150,6 +159,7 @@ type Dependencies struct {
 type ISettings interface {
 	ArchiveLimits(ctx context.Context) (exerciseModel.ArchiveLimits, error)
 	TestRunLeases(ctx context.Context) (exerciseModel.TestRunLeases, error)
+	NodeProfiles(ctx context.Context) (exerciseModel.SupportedProfiles, error)
 }
 
 type FlagPolicy struct {
@@ -258,6 +268,16 @@ func (u *ExerciseUseCase) exerciseView(ctx context.Context, e exerciseModel.Exer
 	v.HasChanges = hasChanges
 	names := u.authorNames(ctx, e.CreatedBy, e.UpdatedBy)
 	v.AuthorName, v.UpdatedByName = names[e.CreatedBy.UUID], names[e.UpdatedBy.UUID]
+	if e.DraftVersionID.Valid {
+		// Best effort: a failed read leaves the revision empty, and a write that sends it is refused as stale (409).
+		if draft, readErr := u.exercises.GetDraftRevision(ctx, e.ID); readErr == nil {
+			saver := u.authorNames(ctx, draft.UpdatedBy)[draft.UpdatedBy.UUID]
+			updatedAt := draft.UpdatedAt
+			v.DraftRevision, v.DraftUpdatedAt, v.DraftUpdatedBy, v.DraftUpdatedByName = exerciseModel.FormatRevision(updatedAt), &updatedAt, uuidPtr(draft.UpdatedBy), saver
+		} else if !repositoryTools.IsObjectNotFoundError(readErr) {
+			log.Warn().Err(readErr).Str("exercise_id", e.ID.String()).Msg("working copy revision unavailable")
+		}
+	}
 	return v, nil
 }
 

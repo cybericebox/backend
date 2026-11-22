@@ -11,10 +11,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	platformSettingsModel "github.com/cybericebox/daemon/internal/model/platformSettings"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	platformSettingsUseCase "github.com/cybericebox/daemon/internal/useCase/platformSettings"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	platformSettingsModel "github.com/cybericebox/backend/internal/model/platformSettings"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	platformSettingsUseCase "github.com/cybericebox/backend/internal/useCase/platformSettings"
 )
 
 // fakeUseCase satisfies IUseCase; GetSetting returns a preset error so the test
@@ -143,4 +143,30 @@ func TestGetSettingValue_AnswersTheValueOnly(t *testing.T) {
 		assert.JSONEq(t, `{"a":1}`, string(body.Data))
 	}
 	assert.NotContains(t, w.Body.String(), "RequiredPermission")
+}
+
+func TestGetSetting_CarriesTheDescriptionOfAKnownKey(t *testing.T) {
+	for key, wantDescribed := range map[string]bool{platformSettingsModel.RetentionKey: true, "theme": false} {
+		uc := &fakeUseCase{
+			got: &platformSettingsModel.PlatformSetting{Key: key, Value: json.RawMessage(`{}`)},
+		}
+		w := httptest.NewRecorder()
+		newEngine(
+			uc,
+			&fakeProt{allow: true},
+		).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/settings/"+key, nil))
+		assert.Equal(t, http.StatusOK, w.Code)
+		var body struct {
+			Data struct {
+				Description *platformSettingsModel.Description `json:"Description"`
+			} `json:"Data"`
+		}
+		if assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &body)) {
+			assert.Equal(t, wantDescribed, body.Data.Description != nil, key)
+			if wantDescribed {
+				assert.NotEmpty(t, body.Data.Description.Uk)
+				assert.NotEmpty(t, body.Data.Description.En)
+			}
+		}
+	}
 }

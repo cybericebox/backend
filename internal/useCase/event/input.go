@@ -2,19 +2,19 @@ package event
 
 import (
 	"encoding/json"
-	"github.com/cybericebox/daemon/internal/delivery/repository/participantRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/participantRepo"
 	"time"
 
 	"github.com/gofrs/uuid"
 
-	challengeAttemptModel "github.com/cybericebox/daemon/internal/model/challengeAttempt"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
-	eventExerciseModel "github.com/cybericebox/daemon/internal/model/eventExercise"
-	eventFormModel "github.com/cybericebox/daemon/internal/model/eventForm"
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
-	participantModel "github.com/cybericebox/daemon/internal/model/participant"
+	challengeAttemptModel "github.com/cybericebox/backend/internal/model/challengeAttempt"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
+	eventExerciseModel "github.com/cybericebox/backend/internal/model/eventExercise"
+	eventFormModel "github.com/cybericebox/backend/internal/model/eventForm"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
 )
 
 type CreateEventInput struct {
@@ -25,6 +25,9 @@ type CreateEventInput struct {
 	CreatedBy     uuid.UUID
 	// InfrastructureAllowed nil defaults to whether Laboratory is available.
 	InfrastructureAllowed *bool
+	// CopyFromEventID, when set, copies the settings, theme, pages, organizers and task sets of that event (never
+	// participants, teams, invitations, results, stands, the reservation or analytics).
+	CopyFromEventID uuid.UUID
 }
 
 type UpdateEventInput struct {
@@ -102,6 +105,13 @@ type ListEventsFilter struct {
 	PageSize int
 	SortBy   string
 	SortDir  string
+	// StartFrom / StartTo bound the event start (to is exclusive); OrganizerID keeps the events the user manages;
+	// Infrastructure is "", "true" or "false".
+	StartFrom, StartTo *time.Time
+	OrganizerID        uuid.UUID
+	Infrastructure     string
+	// NeedsReservation "true": only the stand events that have not finished and have no reservation.
+	NeedsReservation string
 }
 
 // UpdateConfigInput carries the general config fields plus Participation.

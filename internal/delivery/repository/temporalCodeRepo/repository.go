@@ -9,8 +9,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	temporalCodeModel "github.com/cybericebox/daemon/internal/model/temporalCode"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	temporalCodeModel "github.com/cybericebox/backend/internal/model/temporalCode"
 )
 
 // Queries is the narrow slice of the sqlc Querier this repository needs.

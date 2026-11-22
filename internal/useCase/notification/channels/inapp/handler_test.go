@@ -10,15 +10,15 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	"github.com/cybericebox/daemon/internal/model/notification"
-	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
-	inboxModel "github.com/cybericebox/daemon/internal/model/notification/inbox"
-	"github.com/cybericebox/daemon/internal/model/notification/types"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
-	inAppUseCase "github.com/cybericebox/daemon/internal/useCase/notification/channels/inapp"
-	"github.com/cybericebox/daemon/pkg/tools"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	"github.com/cybericebox/backend/internal/model/notification"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
+	inboxModel "github.com/cybericebox/backend/internal/model/notification/inbox"
+	"github.com/cybericebox/backend/internal/model/notification/types"
+	userModel "github.com/cybericebox/backend/internal/model/user"
+	inAppUseCase "github.com/cybericebox/backend/internal/useCase/notification/channels/inapp"
+	"github.com/cybericebox/backend/pkg/tools"
 )
 
 func TestInAppHandler_Handle_NoTemplate(t *testing.T) {

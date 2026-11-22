@@ -9,8 +9,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	eventFormModel "github.com/cybericebox/daemon/internal/model/eventForm"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	eventFormModel "github.com/cybericebox/backend/internal/model/eventForm"
 )
 
 type Queries interface {

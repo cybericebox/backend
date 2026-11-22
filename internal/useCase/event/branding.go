@@ -13,12 +13,12 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	"github.com/cybericebox/daemon/internal/model/rbac"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	"github.com/cybericebox/backend/internal/model/rbac"
 )
 
 // UploadLimits are the byte limits of the event image uploads (EVENT_LOGO_MAX_BYTES,
@@ -77,7 +77,7 @@ func (u *EventUseCase) UploadEventLogo(ctx context.Context, eventID, userID uuid
 	if err = mediaModel.CheckImagePixels(data); err != nil {
 		return "", err
 	}
-	file, err := u.brandMedia.UploadFile(ctx, "event-logo", contentType, bytes.NewReader(data), userID)
+	file, err := u.brandMedia.UploadPublicImage(ctx, mediaModel.RefTypeEventLogo, "event-logo", contentType, bytes.NewReader(data), userID)
 	if err != nil {
 		return "", err
 	}
@@ -128,7 +128,7 @@ func (u *EventUseCase) UploadEventPreviewPicture(ctx context.Context, eventID, u
 	if err = mediaModel.CheckImagePixels(data); err != nil {
 		return "", err
 	}
-	file, err := u.brandMedia.UploadFile(ctx, "event-preview-picture", contentType, bytes.NewReader(data), userID)
+	file, err := u.brandMedia.UploadPublicImage(ctx, mediaModel.RefTypeEventPreviewPicture, "event-preview-picture", contentType, bytes.NewReader(data), userID)
 	if err != nil {
 		return "", err
 	}

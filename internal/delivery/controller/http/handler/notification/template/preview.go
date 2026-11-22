@@ -5,8 +5,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	emailUseCase "github.com/cybericebox/daemon/internal/useCase/notification/channels/email"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	emailUseCase "github.com/cybericebox/backend/internal/useCase/notification/channels/email"
 )
 
 // emailPreviewRequest is a template draft to render; it need not be saved.

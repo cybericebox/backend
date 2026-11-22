@@ -3,7 +3,7 @@ package eventContentModel
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/cybericebox/daemon/internal/model/eventContent/testutil"
+	"github.com/cybericebox/backend/internal/model/eventContent/testutil"
 	"strings"
 	"testing"
 )
@@ -84,19 +84,19 @@ func TestDocumentRequiresOptionsForChoiceField(t *testing.T) {
 
 func TestContentBlocksValidateTypedVariablesAndActions(t *testing.T) {
 	document := Document{Blocks: []Block{
-		{ID: "facts", Type: BlockFacts, Items: []BlockItem{{Label: "Команди", Value: "{{event.approvedTeamCount}}"}}, Variables: []VariableBinding{{Name: "event.approvedTeamCount", Format: VariableFormatNumber}}},
-		{ID: "timer", Type: BlockCountdown, Title: "До початку", TargetVariable: "event.startAt", Variables: []VariableBinding{{Name: "event.startAt", Format: VariableFormatDateTime}}},
-		{ID: "action", Type: BlockCTA, Title: "Готові?", Action: &BlockAction{Label: "Приєднатися", Href: "/register"}},
+		{ID: "facts", Type: BlockFacts, Items: []BlockItem{{Label: "Teams", Value: "{{event.approvedTeamCount}}"}}, Variables: []VariableBinding{{Name: "event.approvedTeamCount", Format: VariableFormatNumber}}},
+		{ID: "timer", Type: BlockCountdown, Title: "Before start", TargetVariable: "event.startAt", Variables: []VariableBinding{{Name: "event.startAt", Format: VariableFormatDateTime}}},
+		{ID: "action", Type: BlockCTA, Title: "Ready?", Action: &BlockAction{Label: "Join", Href: "/register"}},
 	}}
 	if err := document.Validate(); err != nil {
 		t.Fatalf("valid content blocks rejected: %v", err)
 	}
 
 	bad := []Block{
-		{ID: "bad", Type: BlockFacts, Items: []BlockItem{{Label: "Команди", Value: "{{event.teamCount}}"}}},
+		{ID: "bad", Type: BlockFacts, Items: []BlockItem{{Label: "Teams", Value: "{{event.teamCount}}"}}},
 		{ID: "bad", Type: BlockCountdown, TargetVariable: "event.publishAt"},
 		{ID: "bad", Type: BlockCTA, Title: "X", Action: &BlockAction{Label: "X", Href: "javascript:alert(1)"}},
-		{ID: "bad", Type: BlockFAQ, Items: []BlockItem{{Label: "Питання"}}},
+		{ID: "bad", Type: BlockFAQ, Items: []BlockItem{{Label: "Question"}}},
 	}
 	for _, block := range bad {
 		if err := (Document{Blocks: []Block{block}}).Validate(); err == nil {
@@ -110,7 +110,7 @@ func TestJoinActionAndCountdownWindowValidate(t *testing.T) {
 	end := "2026-10-02T12:00:00Z"
 	good := Document{Blocks: []Block{
 		{ID: "timer", Type: BlockCountdown, DateSource: "custom", TargetDate: end, ShowFromSource: "custom", ShowFromDate: start, HideAfterFinish: true},
-		{ID: "join", Type: BlockCTA, Action: &BlockAction{Label: "Приєднатися", Kind: "join_event"}},
+		{ID: "join", Type: BlockCTA, Action: &BlockAction{Label: "Join", Kind: "join_event"}},
 	}}
 	if err := good.ValidateContent(); err != nil {
 		t.Fatalf("valid join action and countdown rejected: %v", err)
@@ -166,7 +166,7 @@ func TestDocumentAllowsOnlyDeclaredTypedVariables(t *testing.T) {
 }
 
 func TestDocumentRequiresDeclaredVariablesInActionLinks(t *testing.T) {
-	block := Block{ID: "action", Type: BlockCTA, Title: "Правила", Action: &BlockAction{Label: "Відкрити", Href: "/p/{{event.tag}}"}}
+	block := Block{ID: "action", Type: BlockCTA, Title: "Rules", Action: &BlockAction{Label: "Open", Href: "/p/{{event.tag}}"}}
 	if err := (Document{Blocks: []Block{block}}).Validate(); err == nil {
 		t.Fatal("action link with undeclared variable accepted")
 	}
@@ -229,10 +229,10 @@ func TestDocumentRequiresDeclarationForVariablesInEveryRenderableTextField(t *te
 }
 
 func TestHeroBlockValidatesContentAndDateBinding(t *testing.T) {
-	valid := Block{ID: "hero", Type: BlockHero, Variant: "mass", By: "CyberICEBox", Title: "{{event.name}}", Kicker: "Фінал", Note: "Починаємо скоро",
-		Items: []BlockItem{{Label: "Команди", Value: "{{event.teamCount}}"}}, TargetVariable: "event.startAt",
-		Action:          &BlockAction{Label: "Правила", Href: "/p/rules"},
-		SecondaryAction: &BlockAction{Label: "Дізнатися більше", Href: "https://example.org"},
+	valid := Block{ID: "hero", Type: BlockHero, Variant: "mass", By: "CyberICEBox", Title: "{{event.name}}", Kicker: "Final", Note: "Starting soon",
+		Items: []BlockItem{{Label: "Teams", Value: "{{event.teamCount}}"}}, TargetVariable: "event.startAt",
+		Action:          &BlockAction{Label: "Rules", Href: "/p/rules"},
+		SecondaryAction: &BlockAction{Label: "Learn more", Href: "https://example.org"},
 		Variables:       []VariableBinding{{Name: "event.name", Format: VariableFormatText}, {Name: "event.teamCount", Format: VariableFormatNumber}, {Name: "event.startAt", Format: VariableFormatDateTime}}}
 	if err := (Document{Blocks: []Block{valid}}).Validate(); err != nil {
 		t.Fatalf("valid hero: %v", err)
@@ -259,10 +259,10 @@ func TestHeroBlockValidatesContentAndDateBinding(t *testing.T) {
 
 func TestPageBlocksCanUseHeroAndBannerInAnyOrder(t *testing.T) {
 	document := Document{Blocks: []Block{
-		{ID: "intro", Type: BlockSection, Label: "Вступ", Variant: "center"},
+		{ID: "intro", Type: BlockSection, Label: "Intro", Variant: "center"},
 		{ID: "image", Type: BlockBanner, Variant: "frame", WidthPercent: 65},
-		{ID: "hero", Type: BlockHero, Title: "Подія", Variant: "mass"},
-		{ID: "clock", Type: BlockCountdown, TargetVariable: "event.startAt", Variables: []VariableBinding{{Name: "event.startAt", Format: VariableFormatDateTime}}, Variant: "center", Action: &BlockAction{Label: "Приєднатися", Href: "/register"}},
+		{ID: "hero", Type: BlockHero, Title: "Event", Variant: "mass"},
+		{ID: "clock", Type: BlockCountdown, TargetVariable: "event.startAt", Variables: []VariableBinding{{Name: "event.startAt", Format: VariableFormatDateTime}}, Variant: "center", Action: &BlockAction{Label: "Join", Href: "/register"}},
 	}}
 	if err := document.Validate(); err != nil {
 		t.Fatalf("reordered full-width blocks should validate: %v", err)
@@ -282,8 +282,8 @@ func TestPageBlocksCanUseHeroAndBannerInAnyOrder(t *testing.T) {
 
 func TestPageBlockTextAndCaptionAlignment(t *testing.T) {
 	blocks := []Block{
-		{ID: "heading", Type: BlockSection, Label: "Правила", Variant: "justify"},
-		{ID: "body", Type: BlockText, RichText: testutil.RichText("**Текст**")},
+		{ID: "heading", Type: BlockSection, Label: "Rules", Variant: "justify"},
+		{ID: "body", Type: BlockText, RichText: testutil.RichText("**Text**")},
 		{ID: "banner", Type: BlockBanner, Variant: "frame", Layout: "center"},
 	}
 	if err := (Document{Blocks: blocks}).ValidateContent(); err != nil {
@@ -307,8 +307,8 @@ func TestPageBlockTextAndCaptionAlignment(t *testing.T) {
 
 func TestBlockAnchorsAreReadableAndUniqueOnThePage(t *testing.T) {
 	blocks := []Block{
-		{ID: "block-1", Type: BlockSection, Label: "Правила", Anchor: "rules"},
-		{ID: "block-2", Type: BlockText, RichText: testutil.RichText("Текст"), Anchor: "scoring-2026"},
+		{ID: "block-1", Type: BlockSection, Label: "Rules", Anchor: "rules"},
+		{ID: "block-2", Type: BlockText, RichText: testutil.RichText("Text"), Anchor: "scoring-2026"},
 		{ID: "block-3", Type: BlockDivider},
 	}
 	if err := (Document{Blocks: blocks}).ValidateContent(); err != nil {
@@ -333,10 +333,10 @@ func TestBlockAnchorsAreReadableAndUniqueOnThePage(t *testing.T) {
 }
 
 func TestPartnersBlockRequiresNamedLogosInGroups(t *testing.T) {
-	logo := PartnerLogo{Name: "ХНУРЕ", ImageURL: "/api/events/x/content-images/y", Href: "https://nure.ua"}
-	valid := Block{ID: "partners", Type: BlockPartners, Title: "Партнери", Groups: []PartnerGroup{
-		{Title: "Організатори", Items: []PartnerLogo{logo}},
-		{Items: []PartnerLogo{{Name: "Без посилання", ImageURL: "/api/events/x/content-images/z"}}},
+	logo := PartnerLogo{Name: "Acme", ImageURL: "/api/events/x/content-images/y", Href: "https://nure.ua"}
+	valid := Block{ID: "partners", Type: BlockPartners, Title: "Partners", Groups: []PartnerGroup{
+		{Title: "Organizers", Items: []PartnerLogo{logo}},
+		{Items: []PartnerLogo{{Name: "No link", ImageURL: "/api/events/x/content-images/z"}}},
 	}}
 	if err := (Document{Blocks: []Block{valid}}).ValidateContent(); err != nil {
 		t.Fatalf("valid partners block rejected: %v", err)
@@ -382,7 +382,7 @@ func TestCountdownAndHeroAcceptOneFixedDate(t *testing.T) {
 	date := "2026-10-01T14:25:00Z"
 	for _, block := range []Block{
 		{ID: "clock", Type: BlockCountdown, TargetDate: date, DateSource: "custom", Variant: "center", TimerSize: "xl", Surface: "frame"},
-		{ID: "hero", Type: BlockHero, Title: "Подія", TargetDate: date, Layout: "center", TimerSize: "xl"},
+		{ID: "hero", Type: BlockHero, Title: "Event", TargetDate: date, Layout: "center", TimerSize: "xl"},
 	} {
 		if err := (Document{Blocks: []Block{block}}).Validate(); err != nil {
 			t.Fatalf("fixed date rejected for %s: %v", block.Type, err)
@@ -407,7 +407,7 @@ func TestCountdownAndHeroAcceptOneFixedDate(t *testing.T) {
 		t.Fatal("unsupported countdown surface accepted")
 	}
 	for _, position := range []string{"start", "center", "end"} {
-		block := Block{ID: "clock", Type: BlockCountdown, TargetDate: date, Title: "До початку", VerticalAlignment: position}
+		block := Block{ID: "clock", Type: BlockCountdown, TargetDate: date, Title: "Before start", VerticalAlignment: position}
 		if err := (Document{Blocks: []Block{block}}).Validate(); err != nil {
 			t.Fatalf("countdown text position %s rejected: %v", position, err)
 		}
@@ -421,7 +421,7 @@ func TestCountdownDisplayVariantsRoundTrip(t *testing.T) {
 	date := "2026-10-01T14:25:00Z"
 	for _, blockType := range []BlockType{BlockCountdown, BlockHero} {
 		for _, display := range []string{"segments", "compact", "tiles", "focus", "dial", "ledger", "poster", "tracks", "flip", "ticker", "stairs", "orbits", "matrix", "ribbon", "rings"} {
-			block := Block{ID: "timer", Type: blockType, Title: "До початку", TargetDate: date, TimerDisplay: display}
+			block := Block{ID: "timer", Type: blockType, Title: "Before start", TargetDate: date, TimerDisplay: display}
 			if err := (Document{Blocks: []Block{block}}).Validate(); err != nil {
 				t.Fatalf("%s display %s rejected: %v", blockType, display, err)
 			}
@@ -437,7 +437,7 @@ func TestCountdownDisplayVariantsRoundTrip(t *testing.T) {
 				t.Fatalf("%s display changed after round trip: got %q, want %q", blockType, restored.TimerDisplay, display)
 			}
 		}
-		invalid := Block{ID: "timer", Type: blockType, Title: "До початку", TargetDate: date, TimerDisplay: "unknown"}
+		invalid := Block{ID: "timer", Type: blockType, Title: "Before start", TargetDate: date, TimerDisplay: "unknown"}
 		if err := (Document{Blocks: []Block{invalid}}).Validate(); err == nil {
 			t.Fatalf("unknown display accepted for %s", blockType)
 		}
@@ -445,8 +445,8 @@ func TestCountdownDisplayVariantsRoundTrip(t *testing.T) {
 }
 
 func TestTimelineDatesAndFormats(t *testing.T) {
-	eventDate := Block{ID: "schedule", Type: BlockTimeline, Items: []BlockItem{{Value: "Початок завдань", DateSource: "event", DateVariable: "event.startAt", DateFormat: "time"}}, Variables: []VariableBinding{{Name: "event.startAt", Format: VariableFormatDateTime}}}
-	customDate := Block{ID: "schedule", Type: BlockTimeline, Items: []BlockItem{{Value: "Нагородження", DateSource: "custom", DateValue: "2026-10-01T14:25:00Z", DateFormat: "custom", DatePattern: "dd.MM.yyyy [о] HH:mm"}}}
+	eventDate := Block{ID: "schedule", Type: BlockTimeline, Items: []BlockItem{{Value: "Task start", DateSource: "event", DateVariable: "event.startAt", DateFormat: "time"}}, Variables: []VariableBinding{{Name: "event.startAt", Format: VariableFormatDateTime}}}
+	customDate := Block{ID: "schedule", Type: BlockTimeline, Items: []BlockItem{{Value: "Awards", DateSource: "custom", DateValue: "2026-10-01T14:25:00Z", DateFormat: "custom", DatePattern: "dd.MM.yyyy [о] HH:mm"}}}
 	for _, block := range []Block{eventDate, customDate} {
 		if err := (Document{Blocks: []Block{block}}).Validate(); err != nil {
 			t.Fatalf("timeline date rejected: %v", err)
@@ -464,10 +464,10 @@ func TestTimelineDatesAndFormats(t *testing.T) {
 		}
 	}
 	for _, invalid := range []Block{
-		{ID: "schedule", Type: BlockTimeline, Items: []BlockItem{{Value: "Початок", DateSource: "event", DateVariable: "event.startAt"}}},
+		{ID: "schedule", Type: BlockTimeline, Items: []BlockItem{{Value: "Start", DateSource: "event", DateVariable: "event.startAt"}}},
 		{ID: "schedule", Type: BlockTimeline, Items: []BlockItem{{Value: "{{event.startAt}}", DateSource: "event", DateVariable: "event.startAt"}}, Variables: []VariableBinding{{Name: "event.startAt", Format: VariableFormatDateTime}}},
-		{ID: "schedule", Type: BlockTimeline, Items: []BlockItem{{Value: "Початок", DateSource: "custom", DateValue: "invalid"}}},
-		{ID: "schedule", Type: BlockTimeline, Items: []BlockItem{{Value: "Початок", DateSource: "custom", DateValue: "2026-10-01T14:25:00Z", DateFormat: "custom", DatePattern: "xyz"}}},
+		{ID: "schedule", Type: BlockTimeline, Items: []BlockItem{{Value: "Start", DateSource: "custom", DateValue: "invalid"}}},
+		{ID: "schedule", Type: BlockTimeline, Items: []BlockItem{{Value: "Start", DateSource: "custom", DateValue: "2026-10-01T14:25:00Z", DateFormat: "custom", DatePattern: "xyz"}}},
 	} {
 		if err := (Document{Blocks: []Block{invalid}}).Validate(); err == nil {
 			t.Fatalf("invalid timeline accepted: %+v", invalid.Items[0])
@@ -477,7 +477,7 @@ func TestTimelineDatesAndFormats(t *testing.T) {
 
 func TestDateVariableDisplayPerField(t *testing.T) {
 	block := Block{
-		ID: "dates", Type: BlockCTA, Title: "Початок {{event.startAt}}", Action: &BlockAction{Label: "Відкрити", Href: "/"},
+		ID: "dates", Type: BlockCTA, Title: "Start {{event.startAt}}", Action: &BlockAction{Label: "Open", Href: "/"},
 		Variables:    []VariableBinding{{Name: "event.startAt", Format: VariableFormatDateTime}},
 		DateDisplays: map[string]map[string]DateDisplay{"title": {"event.startAt": {Format: "custom", Pattern: "dd.MM.yyyy [о] HH:mm"}}},
 	}
@@ -502,13 +502,13 @@ func TestDateVariableDisplayPerField(t *testing.T) {
 }
 
 func TestDocumentBlockRequiresSafeSections(t *testing.T) {
-	valid := Block{ID: "rules", Type: BlockDoc, TocTitle: "Зміст", Items: []BlockItem{{Label: "Правила", RichText: testutil.RichText("Текст із виділенням.")}}}
+	valid := Block{ID: "rules", Type: BlockDoc, TocTitle: "Contents", Items: []BlockItem{{Label: "Rules", RichText: testutil.RichText("Text with emphasis.")}}}
 	if err := (Document{Blocks: []Block{valid}}).Validate(); err != nil {
 		t.Fatalf("valid document: %v", err)
 	}
 	for _, value := range []json.RawMessage{testutil.RichText(""), json.RawMessage(`{"root":{"type":"root","version":1,"children":[{"type":"html","version":1,"value":"<img src=x onerror=alert(1)>"}]}}`)} {
 		invalid := valid
-		invalid.Items = []BlockItem{{Label: "Правила", RichText: value}}
+		invalid.Items = []BlockItem{{Label: "Rules", RichText: value}}
 		if err := (Document{Blocks: []Block{invalid}}).Validate(); err == nil {
 			t.Fatalf("invalid document section accepted: %q", value)
 		}
@@ -516,8 +516,8 @@ func TestDocumentBlockRequiresSafeSections(t *testing.T) {
 }
 
 func TestFactsLayoutAndSecondaryAction(t *testing.T) {
-	facts := Block{ID: "facts", Type: BlockFacts, Variant: "rows", Items: []BlockItem{{Label: "Формат", Value: "Командний"}}}
-	cta := Block{ID: "cta", Type: BlockCTA, Title: "Правила", Action: &BlockAction{Label: "Читати", Href: "/p/rules"}, SecondaryAction: &BlockAction{Label: "Підтримка", Href: "https://example.org"}}
+	facts := Block{ID: "facts", Type: BlockFacts, Variant: "rows", Items: []BlockItem{{Label: "Format", Value: "Team"}}}
+	cta := Block{ID: "cta", Type: BlockCTA, Title: "Rules", Action: &BlockAction{Label: "Read", Href: "/p/rules"}, SecondaryAction: &BlockAction{Label: "Support", Href: "https://example.org"}}
 	if err := (Document{Blocks: []Block{facts, cta}}).Validate(); err != nil {
 		t.Fatalf("valid content: %v", err)
 	}
@@ -533,7 +533,7 @@ func TestFactsLayoutAndSecondaryAction(t *testing.T) {
 
 func TestFAQInitialOpenItemIsInRange(t *testing.T) {
 	open := 0
-	block := Block{ID: "faq", Type: BlockFAQ, Items: []BlockItem{{Label: "Питання", RichText: testutil.RichText("Відповідь")}}, OpenItem: &open}
+	block := Block{ID: "faq", Type: BlockFAQ, Items: []BlockItem{{Label: "Question", RichText: testutil.RichText("Answer")}}, OpenItem: &open}
 	if err := (Document{Blocks: []Block{block}}).Validate(); err != nil {
 		t.Fatalf("first FAQ item should be valid: %v", err)
 	}

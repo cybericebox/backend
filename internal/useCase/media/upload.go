@@ -13,11 +13,13 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	imageRegistryModel "github.com/cybericebox/daemon/internal/model/imageRegistry"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	imageRegistryModel "github.com/cybericebox/backend/internal/model/imageRegistry"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	"github.com/cybericebox/backend/internal/secretctx"
+	"github.com/cybericebox/backend/pkg/filecrypt"
 )
 
 // maxUploadNameBytes bounds the stored file name.
@@ -55,7 +57,18 @@ func (u *MediaUseCase) StartUpload(ctx context.Context, name, contentType string
 	if size > limit {
 		return mediaModel.Upload{}, mediaModel.ErrFileTooLarge.Err()
 	}
+	if !u.sealerConfigured {
+		return mediaModel.Upload{}, model.ErrPlatform.WithError(ErrFilesKeyMissing).WithMessage("File encryption is not configured").Err()
+	}
 	upload := mediaModel.NewUpload(uuid.Must(uuid.NewV7()), createdBy, name, contentType, size, u.cfg.UploadChunkBytes, u.cfg.UploadTTL, time.Now(), purpose)
+	// The chunks are stored encrypted with one key of their own for the whole upload (a stream per chunk).
+	fileKey, err := filecrypt.NewKey()
+	if err != nil {
+		return mediaModel.Upload{}, model.ErrPlatform.WithError(err).WithMessage("Failed to make a file key").Err()
+	}
+	if upload.WrappedKey, err = u.wrap(fileKey, secretctx.UploadKey(upload.ID)); err != nil {
+		return mediaModel.Upload{}, model.ErrPlatform.WithError(err).WithMessage("Failed to wrap the file key").Err()
+	}
 	created, err := u.files.CreateUpload(ctx, upload)
 	if err != nil {
 		return mediaModel.Upload{}, model.ErrPlatform.WithError(err).WithMessage("Failed to start upload").Err()
@@ -109,7 +122,15 @@ func (u *MediaUseCase) PutChunk(ctx context.Context, id, owner uuid.UUID, index 
 	key := mediaModel.ChunkKey(id, index)
 	body := &failureReader{r: r}
 	counter := &countingReader{r: io.LimitReader(body, want)}
-	if err = u.storage.Put(ctx, key, counter, want, "application/octet-stream"); err != nil || counter.n != want {
+	if upload.WrappedKey == "" {
+		// Started before encryption existed: its chunks are plain, and the rest follow.
+		err = u.storage.Put(ctx, key, counter, want, "application/octet-stream")
+	} else if fileKey, kerr := u.unwrap(upload.WrappedKey, secretctx.UploadKey(upload.ID)); kerr != nil {
+		return mediaModel.Upload{}, model.ErrPlatform.WithError(kerr).WithMessage("Failed to open the upload key").Err()
+	} else {
+		err = u.encryptedPut(ctx, key, fileKey, counter, want, "application/octet-stream")
+	}
+	if err != nil || counter.n != want {
 		_ = u.storage.Remove(ctx, key)
 		// A body that broke off (read timeout, dropped link) is retried by the client; only a body that ended
 		// cleanly at another size is a wrong size.
@@ -167,7 +188,13 @@ func (u *MediaUseCase) CompleteUpload(ctx context.Context, id, owner uuid.UUID, 
 	go func() { pw.CloseWithError(u.copyChunks(ctx, upload, pw)) }()
 	hasher := sha256.New()
 	counter := &countingReader{r: io.TeeReader(pr, hasher)}
-	putErr := u.storage.Put(ctx, tmpKey, counter, upload.SizeBytes, upload.ContentType)
+	// The assembled file is a new object with a key of its own, encrypted as it is written.
+	fileKey, err := filecrypt.NewKey()
+	if err != nil {
+		_ = pr.Close()
+		return mediaModel.File{}, model.ErrPlatform.WithError(err).WithMessage("Failed to make a file key").Err()
+	}
+	putErr := u.encryptedPut(ctx, tmpKey, fileKey, counter, upload.SizeBytes, "application/octet-stream")
 	_ = pr.Close()
 	// Best-effort tmp cleanup on every exit path below.
 	defer func() { _ = u.storage.Remove(ctx, tmpKey) }()
@@ -179,7 +206,11 @@ func (u *MediaUseCase) CompleteUpload(ctx context.Context, id, owner uuid.UUID, 
 		u.dropUpload(ctx, upload)
 		return mediaModel.File{}, mediaModel.ErrUploadHashMismatch.Err()
 	}
-	file, err := u.publish(ctx, fileID, tmpKey, upload.Name, upload.ContentType, counter.n, hash, owner)
+	wrapped, err := u.wrap(fileKey, secretctx.FileKey(hash))
+	if err != nil {
+		return mediaModel.File{}, model.ErrPlatform.WithError(err).WithMessage("Failed to wrap the file key").Err()
+	}
+	file, err := u.publish(ctx, fileID, tmpKey, wrapped, upload.Name, upload.ContentType, counter.n, hash, owner)
 	if err != nil {
 		return mediaModel.File{}, err
 	}
@@ -190,7 +221,7 @@ func (u *MediaUseCase) CompleteUpload(ctx context.Context, id, owner uuid.UUID, 
 // copyChunks writes the chunks of an upload to w in order.
 func (u *MediaUseCase) copyChunks(ctx context.Context, upload mediaModel.Upload, w io.Writer) error {
 	for i := 0; i < upload.ChunkCount(); i++ {
-		rc, _, err := u.storage.Get(ctx, mediaModel.ChunkKey(upload.ID, i))
+		rc, err := u.open(ctx, u.chunkObject(upload, i))
 		if err != nil {
 			return err
 		}
@@ -203,6 +234,16 @@ func (u *MediaUseCase) copyChunks(ctx context.Context, upload mediaModel.Upload,
 	return nil
 }
 
+// chunkObject says how to open chunk i of an upload: encrypted with the key of the upload (each write of a chunk has its
+// own salt, so a chunk that is sent again never repeats a nonce), or plain for an
+// upload that was started before encryption existed.
+func (u *MediaUseCase) chunkObject(upload mediaModel.Upload, i int) object {
+	return object{
+		key: mediaModel.ChunkKey(upload.ID, i), wrapped: upload.WrappedKey, ctx: secretctx.UploadKey(upload.ID),
+		size: upload.ChunkSize(i),
+	}
+}
+
 // OpenUpload streams the chunks of an upload in index order as one reader; the caller closes it. There is no
 // owner check: it serves the background image-blob push, whose request already checked the caller.
 func (u *MediaUseCase) OpenUpload(ctx context.Context, id uuid.UUID) (io.ReadCloser, mediaModel.Upload, error) {
@@ -210,7 +251,7 @@ func (u *MediaUseCase) OpenUpload(ctx context.Context, id uuid.UUID) (io.ReadClo
 	if err != nil {
 		return nil, mediaModel.Upload{}, err
 	}
-	return &chunkReader{ctx: ctx, storage: u.storage, upload: upload}, upload, nil
+	return &chunkReader{ctx: ctx, uc: u, upload: upload}, upload, nil
 }
 
 // DropUpload drops an upload with its chunks, whoever started it (the image-blob push once it is done).
@@ -238,11 +279,11 @@ func (u *MediaUseCase) getUpload(ctx context.Context, id uuid.UUID) (mediaModel.
 // chunkReader reads the chunk objects of an upload one after another, opening each only when the previous one
 // is used up, so a large upload is streamed and never held whole.
 type chunkReader struct {
-	ctx     context.Context
-	storage IStorage
-	upload  mediaModel.Upload
-	next    int
-	cur     io.ReadCloser
+	ctx    context.Context
+	uc     *MediaUseCase
+	upload mediaModel.Upload
+	next   int
+	cur    io.ReadCloser
 }
 
 func (c *chunkReader) Read(p []byte) (int, error) {
@@ -251,7 +292,7 @@ func (c *chunkReader) Read(p []byte) (int, error) {
 			if c.next >= c.upload.ChunkCount() {
 				return 0, io.EOF
 			}
-			rc, _, err := c.storage.Get(c.ctx, mediaModel.ChunkKey(c.upload.ID, c.next))
+			rc, err := c.uc.open(c.ctx, c.uc.chunkObject(c.upload, c.next))
 			if err != nil {
 				return 0, err
 			}

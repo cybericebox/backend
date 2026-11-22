@@ -14,11 +14,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/middleware"
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
-	siteModel "github.com/cybericebox/daemon/internal/model/site"
-	pulseUseCase "github.com/cybericebox/daemon/internal/useCase/notification/pulse"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
+	siteModel "github.com/cybericebox/backend/internal/model/site"
+	pulseUseCase "github.com/cybericebox/backend/internal/useCase/notification/pulse"
 )
 
 // bucketUseCase is chainUseCase plus the banner list, so GET /api/notifications/banners answers 200.
@@ -53,7 +53,7 @@ func bucketController(
 		AuthConfig: config.AuthConfig{
 			SessionEncryptionKey: "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
 			Hosts: config.HostsConfig{
-				Main:        "example.test",
+				Root:        "example.test",
 				API:         "api.example.test",
 				ID:          "id.example.test",
 				Admin:       "admin.example.test",

@@ -5,7 +5,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/cybericebox/daemon/internal/advisory"
+	"github.com/cybericebox/backend/internal/advisory"
 )
 
 // BackgroundKey is the advisory lock key of the replica that runs the background loops.

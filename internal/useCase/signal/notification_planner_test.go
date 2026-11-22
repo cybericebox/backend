@@ -9,11 +9,11 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
-	inboxModel "github.com/cybericebox/daemon/internal/model/notification/inbox"
-	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
-	signalModel "github.com/cybericebox/daemon/internal/model/signal"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
+	inboxModel "github.com/cybericebox/backend/internal/model/notification/inbox"
+	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
+	signalModel "github.com/cybericebox/backend/internal/model/signal"
 )
 
 type plannerQueries struct {
@@ -123,7 +123,7 @@ func TestNotificationPlanner_FillsRecipientProfileIntoReadyPayload(t *testing.T)
 
 func TestNotificationPlannerSendsManagerAssignmentToAssignee(t *testing.T) {
 	eventID, assigneeID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
-	raw, err := json.Marshal(signalModel.EventManagerPayload{ScopeEventID: eventID, SubjectUserID: assigneeID, EventTag: "spring", EventName: "Spring CTF", ManagerRole: "observer", RoleName: "спостерігачем"})
+	raw, err := json.Marshal(signalModel.EventManagerPayload{ScopeEventID: eventID, SubjectUserID: assigneeID, EventTag: "spring", EventName: "Spring CTF", ManagerRole: "observer", RoleName: "an observer"})
 	require.NoError(t, err)
 	dispatch := &plannerDispatch{}
 	planner := NewNotificationPlanner(plannerQueries{
@@ -135,7 +135,7 @@ func TestNotificationPlannerSendsManagerAssignmentToAssignee(t *testing.T) {
 	require.Equal(t, notificationTypes.NotificationType(signalModel.TypeEventManagerAssigned), dispatch.payload.NotificationType())
 	vars, err := dispatch.payload.Marshal()
 	require.NoError(t, err)
-	require.Contains(t, string(vars), `"role_name":"спостерігачем"`)
+	require.Contains(t, string(vars), `"role_name":"an observer"`)
 	// The in-app link {{.event_url}}manage/ needs the event site root of the assignment.
 	SetEventSiteDomain("events.example.test")
 	t.Cleanup(func() { SetEventSiteDomain("") })

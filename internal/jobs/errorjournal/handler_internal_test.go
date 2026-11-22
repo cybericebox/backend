@@ -9,8 +9,8 @@ import (
 
 	"github.com/riverqueue/river/rivertype"
 
-	errorJournal "github.com/cybericebox/daemon/internal/model/errorJournal"
-	"github.com/cybericebox/daemon/pkg/overload"
+	errorJournal "github.com/cybericebox/backend/internal/model/errorJournal"
+	"github.com/cybericebox/backend/pkg/overload"
 )
 
 type collectingReporter struct {

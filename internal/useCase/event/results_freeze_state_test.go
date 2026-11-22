@@ -5,12 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	participantModel "github.com/cybericebox/daemon/internal/model/participant"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	event "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	event "github.com/cybericebox/backend/internal/useCase/event"
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -47,7 +47,7 @@ func TestResultsFreezeReadUsesCommonGatesWithoutScoreQueries(t *testing.T) {
 			cfg := frozenConfig(eventID, now, 10)
 			cfg.ScoreboardVisibility = int16(tc.visibility)
 			cfg.ResultsFreezeEndMode = tc.endMode
-			cfg.ResultsFreezeBannerText, cfg.ResultsFreezeBannerLevel = "Організатор відкриє підсумки.", "critical"
+			cfg.ResultsFreezeBannerText, cfg.ResultsFreezeBannerLevel = "The organizer will open the results.", "critical"
 			row := startedEvent(eventID, now)
 			switch tc.phase {
 			case "future":

@@ -12,11 +12,11 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventStandModel "github.com/cybericebox/daemon/internal/model/eventStand"
-	teamChallengeModel "github.com/cybericebox/daemon/internal/model/teamChallenge"
-	event "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventStandModel "github.com/cybericebox/backend/internal/model/eventStand"
+	teamChallengeModel "github.com/cybericebox/backend/internal/model/teamChallenge"
+	event "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 func TestModeratorsBoardShowsPreparedChallengesUnlocked(t *testing.T) {
@@ -37,6 +37,7 @@ func TestModeratorsBoardShowsPreparedChallengesUnlocked(t *testing.T) {
 	q.EXPECT().ListTeamSolveAwards(gomock.Any(), teamID).Return([]postgres.ListTeamSolveAwardsRow{
 		{TeamChallengeID: solvedID, AwardedPoints: 90, HintPenalty: 10, SolverID: solverID, SolverName: "Ada"},
 	}, nil)
+	q.EXPECT().GetEventConfig(gomock.Any(), eventID).Return(postgres.EventConfig{EventID: eventID, ShowDifficulty: true}, nil)
 	board, err := uc.ListModeratorsBoard(context.Background(), eventID)
 	if err != nil || len(board) != 2 {
 		t.Fatalf("board = %+v, %v", board, err)
@@ -133,10 +134,10 @@ func TestGetModeratorsTeamListsManagersByName(t *testing.T) {
 	q.EXPECT().GetEventByID(gomock.Any(), eventID).Return(postgres.Event{ID: eventID, CreatedAt: time.Now()}, nil)
 	q.EXPECT().GetModeratorsTeam(gomock.Any(), eventID).Return(postgres.EventTeam{ID: teamID, EventID: eventID, Moderators: true}, nil).Times(2)
 	q.EXPECT().ListEventManagers(gomock.Any(), eventID).Return([]postgres.EventManager{{EventID: eventID, UserID: owner, Role: 0}, {EventID: eventID, UserID: viewer, Role: 2}}, nil)
-	q.EXPECT().GetUserByID(gomock.Any(), owner).Return(postgres.User{ID: owner, FirstName: "Олена", LastName: "Коваль", Email: "o@example.com"}, nil)
+	q.EXPECT().GetUserByID(gomock.Any(), owner).Return(postgres.User{ID: owner, FirstName: "Olena", LastName: "Koval", Email: "o@example.com"}, nil)
 	q.EXPECT().GetUserByID(gomock.Any(), viewer).Return(postgres.User{ID: viewer, Email: "v@example.com"}, nil)
 	view, err := newUC(q).GetModeratorsTeam(context.Background(), eventID)
-	if err != nil || view.TeamID != teamID || len(view.Members) != 2 || view.Members[0].Name != "Олена Коваль" || view.Members[1].Name != "v@example.com" {
+	if err != nil || view.TeamID != teamID || len(view.Members) != 2 || view.Members[0].Name != "Olena Koval" || view.Members[1].Name != "v@example.com" {
 		t.Fatalf("view = %+v, %v", view, err)
 	}
 }

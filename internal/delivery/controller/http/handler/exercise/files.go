@@ -2,7 +2,7 @@ package exercise
 
 import (
 	"errors"
-	exerciseUseCase "github.com/cybericebox/daemon/internal/useCase/exercise"
+	exerciseUseCase "github.com/cybericebox/backend/internal/useCase/exercise"
 	"mime"
 	"net/http"
 	"regexp"
@@ -11,12 +11,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/download"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/middleware"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	mediaUseCase "github.com/cybericebox/daemon/internal/useCase/media"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/download"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	mediaUseCase "github.com/cybericebox/backend/internal/useCase/media"
 )
 
 // multipartOverheadSlack is added on top of the use case's own upload cap

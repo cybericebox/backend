@@ -7,22 +7,23 @@ package mailUseCase
 import (
 	"context"
 	"errors"
-	"fmt"
+	"sync"
 	"time"
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/repository/dispatchRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/mailRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/userRepo"
-	"github.com/cybericebox/daemon/internal/model"
-	errorJournal "github.com/cybericebox/daemon/internal/model/errorJournal"
-	mailModel "github.com/cybericebox/daemon/internal/model/mail"
-	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
-	"github.com/cybericebox/daemon/pkg/email"
-	"github.com/cybericebox/daemon/pkg/secret"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/repository/dispatchRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/mailRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/userRepo"
+	"github.com/cybericebox/backend/internal/model"
+	errorJournal "github.com/cybericebox/backend/internal/model/errorJournal"
+	mailModel "github.com/cybericebox/backend/internal/model/mail"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
+	"github.com/cybericebox/backend/internal/secretctx"
+	"github.com/cybericebox/backend/pkg/email"
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
 // ErrNotConfigured is the delivery error when neither the database nor the
@@ -50,8 +51,10 @@ type (
 		// Env is the bootstrap SMTP_* transport, used only while the database
 		// holds no platform settings.
 		Env config.SMTPConfig
-		// Domain is MAIN_HOST: the main site link in the footer.
-		Domain string
+		// SiteURL is the site address for footer variables: MAIN_SITE_URL, or the ID site when it is not set.
+		SiteURL string
+		// PrivacyURL is PRIVACY_URL: the privacy policy address for footer variables; empty when there is none.
+		PrivacyURL string
 		// SupportEmail is SUPPORT_EMAIL: the default Reply-To and the footer contact.
 		SupportEmail string
 		// SMTPPolicy limits what an organizer may point an event SMTP at (SMTP_ALLOWED_PORTS).
@@ -67,12 +70,16 @@ type (
 		dispatches *dispatchRepo.Repository
 		cipher     *secret.Cipher
 		env        config.SMTPConfig
-		domain     string
+		siteURL    string
+		privacyURL string
 		support    string
 		smtpPolicy mailModel.SMTPPolicy
 		newSender  func(email.Config) (sender, error)
 		now        func() time.Time
 		limiter    *sendLimiter
+		// testAt is when each administrator last asked for a test email (this replica only).
+		testMu sync.Mutex
+		testAt map[uuid.UUID]time.Time
 	}
 )
 
@@ -88,11 +95,13 @@ func NewMailUseCase(deps Dependencies) *MailUseCase {
 		dispatches: dispatchRepo.New(deps.Repo),
 		cipher:     deps.Cipher,
 		env:        deps.Env,
-		domain:     deps.Domain,
+		siteURL:    deps.SiteURL,
+		privacyURL: deps.PrivacyURL,
 		support:    deps.SupportEmail,
 		smtpPolicy: deps.SMTPPolicy,
 		newSender:  newSender,
 		now:        time.Now,
+		testAt:     map[uuid.UUID]time.Time{},
 	}
 	u.limiter = newSendLimiter(func() time.Time { return u.now() })
 	return u
@@ -272,7 +281,7 @@ func (u *MailUseCase) connection(cfg mailModel.SMTPConfig, plainPassword string)
 		if u.cipher == nil {
 			return email.Config{}, mailModel.ErrSecretsUnavailable.Err()
 		}
-		plain, err := u.cipher.DecryptWithContext(cfg.PasswordCiphertext, passwordContext(cfg.ID))
+		plain, err := u.cipher.DecryptWithContext(cfg.PasswordCiphertext, PasswordContext(cfg.ID))
 		if err != nil {
 			return email.Config{}, model.ErrPlatform.WithError(err).WithMessage("Stored SMTP password cannot be decrypted").Err()
 		}
@@ -292,17 +301,15 @@ func (u *MailUseCase) seal(id uuid.UUID, password string) (string, error) {
 	if u.cipher == nil {
 		return "", mailModel.ErrSecretsUnavailable.Err()
 	}
-	ciphertext, err := u.cipher.EncryptWithContext([]byte(password), passwordContext(id))
+	ciphertext, err := u.cipher.EncryptWithContext([]byte(password), PasswordContext(id))
 	if err != nil {
 		return "", model.ErrPlatform.WithError(err).WithMessage("Failed to seal SMTP password").Err()
 	}
 	return ciphertext, nil
 }
 
-// passwordContext binds ciphertext to its row: a copied value fails to open.
-func passwordContext(id uuid.UUID) []byte {
-	return []byte(fmt.Sprintf("mail.smtp:%s", id))
-}
+// PasswordContext binds ciphertext to its row: a copied value fails to open.
+func PasswordContext(id uuid.UUID) []byte { return secretctx.SMTPPassword(id) }
 
 // send is the single exit of every email: it appends the standard footer to
 // both parts, so no template (admin or organizer edited) can drop it. The
@@ -414,5 +421,5 @@ func (u *MailUseCase) footer(ctx context.Context, supportEmail string) (mailMode
 		return mailModel.Footer{}, model.ErrPlatform.WithError(err).WithMessage("Failed to load email footer").Err()
 	}
 	doc := mailModel.StoredFooterDoc(stored.FooterContent, stored.FooterLegacy)
-	return renderFooter(doc, supportEmail, mailModel.PlatformSite(u.domain)), nil
+	return renderFooter(doc, supportEmail, u.siteURL, u.privacyURL), nil
 }

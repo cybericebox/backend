@@ -9,7 +9,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 var (
@@ -252,11 +252,11 @@ func TestExercise_SetAccess(t *testing.T) {
 // The name limit counts characters, not bytes: a 50-letter Cyrillic name (100 bytes) is valid.
 func TestUpdateIdentity_NameLimitInCharacters(t *testing.T) {
 	e, _ := exerciseModel.NewExercise("SQLi basics", "", nil, adminID, fixedNow)
-	name := strings.Repeat("ї", 50)
+	name := strings.Repeat("é", 50)
 	if err := e.UpdateIdentity(name, "", nil, adminID, fixedNow); err != nil {
 		t.Fatalf("50 Cyrillic letters must pass: %v", err)
 	}
-	if err := e.UpdateIdentity(name+"ї", "", nil, adminID, fixedNow); err == nil {
+	if err := e.UpdateIdentity(name+"é", "", nil, adminID, fixedNow); err == nil {
 		t.Fatal("51 letters must be refused")
 	}
 }

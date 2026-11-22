@@ -8,19 +8,19 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/challengeAttemptRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventResultRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventTeamRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/mailRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	challengeAttemptModel "github.com/cybericebox/daemon/internal/model/challengeAttempt"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	signalModel "github.com/cybericebox/daemon/internal/model/signal"
+	"github.com/cybericebox/backend/internal/delivery/repository/challengeAttemptRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventResultRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventTeamRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/mailRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	challengeAttemptModel "github.com/cybericebox/backend/internal/model/challengeAttempt"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	signalModel "github.com/cybericebox/backend/internal/model/signal"
 )
 
-// GetResultsSettings is the moderator «Налаштування результатів» read.
+// GetResultsSettings is the moderator "results settings" read.
 func (u *EventUseCase) GetResultsSettings(ctx context.Context, eventID uuid.UUID) (ResultsSettingsView, error) {
 	// GetEventConfig self-heals a missing config row.
 	if _, err := u.GetEventConfig(ctx, eventID); err != nil {
@@ -49,7 +49,7 @@ func (u *EventUseCase) UpdateResultsSettings(ctx context.Context, eventID uuid.U
 	return u.resultsSettingsView(ctx, cfg)
 }
 
-// SetResultsOpened ends the freeze («Відкрити підсумки») or restores it.
+// SetResultsOpened ends the freeze ("open results") or restores it.
 // Opening announces participant.event.results_published (participants and
 // managers, Activity), but only while the participants can see the results.
 func (u *EventUseCase) SetResultsOpened(ctx context.Context, eventID uuid.UUID, opened bool, by uuid.UUID) (ResultsSettingsView, error) {

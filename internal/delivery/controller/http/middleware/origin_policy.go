@@ -9,7 +9,7 @@ import (
 
 	"golang.org/x/sync/singleflight"
 
-	"github.com/cybericebox/daemon/internal/config"
+	"github.com/cybericebox/backend/internal/config"
 )
 
 // TagChecker says whether an event with the tag exists (not archived).
@@ -206,6 +206,8 @@ var PublicReadRoutes = map[string]bool{
 	"/api/auth/avatar/:id":                      true,
 	"/api/auth/google":                          true,
 	"/api/auth/google/callback":                 true,
+	"/api/auth/google/pending":                  true,
+	"/api/auth/last-email":                      true,
 	"/api/auth/google/register":                 true,
 	"/api/auth/google/setup":                    true,
 	"/api/auth/password/policy":                 true,

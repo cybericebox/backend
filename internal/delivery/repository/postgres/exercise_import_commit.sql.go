@@ -79,7 +79,7 @@ func (q *Queries) LockExerciseImportJob(ctx context.Context, id uuid.UUID) (Exer
 }
 
 const lockExerciseImportUpload = `-- name: LockExerciseImportUpload :one
-SELECT id, created_by, name, content_type, size_bytes, chunk_bytes, chunks_received, created_at, expires_at, purpose FROM media_uploads WHERE id = $1 FOR UPDATE
+SELECT id, created_by, name, content_type, size_bytes, chunk_bytes, chunks_received, created_at, expires_at, purpose, wrapped_key FROM media_uploads WHERE id = $1 FOR UPDATE
 `
 
 // Stabilize source eligibility through the task/outcome transaction; bytes were
@@ -98,6 +98,7 @@ func (q *Queries) LockExerciseImportUpload(ctx context.Context, id uuid.UUID) (M
 		&i.CreatedAt,
 		&i.ExpiresAt,
 		&i.Purpose,
+		&i.WrappedKey,
 	)
 	return i, err
 }
@@ -134,7 +135,7 @@ WITH ex AS (SELECT id, draft_version_id, published_version_id
                  -- index "one published per exercise" in the same instant,
                  -- raising a spurious 23505 even though the end state is valid.
                  AND (SELECT count(*) FROM demoted) IS NOT NULL
-             RETURNING exercise_versions.id, exercise_versions.exercise_id, exercise_versions.status, exercise_versions.admin_note, exercise_versions.variants, exercise_versions.created_at, exercise_versions.created_by, exercise_versions.published_at, exercise_versions.label, exercise_versions.avg_difficulty, exercise_versions.name, exercise_versions.description, exercise_versions.tags),
+             RETURNING exercise_versions.id, exercise_versions.exercise_id, exercise_versions.status, exercise_versions.admin_note, exercise_versions.variants, exercise_versions.created_at, exercise_versions.created_by, exercise_versions.published_at, exercise_versions.label, exercise_versions.avg_difficulty, exercise_versions.name, exercise_versions.description, exercise_versions.tags, exercise_versions.updated_at, exercise_versions.updated_by),
      pointers AS (
          UPDATE exercises
              SET published_version_id = (SELECT promoted.id FROM promoted),
@@ -144,7 +145,7 @@ WITH ex AS (SELECT id, draft_version_id, published_version_id
                  tags = (SELECT promoted.tags FROM promoted)
              WHERE exercises.id = (SELECT ex.id FROM ex)
                  AND EXISTS (SELECT 1 FROM promoted))
-SELECT id, exercise_id, status, admin_note, variants, created_at, created_by, published_at, label, avg_difficulty, name, description, tags FROM promoted
+SELECT id, exercise_id, status, admin_note, variants, created_at, created_by, published_at, label, avg_difficulty, name, description, tags, updated_at, updated_by FROM promoted
 `
 
 type PublishValidatedExerciseDraftParams struct {
@@ -172,6 +173,8 @@ type PublishValidatedExerciseDraftRow struct {
 	Name          string             `json:"name"`
 	Description   string             `json:"description"`
 	Tags          []string           `json:"tags"`
+	UpdatedAt     time.Time          `json:"updated_at"`
+	UpdatedBy     uuid.NullUUID      `json:"updated_by"`
 }
 
 // Atomic family transition: demote the current published row, promote the
@@ -203,6 +206,8 @@ func (q *Queries) PublishValidatedExerciseDraft(ctx context.Context, arg Publish
 		&i.Name,
 		&i.Description,
 		&i.Tags,
+		&i.UpdatedAt,
+		&i.UpdatedBy,
 	)
 	return i, err
 }
@@ -212,10 +217,12 @@ UPDATE exercise_import_jobs
 SET generation = generation + 1,
     owner_event_id = $1, options = $2, plan_hash = $3,
     state = 'running', exercise_ids = '{}', results = '[]', error = NULL,
-    stage = 'unpacking', images_done = 0, images_total = 0, tasks_done = 0, tasks_total = 0,
+    stage = 'queued', images_done = 0, images_total = 0, tasks_done = 0, tasks_total = 0,
     bytes_pushed = 0, bytes_total = 0, updated_at = $4
 WHERE id = $5 AND generation = $6
-  AND (state = 'failed' OR (state = 'running' AND updated_at < $7))
+  AND (state = 'failed'
+       OR (state = 'running' AND stage <> 'queued' AND updated_at < $7)
+       OR (state = 'running' AND stage = 'queued' AND updated_at < $8))
 RETURNING id, created_by, source, source_id, state, exercise_ids, error, created_at, updated_at, stage, images_done, images_total, tasks_done, tasks_total, bytes_pushed, bytes_total, owner_event_id, generation, options, plan_hash, results
 `
 
@@ -227,9 +234,10 @@ type RestartExerciseImportJobParams struct {
 	ID                 uuid.UUID     `json:"id"`
 	ExpectedGeneration int64         `json:"expected_generation"`
 	StaleBefore        time.Time     `json:"stale_before"`
+	QueuedStaleBefore  time.Time     `json:"queued_stale_before"`
 }
 
-// Only the observed failed/stale attempt may be replaced. Old queued arguments
+// Only the observed failed/stale attempt may be replaced (a queued one is stale much later than a started one). Old queued arguments
 // normalize generation zero to the migrated generation one in the worker.
 func (q *Queries) RestartExerciseImportJob(ctx context.Context, arg RestartExerciseImportJobParams) (ExerciseImportJob, error) {
 	row := q.db.QueryRow(ctx, restartExerciseImportJob,
@@ -240,6 +248,7 @@ func (q *Queries) RestartExerciseImportJob(ctx context.Context, arg RestartExerc
 		arg.ID,
 		arg.ExpectedGeneration,
 		arg.StaleBefore,
+		arg.QueuedStaleBefore,
 	)
 	var i ExerciseImportJob
 	err := row.Scan(

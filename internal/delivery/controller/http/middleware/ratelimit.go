@@ -8,10 +8,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
-	"github.com/cybericebox/daemon/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
+	"github.com/cybericebox/backend/internal/model/rbac"
 )
 
 // RateLimitPerUser allows limit requests of one signed-in user per window on the routes it guards. A request
@@ -157,6 +157,8 @@ func (l *RateLimiter) allowUser(user uuid.UUID) (bool, time.Duration) {
 var exemptFromRateLimit = map[string]bool{
 	"/api/health":              true,
 	"/api/admin/errors/stream": true,
+	// the authoring assistant's event stream: one long GET per session, bounded per user by the stream limiter
+	"/api/assistant/sessions/:id/events":            true,
 	"/api/events/:id/manage/solution-attempts/live": true,
 	"/api/events/:id/results/live":                  true,
 	"/api/events/self/live-screen/results/live":     true,
@@ -178,6 +180,10 @@ func UngatedPublicRoutes() []string {
 	return []string{
 		"POST /api/auth/sign-in",
 		"POST /api/auth/sign-up",
+		"POST /api/auth/passkeys/sign-in/begin",
+		"POST /api/auth/passkeys/sign-in/finish",
+		"GET /api/auth/last-email",
+		"DELETE /api/auth/last-email",
 		"GET /api/auth/setup",
 		"POST /api/auth/setup",
 		"POST /api/auth/password/reset-request",
@@ -189,6 +195,10 @@ func UngatedPublicRoutes() []string {
 		"GET /api/auth/google/register",
 		"GET /api/auth/google/setup",
 		"GET /api/auth/google/callback",
+		"GET /api/auth/google/pending",
+		"POST /api/auth/google/pending/code",
+		"POST /api/auth/google/pending/confirm",
+		"DELETE /api/auth/google/pending",
 		"GET /api/render/key",
 		"GET /api/render/events/:tag/manifest",
 		"GET /api/render/events/:tag/page",

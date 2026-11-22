@@ -13,12 +13,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/middleware"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	inboxModel "github.com/cybericebox/daemon/internal/model/notification/inbox"
-	"github.com/cybericebox/daemon/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	inboxModel "github.com/cybericebox/backend/internal/model/notification/inbox"
+	"github.com/cybericebox/backend/internal/model/rbac"
 )
 
 type fakeUseCase struct {
@@ -82,7 +82,7 @@ func newEngine(uc IUseCase, userID *uuid.UUID) *gin.Engine {
 			c.Next()
 		})
 	}
-	hosts := config.HostsConfig{Main: "example.test", ID: "id.example.test", Admin: "admin.example.test", Exercises: "exercises.example.test", API: "api.example.test", EventDomain: "example.test"}
+	hosts := config.HostsConfig{Root: "example.test", ID: "id.example.test", Admin: "admin.example.test", Exercises: "exercises.example.test", API: "api.example.test", EventDomain: "example.test"}
 	site := middleware.NewSiteResolver(hosts, func(context.Context, string) (uuid.UUID, error) { return uuid.Nil, eventModel.ErrEventNotFound.Err() }).ResolveSite()
 	NewInboxAPIHandler(uc, fakeProt{}, site).Init(engine.Group("api/notifications"))
 	return engine
@@ -257,7 +257,7 @@ func TestListInbox_SerializesResolution(t *testing.T) {
 	resolved := time.Date(2026, 9, 29, 12, 4, 0, 0, time.UTC)
 	uc := &fakeUseCase{list: []inboxModel.InAppNotification{
 		{ID: uuid.Must(uuid.NewV7()), Type: "event.lab.failed", Category: inboxModel.CategoryRequests, ActionRequired: true,
-			ResolvedAt: &resolved, Resolution: "fixed", ResolvedBy: &resolver, ResolvedByName: "Іван П."},
+			ResolvedAt: &resolved, Resolution: "fixed", ResolvedBy: &resolver, ResolvedByName: "Ivan P."},
 		{ID: uuid.Must(uuid.NewV7()), Type: "participant.event.finished", Category: inboxModel.CategoryActivity},
 	}}
 	engine := newEngine(uc, &uid)
@@ -265,7 +265,7 @@ func TestListInbox_SerializesResolution(t *testing.T) {
 	engine.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/notifications/inbox?site=main", nil))
 	assert.Equal(t, http.StatusOK, w.Code)
 	body := w.Body.String()
-	assert.Contains(t, body, `"Category":"requests","ActionRequired":true,"ResolvedAt":"2026-09-29T12:04:00Z","Resolution":"fixed","ResolvedBy":{"ID":"`+resolver.String()+`","Name":"Іван П."},"Resolvable":false`)
+	assert.Contains(t, body, `"Category":"requests","ActionRequired":true,"ResolvedAt":"2026-09-29T12:04:00Z","Resolution":"fixed","ResolvedBy":{"ID":"`+resolver.String()+`","Name":"Ivan P."},"Resolvable":false`)
 	assert.Contains(t, body, `"Category":"activity","ActionRequired":false,"ResolvedAt":null,"Resolution":null,"ResolvedBy":null,"Resolvable":false`)
 }
 

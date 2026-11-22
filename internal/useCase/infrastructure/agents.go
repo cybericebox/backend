@@ -12,12 +12,12 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/daemon/internal/delivery/infrastructure/agentfleet"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	resourcesModel "github.com/cybericebox/daemon/internal/model/resources"
-	"github.com/cybericebox/daemon/pkg/agentcrypto"
+	"github.com/cybericebox/backend/internal/delivery/infrastructure/agentfleet"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	resourcesModel "github.com/cybericebox/backend/internal/model/resources"
+	"github.com/cybericebox/backend/pkg/agentcrypto"
 )
 
 // MinAccessKeyRetention is the least a rotated-out access key stays at the agent. The real retention is
@@ -767,12 +767,12 @@ func (u *AgentsUseCase) seal(id uuid.UUID, field, plaintext string) (string, err
 }
 
 // accessKeyRetention is how long a rotated-out access key stays at the agent: three times the longest
-// link its proxy accepts (the agent reports it), never less than MinAccessKeyRetention.
+// grant its proxy accepts (the agent reports it), never less than MinAccessKeyRetention.
 func accessKeyRetention(r infraModel.AgentRecord) time.Duration {
 	if r.Features == nil {
 		return MinAccessKeyRetention
 	}
-	return max(MinAccessKeyRetention, 3*time.Duration(r.Features.Proxy.AccessTokenMaxTTLSeconds)*time.Second)
+	return max(MinAccessKeyRetention, 3*time.Duration(r.Features.Proxy.GrantMaxTTLSeconds)*time.Second)
 }
 
 // renewDue says the agent's client certificate is past two thirds of its own lifetime. The lifetime

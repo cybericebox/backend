@@ -169,11 +169,11 @@ func (q *Queries) ListParticipationMembers(ctx context.Context, arg ListParticip
 const listParticipationSolves = `-- name: ListParticipationSolves :many
 SELECT ranked.event_challenge_id::uuid AS event_challenge_id,
        COALESCE(challenge.snapshot->>'name', '')::text AS challenge_name,
-       COALESCE(grp.name, 'Інші')::text AS category,
+       COALESCE(grp.name, $1::text)::text AS category,
        ranked.points::integer AS points,
        ranked.solved_at::timestamptz AS solved_at,
        COALESCE(solver.user_id, '00000000-0000-0000-0000-000000000000'::uuid)::uuid AS solved_by,
-       COALESCE(event_participant_public_name($1::uuid, solver.user_id),
+       COALESCE(event_participant_public_name($2::uuid, solver.user_id),
                 NULLIF(btrim(concat_ws(' ', solver.first_name, solver.last_name)), ''), '')::text AS solved_by_name,
        (ranked.counted AND ranked.place = 1)::boolean AS first_blood
 FROM (
@@ -183,7 +183,7 @@ FROM (
                PARTITION BY s.event_challenge_id,
                    (event_team_visible(team.hidden, team.moderators, team.event_id, team.individual, team.admitted_manually, team.admission_locked, team.member_count))
                ORDER BY s.solved_at, s.team_challenge_id) AS place
-    FROM event_solved_scores_at($1::uuid, NULL, NULL) s
+    FROM event_solved_scores_at($2::uuid, NULL, NULL) s
     JOIN event_teams team ON team.id = s.event_team_id
     WHERE s.solve
 ) ranked
@@ -197,13 +197,14 @@ LEFT JOIN LATERAL (
     ORDER BY a.received_at ASC, a.id ASC
     LIMIT 1
 ) solver ON TRUE
-WHERE ranked.event_team_id = $2::uuid
+WHERE ranked.event_team_id = $3::uuid
 ORDER BY ranked.solved_at ASC, ranked.team_challenge_id ASC
 `
 
 type ListParticipationSolvesParams struct {
-	EventID     uuid.UUID `json:"event_id"`
-	EventTeamID uuid.UUID `json:"event_team_id"`
+	OtherCategory string    `json:"other_category"`
+	EventID       uuid.UUID `json:"event_id"`
+	EventTeamID   uuid.UUID `json:"event_team_id"`
 }
 
 type ListParticipationSolvesRow struct {
@@ -222,7 +223,7 @@ type ListParticipationSolvesRow struct {
 // correct attempt) and whether it was the first solve among ranked teams.
 // Answers are never read here.
 func (q *Queries) ListParticipationSolves(ctx context.Context, arg ListParticipationSolvesParams) ([]ListParticipationSolvesRow, error) {
-	rows, err := q.db.Query(ctx, listParticipationSolves, arg.EventID, arg.EventTeamID)
+	rows, err := q.db.Query(ctx, listParticipationSolves, arg.OtherCategory, arg.EventID, arg.EventTeamID)
 	if err != nil {
 		return nil, err
 	}

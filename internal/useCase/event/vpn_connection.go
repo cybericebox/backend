@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	eventAnalyticsModel "github.com/cybericebox/daemon/internal/model/eventAnalytics"
-	labBindingModel "github.com/cybericebox/daemon/internal/model/labBinding"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	eventAnalyticsModel "github.com/cybericebox/backend/internal/model/eventAnalytics"
+	labBindingModel "github.com/cybericebox/backend/internal/model/labBinding"
 	"github.com/gofrs/uuid"
 )
 

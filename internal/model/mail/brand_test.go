@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	mailModel "github.com/cybericebox/daemon/internal/model/mail"
+	mailModel "github.com/cybericebox/backend/internal/model/mail"
 )
 
 func TestKeepBrandText_JoinsWithNoBreakSpaces(t *testing.T) {
@@ -23,7 +23,7 @@ func TestKeepBrandHTML_UsesEntities(t *testing.T) {
 
 func TestFooterAppend_KeepsBrandUnbreakableInBothParts(t *testing.T) {
 	footer := mailModel.Footer{HTML: "<p>Cyber ICE Box · x</p>", Text: "Cyber ICE Box · x"}
-	html, text := footer.Append("<p>Вітаємо в Cyber ICE Box</p>", "Вітаємо в Cyber ICE Box")
+	html, text := footer.Append("<p>Welcome to Cyber ICE Box</p>", "Welcome to Cyber ICE Box")
 	require.NotRegexp(t, `Cyber\s+ICE`, html)
 	require.NotRegexp(t, `Cyber\s+ICE`, text)
 	require.Contains(t, html, "Cyber&nbsp;ICE&nbsp;Box")

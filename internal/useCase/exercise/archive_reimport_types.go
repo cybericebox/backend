@@ -3,7 +3,7 @@ package exercise
 import (
 	"github.com/gofrs/uuid"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 // ImportTarget is an explicit per-folder destination. Omitted preview targets
@@ -97,6 +97,9 @@ type ArchiveImportPreviewItem struct {
 	ConfirmationRevision string               `json:"ConfirmationRevision"`
 	ReplacesDraft        bool                 `json:"ReplacesDraft"`
 	Summary              ArchiveImportSummary `json:"Summary"`
+	// Report is the dry-run answer: what stays, comes and goes by identity, the errors that would stop the result
+	// being published, who uses the exercise and the warnings. The apply call returns the same report per item.
+	Report exerciseModel.ImportReport `json:"Report"`
 }
 
 type ArchiveImportPreview struct {

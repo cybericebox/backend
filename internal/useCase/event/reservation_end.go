@@ -8,11 +8,11 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabGroupRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	labBindingModel "github.com/cybericebox/daemon/internal/model/labBinding"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabGroupRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	labBindingModel "github.com/cybericebox/backend/internal/model/labBinding"
 )
 
 // groupLocator says which agent holds a lab group (the fleet).

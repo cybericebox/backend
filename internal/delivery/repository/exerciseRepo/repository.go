@@ -15,9 +15,9 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	"github.com/cybericebox/daemon/internal/model"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/model"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 // Queries is the narrow slice of the sqlc Querier this repository needs.
@@ -33,6 +33,9 @@ type Queries interface {
 	GetImportTargetContext(context.Context, uuid.UUID) (postgres.GetImportTargetContextRow, error)
 	ListEditableImportTargets(context.Context, postgres.ListEditableImportTargetsParams) ([]postgres.ListEditableImportTargetsRow, error)
 	CountEditableImportTargets(context.Context, postgres.CountEditableImportTargetsParams) (int64, error)
+	ListExerciseActiveAttachments(context.Context, postgres.ListExerciseActiveAttachmentsParams) ([]postgres.ListExerciseActiveAttachmentsRow, error)
+	ListExerciseChallengeAnswerCounts(context.Context, uuid.UUID) ([]postgres.ListExerciseChallengeAnswerCountsRow, error)
+	CountLeasedExerciseTestDeploys(context.Context, postgres.CountLeasedExerciseTestDeploysParams) (int32, error)
 	CreateExercise(ctx context.Context, arg postgres.CreateExerciseParams) (postgres.Exercise, error)
 	GetExerciseByID(ctx context.Context, id uuid.UUID) (postgres.Exercise, error)
 	UpdateExercise(ctx context.Context, arg postgres.UpdateExerciseParams) (int64, error)
@@ -41,9 +44,10 @@ type Queries interface {
 	GetExerciseVersionByID(ctx context.Context, id uuid.UUID) (postgres.ExerciseVersion, error)
 	ListExerciseVersions(ctx context.Context, exerciseID uuid.UUID) ([]postgres.ExerciseVersion, error)
 	UpsertExerciseDraft(ctx context.Context, arg postgres.UpsertExerciseDraftParams) (postgres.UpsertExerciseDraftRow, error)
+	GetDraftRevision(ctx context.Context, exerciseID uuid.UUID) (postgres.GetDraftRevisionRow, error)
 	SaveExerciseDraftIdentity(ctx context.Context, arg postgres.SaveExerciseDraftIdentityParams) (postgres.SaveExerciseDraftIdentityRow, error)
 	PublishExerciseDraft(ctx context.Context, arg postgres.PublishExerciseDraftParams) (postgres.PublishExerciseDraftRow, error)
-	DiscardExerciseDraft(ctx context.Context, exerciseID uuid.UUID) (uuid.UUID, error)
+	DiscardExerciseDraft(ctx context.Context, arg postgres.DiscardExerciseDraftParams) (uuid.UUID, error)
 	CreateDraftFromVersion(ctx context.Context, arg postgres.CreateDraftFromVersionParams) (postgres.CreateDraftFromVersionRow, error)
 	CreateExerciseCheckpoint(ctx context.Context, arg postgres.CreateExerciseCheckpointParams) (postgres.ExerciseVersion, error)
 	RestoreVersionPreservingDraft(ctx context.Context, arg postgres.RestoreVersionPreservingDraftParams) (postgres.RestoreVersionPreservingDraftRow, error)
@@ -64,7 +68,8 @@ type Queries interface {
 	GetExerciseImportJob(ctx context.Context, id uuid.UUID) (postgres.ExerciseImportJob, error)
 	GetOwnedExerciseImportJobBySource(context.Context, postgres.GetOwnedExerciseImportJobBySourceParams) (postgres.ExerciseImportJob, error)
 	UpdateExerciseImportJob(ctx context.Context, arg postgres.UpdateExerciseImportJobParams) (int64, error)
-	ListRunningExerciseImportJobs(ctx context.Context, arg postgres.ListRunningExerciseImportJobsParams) ([]postgres.ExerciseImportJob, error)
+	ListOpenExerciseImportJobs(ctx context.Context, createdBy uuid.UUID) ([]postgres.ExerciseImportJob, error)
+	DismissExerciseImportJob(ctx context.Context, arg postgres.DismissExerciseImportJobParams) (int64, error)
 	UpdateExerciseImportJobProgress(ctx context.Context, arg postgres.UpdateExerciseImportJobProgressParams) (int64, error)
 	CreateExerciseExportJob(ctx context.Context, arg postgres.CreateExerciseExportJobParams) error
 	GetExerciseExportJob(ctx context.Context, id uuid.UUID) (postgres.ExerciseExportJob, error)
@@ -83,6 +88,7 @@ type Queries interface {
 	GetExerciseResourceElevation(ctx context.Context, id uuid.UUID) (postgres.ExerciseResourceElevation, error)
 	DecideExerciseResourceElevation(ctx context.Context, arg postgres.DecideExerciseResourceElevationParams) (int64, error)
 	ListExerciseResourceElevations(ctx context.Context, arg postgres.ListExerciseResourceElevationsParams) ([]postgres.ListExerciseResourceElevationsRow, error)
+	CountPendingExerciseResourceElevations(ctx context.Context) (int64, error)
 	GetLatestExerciseResourceElevation(ctx context.Context, exerciseID uuid.UUID) (postgres.ExerciseResourceElevation, error)
 	ListApprovedExerciseResourceElevations(ctx context.Context, exerciseIds []uuid.UUID) ([]postgres.ListApprovedExerciseResourceElevationsRow, error)
 	DeletePendingExerciseResourceElevation(ctx context.Context, id uuid.UUID) (int64, error)
@@ -492,23 +498,59 @@ func (r *Repository) DraftDiffersFromPublished(ctx context.Context, exerciseID u
 	return r.q.ExerciseDraftDiffersFromPublished(ctx, exerciseID)
 }
 
-func (r *Repository) UpsertDraft(ctx context.Context, exerciseID, newID uuid.UUID, v exerciseModel.ExerciseVersion, now time.Time, by uuid.NullUUID) (exerciseModel.ExerciseVersion, error) {
+// DraftRevision is when and by whom the working copy was last written; the zero value means there is no working copy.
+type DraftRevision struct {
+	ID        uuid.UUID
+	UpdatedAt time.Time
+	UpdatedBy uuid.NullUUID
+}
+
+// GetDraftRevision reads the revision of the working copy without its content; ErrNoRows when there is none.
+func (r *Repository) GetDraftRevision(ctx context.Context, exerciseID uuid.UUID) (DraftRevision, error) {
+	row, err := r.q.GetDraftRevision(ctx, exerciseID)
+	if err != nil {
+		return DraftRevision{}, err
+	}
+	return DraftRevision{ID: row.ID, UpdatedAt: row.UpdatedAt, UpdatedBy: row.UpdatedBy}, nil
+}
+
+// UpsertDraft stores the working copy only if it is still at the revision the writer started from (expected; the zero time
+// means the writer saw no working copy, so it creates the first one and nothing else). Zero rows (pgx.ErrNoRows) means the
+// working copy changed, appeared or vanished meanwhile: the caller reads the current revision to say so.
+func (r *Repository) UpsertDraft(ctx context.Context, exerciseID, newID uuid.UUID, v exerciseModel.ExerciseVersion, now time.Time, by uuid.NullUUID, expected time.Time) (exerciseModel.ExerciseVersion, error) {
+	return r.upsertDraft(ctx, exerciseID, newID, v, now, by, expected, false)
+}
+
+// ForceUpsertDraft stores the working copy whatever its revision. For tests and tools that own the exercise; never for a
+// writer that acts for a user.
+func (r *Repository) ForceUpsertDraft(ctx context.Context, exerciseID, newID uuid.UUID, v exerciseModel.ExerciseVersion, now time.Time, by uuid.NullUUID) (exerciseModel.ExerciseVersion, error) {
+	return r.upsertDraft(ctx, exerciseID, newID, v, now, by, time.Time{}, true)
+}
+
+func (r *Repository) upsertDraft(ctx context.Context, exerciseID, newID uuid.UUID, v exerciseModel.ExerciseVersion, now time.Time, by uuid.NullUUID, expected time.Time, ignore bool) (exerciseModel.ExerciseVersion, error) {
 	blob, err := marshalVariants(v.Variants)
 	if err != nil {
 		return exerciseModel.ExerciseVersion{}, err
 	}
 	row, err := r.q.UpsertExerciseDraft(ctx, postgres.UpsertExerciseDraftParams{
-		ExerciseID: exerciseID,
-		NewID:      newID,
-		AdminNote:  v.AdminNote,
-		Variants:   blob,
-		CreatedAt:  now,
-		CreatedBy:  by,
+		ExerciseID:        exerciseID,
+		NewID:             newID,
+		AdminNote:         v.AdminNote,
+		Variants:          blob,
+		CreatedAt:         now,
+		CreatedBy:         by,
+		ExpectedUpdatedAt: revisionParam(expected),
+		IgnoreRevision:    ignore,
 	})
 	if err != nil {
 		return exerciseModel.ExerciseVersion{}, err
 	}
 	return VersionToDomain(postgres.ExerciseVersion(row))
+}
+
+// revisionParam is the revision a writer expects: NULL when it saw no working copy.
+func revisionParam(expected time.Time) pgtype.Timestamptz {
+	return pgtype.Timestamptz{Time: expected, Valid: !expected.IsZero()}
 }
 
 func (r *Repository) Publish(ctx context.Context, exerciseID uuid.UUID, publishedAt time.Time) (exerciseModel.ExerciseVersion, error) {
@@ -538,11 +580,23 @@ func (r *Repository) PublishValidated(ctx context.Context, v exerciseModel.Exerc
 
 // SaveDraftIdentity is the legacy PATCH contract with version-owned metadata.
 // The SQL operation clones the published content lazily and owns the pointer.
-func (r *Repository) SaveDraftIdentity(ctx context.Context, e exerciseModel.Exercise, expectedUpdatedAt time.Time, newID uuid.UUID) (exerciseModel.ExerciseVersion, error) {
+// expectedUpdatedAt is the exercise's own revision (a server-side read-modify-write guard); expectedDraft is the revision of
+// the working copy the writer started from (the zero time: it saw none). Zero rows (pgx.ErrNoRows): either changed.
+func (r *Repository) SaveDraftIdentity(ctx context.Context, e exerciseModel.Exercise, expectedUpdatedAt time.Time, newID uuid.UUID, expectedDraft time.Time) (exerciseModel.ExerciseVersion, error) {
+	return r.saveDraftIdentity(ctx, e, expectedUpdatedAt, newID, expectedDraft, false)
+}
+
+// ForceSaveDraftIdentity is SaveDraftIdentity whatever the revision of the working copy (tests and tools only).
+func (r *Repository) ForceSaveDraftIdentity(ctx context.Context, e exerciseModel.Exercise, expectedUpdatedAt time.Time, newID uuid.UUID) (exerciseModel.ExerciseVersion, error) {
+	return r.saveDraftIdentity(ctx, e, expectedUpdatedAt, newID, time.Time{}, true)
+}
+
+func (r *Repository) saveDraftIdentity(ctx context.Context, e exerciseModel.Exercise, expectedUpdatedAt time.Time, newID uuid.UUID, expectedDraft time.Time, ignore bool) (exerciseModel.ExerciseVersion, error) {
 	row, err := r.q.SaveExerciseDraftIdentity(ctx, postgres.SaveExerciseDraftIdentityParams{
 		ExerciseID: e.ID, ExpectedUpdatedAt: expectedUpdatedAt,
 		Name: e.Name, Description: e.Description, Tags: nonNilTags(e.Tags),
 		NewID: newID, UpdatedAt: e.UpdatedAt, UpdatedBy: e.UpdatedBy,
+		ExpectedDraftUpdatedAt: revisionParam(expectedDraft), IgnoreRevision: ignore,
 	})
 	if err != nil {
 		return exerciseModel.ExerciseVersion{}, err
@@ -557,8 +611,14 @@ func nonNilTags(tags []string) []string {
 	return tags
 }
 
-func (r *Repository) Discard(ctx context.Context, exerciseID uuid.UUID) (uuid.UUID, error) {
-	return r.q.DiscardExerciseDraft(ctx, exerciseID)
+// Discard removes the working copy only if it is still at the revision the writer saw; ErrNoRows: none, or it changed.
+func (r *Repository) Discard(ctx context.Context, exerciseID uuid.UUID, expected time.Time) (uuid.UUID, error) {
+	return r.q.DiscardExerciseDraft(ctx, postgres.DiscardExerciseDraftParams{ExerciseID: exerciseID, ExpectedUpdatedAt: revisionParam(expected)})
+}
+
+// ForceDiscard removes the working copy whatever its revision (tests and tools only).
+func (r *Repository) ForceDiscard(ctx context.Context, exerciseID uuid.UUID) (uuid.UUID, error) {
+	return r.q.DiscardExerciseDraft(ctx, postgres.DiscardExerciseDraftParams{ExerciseID: exerciseID, IgnoreRevision: true})
 }
 
 func (r *Repository) CreateDraftFrom(ctx context.Context, exerciseID, sourceID, newID uuid.UUID, now time.Time, by uuid.NullUUID) (exerciseModel.ExerciseVersion, error) {
@@ -645,6 +705,8 @@ func VersionToDomain(row postgres.ExerciseVersion) (exerciseModel.ExerciseVersio
 		CreatedAt:   row.CreatedAt,
 		CreatedBy:   row.CreatedBy,
 		PublishedAt: publishedAt,
+		UpdatedAt:   row.UpdatedAt,
+		UpdatedBy:   row.UpdatedBy,
 	}, nil
 }
 

@@ -7,7 +7,7 @@
 # "migrations" (relative to /app), not the source-tree path.
 # The build runs on the build platform and cross-compiles (pure Go, CGO off): arm64 images need no emulation.
 ARG LABORATORY_CONTRACT_SOURCE=1f8d6885654c19b040137ffd2a14df9f99b0a9f5
-FROM --platform=$BUILDPLATFORM mirror.gcr.io/library/golang:1.27.1-alpine@sha256:8a5910f31396cd4d89662f56c68b3ae31d374308270a1c3bd96672ee5ed43414 AS builder
+FROM --platform=$BUILDPLATFORM mirror.gcr.io/library/golang:1.27.4-alpine@sha256:70bd7ddea8b6cbe5d6943cde279d6b67feb10cc924fb9100d1d8757c1575b280 AS builder
 ARG LABORATORY_CONTRACT_SOURCE
 ARG TARGETOS=linux
 ARG TARGETARCH
@@ -21,7 +21,7 @@ RUN GOWORK=off CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpat
 # Operator tool for load tests (docs/loadtest/RUNBOOK.md): creates and removes marked test accounts. Not run by the service.
 RUN GOWORK=off CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags '-s -w' -o loadtest-users ./cmd/loadtest-users
 
-FROM gcr.io/distroless/static:nonroot@sha256:e2e927ec666bae08560abb3c55d0659eceabb657f56b6782ab500a9fc7f555e3
+FROM gcr.io/distroless/static:nonroot@sha256:aafe993665bf6200db38a02c11a9351e782a84b6a45e7f33b6695638c88e3931
 # Runtime Laboratory distribution identity stays separate from SDK source.
 ARG LABORATORY_VERSION=unknown
 LABEL org.cybericebox.laboratory.commit=$LABORATORY_VERSION

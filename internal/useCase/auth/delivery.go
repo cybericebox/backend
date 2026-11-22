@@ -6,18 +6,22 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	"github.com/cybericebox/daemon/internal/delivery/repository/temporalCodeRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/delivery/repository/userRepo"
-	"github.com/cybericebox/daemon/internal/model"
-	jobsModel "github.com/cybericebox/daemon/internal/model/jobs"
-	temporalCodeModel "github.com/cybericebox/daemon/internal/model/temporalCode"
-	"github.com/cybericebox/daemon/pkg/secret"
-	"github.com/cybericebox/daemon/pkg/tools"
-	"github.com/cybericebox/daemon/pkg/worker"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/delivery/repository/temporalCodeRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/delivery/repository/userRepo"
+	"github.com/cybericebox/backend/internal/model"
+	jobsModel "github.com/cybericebox/backend/internal/model/jobs"
+	temporalCodeModel "github.com/cybericebox/backend/internal/model/temporalCode"
+	"github.com/cybericebox/backend/internal/secretctx"
+	"github.com/cybericebox/backend/pkg/secret"
+	"github.com/cybericebox/backend/pkg/tools"
+	"github.com/cybericebox/backend/pkg/worker"
 	"github.com/gofrs/uuid"
 )
+
+// authDeliveryReset is the Kind of a queued password-reset request.
+const authDeliveryReset = "reset"
 
 type authDeliveryCommand struct {
 	Kind     string
@@ -34,7 +38,7 @@ type authDeliveryQueue struct {
 func (u *AuthUseCase) SetDeliveryQueue(queue worker.IEnqueuer, cipher *secret.Cipher, unit postgres.IUnitOfWorker[IRepository]) {
 	u.delivery = &authDeliveryQueue{queue: queue, cipher: cipher, unit: unit}
 }
-func authDeliveryKey(id uuid.UUID) string { return "auth-delivery:" + id.String() }
+func authDeliveryKey(id uuid.UUID) string { return string(secretctx.AuthDelivery(id)) }
 
 func (u *AuthUseCase) queueAuthDelivery(ctx context.Context, command authDeliveryCommand) error {
 	d := u.delivery
@@ -47,7 +51,7 @@ func (u *AuthUseCase) queueAuthDelivery(ctx context.Context, command authDeliver
 	}
 	// Apply the public request quota once; a queued command's retries must never consume it again.
 	kind := mailKindSignUp
-	if command.Kind == "reset" {
+	if command.Kind == authDeliveryReset {
 		kind = mailKindReset
 	}
 	allowed, release := u.limits.mail.Reserve(kind, normalizeEmail(command.Email))

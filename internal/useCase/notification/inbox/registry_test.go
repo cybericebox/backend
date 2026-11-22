@@ -10,12 +10,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	inboxModel "github.com/cybericebox/daemon/internal/model/notification/inbox"
-	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
-	inboxUseCase "github.com/cybericebox/daemon/internal/useCase/notification/inbox"
-	"github.com/cybericebox/daemon/pkg/tools"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	inboxModel "github.com/cybericebox/backend/internal/model/notification/inbox"
+	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
+	inboxUseCase "github.com/cybericebox/backend/internal/useCase/notification/inbox"
+	"github.com/cybericebox/backend/pkg/tools"
 )
 
 var registryAt = time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC)

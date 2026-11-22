@@ -8,9 +8,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/advisory"
-	"github.com/cybericebox/daemon/internal/leader"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/advisory"
+	"github.com/cybericebox/backend/internal/leader"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 // Two "replicas" with pools of their own race for the real advisory lock.

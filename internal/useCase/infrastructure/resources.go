@@ -3,7 +3,7 @@ package infrastructure
 import (
 	"github.com/gofrs/uuid"
 
-	labMonitoringModel "github.com/cybericebox/daemon/internal/model/labMonitoring"
+	labMonitoringModel "github.com/cybericebox/backend/internal/model/labMonitoring"
 )
 
 // ResourcesView is what one lab (a team stand or a test lab) uses right now,

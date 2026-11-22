@@ -8,10 +8,10 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventConfigRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventConfigRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
 )
 
 const maxListColumns = 200

@@ -3,7 +3,7 @@ package errorJournalUseCase
 import (
 	"sync"
 
-	errorJournal "github.com/cybericebox/daemon/internal/model/errorJournal"
+	errorJournal "github.com/cybericebox/backend/internal/model/errorJournal"
 )
 
 // StreamEvent is what the live stream sends: the group after the change and, for a new occurrence, its sample.

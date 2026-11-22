@@ -482,7 +482,7 @@ func renderLexicalNode(n lexicalNode, st emailStyling, vars map[string]any) (str
 		return `<div` + alignOnly + `>` + inner + `</div>`, nil
 	case "paragraph":
 		// A paragraph that uses a variable with no value is dropped whole, so
-		// an optional value never leaves «Вітаємо, !» behind.
+		// an optional value never leaves "Welcome, !" (a greeting with an empty name) behind.
 		if usesEmptyVariable(n.Children, vars) {
 			return "", nil
 		}

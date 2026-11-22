@@ -9,19 +9,19 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/exerciseRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	inboxModel "github.com/cybericebox/daemon/internal/model/notification/inbox"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	resourcesModel "github.com/cybericebox/daemon/internal/model/resources"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/exerciseRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	inboxModel "github.com/cybericebox/backend/internal/model/notification/inbox"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	resourcesModel "github.com/cybericebox/backend/internal/model/resources"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 func seedElevationRequest(t *testing.T, q *postgres.Queries, recipient, elevationID uuid.UUID) uuid.UUID {
 	t.Helper()
 	id := uuid.Must(uuid.NewV7())
 	require.NoError(t, q.CreateInApp(context.Background(), postgres.CreateInAppParams{
-		ID: id, UserID: recipient, Title: "Запит на більше ресурсів", Surface: "inbox", Actions: []byte(`[]`),
+		ID: id, UserID: recipient, Title: "Request for more resources", Surface: "inbox", Actions: []byte(`[]`),
 		NotificationType: inboxModel.TypeElevationRequested, Category: "requests", ActionRequired: true,
 		SubjectRef: pgtype.Text{String: inboxModel.ElevationRef(elevationID), Valid: true},
 	}))

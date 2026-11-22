@@ -6,8 +6,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	imageRegistryModel "github.com/cybericebox/daemon/internal/model/imageRegistry"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	imageRegistryModel "github.com/cybericebox/backend/internal/model/imageRegistry"
 )
 
 // EventSecrets stores the organizer registry secrets of events. Every query is

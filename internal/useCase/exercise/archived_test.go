@@ -10,10 +10,10 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	exercise "github.com/cybericebox/daemon/internal/useCase/exercise"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	exercise "github.com/cybericebox/backend/internal/useCase/exercise"
 )
 
 var archiveLoadedAt = time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
@@ -77,7 +77,7 @@ func TestArchivedExercise_RejectsMutations(t *testing.T) {
 			return err
 		},
 		"discard": func(uc *exercise.ExerciseUseCase, exID uuid.UUID) error {
-			return uc.DiscardDraft(ctx, exID)
+			return uc.DiscardDraft(ctx, exID, "")
 		},
 		"rollback": func(uc *exercise.ExerciseUseCase, exID uuid.UUID) error {
 			_, err := uc.RollbackToVersion(ctx, exID, uuid.Must(uuid.NewV7()), uuid.Nil)

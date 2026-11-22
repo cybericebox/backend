@@ -12,13 +12,13 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/participantRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	participantModel "github.com/cybericebox/daemon/internal/model/participant"
-	event "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/repository/participantRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
+	event "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 func TestJoinEvent_RequiredParticipantFormNeedsCurrentAnswer(t *testing.T) {
@@ -609,10 +609,10 @@ func TestListParticipants_FirstPage_FiltersByStatus(t *testing.T) {
 				t.Fatalf("want StatusFilter = Pending and applications kind, got %d %q", arg.StatusFilter, arg.Kind)
 			}
 			return []postgres.ListEventParticipantsDetailedRow{
-				{EventID: eventID, UserID: participantID, Status: int16(participantModel.StatusPending), CreatedAt: t0, FirstName: "Олена", LastName: "Коваль", Email: "olena@example.test", DisplayName: "Олена Коваль"},
+				{EventID: eventID, UserID: participantID, Status: int16(participantModel.StatusPending), CreatedAt: t0, FirstName: "Olena", LastName: "Koval", Email: "olena@example.test", DisplayName: "Olena Koval"},
 			}, nil
 		})
-	q.EXPECT().ListLatestRegistrationAnswersForUsers(gomock.Any(), gomock.Any()).Return([]postgres.ListLatestRegistrationAnswersForUsersRow{{UserID: participantID, Answers: []byte(`{"city":"Київ"}`)}}, nil)
+	q.EXPECT().ListLatestRegistrationAnswersForUsers(gomock.Any(), gomock.Any()).Return([]postgres.ListLatestRegistrationAnswersForUsersRow{{UserID: participantID, Answers: []byte(`{"city":"Kyiv"}`)}}, nil)
 	expectParticipantListSides(q, 3)
 
 	res, err := uc.ListParticipants(context.Background(), event.ListParticipantsFilter{
@@ -624,7 +624,7 @@ func TestListParticipants_FirstPage_FiltersByStatus(t *testing.T) {
 	if len(res.Participants) != 1 || res.HasMore {
 		t.Fatalf("result mismatch: %+v", res)
 	}
-	if res.Participants[0].Name != "Олена Коваль" || res.Participants[0].Email != "olena@example.test" || res.Participants[0].Answers["city"] != "Київ" {
+	if res.Participants[0].Name != "Olena Koval" || res.Participants[0].Email != "olena@example.test" || res.Participants[0].Answers["city"] != "Kyiv" {
 		t.Fatalf("participant identity or answers missing: %+v", res.Participants[0])
 	}
 	if res.Total != 3 || res.Counts.Invitations != 3 || res.Counts.Applications != 2 {
@@ -640,17 +640,17 @@ func TestListParticipants_PassesSearchToListAndCount(t *testing.T) {
 
 	q.EXPECT().ListEventParticipantsDetailed(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(_ context.Context, arg postgres.ListEventParticipantsDetailedParams) ([]postgres.ListEventParticipantsDetailedRow, error) {
-			if arg.Search != "олена" || arg.Kind != "participants" {
+			if arg.Search != "olena" || arg.Kind != "participants" {
 				t.Fatalf("want search in list params, got %+v", arg)
 			}
 			return nil, nil
 		})
 	q.EXPECT().ListLatestRegistrationAnswersForUsers(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 	q.EXPECT().GetEventByID(gomock.Any(), gomock.Any()).Return(postgres.Event{}, pgx.ErrNoRows).AnyTimes()
-	q.EXPECT().CountEventParticipants(gomock.Any(), postgres.CountEventParticipantsParams{EventID: eventID, StatusFilter: -1, Kind: "participants", Search: "олена", FieldFilters: []byte(`[{"key":"city","op":"contains","value":"Київ"}]`)}).Return(int64(1), nil)
+	q.EXPECT().CountEventParticipants(gomock.Any(), postgres.CountEventParticipantsParams{EventID: eventID, StatusFilter: -1, Kind: "participants", Search: "olena", FieldFilters: []byte(`[{"key":"city","op":"contains","value":"Kyiv"}]`)}).Return(int64(1), nil)
 	q.EXPECT().CountEventParticipantKinds(gomock.Any(), gomock.Any()).Return(postgres.CountEventParticipantKindsRow{}, nil)
 
-	res, err := uc.ListParticipants(context.Background(), event.ListParticipantsFilter{EventID: eventID, Kind: participantRepo.KindParticipants, Search: "олена", Fields: []event.AnswerFilter{{Key: "city", Op: event.AnswerFilterContains, Value: "Київ"}}})
+	res, err := uc.ListParticipants(context.Background(), event.ListParticipantsFilter{EventID: eventID, Kind: participantRepo.KindParticipants, Search: "olena", Fields: []event.AnswerFilter{{Key: "city", Op: event.AnswerFilterContains, Value: "Kyiv"}}})
 	if err != nil {
 		t.Fatalf("ListParticipants: %v", err)
 	}
@@ -722,11 +722,11 @@ func TestListParticipantsReportsTeamVisibility(t *testing.T) {
 	eventID, userID, teamID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
 	q.EXPECT().ListEventParticipantsDetailed(gomock.Any(), gomock.Any()).Return([]postgres.ListEventParticipantsDetailedRow{{
 		EventID: eventID, UserID: userID, TeamID: uuid.NullUUID{UUID: teamID, Valid: true},
-		Status: int16(participantModel.StatusApproved), CreatedAt: time.Now(), TeamHidden: true, TeamName: "Олена",
+		Status: int16(participantModel.StatusApproved), CreatedAt: time.Now(), TeamHidden: true, TeamName: "Olena",
 	}}, nil)
 	expectParticipantListSides(q, 1)
 	result, err := uc.ListParticipants(context.Background(), event.ListParticipantsFilter{EventID: eventID})
-	if err != nil || len(result.Participants) != 1 || !result.Participants[0].Hidden || result.Participants[0].TeamName != "Олена" {
+	if err != nil || len(result.Participants) != 1 || !result.Participants[0].Hidden || result.Participants[0].TeamName != "Olena" {
 		t.Fatalf("participant must expose technical team visibility: result=%+v err=%v", result, err)
 	}
 }
@@ -857,7 +857,7 @@ func TestJoinEvent_UnpublishedIsRejectedAsNotOpen(t *testing.T) {
 }
 
 // A fresh invitation of an event published later is not expired: it awaits
-// publication (the organizer saw «Прострочено» until the publish time).
+// publication (the organizer saw "overdue" until the publish time).
 func TestListParticipants_InvitationAwaitingPublication(t *testing.T) {
 	for _, tc := range []struct {
 		name             string

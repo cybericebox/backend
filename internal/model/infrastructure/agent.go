@@ -3,9 +3,17 @@ package infrastructure
 import (
 	"context"
 	"errors"
+	"slices"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gofrs/uuid"
+
+	labnames "github.com/cybericebox/laboratory/pkg/names"
+
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	"github.com/cybericebox/backend/internal/secretctx"
 )
 
 // Agent sources: an agent an administrator enrolled, or the agent bootstrapped from the deployment
@@ -88,18 +96,284 @@ type AgentMaintenanceWindow struct {
 // AgentFeatures is what a laboratory agent offers the platform's tenant. The platform keeps no copy of
 // these settings in its own configuration: it stores the last report of each agent.
 type AgentFeatures struct {
-	Lifecycle   LifecycleCapabilities `json:"lifecycle"`
-	Persistence PersistenceFeature    `json:"persistence"`
-	ImageCache  ImageCacheFeature     `json:"image_cache"`
-	Scheduler   SchedulerFeature      `json:"scheduler"`
-	Endpoints   EndpointsFeature      `json:"endpoints"`
-	Certificate CertificateFeature    `json:"certificate"`
-	Proxy       ProxyFeature          `json:"proxy"`
-	Limits      LimitsFeature         `json:"limits"`
+	// ContractVersion is the agent API contract ("major.minor") the agent reported; empty when it is older than the field.
+	ContractVersion string                `json:"contract_version,omitempty"`
+	Lifecycle       LifecycleCapabilities `json:"lifecycle"`
+	Persistence     PersistenceFeature    `json:"persistence"`
+	ImageCache      ImageCacheFeature     `json:"image_cache"`
+	Scheduler       SchedulerFeature      `json:"scheduler"`
+	Endpoints       EndpointsFeature      `json:"endpoints"`
+	Certificate     CertificateFeature    `json:"certificate"`
+	Proxy           ProxyFeature          `json:"proxy"`
+	Limits          LimitsFeature         `json:"limits"`
 	// TenantQuota is the cluster owner's limit for this platform; the calendar's capacity comes from it.
 	TenantQuota TenantQuotaFeature `json:"tenant_quota"`
 	// Reservations is how the agent's reservations work.
 	Reservations ReservationsFeature `json:"reservations"`
+	// Checks, Access and Bootstrap are the optional parts of contract 1.5 (nil: the agent reports none, it is older than the
+	// fields: nothing of it is offered; no Access is the http access only).
+	Checks    *ChecksFeature    `json:"checks,omitempty"`
+	Access    *AccessFeature    `json:"access,omitempty"`
+	Bootstrap *BootstrapFeature `json:"bootstrap,omitempty"`
+	// VPN is the VPN gateway option of the agent (nil: an older agent, which neither enforces the block of lab-initiated
+	// connections nor accepts the key that allows them).
+	VPN *VPNFeature `json:"vpn,omitempty"`
+	// Internet is the internet gateway of the laboratory (contract 2.8): nil = an older agent, which runs one.
+	Internet *InternetFeature `json:"internet,omitempty"`
+	// AllowedRegistries are the registries lab images may come from (contract 2.8): nil = an older agent, no list is enforced.
+	AllowedRegistries *AllowedRegistriesFeature `json:"allowed_registries,omitempty"`
+	// Activity is the laboratory's activity reports (contract 2.5): nil for an agent older than the field.
+	Activity *ActivityFeature `json:"activity,omitempty"`
+	// PersistenceUnavailable and LifecycleUnavailable say why a feature the cluster is configured for is held back
+	// (nil: nothing is). Only a fixed code and a count of nodes: never node names, paths or text of the agent.
+	PersistenceUnavailable *UnavailableReason `json:"persistence_unavailable,omitempty"`
+	LifecycleUnavailable   *UnavailableReason `json:"lifecycle_unavailable,omitempty"`
+}
+
+// ActivityFeature: Enabled says the cluster keeps raw activity facts for the platform to pull; MaxEvents and RingMinutes bound
+// what the laboratory keeps per writer (a platform that pulls less often than every RingMinutes may lose events).
+type ActivityFeature struct {
+	Enabled     bool  `json:"enabled"`
+	MaxEvents   int32 `json:"max_events"`
+	RingMinutes int32 `json:"ring_minutes"`
+	// ConsoleMaxLifetimeSeconds is the longest a console session lives (0: the console is off, or an older laboratory).
+	ConsoleMaxLifetimeSeconds int32 `json:"console_max_lifetime_s"`
+	// DeviceTouch: the cluster produces device_touch events (contract 2.6). False: the VPN bytes and devices-touched figures are
+	// not reported, which is not zero.
+	DeviceTouch bool `json:"device_touch"`
+}
+
+// ChecksFeature: lab checks are switched on and their limits. Access: which device access kinds are served.
+// Bootstrap: the limits of a device bootstrap (it is always available on a 1.5 agent).
+type (
+	ChecksFeature struct {
+		Enabled             bool  `json:"enabled"`
+		MaxChecksPerLab     int32 `json:"max_checks_per_lab"`
+		MaxPartsPerCheck    int32 `json:"max_parts_per_check"`
+		MaxTimeLimitSeconds int32 `json:"max_time_limit_seconds"`
+		MaxScheduleSeconds  int32 `json:"max_schedule_seconds"`
+		MaxDetailBytes      int32 `json:"max_detail_bytes"`
+		// Observations are the observation kinds the checker can run ("file", "directory", ..., and the file keys
+		// "file.type" and "file.checksum"). Empty: the agent reports none, which is a contract 1.5 agent: file and custom.
+		Observations []string `json:"observations,omitempty"`
+	}
+	// AccessFeature says which device access kinds the laboratory serves: http always, terminal when its option is on and the
+	// component that serves it is there, vnc and rdp never in this version.
+	AccessFeature struct {
+		HTTP     bool `json:"http"`
+		Terminal bool `json:"terminal"`
+		VNC      bool `json:"vnc"`
+		RDP      bool `json:"rdp"`
+	}
+	BootstrapFeature struct {
+		MaxScriptBytes      int32 `json:"max_script_bytes"`
+		MaxFiles            int32 `json:"max_files"`
+		MaxFileBytes        int32 `json:"max_file_bytes"`
+		MaxTotalBytes       int32 `json:"max_total_bytes"`
+		MaxTimeLimitSeconds int32 `json:"max_time_limit_seconds"`
+		MaxAttempts         int32 `json:"max_attempts"`
+	}
+)
+
+// legacyObservations are the observations of the first checker, which does not list them.
+var legacyObservations = []string{"file", "custom"}
+
+// Offers reports whether the checker runs the observation kind. The checker lists its kinds; the file keys "file.type" and
+// "file.checksum" are not listed on their own: the laboratory added them in the same contract change as the list, so they are
+// offered when "file" is listed (this is the one place that assumes it). A checker that lists none is the first generation:
+// file and custom, nothing more.
+func (c ChecksFeature) Offers(kind string) bool {
+	if len(c.Observations) == 0 {
+		return slices.Contains(legacyObservations, kind)
+	}
+	if kind == "file.type" || kind == "file.checksum" {
+		return slices.Contains(c.Observations, "file")
+	}
+	return slices.Contains(c.Observations, kind)
+}
+
+// timeLimitRefusal says, when a check of the lab has a time limit above the checker's ceiling, the refusal text and the place
+// (the task and the key) the author can fix; empty when the ceiling is not passed or not reported.
+func (c ChecksFeature) timeLimitRefusal(n exerciseModel.LabNeeds) (string, map[string]any) {
+	ceiling := c.MaxTimeLimitSeconds
+	if ceiling <= 0 || n.MaxCheckTimeLimit <= int(ceiling) {
+		return "", nil
+	}
+	text := "checks.max_time_limit_seconds (at most " + strconv.Itoa(int(ceiling)) + ")"
+	task, ok := exerciseModel.TaskKeyOfCheck(n.LongestCheck)
+	if !ok {
+		return text, nil
+	}
+	return text, map[string]any{"task": task, "field": "check.state.conditions[].timeout", "limit": ceiling}
+}
+
+// checksRefusals lists what in the checks of a lab the laboratory refuses: the option itself, a limit, an observation kind it does
+// not run. over records a size limit that is passed; the place of a time limit that is passed is returned.
+func (f AgentFeatures) checksRefusals(n exerciseModel.LabNeeds, over func(string, int, int32)) ([]string, map[string]any) {
+	if f.Checks == nil || !f.Checks.Enabled {
+		return []string{"checks"}, nil
+	}
+	var refused []string
+	var at map[string]any
+	over("checks.max_checks_per_lab", n.ChecksPerLab, f.Checks.MaxChecksPerLab)
+	over("checks.max_parts_per_check", n.MaxParts, f.Checks.MaxPartsPerCheck)
+	if text, place := f.Checks.timeLimitRefusal(n); text != "" {
+		refused, at = append(refused, text), place
+	}
+	over("checks.max_schedule_seconds", n.MaxCheckSchedule, f.Checks.MaxScheduleSeconds)
+	for _, kind := range n.Observations {
+		if !f.Checks.Offers(kind) {
+			refused = append(refused, "checks.observation."+kind)
+		}
+	}
+	return refused, at
+}
+
+// ServesAccess reports whether the laboratory serves a device access kind (http, terminal, vnc, rdp). An agent that reports no
+// access serves http only.
+func (f AgentFeatures) ServesAccess(kind string) bool {
+	if f.Access == nil {
+		return kind == "http"
+	}
+	switch kind {
+	case "http":
+		return f.Access.HTTP
+	case "terminal":
+		return f.Access.Terminal
+	case "vnc":
+		return f.Access.VNC
+	case "rdp":
+		return f.Access.RDP
+	}
+	return false
+}
+
+// VPNFeature says the agent enforces the block of connections the lab starts to VPN clients and accepts the reverseConnections
+// switch of a VPN gateway, and the most gateways (VPN and Internet together) a lab may have there (0: not reported).
+type VPNFeature struct {
+	ReverseConnections bool  `json:"reverse_connections"`
+	MaxGateways        int32 `json:"max_gateways"`
+	// Enabled says the laboratory runs a VPN (chart vpn.enabled, contract 2.8); nil: an older agent, which runs one.
+	Enabled *bool `json:"enabled,omitempty"`
+}
+
+// InternetFeature says the laboratory runs an internet gateway (chart inetGateway.enabled, contract 2.8).
+type InternetFeature struct {
+	Enabled bool `json:"enabled"`
+}
+
+// AllowedRegistriesFeature is the list of registries the laboratory pulls lab images from: Any when every registry is allowed,
+// otherwise the canonical hosts (the platform's own included).
+type AllowedRegistriesFeature struct {
+	Any        bool     `json:"any"`
+	Registries []string `json:"registries,omitempty"`
+}
+
+// ServesVPN is false only for a laboratory that reported its VPN as off.
+func (f AgentFeatures) ServesVPN() bool {
+	return f.VPN == nil || f.VPN.Enabled == nil || *f.VPN.Enabled
+}
+
+// ServesInternet is false only for a laboratory that reported its internet gateway as off.
+func (f AgentFeatures) ServesInternet() bool { return f.Internet == nil || f.Internet.Enabled }
+
+// AllowsRegistry is false only for a laboratory that reported a list without that registry.
+func (f AgentFeatures) AllowsRegistry(registry string) bool {
+	return f.AllowedRegistries == nil || f.AllowedRegistries.Any || slices.Contains(f.AllowedRegistries.Registries, registry)
+}
+
+// EnforcesVPNReverse says the agent has reported that it enforces the block (and so accepts the key).
+func (f AgentFeatures) EnforcesVPNReverse() bool { return f.VPN != nil && f.VPN.ReverseConnections }
+
+// RequireLabOptions refuses a lab that needs an option or a size this laboratory does not offer, instead of starting a lab
+// that would not work: a task with checks needs the checks option, a device with a terminal the terminal option, a bootstrap
+// or a service command an agent that carries them at all (contract 1.5), and every size must be within the agent's limits.
+// The error's public context "options" names every option or limit that fails, for example "checks",
+// "terminal", "bootstrap.max_files (at most 8)". A limit of 0 is "not reported" and refuses nothing.
+func (f AgentFeatures) RequireLabOptions(n exerciseModel.LabNeeds) error {
+	var refused []string
+	var where map[string]any // the task and the key that pass a limit of the laboratory, when it can be named
+	over := func(name string, need int, limit int32) {
+		if limit > 0 && need > int(limit) {
+			refused = append(refused, name+" (at most "+strconv.Itoa(int(limit))+")")
+		}
+	}
+	if n.Checks {
+		checkRefusals, at := f.checksRefusals(n, over)
+		refused = append(refused, checkRefusals...)
+		if at != nil {
+			where = at
+		}
+	}
+	if f.VPN != nil {
+		over("gateways", n.Gateways, f.VPN.MaxGateways)
+	}
+	if n.VPN && !f.ServesVPN() {
+		refused = append(refused, "vpn")
+	}
+	if n.Internet && !f.ServesInternet() {
+		refused = append(refused, "internet")
+	}
+	for _, access := range []struct {
+		needed bool
+		kind   string
+	}{{n.HTTP, "http"}, {n.Terminal, "terminal"}, {n.RDP, "rdp"}, {n.VNC, "vnc"}} {
+		if access.needed && !f.ServesAccess(access.kind) {
+			refused = append(refused, access.kind)
+		}
+	}
+	for _, registry := range n.Registries {
+		if !f.AllowsRegistry(registry) {
+			refused = append(refused, "registry "+registry)
+		}
+	}
+	if n.Bootstrap {
+		if f.Bootstrap == nil {
+			refused = append(refused, "bootstrap")
+		} else {
+			over("bootstrap.max_files", n.MaxFiles, f.Bootstrap.MaxFiles)
+			over("bootstrap.max_script_bytes", n.MaxScriptBytes, f.Bootstrap.MaxScriptBytes)
+			over("bootstrap.max_file_bytes", n.MaxFileBytes, f.Bootstrap.MaxFileBytes)
+			over("bootstrap.max_total_bytes", n.MaxBootstrapBytes, f.Bootstrap.MaxTotalBytes)
+			over("bootstrap.max_time_limit_seconds", n.MaxBootstrapLimit, f.Bootstrap.MaxTimeLimitSeconds)
+		}
+	}
+	if len(refused) == 0 {
+		return nil
+	}
+	failure := exerciseModel.ErrLabOptionUnavailable.WithPublicContext("options", strings.Join(refused, "; "))
+	for key, value := range where {
+		failure = failure.WithPublicContext(key, value)
+	}
+	return failure.Err()
+}
+
+// UnavailableReason is why some lab nodes of an agent do not confirm a feature: a code of the fixed list, how many
+// nodes do not confirm it and how many were asked.
+type UnavailableReason struct {
+	Code        string `json:"code"`
+	NodesFailed int    `json:"nodes_failed"`
+	NodesAsked  int    `json:"nodes_asked"`
+}
+
+// ParseUnavailableReason reads the agent's `<CODE>:<n>/<m>` (the codes are the laboratory's allow-list,
+// pkg/names.UnavailableReasonCodes). Anything else (a free text, an unknown code, a count out
+// of range) is dropped: what the agent says is never passed on as it is.
+func ParseUnavailableReason(raw string) *UnavailableReason {
+	code, counts, found := strings.Cut(raw, ":")
+	if !found || !slices.Contains(labnames.UnavailableReasonCodes, code) {
+		return nil
+	}
+	failedText, askedText, found := strings.Cut(counts, "/")
+	if !found || len(failedText) > 6 || len(askedText) > 6 {
+		return nil
+	}
+	failed, errFailed := strconv.Atoi(failedText)
+	asked, errAsked := strconv.Atoi(askedText)
+	if errFailed != nil || errAsked != nil || failed < 0 || asked < 1 || failed > asked || failedText[0] == '+' || askedText[0] == '+' {
+		return nil
+	}
+	return &UnavailableReason{Code: code, NodesFailed: failed, NodesAsked: asked}
 }
 
 // ReservationsFeature: every group and lab runs under a reservation (Required), and a reservation turns Ending
@@ -146,14 +420,10 @@ type EndpointsFeature struct {
 	VPNEndpoint string `json:"vpn_endpoint"`
 }
 
-// ProxyFeature are the limits of the laboratory L7 proxy for web links: the longest a link can be opened
-// and the longest a session lives (the proxy cuts a longer one).
+// ProxyFeature are the limits of the laboratory L7 proxy and the device-access service for access grants:
+// GrantMaxTTLSeconds is the longest exp - iat of a grant they accept. There is no session on the proxy side.
 type ProxyFeature struct {
-	AccessTokenMaxTTLSeconds int64 `json:"access_token_max_ttl_seconds"`
-	SessionMaxTTLSeconds     int64 `json:"session_max_ttl_seconds"`
-	// SessionIdleTTLSeconds is how long a proxy session lives without use; the proxy extends it by itself, never
-	// past the session end the link states.
-	SessionIdleTTLSeconds int64 `json:"session_idle_ttl_seconds"`
+	GrantMaxTTLSeconds int64 `json:"grant_max_ttl_seconds"`
 }
 
 // CertificateFeature is the client certificate of the platform's connection and the lifetime of the ones
@@ -249,6 +519,9 @@ type LabMeta struct {
 	DeployGroup string
 	// PullCredentials are the registry credentials the agent pulls this lab's images with (never logged).
 	PullCredentials []RegistryCredential
+	// Checks are the laboratory checks of the lab's state tasks, resolved for this instance (secret material: expected
+	// values; never logged, never returned). Empty: the lab has none.
+	Checks []exerciseModel.LabCheck
 	// Reservation is what the lab runs under, GroupReservation what its group runs under (independent: a test lab
 	// runs under its run while the author's shared group runs under the group part).
 	Reservation      ReservationRef
@@ -256,7 +529,20 @@ type LabMeta struct {
 	// PartID and GroupPartID are the resolved part ids the fleet sends; callers leave them empty.
 	PartID      string
 	GroupPartID string
+	// AgentEnforcesVPNReverse is set by the fleet from the agent's features: only then may the key of the VPN gateway option
+	// be sent (an older agent rejects it). Callers leave it empty.
+	AgentEnforcesVPNReverse bool
 }
+
+// Labels of a lab with VPN gateways, one pair per VPN gateway: the prefix plus the gateway's name (a DNS label of at most 35
+// characters, so the key stays inside the 63 of a label name). LabelVPNReversePrefix: "1" when its exercise allows lab-initiated
+// connections to the VPN clients through that gateway, "0" when it does not. LabelVPNReverseSentPrefix: "1" when the key that
+// allows them was really requested from the laboratory, "0" when it was not (the default of the laboratory then applies). The
+// state of each gateway is derived from what was requested.
+const (
+	LabelVPNReversePrefix     = "cybericebox.com/vpn-reverse."
+	LabelVPNReverseSentPrefix = "cybericebox.com/vpn-reverse-sent."
+)
 
 // ImagePrewarm is the state of one image in the platform image cache.
 type ImagePrewarm struct {
@@ -301,12 +587,18 @@ type DeviceController interface {
 // AgentSecretContext binds the ciphertext of one private key of an agent to the agent: a value
 // copied to another row fails to open. field is "key" (the mTLS client key) or "access" (the signing
 // key of the lab access tokens).
-func AgentSecretContext(id uuid.UUID, field string) []byte {
-	return []byte("infra.agent:" + id.String() + ":" + field)
-}
+func AgentSecretContext(id uuid.UUID, field string) []byte { return secretctx.AgentSecret(id, field) }
 
 // ErrEnrollmentDenied is what the agent adapter returns when the agent refuses the enrollment token or
 // the request (a used, expired or unknown token is PERMISSION_DENIED).
 var ErrEnrollmentDenied = errors.New("the agent denied the enrollment")
 
 type LifecycleCapabilities struct{ PerLabStop, RequiredSnapshot, ConfirmedRuntime, RetainedRestart, FullGroupStop bool }
+
+// AgentProfileReport is the stored node profile report of an agent: the report as the daemon encoded it, and when it
+// was received.
+type AgentProfileReport struct {
+	AgentID    uuid.UUID
+	Data       []byte
+	ReceivedAt time.Time
+}

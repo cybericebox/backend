@@ -17,15 +17,15 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/sessionRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/delivery/repository/userRepo"
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
-	"github.com/cybericebox/daemon/internal/seed"
-	sessionPkg "github.com/cybericebox/daemon/internal/session"
-	"github.com/cybericebox/daemon/pkg/password"
+	"github.com/cybericebox/backend/internal/delivery/repository/sessionRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/delivery/repository/userRepo"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	userModel "github.com/cybericebox/backend/internal/model/user"
+	"github.com/cybericebox/backend/internal/seed"
+	sessionPkg "github.com/cybericebox/backend/internal/session"
+	"github.com/cybericebox/backend/pkg/password"
 )
 
 const (
@@ -36,8 +36,7 @@ const (
 	// MaxUsers caps one run, a guard against a typo in --count.
 	MaxUsers = 2000
 
-	tosVersion = 1
-	pageSize   = 200
+	pageSize = 200
 )
 
 var runPattern = regexp.MustCompile(`^[a-z0-9]{3,20}$`)
@@ -108,6 +107,9 @@ type Sessions interface {
 type Config struct {
 	Lifetimes  sessionPkg.Lifetimes
 	Complexity password.ComplexityConfig
+	// RequiredDocuments are the documents the installation requires on account creation; the accounts accept exactly
+	// these. Empty: nothing is required and nothing is recorded.
+	RequiredDocuments []string
 }
 
 // Service creates and removes load-test accounts.
@@ -180,7 +182,7 @@ func (s *Service) createOne(ctx context.Context, run string, n int, now time.Tim
 		return Account{}, fmt.Errorf("create user: %w", err)
 	}
 	expected := created.UpdatedAt
-	if err = created.CompleteSetup(first, last, hash, tosVersion, func() (bool, error) { return false, nil }, now); err != nil {
+	if err = created.CompleteSetup(first, last, hash, s.cfg.RequiredDocuments, s.cfg.RequiredDocuments, func() (bool, error) { return false, nil }, now); err != nil {
 		return Account{}, fmt.Errorf("complete setup: %w", err)
 	}
 	if affected, updateErr := s.users.Update(ctx, created, expected); updateErr != nil || affected == 0 {

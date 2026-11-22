@@ -6,14 +6,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/platformSettingsRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	preview "github.com/cybericebox/daemon/internal/model/participantPreview"
-	"github.com/cybericebox/daemon/internal/model/platformSettings"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	retentionModel "github.com/cybericebox/daemon/internal/model/retention"
+	"github.com/cybericebox/backend/internal/delivery/repository/platformSettingsRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	preview "github.com/cybericebox/backend/internal/model/participantPreview"
+	"github.com/cybericebox/backend/internal/model/platformSettings"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	retentionModel "github.com/cybericebox/backend/internal/model/retention"
 )
 
 type (
@@ -22,6 +22,7 @@ type (
 		retentionDefaults retentionModel.Policy
 		testRunDefaults   exerciseModel.TestRunLeases
 		maxUploadBytes    int64
+		profiles          IProfileAvailability
 		// warnedRows is the stored row version last warned about, per key (warnStored).
 		warnedRows sync.Map
 		now        func() time.Time
@@ -36,6 +37,9 @@ type (
 		// MaxUploadBytes is the limit of one stored file (MEDIA_MAX_UPLOAD_BYTES): one archive entry may not be larger.
 		// Zero: no such bound.
 		MaxUploadBytes int64
+		// Profiles says which node profiles a connected laboratory agent can run now. Nil: unknown, nothing is
+		// reported as runnable.
+		Profiles IProfileAvailability
 		// Now is the clock; nil: time.Now.
 		Now func() time.Time
 	}
@@ -58,11 +62,13 @@ func NewPlatformSettingsUseCase(deps Dependencies) *PlatformSettingsUseCase {
 		retentionDefaults: deps.RetentionDefaults,
 		testRunDefaults:   testRuns,
 		maxUploadBytes:    deps.MaxUploadBytes,
+		profiles:          deps.Profiles,
 		now:               now,
 	}
 	warnDefaultsOutOfRange(u.retentionSetting())
 	warnDefaultsOutOfRange(u.archiveLimitSetting())
 	warnDefaultsOutOfRange(u.testRunSetting())
+	warnDefaultsOutOfRange(u.nodeProfileSetting())
 	return u
 }
 

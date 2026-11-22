@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 	"github.com/gofrs/uuid"
 )
 
@@ -32,7 +32,7 @@ func convertPlain(t *testing.T, text string, keys ...string) (map[string]any, er
 	t.Helper()
 	var placeholders []exerciseModel.Placeholder
 	for _, key := range keys {
-		placeholders = append(placeholders, exerciseModel.Placeholder{Key: key, Kind: exerciseModel.PlaceholderVPNSubnet})
+		placeholders = append(placeholders, exerciseModel.Placeholder{Key: key, Kind: exerciseModel.PlaceholderGatewaySubnet, Gateway: "vpn"})
 	}
 	raw, err := plainTextToDocument(text, placeholders, "Q")
 	if err != nil {
@@ -118,17 +118,25 @@ func TestPlainText_EmptyIsNil(t *testing.T) {
 }
 
 func TestPlainText_PassesPublishValidation(t *testing.T) {
-	placeholders := []exerciseModel.Placeholder{{Key: "srv", Kind: exerciseModel.PlaceholderVPNSubnet}}
+	placeholders := []exerciseModel.Placeholder{{Key: "srv", Kind: exerciseModel.PlaceholderGatewaySubnet, Gateway: "vpn"}}
 	raw, err := plainTextToDocument("Scan {{srv}}", placeholders, "Q")
 	if err != nil {
 		t.Fatal(err)
 	}
 	version := exerciseModel.ExerciseVersion{Variants: []exerciseModel.Variant{{
-		Topology: exerciseModel.Topology{VPN: exerciseModel.NetworkSpec{Enabled: true}},
-		Tasks: []exerciseModel.Task{{
-			ID: uuid.FromStringOrNil("11111111-1111-1111-1111-111111111111"), Name: "Question", Difficulty: exerciseModel.DifficultyEasy,
-			Description: raw, Flag: []string{"ICE{x}"}, Placeholders: placeholders,
-		}},
+		Topology: exerciseModel.Topology{Devices: []exerciseModel.Device{{ID: uuid.FromStringOrNil("22222222-2222-2222-2222-222222222222"), Name: "vpn", Type: exerciseModel.DeviceTypeVPNGateway}}},
+		Tasks: []exerciseModel.Task{
+			{
+				ID: uuid.FromStringOrNil(
+					"11111111-1111-1111-1111-111111111111",
+				),
+				Name:         "Question",
+				Difficulty:   exerciseModel.DifficultyEasy,
+				Description:  raw,
+				Check:        exerciseModel.FlagCheck("ICE{x}"),
+				Placeholders: placeholders,
+			},
+		},
 	}}}
 	if err := version.ValidateForPublish(); err != nil {
 		t.Fatalf("ValidateForPublish: %v", err)

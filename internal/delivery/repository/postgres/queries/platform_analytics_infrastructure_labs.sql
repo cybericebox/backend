@@ -1,4 +1,4 @@
--- Platform analytics, «Інфраструктура»: the active time split by lab kind. The
+-- Platform analytics, "Infrastructure": the active time split by lab kind. The
 -- kinds are the event teams' stands, the moderators team stand and the catalog
 -- test labs (exercise test deploys). A test lab is active from the creation of
 -- its deploy to its removal (exercise_test_deploy_runs, written by triggers);

@@ -7,7 +7,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
 )
 
 type failingPlacements struct{ memoryPlacements }

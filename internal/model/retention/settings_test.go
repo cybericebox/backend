@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	platformSettingsModel "github.com/cybericebox/daemon/internal/model/platformSettings"
-	retentionModel "github.com/cybericebox/daemon/internal/model/retention"
-	appErr "github.com/cybericebox/daemon/pkg/err"
+	platformSettingsModel "github.com/cybericebox/backend/internal/model/platformSettings"
+	retentionModel "github.com/cybericebox/backend/internal/model/retention"
+	appErr "github.com/cybericebox/backend/pkg/err"
 )
 
 // publicField is the public context field of an application error.

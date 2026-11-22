@@ -6,7 +6,7 @@ import (
 	"github.com/gofrs/uuid"
 )
 
-// Read models of «Завдання» (§6.3) and «Прогрес» (§6.4).
+// Read models of "Tasks" (§6.3) and "Progress" (§6.4).
 
 type (
 	// TasksView is the per-task table with the difficulty calibration and the

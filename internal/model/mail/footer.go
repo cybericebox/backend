@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
+
+	"github.com/cybericebox/backend/internal/model/usertext"
 )
 
 // PlatformName is the product name in the platform sender and the footer.
@@ -19,14 +21,6 @@ const (
 	LanguageUK Language = "uk"
 	LanguageEN Language = "en"
 )
-
-// PlatformSite is the main site URL of the platform.
-func PlatformSite(domain string) string {
-	if domain == "" {
-		return ""
-	}
-	return "https://" + domain
-}
 
 // WithPlatformDefaults fills what the platform sender leaves empty: the
 // product name and the support Reply-To (SUPPORT_EMAIL).
@@ -102,10 +96,8 @@ const (
 // defaultFooterTexts are the built-in footers in the legacy text form; the
 // document is derived from them.
 var defaultFooterTexts = map[Language]string{
-	LanguageUK: "Цей лист надіслано автоматично. [Звʼязатися з нами]({reply_to})\n" +
-		"[{platform_name}]({site_url}) · [Політика конфіденційності]({privacy_url})",
-	LanguageEN: "This email was sent automatically. [Contact us]({reply_to})\n" +
-		"[{platform_name}]({site_url}) · [Privacy Policy]({privacy_url})",
+	LanguageUK: usertext.DefaultFooterText,
+	LanguageEN: "This email was sent automatically. [Contact us]({reply_to})\n{platform_name}",
 }
 
 // DefaultFooterDoc is the built-in footer document for lang (unknown values
@@ -118,21 +110,21 @@ func DefaultFooterDoc(lang Language) json.RawMessage {
 	return footerDoc(text, "center")
 }
 
-// FooterValues are the variable values of a message: the platform site and the
-// message Reply-To (support address). The site and privacy values are shown
-// without the scheme (cybericebox.com/privacy); a link made of them gets
-// https:// back.
-func FooterValues(supportEmail, site string) map[string]string {
-	site = strings.TrimPrefix(strings.TrimPrefix(site, "https://"), "http://")
-	vars := map[string]string{
+// FooterValues are the variable values of a message: the site address, the
+// privacy policy address (empty when the installation has none) and the message
+// Reply-To (support address). The site and privacy values are shown without the
+// scheme (example.org/privacy); a link made of them gets https:// back.
+func FooterValues(supportEmail, siteURL, privacyURL string) map[string]string {
+	return map[string]string{
 		FooterVarPlatformName: PlatformName,
-		FooterVarSiteURL:      site,
+		FooterVarSiteURL:      withoutScheme(siteURL),
+		FooterVarPrivacyURL:   withoutScheme(privacyURL),
 		FooterVarReplyTo:      supportEmail,
 	}
-	if site != "" {
-		vars[FooterVarPrivacyURL] = site + "/privacy"
-	}
-	return vars
+}
+
+func withoutScheme(address string) string {
+	return strings.TrimPrefix(strings.TrimPrefix(address, "https://"), "http://")
 }
 
 // footerLinkTarget is the link address of a URL variable's value: an e-mail
@@ -363,11 +355,6 @@ func parseFooterDoc(raw []byte) (node, string) {
 		return nil, "Footer is not a valid document"
 	}
 	return root, ""
-}
-
-func rootChildren(raw []byte) any {
-	root, _ := parseFooterDoc(raw)
-	return root["children"]
 }
 
 // checkFooterNodes describes what is wrong with a node list, or "".

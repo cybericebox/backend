@@ -9,10 +9,10 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/riverqueue/river"
 
-	"github.com/cybericebox/daemon/internal/model"
-	"github.com/cybericebox/daemon/internal/model/jobs"
-	"github.com/cybericebox/daemon/internal/model/notification/dispatch"
-	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
+	"github.com/cybericebox/backend/internal/model"
+	"github.com/cybericebox/backend/internal/model/jobs"
+	"github.com/cybericebox/backend/internal/model/notification/dispatch"
+	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
 )
 
 // notifyWorker is the consumer: it decodes the job envelope and hands it to the

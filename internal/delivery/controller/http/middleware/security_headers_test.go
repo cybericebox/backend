@@ -7,13 +7,13 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/middleware"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
 )
 
 func headersRouter() *gin.Engine {
 	gin.SetMode(gin.TestMode)
-	hosts := config.HostsConfig{Main: "example.test", API: "api.example.test", ID: "id.example.test", Admin: "admin.example.test",
+	hosts := config.HostsConfig{Root: "example.test", API: "api.example.test", ID: "id.example.test", Admin: "admin.example.test",
 		Exercises: "exercises.example.test", EventDomain: "events.example.test"}
 	r := gin.New()
 	r.Use(middleware.SecurityHeaders, middleware.HandleCORSMiddleWare(hosts), middleware.OriginGuard(hosts))

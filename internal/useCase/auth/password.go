@@ -9,21 +9,28 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
-	notificationPayloads "github.com/cybericebox/daemon/internal/model/notification/types/payloads"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	temporalCodeModel "github.com/cybericebox/daemon/internal/model/temporalCode"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
+	notificationPayloads "github.com/cybericebox/backend/internal/model/notification/types/payloads"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	temporalCodeModel "github.com/cybericebox/backend/internal/model/temporalCode"
+	userModel "github.com/cybericebox/backend/internal/model/user"
 )
 
 // ForgotPassword issues a single-use reset code and emails a reset link. It is
 // silent when the address is unknown (no account-existence leak). An
 // incomplete account gets the continue-registration email instead.
 func (u *AuthUseCase) ForgotPassword(ctx context.Context, emailAddr string) error {
+	release, err := u.requestMail(emailAddr)
+	if err != nil {
+		return err
+	}
 	if u.delivery != nil {
-		return u.queueAuthDelivery(ctx, authDeliveryCommand{Kind: "reset", Email: normalizeEmail(emailAddr)})
+		if err = u.queueAuthDelivery(ctx, authDeliveryCommand{Kind: authDeliveryReset, Email: normalizeEmail(emailAddr)}); err != nil {
+			release()
+		}
+		return err
 	}
 	user, err := u.users.GetByEmail(ctx, normalizeEmail(emailAddr))
 	if err != nil {

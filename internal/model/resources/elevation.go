@@ -6,7 +6,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 // ElevationStatus is where an elevation request stands.
@@ -153,4 +153,11 @@ func (p Policy) NeedsElevation(variants []exerciseModel.Variant, approved []Appr
 type ElevationListed struct {
 	Elevation
 	ExerciseName string
+}
+
+// ElevationFilter narrows a list of elevation requests; a zero field does not filter.
+type ElevationFilter struct {
+	Status      *ElevationStatus
+	ExerciseID  uuid.NullUUID
+	RequestedBy uuid.NullUUID
 }

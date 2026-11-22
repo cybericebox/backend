@@ -8,8 +8,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	imageRegistryModel "github.com/cybericebox/daemon/internal/model/imageRegistry"
-	imageRegistryUseCase "github.com/cybericebox/daemon/internal/useCase/imageRegistry"
+	imageRegistryModel "github.com/cybericebox/backend/internal/model/imageRegistry"
+	imageRegistryUseCase "github.com/cybericebox/backend/internal/useCase/imageRegistry"
 )
 
 var attID = uuid.Must(uuid.FromString("0199a000-0000-7000-8000-0000000000c1"))

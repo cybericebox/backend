@@ -4,16 +4,17 @@ import (
 	"context"
 	"errors"
 	"net/mail"
+	"slices"
 	"time"
 
 	"github.com/gofrs/uuid"
 
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
-	"github.com/cybericebox/daemon/pkg/oauth"
-	"github.com/cybericebox/daemon/pkg/tools"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
+	userModel "github.com/cybericebox/backend/internal/model/user"
+	"github.com/cybericebox/backend/pkg/oauth"
+	"github.com/cybericebox/backend/pkg/tools"
 )
 
 // GetGoogleLoginURL returns the Google OAuth2 consent URL and the state token.
@@ -44,7 +45,7 @@ func googleLoginHint(value string) string {
 	return email
 }
 
-// GetGoogleSetupURL starts the Google link of «продовження реєстрації»: the consent URL hints the address of
+// GetGoogleSetupURL starts the Google link of "continue registration": the consent URL hints the address of
 // the account behind setupToken, the only Google identity the link accepts. A dead link still starts Google
 // without a hint: the callback reports it.
 func (u *AuthUseCase) GetGoogleSetupURL(
@@ -93,10 +94,14 @@ func (u *AuthUseCase) GoogleAuth(
 
 	user, err := u.users.GetByProvider(ctx, userModel.GoogleProvider, googleUser.GoogleID)
 	if err != nil {
-		if repositoryTools.IsObjectNotFoundError(err) {
-			return "", safeRedirect, authModel.ErrAuthGoogleNotRegistered.Err()
+		if !repositoryTools.IsObjectNotFoundError(err) {
+			return "", safeRedirect, model.ErrPlatform.WithError(err).WithMessage("Failed to get user by provider").Err()
 		}
-		return "", safeRedirect, model.ErrPlatform.WithError(err).WithMessage("Failed to get user by provider").Err()
+		// The identity is not linked yet: it may still belong to an existing account by its verified address.
+		user, err = u.linkGoogleByVerifiedEmail(ctx, googleUser, safeRedirect)
+		if err != nil {
+			return "", safeRedirect, err
+		}
 	}
 	if err = refuseBlocked(&user); err != nil {
 		return "", safeRedirect, err
@@ -107,6 +112,60 @@ func (u *AuthUseCase) GoogleAuth(
 		return "", safeRedirect, err
 	}
 	return cookie, safeRedirect, nil
+}
+
+// linkGoogleByVerifiedEmail decides what an unlinked Google identity may do with the existing account of its verified
+// address (owner, 2026-10-31). A Gmail address (gmail.com, googlemail.com) is linked at once and the account is returned,
+// so the sign-in goes on. Any other address is not: the identity waits for the owner's confirmation (the password or a
+// mailed code) and a *GoogleLinkConfirmError carries the ticket. Either way Google must vouch for the address
+// (email_verified) and the account must be active with a confirmed address equal to Google's, compared normalized; a deleted
+// account is not found by its address, and a blocked, incomplete or unconfirmed one, no account, and an
+// account that already has a Google identity keep the plain «not registered» answer, as before. No mail announces a link.
+func (u *AuthUseCase) linkGoogleByVerifiedEmail(ctx context.Context, googleUser *oauth.GoogleUser, returnTo string) (userModel.User, error) {
+	email := normalizeEmail(googleUser.Email)
+	if !googleUser.EmailVerified || email == "" {
+		return userModel.User{}, authModel.ErrAuthGoogleNotRegistered.Err()
+	}
+	account, err := u.users.GetByEmail(ctx, email)
+	if err != nil {
+		if repositoryTools.IsObjectNotFoundError(err) {
+			return userModel.User{}, authModel.ErrAuthGoogleNotRegistered.Err()
+		}
+		return userModel.User{}, model.ErrPlatform.WithError(err).WithMessage("Failed to get user by email").Err()
+	}
+	if account.Status != userModel.UserStatusActive || normalizeEmail(account.Email) != email {
+		return userModel.User{}, authModel.ErrAuthGoogleNotRegistered.Err()
+	}
+	// An address nobody confirmed proves nothing about its owner: an attacker may have set the victim's address on
+	// his own account (sign-up, email change) and keeps its password. Such an account is never matched, whatever the
+	// domain, and never gets a confirmation ticket either.
+	if !account.EmailConfirmed {
+		return userModel.User{}, authModel.ErrAuthGoogleNotRegistered.Err()
+	}
+	gmail := isGmailAddress(email)
+	// An account that already has a Google identity is not given a second one by the address alone: the address
+	// of a Google account can change hands, the identity cannot.
+	providers, err := u.users.ListProviders(ctx, account.ID)
+	if err != nil {
+		return userModel.User{}, model.ErrPlatform.WithError(err).WithMessage("Failed to list user providers").Err()
+	}
+	if slices.Contains(providers, userModel.GoogleProvider) {
+		return userModel.User{}, authModel.ErrAuthGoogleNotRegistered.Err()
+	}
+	if !gmail {
+		ticket, ticketErr := u.issueGoogleLinkTicket(ctx, account, googleUser, returnTo)
+		if ticketErr != nil {
+			return userModel.User{}, ticketErr
+		}
+		return userModel.User{}, &GoogleLinkConfirmError{Ticket: ticket, ReturnTo: returnTo}
+	}
+	if err = u.linkGoogleProvider(ctx, account.ID, googleUser.GoogleID); err != nil {
+		if errors.Is(err, userModel.ErrUserExists.Err()) {
+			return userModel.User{}, authModel.ErrAuthGoogleNotRegistered.Err()
+		}
+		return userModel.User{}, err
+	}
+	return account, nil
 }
 
 // BeginGoogleRegistration provisions or links an incomplete account from a verified

@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	errorJournal "github.com/cybericebox/daemon/internal/model/errorJournal"
+	errorJournal "github.com/cybericebox/backend/internal/model/errorJournal"
 )
 
 const testPoll = 5 * time.Millisecond

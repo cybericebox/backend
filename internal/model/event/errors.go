@@ -1,13 +1,13 @@
 package eventModel
 
 import (
-	"github.com/cybericebox/daemon/pkg/err"
+	"github.com/cybericebox/backend/pkg/err"
 
-	"github.com/cybericebox/daemon/internal/model"
+	"github.com/cybericebox/backend/internal/model"
 )
 
 // Error-code convention: see internal/model/exercise/errors.go. Enforced by
-// `make lint-errors`. Each var has exactly one non-test call site.
+// `mise run lint:errors`. Each var has exactly one non-test call site.
 // EventObjectCode: next free detail code: 60 (55-59: live screens, eventContentModel).
 //
 // EventObjectCode — detail codes 10–13 are reserved by eventContent.
@@ -76,7 +76,7 @@ var (
 	ErrEventInfrastructureInUse = err.ErrConflict.WithObjectCode(model.EventObjectCode).
 					WithMessage("Detach the exercises that need infrastructure before turning it off").WithDetailCode(41)
 
-	// Files attached to «Файл» questions of participant and team answers.
+	// Files attached to "File" questions of participant and team answers.
 	ErrAnswerFileFieldInvalid = err.ErrInvalidData.WithObjectCode(model.EventObjectCode).
 					WithMessage("The question does not take a file").WithDetailCode(28)
 	ErrAnswerFileTypeInvalid = err.ErrInvalidData.WithObjectCode(model.EventObjectCode).

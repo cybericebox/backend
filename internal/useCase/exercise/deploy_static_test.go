@@ -12,12 +12,12 @@ import (
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	"github.com/cybericebox/daemon/internal/useCase/exercise"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	"github.com/cybericebox/backend/internal/useCase/exercise"
 )
 
 func staticFixture(t *testing.T, tasks []exerciseModel.Task, existing []postgres.ExerciseTestDeployment) (*postgresMocks.MockQuerier, uuid.UUID, uuid.UUID, uuid.UUID) {
@@ -52,7 +52,14 @@ func flagsByTask(t *testing.T, raw []byte) map[uuid.UUID]string {
 
 func TestDeployVariantTest_StaticRunsWithoutAgentOrResources(t *testing.T) {
 	t1, t2 := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
-	q, variantID, versionID, ownerID := staticFixture(t, []exerciseModel.Task{{ID: t1, Name: "Login", Flag: []string{"ICE{fixed}"}}, {ID: t2, Name: "Admin"}}, nil)
+	q, variantID, versionID, ownerID := staticFixture(
+		t,
+		[]exerciseModel.Task{
+			{ID: t1, Name: "Login", Check: exerciseModel.FlagCheck("ICE{fixed}")},
+			{ID: t2, Name: "Admin", Check: exerciseModel.FlagCheck()},
+		},
+		nil,
+	)
 	var created postgres.CreateExerciseTestDeployParams
 	expectStaticCreate(q, &created)
 	gate := &fakeGate{}
@@ -112,7 +119,13 @@ func TestDeployVariantTest_StaticCountsTowardTheLimit(t *testing.T) {
 
 func TestDeployVariantTest_StaticIgnoresDeviceFreeTemplateFlags(t *testing.T) {
 	t1 := uuid.Must(uuid.NewV7())
-	q, variantID, versionID, ownerID := staticFixture(t, []exerciseModel.Task{{ID: t1, Flag: []string{"template:ICE{[0-9][0-9][0-9][0-9]}"}}}, nil)
+	q, variantID, versionID, ownerID := staticFixture(
+		t,
+		[]exerciseModel.Task{
+			{ID: t1, Check: exerciseModel.FlagCheck("template:ICE{[0-9][0-9][0-9][0-9]}")},
+		},
+		nil,
+	)
 	var created postgres.CreateExerciseTestDeployParams
 	expectStaticCreate(q, &created)
 	uc := exercise.NewExerciseUseCase(exercise.Dependencies{Repo: q})

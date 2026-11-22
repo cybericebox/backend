@@ -8,9 +8,9 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/riverqueue/river"
 
-	jobsModel "github.com/cybericebox/daemon/internal/model/jobs"
-	"github.com/cybericebox/daemon/internal/testhelpers"
-	"github.com/cybericebox/daemon/pkg/worker"
+	jobsModel "github.com/cybericebox/backend/internal/model/jobs"
+	"github.com/cybericebox/backend/internal/testhelpers"
+	"github.com/cybericebox/backend/pkg/worker"
 )
 
 // blockingWorker holds every check in the running state until released.

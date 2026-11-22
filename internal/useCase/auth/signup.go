@@ -10,14 +10,14 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
-	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
-	notificationPayloads "github.com/cybericebox/daemon/internal/model/notification/types/payloads"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
-	"github.com/cybericebox/daemon/pkg/tools"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
+	notificationPayloads "github.com/cybericebox/backend/internal/model/notification/types/payloads"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	userModel "github.com/cybericebox/backend/internal/model/user"
+	"github.com/cybericebox/backend/pkg/tools"
 )
 
 // BeginEmailRegistration creates (or reuses) an incomplete account and emails a
@@ -29,8 +29,15 @@ func (u *AuthUseCase) BeginEmailRegistration(ctx context.Context, rawEmail, redi
 	if err != nil {
 		return err
 	}
+	release, err := u.requestMail(emailAddr)
+	if err != nil {
+		return err
+	}
 	if u.delivery != nil {
-		return u.queueAuthDelivery(ctx, authDeliveryCommand{Kind: "signup", Email: emailAddr, Redirect: u.trustedReturnTo(redirect)})
+		if err = u.queueAuthDelivery(ctx, authDeliveryCommand{Kind: "signup", Email: emailAddr, Redirect: u.trustedReturnTo(redirect)}); err != nil {
+			release()
+		}
+		return err
 	}
 	user, dbErr := u.users.GetByEmail(ctx, emailAddr)
 	if dbErr != nil && !repositoryTools.IsObjectNotFoundError(dbErr) {
@@ -97,7 +104,7 @@ func (u *AuthUseCase) sendContinueRegistration(ctx context.Context, userID uuid.
 	}
 	if strings.TrimSpace(name) == "" {
 		// An account created by an invitation may have no name; the greeting
-		// "Вітаємо, <Name>!" falls back to the address instead of a blank.
+		// "Welcome, <Name>!" falls back to the address instead of a blank.
 		name = emailAddr
 	}
 	link, err := u.issueSetupLink(ctx, userID, u.cfg.SignupSetupTokenTTL, returnTo)
@@ -148,7 +155,7 @@ func (u *AuthUseCase) GetSetupContext(ctx context.Context, setupToken string) (*
 func (u *AuthUseCase) CompleteRegistration(
 	ctx context.Context,
 	setupToken, firstName, lastName, plainPassword string,
-	tosVersion int32,
+	acceptedDocuments []string,
 	redirect string,
 	meta authModel.SessionMetadata,
 ) (sessionCookie, code string, err error) {
@@ -175,7 +182,7 @@ func (u *AuthUseCase) CompleteRegistration(
 	user, err := u.mutateUserReturning(ctx, userID, tokenUserGone, func(user *userModel.User) error {
 		// Every setup invariant (already-complete, ToS, login method) lives on the
 		// entity; the provider lookup runs lazily only when no password was set.
-		if err := user.CompleteSetup(firstName, lastName, hashedPassword, tosVersion, func() (bool, error) {
+		if err := user.CompleteSetup(firstName, lastName, hashedPassword, acceptedDocuments, u.cfg.RequiredDocuments(), func() (bool, error) {
 			return u.hasLinkedProvider(ctx, userID)
 		}, time.Now()); err != nil {
 			return err

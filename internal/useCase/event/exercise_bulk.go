@@ -5,9 +5,9 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/model"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventExerciseModel "github.com/cybericebox/daemon/internal/model/eventExercise"
+	"github.com/cybericebox/backend/internal/model"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventExerciseModel "github.com/cybericebox/backend/internal/model/eventExercise"
 )
 
 // MaxBulkExercises bounds one bulk action on the event's exercises.

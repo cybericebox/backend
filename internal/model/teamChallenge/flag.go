@@ -3,7 +3,7 @@ package teamChallengeModel
 import (
 	"crypto/rand"
 
-	"github.com/cybericebox/daemon/internal/model/flagpattern"
+	"github.com/cybericebox/backend/internal/model/flagpattern"
 )
 
 // GenerateFlag produces a non-predictable per-team value for catalog tasks

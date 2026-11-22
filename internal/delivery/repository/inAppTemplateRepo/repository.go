@@ -13,10 +13,10 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	notificationModel "github.com/cybericebox/daemon/internal/model/notification"
-	inAppModel "github.com/cybericebox/daemon/internal/model/notification/inapp"
-	"github.com/cybericebox/daemon/pkg/tools"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	notificationModel "github.com/cybericebox/backend/internal/model/notification"
+	inAppModel "github.com/cybericebox/backend/internal/model/notification/inapp"
+	"github.com/cybericebox/backend/pkg/tools"
 )
 
 // Queries is the narrow slice of the sqlc Querier this repository needs.

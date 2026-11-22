@@ -6,7 +6,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 // Members' account ids reach the participant site only where the captain needs them.

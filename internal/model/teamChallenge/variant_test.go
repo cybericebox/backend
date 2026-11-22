@@ -3,7 +3,7 @@ package teamChallengeModel_test
 import (
 	"testing"
 
-	teamChallengeModel "github.com/cybericebox/daemon/internal/model/teamChallenge"
+	teamChallengeModel "github.com/cybericebox/backend/internal/model/teamChallenge"
 )
 
 // assign hands variants to n new teams one after another, as the stand engine

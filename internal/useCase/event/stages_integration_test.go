@@ -8,9 +8,9 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	"github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	"github.com/cybericebox/backend/internal/useCase/event"
 )
 
 func (f *standFixture) setOf(t *testing.T, challenge uuid.UUID) uuid.UUID {
@@ -145,7 +145,7 @@ func TestEventStages_CreateEditDeleteWithIndependentWindows(t *testing.T) {
 		t.Fatalf("an open stage's name and returnable are editable: %+v err=%v", got, updateErr)
 	}
 
-	// «Закрити зараз»: the stage ends now, the next one does not start earlier; a closed stage is locked
+	// "close now": the stage ends now, the next one does not start earlier; a closed stage is locked
 	closed, err := f.uc.UpdateEventStage(ctx, f.eventID, one.ID, event.UpdateStageInput{CloseNow: true})
 	if err != nil || closed.State != eventModel.StageClosed {
 		t.Fatalf("close now: %+v err=%v", closed, err)

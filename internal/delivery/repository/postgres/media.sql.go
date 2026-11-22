@@ -31,6 +31,71 @@ func (q *Queries) AddFileReference(ctx context.Context, arg AddFileReferencePara
 	return err
 }
 
+const addObjectRemoval = `-- name: AddObjectRemoval :exec
+INSERT INTO object_removals (object_key, created_at)
+VALUES ($1, $2)
+ON CONFLICT DO NOTHING
+`
+
+type AddObjectRemovalParams struct {
+	ObjectKey string    `json:"object_key"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// An object that could not be removed: kept here until a pass removes it.
+func (q *Queries) AddObjectRemoval(ctx context.Context, arg AddObjectRemovalParams) error {
+	_, err := q.db.Exec(ctx, addObjectRemoval, arg.ObjectKey, arg.CreatedAt)
+	return err
+}
+
+const adoptBlobEncryption = `-- name: AdoptBlobEncryption :execrows
+UPDATE file_blobs
+SET object_key  = $1,
+    wrapped_key = $2
+WHERE content_hash = $3
+  AND wrapped_key = ''
+`
+
+type AdoptBlobEncryptionParams struct {
+	ObjectKey   string `json:"object_key"`
+	WrappedKey  string `json:"wrapped_key"`
+	ContentHash string `json:"content_hash"`
+}
+
+// Moves a plain blob to an encrypted object: only while the blob is still plain, so of two writers one wins.
+func (q *Queries) AdoptBlobEncryption(ctx context.Context, arg AdoptBlobEncryptionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, adoptBlobEncryption, arg.ObjectKey, arg.WrappedKey, arg.ContentHash)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const adoptLegacyAvatar = `-- name: AdoptLegacyAvatar :execrows
+INSERT INTO file_references (ref_type, ref_id, file_id)
+SELECT 'user_avatar', u.id, $1::uuid
+FROM (SELECT id FROM users WHERE id = $2 AND deleted_at IS NULL AND picture <> '' FOR UPDATE) u
+WHERE NOT EXISTS (SELECT 1 FROM file_references r WHERE r.ref_type = 'user_avatar' AND r.ref_id = u.id)
+`
+
+type AdoptLegacyAvatarParams struct {
+	FileID uuid.UUID `json:"file_id"`
+	UserID uuid.UUID `json:"user_id"`
+}
+
+// Gives a user the avatar reference, in this one statement, only while the legacy avatar is still the user's current one:
+// the user exists (not deleted), still has a picture (RemoveAvatar clears it first, in a write that commits before it touches
+// anything else) and has no avatar reference. The user row is locked FOR UPDATE, so a removal or a deletion cannot slip between
+// the check and the insert. Zero rows: the avatar was removed, the user is gone or has an avatar of their own; the file stays
+// unreferenced and the media GC takes it.
+func (q *Queries) AdoptLegacyAvatar(ctx context.Context, arg AdoptLegacyAvatarParams) (int64, error) {
+	result, err := q.db.Exec(ctx, adoptLegacyAvatar, arg.FileID, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const blobExists = `-- name: BlobExists :one
 SELECT EXISTS(SELECT 1 FROM file_blobs WHERE content_hash = $1)::boolean
 `
@@ -42,26 +107,75 @@ func (q *Queries) BlobExists(ctx context.Context, contentHash string) (bool, err
 	return column_1, err
 }
 
+const countPlainBlobs = `-- name: CountPlainBlobs :one
+SELECT count(*)::bigint
+FROM file_blobs
+WHERE wrapped_key = ''
+`
+
+func (q *Queries) CountPlainBlobs(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countPlainBlobs)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createFile = `-- name: CreateFile :one
-WITH blob AS (
-    INSERT INTO file_blobs (content_hash, size_bytes, ref_count, created_at, touched_at)
-        VALUES ($5, $4, 1, $6, $6)
-        ON CONFLICT (content_hash) DO UPDATE SET ref_count = file_blobs.ref_count + 1, touched_at = excluded.touched_at)
-INSERT
-INTO files (id, name, content_type, size_bytes, content_hash, created_at, created_by)
-VALUES ($1, $2, $3, $4, $5,
-        $6, $7)
-RETURNING id, name, content_type, size_bytes, content_hash, created_at, created_by
+WITH bumped AS (
+    UPDATE file_blobs
+        SET ref_count = ref_count + 1, touched_at = $1
+        WHERE file_blobs.content_hash = $2 AND $3::boolean
+        RETURNING object_key, wrapped_key),
+     inserted AS (
+         INSERT INTO file_blobs (content_hash, size_bytes, ref_count, created_at, touched_at, object_key, wrapped_key)
+             SELECT $2, $4, 1, $1, $1,
+                    $5, $6
+             WHERE NOT $3::boolean
+             ON CONFLICT (content_hash) DO UPDATE SET ref_count = file_blobs.ref_count + 1, touched_at = excluded.touched_at
+             RETURNING object_key, wrapped_key),
+     blob AS (SELECT object_key, wrapped_key FROM bumped UNION ALL SELECT object_key, wrapped_key FROM inserted),
+     created AS (
+         INSERT INTO files (id, name, content_type, size_bytes, content_hash, created_at, created_by)
+             SELECT $7, $8, $9, $4, $2,
+                    $1, $10
+             WHERE EXISTS (SELECT 1 FROM blob)
+             RETURNING id, name, content_type, size_bytes, content_hash, created_at, created_by)
+SELECT created.id,
+       created.name,
+       created.content_type,
+       created.size_bytes,
+       created.content_hash,
+       created.created_at,
+       created.created_by,
+       blob.object_key  AS blob_object_key,
+       blob.wrapped_key AS blob_wrapped_key
+FROM created,
+     blob
 `
 
 type CreateFileParams struct {
-	ID          uuid.UUID     `json:"id"`
-	Name        string        `json:"name"`
-	ContentType string        `json:"content_type"`
-	SizeBytes   int64         `json:"size_bytes"`
-	ContentHash string        `json:"content_hash"`
-	CreatedAt   time.Time     `json:"created_at"`
-	CreatedBy   uuid.NullUUID `json:"created_by"`
+	CreatedAt       time.Time     `json:"created_at"`
+	ContentHash     string        `json:"content_hash"`
+	RequireExisting bool          `json:"require_existing"`
+	SizeBytes       int64         `json:"size_bytes"`
+	ObjectKey       string        `json:"object_key"`
+	WrappedKey      string        `json:"wrapped_key"`
+	ID              uuid.UUID     `json:"id"`
+	Name            string        `json:"name"`
+	ContentType     string        `json:"content_type"`
+	CreatedBy       uuid.NullUUID `json:"created_by"`
+}
+
+type CreateFileRow struct {
+	ID             uuid.UUID     `json:"id"`
+	Name           string        `json:"name"`
+	ContentType    string        `json:"content_type"`
+	SizeBytes      int64         `json:"size_bytes"`
+	ContentHash    string        `json:"content_hash"`
+	CreatedAt      time.Time     `json:"created_at"`
+	CreatedBy      uuid.NullUUID `json:"created_by"`
+	BlobObjectKey  string        `json:"blob_object_key"`
+	BlobWrappedKey string        `json:"blob_wrapped_key"`
 }
 
 // One statement: bump (or create) the blob's refcount and insert the logical
@@ -69,17 +183,27 @@ type CreateFileParams struct {
 // call's `now` — both on first insert and on a dedup-hit conflict — so GC's
 // orphan listing (ListOrphanBlobs) never targets a blob a concurrent upload
 // just referenced (see file_blobs.touched_at, migration 0015).
-func (q *Queries) CreateFile(ctx context.Context, arg CreateFileParams) (File, error) {
+// object_key and wrapped_key are those of the blob when it is created; on a
+// dedup hit the blob keeps its own, and the row returned says which they are,
+// so the caller can drop the object it stored if it lost the race.
+// require_existing: the caller stored no object because it found the blob. Then the
+// blob is only bumped, never created: if the collector removed it meanwhile, nothing is
+// inserted and no row comes back (the caller starts again), so a blob can never come
+// back as an empty row that points at an object that is gone.
+func (q *Queries) CreateFile(ctx context.Context, arg CreateFileParams) (CreateFileRow, error) {
 	row := q.db.QueryRow(ctx, createFile,
+		arg.CreatedAt,
+		arg.ContentHash,
+		arg.RequireExisting,
+		arg.SizeBytes,
+		arg.ObjectKey,
+		arg.WrappedKey,
 		arg.ID,
 		arg.Name,
 		arg.ContentType,
-		arg.SizeBytes,
-		arg.ContentHash,
-		arg.CreatedAt,
 		arg.CreatedBy,
 	)
-	var i File
+	var i CreateFileRow
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
@@ -88,6 +212,8 @@ func (q *Queries) CreateFile(ctx context.Context, arg CreateFileParams) (File, e
 		&i.ContentHash,
 		&i.CreatedAt,
 		&i.CreatedBy,
+		&i.BlobObjectKey,
+		&i.BlobWrappedKey,
 	)
 	return i, err
 }
@@ -97,6 +223,7 @@ DELETE
 FROM file_blobs
 WHERE content_hash = $1
   AND ref_count <= 0
+  AND wrapped_key = ''
 `
 
 // Guarded delete: refuses when the blob got re-referenced between the S3
@@ -107,6 +234,30 @@ func (q *Queries) DeleteBlob(ctx context.Context, contentHash string) (int64, er
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const deleteEncryptedBlob = `-- name: DeleteEncryptedBlob :one
+DELETE
+FROM file_blobs
+WHERE content_hash = $1
+  AND ref_count <= 0
+  AND touched_at < $2
+  AND wrapped_key <> ''
+RETURNING object_key
+`
+
+type DeleteEncryptedBlobParams struct {
+	ContentHash   string    `json:"content_hash"`
+	TouchedBefore time.Time `json:"touched_before"`
+}
+
+// The row goes first and says which object it held at that moment (the pass that encrypts older blobs may have moved it
+// since the listing); the caller removes that object. Guarded as DeleteBlob, and only for a blob that is encrypted now.
+func (q *Queries) DeleteEncryptedBlob(ctx context.Context, arg DeleteEncryptedBlobParams) (string, error) {
+	row := q.db.QueryRow(ctx, deleteEncryptedBlob, arg.ContentHash, arg.TouchedBefore)
+	var object_key string
+	err := row.Scan(&object_key)
+	return object_key, err
 }
 
 const deleteFileReferences = `-- name: DeleteFileReferences :execrows
@@ -149,6 +300,17 @@ func (q *Queries) DeleteFileReferencesBatch(ctx context.Context, arg DeleteFileR
 	return result.RowsAffected(), nil
 }
 
+const deleteObjectRemoval = `-- name: DeleteObjectRemoval :exec
+DELETE
+FROM object_removals
+WHERE object_key = $1
+`
+
+func (q *Queries) DeleteObjectRemoval(ctx context.Context, objectKey string) error {
+	_, err := q.db.Exec(ctx, deleteObjectRemoval, objectKey)
+	return err
+}
+
 const deleteUnreferencedFiles = `-- name: DeleteUnreferencedFiles :many
 WITH doomed AS (
     DELETE FROM files f
@@ -187,6 +349,31 @@ func (q *Queries) DeleteUnreferencedFiles(ctx context.Context, createdBefore tim
 		return nil, err
 	}
 	return items, nil
+}
+
+const getFileBlob = `-- name: GetFileBlob :one
+SELECT content_hash, size_bytes, object_key, wrapped_key
+FROM file_blobs
+WHERE content_hash = $1
+`
+
+type GetFileBlobRow struct {
+	ContentHash string `json:"content_hash"`
+	SizeBytes   int64  `json:"size_bytes"`
+	ObjectKey   string `json:"object_key"`
+	WrappedKey  string `json:"wrapped_key"`
+}
+
+func (q *Queries) GetFileBlob(ctx context.Context, contentHash string) (GetFileBlobRow, error) {
+	row := q.db.QueryRow(ctx, getFileBlob, contentHash)
+	var i GetFileBlobRow
+	err := row.Scan(
+		&i.ContentHash,
+		&i.SizeBytes,
+		&i.ObjectKey,
+		&i.WrappedKey,
+	)
+	return i, err
 }
 
 const getFileByID = `-- name: GetFileByID :one
@@ -251,30 +438,161 @@ func (q *Queries) GetFileReferenceIDs(ctx context.Context, arg GetFileReferenceI
 	return items, nil
 }
 
-const listOrphanBlobs = `-- name: ListOrphanBlobs :many
-SELECT content_hash
-FROM file_blobs
-WHERE ref_count <= 0
-  AND touched_at < $1
+const listObjectRemovals = `-- name: ListObjectRemovals :many
+SELECT object_key
+FROM object_removals
+WHERE created_at < $1
+ORDER BY created_at
+LIMIT $2
 `
 
-// touched_at < touched_before (the same GC grace cutoff DeleteUnreferencedFiles
-// uses) gives a concurrent dedup upload of this exact content a grace window
-// to complete its CreateFile bump before GC ever considers the blob a
-// deletion candidate — see file_blobs.touched_at, migration 0015.
-func (q *Queries) ListOrphanBlobs(ctx context.Context, touchedBefore time.Time) ([]string, error) {
-	rows, err := q.db.Query(ctx, listOrphanBlobs, touchedBefore)
+type ListObjectRemovalsParams struct {
+	CreatedAt time.Time `json:"created_at"`
+	Limit     int32     `json:"limit"`
+}
+
+func (q *Queries) ListObjectRemovals(ctx context.Context, arg ListObjectRemovalsParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, listObjectRemovals, arg.CreatedAt, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	items := []string{}
 	for rows.Next() {
-		var content_hash string
-		if err := rows.Scan(&content_hash); err != nil {
+		var object_key string
+		if err := rows.Scan(&object_key); err != nil {
 			return nil, err
 		}
-		items = append(items, content_hash)
+		items = append(items, object_key)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOrphanBlobs = `-- name: ListOrphanBlobs :many
+SELECT content_hash, object_key, (wrapped_key <> '')::boolean AS encrypted
+FROM file_blobs
+WHERE ref_count <= 0
+  AND touched_at < $1
+`
+
+type ListOrphanBlobsRow struct {
+	ContentHash string `json:"content_hash"`
+	ObjectKey   string `json:"object_key"`
+	Encrypted   bool   `json:"encrypted"`
+}
+
+// touched_at < touched_before (the same GC grace cutoff DeleteUnreferencedFiles
+// uses) gives a concurrent dedup upload of this exact content a grace window
+// to complete its CreateFile bump before GC ever considers the blob a
+// deletion candidate — see file_blobs.touched_at, migration 0015.
+func (q *Queries) ListOrphanBlobs(ctx context.Context, touchedBefore time.Time) ([]ListOrphanBlobsRow, error) {
+	rows, err := q.db.Query(ctx, listOrphanBlobs, touchedBefore)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOrphanBlobsRow{}
+	for rows.Next() {
+		var i ListOrphanBlobsRow
+		if err := rows.Scan(&i.ContentHash, &i.ObjectKey, &i.Encrypted); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPlainBlobs = `-- name: ListPlainBlobs :many
+SELECT b.content_hash, b.size_bytes, b.object_key
+FROM file_blobs b
+WHERE b.wrapped_key = ''
+  AND b.content_hash > $1
+  AND NOT (EXISTS (SELECT 1
+                   FROM files f
+                            JOIN file_references r ON r.file_id = f.id
+                   WHERE f.content_hash = b.content_hash
+                     AND r.ref_type = ANY ($2::text[]))
+    AND NOT EXISTS (SELECT 1
+                    FROM files f
+                             JOIN file_references r ON r.file_id = f.id
+                    WHERE f.content_hash = b.content_hash
+                      AND NOT (r.ref_type = ANY ($2::text[]))))
+ORDER BY b.content_hash
+LIMIT $3
+`
+
+type ListPlainBlobsParams struct {
+	After          string   `json:"after"`
+	PublicRefTypes []string `json:"public_ref_types"`
+	RowLimit       int32    `json:"row_limit"`
+}
+
+type ListPlainBlobsRow struct {
+	ContentHash string `json:"content_hash"`
+	SizeBytes   int64  `json:"size_bytes"`
+	ObjectKey   string `json:"object_key"`
+}
+
+// The blobs still stored plain that the encryption pass has to move, after the cursor: every plain blob except one that
+// only public images use (some file of it is referenced by a public kind and none by any other).
+func (q *Queries) ListPlainBlobs(ctx context.Context, arg ListPlainBlobsParams) ([]ListPlainBlobsRow, error) {
+	rows, err := q.db.Query(ctx, listPlainBlobs, arg.After, arg.PublicRefTypes, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPlainBlobsRow{}
+	for rows.Next() {
+		var i ListPlainBlobsRow
+		if err := rows.Scan(&i.ContentHash, &i.SizeBytes, &i.ObjectKey); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUserIDsAfter = `-- name: ListUserIDsAfter :many
+SELECT id, (deleted_at IS NOT NULL)::boolean AS deleted
+FROM users
+WHERE id > $1
+ORDER BY id
+LIMIT $2
+`
+
+type ListUserIDsAfterParams struct {
+	After    uuid.UUID `json:"after"`
+	RowLimit int32     `json:"row_limit"`
+}
+
+type ListUserIDsAfterRow struct {
+	ID      uuid.UUID `json:"id"`
+	Deleted bool      `json:"deleted"`
+}
+
+// Every user, deleted ones too, after the cursor: the pass that moves legacy avatars probes avatars/<id> for each.
+func (q *Queries) ListUserIDsAfter(ctx context.Context, arg ListUserIDsAfterParams) ([]ListUserIDsAfterRow, error) {
+	rows, err := q.db.Query(ctx, listUserIDsAfter, arg.After, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListUserIDsAfterRow{}
+	for rows.Next() {
+		var i ListUserIDsAfterRow
+		if err := rows.Scan(&i.ID, &i.Deleted); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

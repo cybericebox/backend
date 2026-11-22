@@ -5,7 +5,7 @@ import (
 	"github.com/riverqueue/river"
 )
 
-// ExerciseExportArgs runs one background export of tasks «з образами» (the exercise_export_jobs row JobID). Unique
+// ExerciseExportArgs runs one background export of tasks "with images" (the exercise_export_jobs row JobID). Unique
 // per job while queued or running. IncludeSecrets writes secret values into a password-protected archive; the
 // password is sealed with the platform cipher (bound to the job id), "" without secrets: the plain password is never
 // stored.

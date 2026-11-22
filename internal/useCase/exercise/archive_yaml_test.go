@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 func requireInvalid(t *testing.T, err error) map[string]any {
@@ -40,7 +40,7 @@ func TestYAMLToJSON_SpaceHashNeedsQuotes(t *testing.T) {
 }
 
 func TestParseExerciseArchive_YAMLUnquotedHashBreaksFlag(t *testing.T) {
-	doc := "schema: cib-exercise/1\nexercise: {name: T}\nversions:\n  - status: draft\n    variants:\n      - tasks:\n          - name: A\n            difficulty: easy\n            flag: ICE{a #b}\n"
+	doc := "schema: cib-exercise/1.0\nexercise: {name: T}\nversions:\n  - status: draft\n    variants:\n      - tasks:\n          - name: A\n            difficulty: easy\n            flag: ICE{a #b}\n"
 	_, err := ParseExerciseArchive(schemaArchive(t, map[string]string{"exercise.yaml": doc}), "", DefaultLimits())
 	ctx := requireInvalid(t, err)
 	if reason, _ := ctx["reason"].(string); !strings.Contains(reason, "flag") {
@@ -104,14 +104,14 @@ func TestYAMLToJSON_ErrorHidesLibraryText(t *testing.T) {
 }
 
 const minimalYAML = `# the minimal task
-schema: cib-exercise/1 # version
+schema: cib-exercise/1.0 # version
 exercise:
-  name: Тест-завдання # shown name
+  name: Test task # shown name
 versions:
   - status: draft
     variants:
       - tasks:
-          - name: Тест
+          - name: Test
             difficulty: easy
 `
 
@@ -139,7 +139,7 @@ func TestParseExerciseArchive_YAMLWithoutSchemaRejected(t *testing.T) {
 }
 
 func TestParseExerciseArchive_UnquotedNumberForStringField(t *testing.T) {
-	doc := "schema: cib-exercise/1\nexercise: {name: T}\nversions:\n  - status: draft\n    variants:\n      - tasks:\n          - name: A\n            difficulty: easy\n            image: 1.10\n"
+	doc := "schema: cib-exercise/1.0\nexercise: {name: T}\nversions:\n  - status: draft\n    variants:\n      - tasks:\n          - name: A\n            difficulty: easy\n            image: 1.10\n"
 	_, err := ParseExerciseArchive(schemaArchive(t, map[string]string{"exercise.yaml": doc}), "", DefaultLimits())
 	ctx := requireInvalid(t, err)
 	if !strings.Contains(ctx["reason"].(string), "image") {
@@ -206,7 +206,7 @@ func TestYAMLToJSON_EmptyDocument(t *testing.T) {
 
 func TestParseExerciseArchive_NumberFormsFailIntFields(t *testing.T) {
 	for _, value := range []string{"1e3", "99999999999999999999", "1.5"} {
-		doc := "schema: cib-exercise/1\nexercise: {name: T}\nversions:\n  - status: draft\n    variants:\n      - index: " + value + "\n        tasks:\n          - name: A\n            difficulty: easy\n"
+		doc := "schema: cib-exercise/1.0\nexercise: {name: T}\nversions:\n  - status: draft\n    variants:\n      - index: " + value + "\n        tasks:\n          - name: A\n            difficulty: easy\n"
 		_, err := ParseExerciseArchive(schemaArchive(t, map[string]string{"exercise.yaml": doc}), "", DefaultLimits())
 		reason, _ := requireInvalid(t, err)["reason"].(string)
 		if !strings.Contains(reason, "index") || strings.Contains(reason, "unknown") {

@@ -2,18 +2,19 @@ package exercise
 
 import (
 	"context"
+	"github.com/cybericebox/backend/pkg/safeconv"
 	"strings"
 	"time"
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/exerciseRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	"github.com/cybericebox/daemon/pkg/pagination"
+	"github.com/cybericebox/backend/internal/delivery/repository/exerciseRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	"github.com/cybericebox/backend/pkg/pagination"
 )
 
 const defaultTagLimit = 50
@@ -117,7 +118,7 @@ func (u *ExerciseUseCase) applyResources(ctx context.Context, actor Actor, views
 	}
 	for i, v := range views {
 		if r, ok := visible[ids[i]]; ok {
-			v.Resources, v.ResourceHeavy, v.Infrastructure = r.Range, r.Heavy, r.Infrastructure
+			v.Resources, v.ResourceHeavy, v.Infrastructure, v.UsesConsole, v.HasMissingSecrets = r.Range, r.Heavy, r.Infrastructure, r.Console, r.MissingSecrets
 		}
 	}
 	return nil
@@ -377,7 +378,7 @@ func (u *ExerciseUseCase) ListExerciseAuthors(ctx context.Context, actor Actor, 
 	if !actor.has(rbac.PermExercisesRead) {
 		viewer = uuid.NullUUID{UUID: actor.UserID, Valid: true}
 	}
-	items, err := u.exercises.ListAuthors(ctx, strings.TrimSpace(search), ids, viewer, int32(limit))
+	items, err := u.exercises.ListAuthors(ctx, strings.TrimSpace(search), ids, viewer, safeconv.Int32(limit))
 	if err != nil {
 		return nil, model.ErrPlatform.WithError(err).WithMessage("Failed to list exercise authors").Err()
 	}
@@ -401,7 +402,7 @@ func (u *ExerciseUseCase) ListExerciseTags(ctx context.Context, actor Actor, pre
 	if !actor.has(rbac.PermExercisesRead) {
 		viewer = uuid.NullUUID{UUID: actor.UserID, Valid: true}
 	}
-	items, err := u.exercises.ListTags(ctx, prefix, viewer, int32(limit))
+	items, err := u.exercises.ListTags(ctx, prefix, viewer, safeconv.Int32(limit))
 	if err != nil {
 		return nil, model.ErrPlatform.WithError(err).WithMessage("Failed to list exercise tags").Err()
 	}
@@ -415,6 +416,10 @@ func (u *ExerciseUseCase) ListExerciseTags(ctx context.Context, actor Actor, pre
 // UpdateExerciseIdentity preserves the PATCH DTO while editing the full draft
 // snapshot. The public identity projection changes only in Publish's SQL CTE.
 func (u *ExerciseUseCase) UpdateExerciseIdentity(ctx context.Context, in UpdateExerciseInput) (ExerciseView, error) {
+	expectedDraft, err := exerciseModel.ParseRevision(in.Revision)
+	if err != nil {
+		return ExerciseView{}, err
+	}
 	e, err := u.loadEditable(ctx, in.ID)
 	if err != nil {
 		return ExerciseView{}, err
@@ -423,13 +428,17 @@ func (u *ExerciseUseCase) UpdateExerciseIdentity(ctx context.Context, in UpdateE
 	if err = e.UpdateIdentity(in.Name, in.Description, in.Tags, in.UpdatedBy, time.Now()); err != nil {
 		return ExerciseView{}, err
 	}
-	draft, err := u.exercises.SaveDraftIdentity(ctx, e, expected, freshID())
+	draft, err := u.exercises.SaveDraftIdentity(ctx, e, expected, freshID(), expectedDraft)
 	if err != nil {
 		if repositoryTools.IsObjectNotFoundError(err) {
 			if _, readErr := u.exercises.GetByID(ctx, in.ID); repositoryTools.IsObjectNotFoundError(readErr) {
 				return ExerciseView{}, exerciseModel.ErrExerciseNotFound.Err()
 			} else if readErr != nil {
 				return ExerciseView{}, model.ErrPlatform.WithError(readErr).Err()
+			}
+			if current, readErr := u.exercises.GetDraftRevision(ctx, in.ID); (readErr == nil && !current.UpdatedAt.Equal(expectedDraft)) ||
+				(repositoryTools.IsObjectNotFoundError(readErr) && !expectedDraft.IsZero()) || (readErr == nil && expectedDraft.IsZero()) {
+				return ExerciseView{}, u.draftModified(ctx, in.ID)
 			}
 			return ExerciseView{}, exerciseModel.ErrExerciseModified.Err()
 		}

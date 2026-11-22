@@ -9,77 +9,83 @@ import (
 	"io"
 	"time"
 
+	"github.com/cybericebox/backend/internal/delivery/repository/autoRecreateRepo"
+
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/challengeAttemptRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/emailTemplateRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventActivityRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventAnswerFileRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventChallengeGroupRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventChallengeRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventConfigRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventContentRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventExerciseRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventFormRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabAllocationRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabGroupRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabObservationRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabRetentionRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabRevealRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventManagerRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventNotificationRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventResultRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventStageRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventStandRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventTeamRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/exerciseRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/flagFilterRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/inAppTemplateRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/labAccessSyncRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/labBindingRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/liveScreenRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/mailRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/participantPreviewRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/participantRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/platformSettingsRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	"github.com/cybericebox/daemon/internal/delivery/repository/requestIdempotencyRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/scoreboardRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/signalOutboxRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/teamChallengeRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/delivery/repository/userRepo"
-	"github.com/cybericebox/daemon/internal/model"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventActivityModel "github.com/cybericebox/daemon/internal/model/eventActivity"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
-	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
-	resourcesModel "github.com/cybericebox/daemon/internal/model/resources"
-	signalModel "github.com/cybericebox/daemon/internal/model/signal"
-	vpnModel "github.com/cybericebox/daemon/internal/model/vpn"
-	eventManagerUseCase "github.com/cybericebox/daemon/internal/useCase/eventManager"
-	emailUseCase "github.com/cybericebox/daemon/internal/useCase/notification/channels/email"
-	signalUseCase "github.com/cybericebox/daemon/internal/useCase/signal"
+	"github.com/cybericebox/backend/internal/delivery/repository/challengeAttemptRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/emailTemplateRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventActivityRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventAnswerFileRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventChallengeGroupRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventChallengeRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventConfigRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventContentRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventExerciseRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventFormRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabAllocationRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabGroupRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabObservationRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabRetentionRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabRevealRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventManagerRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventNotificationRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventResultRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventStageRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventStandRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventTeamRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/exerciseRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/flagFilterRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/inAppTemplateRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/labAccessSyncRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/labBindingRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/liveScreenRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/mailRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/participantPreviewRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/participantRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/platformSettingsRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/delivery/repository/requestIdempotencyRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/revealDeclineRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/scoreboardRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/signalOutboxRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/teamChallengeRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/delivery/repository/userRepo"
+	"github.com/cybericebox/backend/internal/model"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventActivityModel "github.com/cybericebox/backend/internal/model/eventActivity"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
+	eventStandModel "github.com/cybericebox/backend/internal/model/eventStand"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
+	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
+	resourcesModel "github.com/cybericebox/backend/internal/model/resources"
+	signalModel "github.com/cybericebox/backend/internal/model/signal"
+	vpnModel "github.com/cybericebox/backend/internal/model/vpn"
+	eventManagerUseCase "github.com/cybericebox/backend/internal/useCase/eventManager"
+	emailUseCase "github.com/cybericebox/backend/internal/useCase/notification/channels/email"
+	signalUseCase "github.com/cybericebox/backend/internal/useCase/signal"
 )
 
 // IRepository is the narrow data port: the three aggregate repos' query slices
 // (each now including its list/count shapes), so the use case holds no postgres.*
 // types. The gomock Querier and the real Queries both satisfy it structurally.
 type IRepository interface {
+	eventCopyQueries
 	participantPreviewRepo.Queries
 	platformSettingsRepo.Queries
 	eventLabAllocationRepo.Queries
 	eventLabRevealRepo.Queries
+	revealDeclineRepo.Queries
 	eventLabGroupRepo.Queries
 	eventLabRetentionRepo.Queries
 	userRepo.Queries
@@ -170,6 +176,9 @@ type EventUseCase struct {
 	labLifecycleWake                           func(context.Context) error
 	labLifecycleBatch                          int32
 	labLifecycleRetryMin, labLifecycleRetryMax time.Duration
+	labLifecycleWorkers                        int
+	// labBusy holds the labs a pass is handling now, so a lab is never moved by two workers at once (a slow pass overlapping the next).
+	labBusy *labBusySet
 	// labCleanupWake runs the queued laboratory group teardown now instead of at the next periodic tick; nil: no wake.
 	labCleanupWake func(context.Context) error
 	// cancelNotices cancels the queued notices of a deleted event; nil: nothing is cancelled.
@@ -181,6 +190,7 @@ type EventUseCase struct {
 	observations      *eventLabObservationRepo.Repository
 	standDeployBudget int
 	prewarmLead       time.Duration
+	prewarmWait       time.Duration
 	labSweepGrace     time.Duration
 	prewarm           *prewarmState
 	images            ImageAccess // nil: labs deploy without image checks or pull credentials
@@ -250,27 +260,77 @@ type EventUseCase struct {
 	tagListener TagListener
 	// resources is the platform's device resources settings (zero: the owner's defaults, see resourcePolicy);
 	// elevations reads the approved elevations of exercises (nil: none exist).
-	resources  resourcesModel.Policy
-	elevations ApprovalStore
+	resources resourcesModel.Policy
+	// autoRecreate counts the automatic recreations of failed Labs (nil: off).
+	autoRecreate AutoRecreateStore
+	waitDetails  WaitDetailStore
+	// standVariables pins the variables of a team's stand (nil: drawn on every build).
+	standVariables StandVariableStore
+	// labChecks limits the manual runs of checks (nil: a manual run is refused).
+	labChecks LabCheckStore
+	// revealDecline keeps the teams declined from a cohort (nil: off).
+	revealDecline RevealDeclineStore
+	elevations    ApprovalStore
+}
+
+// AutoRecreateStore counts the automatic recreations of failed team Labs. Nil: a failed Lab is not recreated by itself.
+type AutoRecreateStore interface {
+	Candidates(ctx context.Context, eventID uuid.UUID, now time.Time) ([]autoRecreateRepo.Candidate, error)
+	Track(ctx context.Context, teamID, exerciseID uuid.UUID, reason string, now time.Time) error
+	Bump(ctx context.Context, teamID, exerciseID uuid.UUID, reason string, now time.Time) error
+	Reset(ctx context.Context, teamID, exerciseID uuid.UUID) error
+	ResetTeam(ctx context.Context, teamID uuid.UUID) error
+}
+
+// WaitDetailStore keeps what a waiting stand Lab needs and what the event reservation has left. Nil: not kept.
+type WaitDetailStore interface {
+	Set(ctx context.Context, bindingID uuid.UUID, d eventStandModel.WaitDetail, now time.Time) error
+	Clear(ctx context.Context, bindingID uuid.UUID) error
+}
+
+// StandVariableStore keeps the variables of the infrastructure drawn once for a team's stand of an event exercise, so a lab
+// that is rebuilt or reset gets the same values. Nil: they are drawn on every build.
+type StandVariableStore interface {
+	Stand(ctx context.Context, teamID, eventExerciseID uuid.UUID) (map[string]string, error)
+	PinStand(ctx context.Context, teamID, eventExerciseID uuid.UUID, drawn map[string]string, now time.Time) (map[string]string, error)
+}
+
+// RevealDeclineStore keeps the teams declined from a task's cohort for lack of room. Nil: nobody is declined.
+type RevealDeclineStore interface {
+	Decline(ctx context.Context, eventID, setID, teamID uuid.UUID, reason string, now time.Time) error
 }
 
 type Dependencies struct {
+	// WaitDetails keeps the need and the room of a waiting Lab; nil keeps nothing.
+	WaitDetails WaitDetailStore
+	// StandVariables pins the variables of the infrastructure per team and event exercise; nil draws them on every build.
+	StandVariables StandVariableStore
+	// LabChecks limits the manual runs of checks per team and task; nil refuses a manual run.
+	LabChecks LabCheckStore
+	// RevealDecline keeps the teams declined from a cohort; nil switches the decline off (the cohort is all or nothing).
+	RevealDecline RevealDeclineStore
+	// AutoRecreate counts the automatic recreations of failed Labs; nil switches them off.
+	AutoRecreate                               AutoRecreateStore
 	PreviewLabs                                PreviewTestLabs
 	LabLifecycleBatch                          int32
 	LabLifecycleRetryMin, LabLifecycleRetryMax time.Duration
-	Repo                                       IRepository
-	UoW                                        postgres.IUnitOfWorker[IRepository]
-	Infra                                      Infrastructure
-	InfrastructureCapability                   InfrastructureCapability
-	Topologies                                 TopologyResolver
-	VPN                                        VPNStore
-	SignalPublishers                           SignalPublisherFactory
-	FlagRandomBytes                            int
+	// LabLifecycleWorkers is how many labs one lifecycle pass handles at once; 0 means the default.
+	LabLifecycleWorkers      int
+	Repo                     IRepository
+	UoW                      postgres.IUnitOfWorker[IRepository]
+	Infra                    Infrastructure
+	InfrastructureCapability InfrastructureCapability
+	Topologies               TopologyResolver
+	VPN                      VPNStore
+	SignalPublishers         SignalPublisherFactory
+	FlagRandomBytes          int
 	// StandDeployBudget is the Lab deploy calls per event and engine pass; 0 means the default.
 	StandDeployBudget int
 	// StandPrewarmLead is how long before an event's stand deploy time its images are prewarmed in
 	// the image cache; 0 turns prewarming off.
 	StandPrewarmLead time.Duration
+	// StandPrewarmWait is the longest the initial stand deploy of an event waits for its image prewarm to settle; 0: it never waits.
+	StandPrewarmWait time.Duration
 	// LabSweepGrace is how old a lab group must be before the orphan sweep may judge it; 0 means the default.
 	LabSweepGrace time.Duration
 	// Media backs Event email template images (validation and references).
@@ -294,6 +354,7 @@ type Dependencies struct {
 // BrandMedia owns the event logo reference independently of email template images.
 type BrandMedia interface {
 	UploadFile(context.Context, string, string, io.Reader, uuid.UUID) (mediaModel.File, error)
+	UploadPublicImage(context.Context, string, string, string, io.Reader, uuid.UUID) (mediaModel.File, error)
 	GetFile(context.Context, uuid.UUID) (mediaModel.File, error)
 	StreamFile(context.Context, uuid.UUID) (io.ReadCloser, mediaModel.File, error)
 	GetReferences(context.Context, string, uuid.UUID) ([]uuid.UUID, error)
@@ -351,9 +412,10 @@ func NewEventUseCase(deps Dependencies) *EventUseCase {
 	if retryMax < retryMin {
 		retryMax = 5 * time.Minute
 	}
-	return &EventUseCase{previewLabs: deps.PreviewLabs, repo: deps.Repo, labLifecycleBatch: batch, labLifecycleRetryMin: retryMin, labLifecycleRetryMax: retryMax,
+	return &EventUseCase{previewLabs: deps.PreviewLabs, repo: deps.Repo, labLifecycleBatch: batch, labLifecycleRetryMin: retryMin, labLifecycleRetryMax: retryMax, labLifecycleWorkers: labLifecycleWorkers(deps.LabLifecycleWorkers), labBusy: &labBusySet{},
 		standDeployBudget:        standDeployBudget,
 		prewarmLead:              deps.StandPrewarmLead,
+		prewarmWait:              deps.StandPrewarmWait,
 		labSweepGrace:            labSweepGrace(deps.LabSweepGrace),
 		prewarm:                  newPrewarmState(),
 		imageWaits:               newImageWaits(),
@@ -379,6 +441,11 @@ func NewEventUseCase(deps Dependencies) *EventUseCase {
 		results:                  eventResultRepo.New(deps.Repo),
 		scoreboard:               scoreboardRepo.New(deps.Repo),
 		labBindings:              labBindingRepo.New(deps.Repo),
+		autoRecreate:             deps.AutoRecreate,
+		waitDetails:              deps.WaitDetails,
+		standVariables:           deps.StandVariables,
+		labChecks:                deps.LabChecks,
+		revealDecline:            deps.RevealDecline,
 		labs:                     eventLabRepo.New(deps.Repo),
 		observations:             eventLabObservationRepo.New(deps.Repo),
 		labAccessSyncs:           labAccessSyncRepo.New(deps.Repo),

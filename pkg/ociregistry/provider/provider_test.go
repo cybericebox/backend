@@ -11,7 +11,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/cybericebox/daemon/pkg/ociregistry"
+	"github.com/cybericebox/backend/pkg/ociregistry"
 )
 
 const tok = "SECRET-TOKEN-VALUE"

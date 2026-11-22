@@ -7,7 +7,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	siteBannerModel "github.com/cybericebox/daemon/internal/model/siteBanner"
+	siteBannerModel "github.com/cybericebox/backend/internal/model/siteBanner"
 )
 
 func TestTargetingValidation(t *testing.T) {

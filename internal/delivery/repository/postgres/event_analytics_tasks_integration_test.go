@@ -7,12 +7,12 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventActivityRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventAnalyticsRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	eventActivityModel "github.com/cybericebox/daemon/internal/model/eventActivity"
-	eventAnalyticsModel "github.com/cybericebox/daemon/internal/model/eventAnalytics"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventActivityRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventAnalyticsRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	eventActivityModel "github.com/cybericebox/backend/internal/model/eventActivity"
+	eventAnalyticsModel "github.com/cybericebox/backend/internal/model/eventAnalytics"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 // anSecondTeam adds a team "Red" with one approved member and its board of
@@ -32,7 +32,7 @@ func anSecondTeam(t *testing.T, db *testhelpers.TestDB, f anFixture) (team, user
 	return team, user, tc.ID
 }
 
-// The «Завдання» and «Прогрес» reads over one solved, one failed and one
+// The "Tasks" and "Progress" reads over one solved, one failed and one
 // moderator board: the moderators team is never counted.
 func TestEventAnalytics_TasksAndProgress(t *testing.T) {
 	db := testhelpers.SetupTestDB(t)

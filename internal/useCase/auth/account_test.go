@@ -4,24 +4,25 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	temporalCodeModel "github.com/cybericebox/backend/internal/model/temporalCode"
 	"testing"
 	"time"
 
 	"github.com/gofrs/uuid"
 
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
-	"github.com/cybericebox/daemon/internal/model/rbac"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
+	"github.com/cybericebox/backend/internal/model/rbac"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
-	"github.com/cybericebox/daemon/internal/useCase/auth"
-	"github.com/cybericebox/daemon/pkg/password"
-	"github.com/cybericebox/daemon/pkg/token"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	userModel "github.com/cybericebox/backend/internal/model/user"
+	"github.com/cybericebox/backend/internal/useCase/auth"
+	"github.com/cybericebox/backend/pkg/password"
+	"github.com/cybericebox/backend/pkg/token"
 )
 
 func newAccountUC(t *testing.T) (*auth.AuthUseCase, *postgresMocks.MockQuerier) {
@@ -75,6 +76,11 @@ func TestDeleteAccount_SoftDeletesAndCutsLinks(t *testing.T) {
 		})
 	repo.EXPECT().RevokeUserSessions(gomock.Any(), gomock.Any()).Return(revokedRows(2), nil)
 	repo.EXPECT().DeleteUserProviders(gomock.Any(), uid).Return(int64(1), nil)
+	for _, codeType := range []int32{temporalCodeModel.PasswordResettingCodeType, temporalCodeModel.EmailChangeCodeType, temporalCodeModel.SetupLinkCodeType} {
+		repo.EXPECT().DeleteTemporalCodesForUser(gomock.Any(), postgres.DeleteTemporalCodesForUserParams{Type: codeType, UserID: uid.String()}).Return(int64(0), nil)
+	}
+	repo.EXPECT().DeleteAllUserTablePrefs(gomock.Any(), uid).Return(int64(0), nil)
+	repo.EXPECT().DeleteUserPasskeys(gomock.Any(), uid).Return(int64(0), nil)
 
 	if err := uc.DeleteAccount(context.Background(), uid, "Correct!1"); err != nil {
 		t.Fatalf("DeleteAccount: %v", err)
@@ -136,6 +142,11 @@ func TestDeleteAccount_SuperAdminWithPeer_Allowed(t *testing.T) {
 	repo.EXPECT().UpdateUser(gomock.Any(), gomock.Any()).Return(int64(1), nil)
 	repo.EXPECT().RevokeUserSessions(gomock.Any(), gomock.Any()).Return(revokedRows(1), nil)
 	repo.EXPECT().DeleteUserProviders(gomock.Any(), uid).Return(int64(0), nil)
+	for _, codeType := range []int32{temporalCodeModel.PasswordResettingCodeType, temporalCodeModel.EmailChangeCodeType, temporalCodeModel.SetupLinkCodeType} {
+		repo.EXPECT().DeleteTemporalCodesForUser(gomock.Any(), postgres.DeleteTemporalCodesForUserParams{Type: codeType, UserID: uid.String()}).Return(int64(0), nil)
+	}
+	repo.EXPECT().DeleteAllUserTablePrefs(gomock.Any(), uid).Return(int64(0), nil)
+	repo.EXPECT().DeleteUserPasskeys(gomock.Any(), uid).Return(int64(0), nil)
 
 	if err := uc.DeleteAccount(context.Background(), uid, "Correct!1"); err != nil {
 		t.Fatalf("DeleteAccount: %v", err)
@@ -158,6 +169,11 @@ func TestDeleteInactiveAccount_StillInactive_Deletes(t *testing.T) {
 		})
 	repo.EXPECT().RevokeUserSessions(gomock.Any(), gomock.Any()).Return(revokedRows(0), nil)
 	repo.EXPECT().DeleteUserProviders(gomock.Any(), uid).Return(int64(0), nil)
+	for _, codeType := range []int32{temporalCodeModel.PasswordResettingCodeType, temporalCodeModel.EmailChangeCodeType, temporalCodeModel.SetupLinkCodeType} {
+		repo.EXPECT().DeleteTemporalCodesForUser(gomock.Any(), postgres.DeleteTemporalCodesForUserParams{Type: codeType, UserID: uid.String()}).Return(int64(0), nil)
+	}
+	repo.EXPECT().DeleteAllUserTablePrefs(gomock.Any(), uid).Return(int64(0), nil)
+	repo.EXPECT().DeleteUserPasskeys(gomock.Any(), uid).Return(int64(0), nil)
 
 	deleted, err := uc.DeleteInactiveAccount(context.Background(), uid, warnedAt)
 	if err != nil || !deleted {
@@ -213,6 +229,11 @@ func TestDeleteAccount_GoogleOnlyNeedsARecentSignIn(t *testing.T) {
 				repo.EXPECT().UpdateUser(gomock.Any(), gomock.Any()).Return(int64(1), nil)
 				repo.EXPECT().RevokeUserSessions(gomock.Any(), gomock.Any()).Return(revokedRows(1), nil)
 				repo.EXPECT().DeleteUserProviders(gomock.Any(), uid).Return(int64(1), nil)
+				for _, codeType := range []int32{temporalCodeModel.PasswordResettingCodeType, temporalCodeModel.EmailChangeCodeType, temporalCodeModel.SetupLinkCodeType} {
+					repo.EXPECT().DeleteTemporalCodesForUser(gomock.Any(), postgres.DeleteTemporalCodesForUserParams{Type: codeType, UserID: uid.String()}).Return(int64(0), nil)
+				}
+				repo.EXPECT().DeleteAllUserTablePrefs(gomock.Any(), uid).Return(int64(0), nil)
+				repo.EXPECT().DeleteUserPasskeys(gomock.Any(), uid).Return(int64(0), nil)
 				if err := uc.DeleteAccount(ctx, uid, ""); err != nil {
 					t.Fatalf("a recent sign-in must be enough: %v", err)
 				}
@@ -222,5 +243,30 @@ func TestDeleteAccount_GoogleOnlyNeedsARecentSignIn(t *testing.T) {
 				t.Fatalf("an old session of a Google-only account must be refused, got %v", err)
 			}
 		})
+	}
+}
+
+// Deleting an account drops its avatar: the media reference and the legacy avatars/<id> object, which nothing else removes.
+func TestDeleteAccount_RemovesTheAvatarAndTheLegacyObject(t *testing.T) {
+	uid := uuid.Must(uuid.NewV7())
+	av, st := &fakeAvatarStorage{}, &fakeLegacyStorage{}
+	uc, repo := newAvatarUC(t, st, av)
+	repo.EXPECT().GetUserByID(gomock.Any(), uid).
+		Return(postgres.User{ID: uid, Status: "active", HashedPassword: hashedPassword(t, "Correct!1")}, nil).Times(2)
+	repo.EXPECT().UpdateUser(gomock.Any(), gomock.Any()).Return(int64(1), nil)
+	repo.EXPECT().RevokeUserSessions(gomock.Any(), gomock.Any()).Return(revokedRows(1), nil)
+	repo.EXPECT().DeleteUserProviders(gomock.Any(), uid).Return(int64(0), nil)
+	repo.EXPECT().DeleteTemporalCodesForUser(gomock.Any(), gomock.Any()).Return(int64(0), nil).Times(3)
+	repo.EXPECT().DeleteAllUserTablePrefs(gomock.Any(), uid).Return(int64(0), nil)
+	repo.EXPECT().DeleteUserPasskeys(gomock.Any(), uid).Return(int64(0), nil)
+
+	if err := uc.DeleteAccount(context.Background(), uid, "Correct!1"); err != nil {
+		t.Fatalf("DeleteAccount: %v", err)
+	}
+	if av.replaceCalls != 1 || av.replacedRefID != uid || len(av.replacedIDs) != 0 {
+		t.Fatalf("the avatar reference must be dropped: %+v", av)
+	}
+	if st.removeCalls != 1 || st.removeKey != "avatars/"+uid.String() {
+		t.Fatalf("the legacy object must be removed: calls=%d key=%q", st.removeCalls, st.removeKey)
 	}
 }

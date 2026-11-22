@@ -76,7 +76,7 @@ type Event struct {
 	ScoringProfile    ScoringProfile
 	ForceEventScoring bool
 	// StaticPoints is the one value of static event scoring (required for
-	// static scoring; tasks «Як у заходу» and forced scoring use it).
+	// static scoring; tasks "As in the event" and forced scoring use it).
 	StaticPoints *int32
 	// InfrastructureAllowed is the platform administrator's decision, made
 	// whether the event may use challenges with team stands. It is set at
@@ -251,12 +251,6 @@ func (e *Event) UpdateScoringProfile(profile ScoringProfile, force bool, staticP
 	e.UpdatedAt = now
 	e.UpdatedBy = uuid.NullUUID{UUID: updatedBy, Valid: updatedBy != uuid.Nil}
 	return nil
-}
-
-func legacyWindowLifecycle(availableFrom, archiveAt time.Time) (Lifecycle, error) {
-	finishAt := archiveAt
-	withdrawAt := archiveAt.Add(time.Microsecond)
-	return NewLifecycle(JoinPolicyLockedAtStart, availableFrom, availableFrom, &finishAt, &withdrawAt, nil)
 }
 
 // Status derives the lifecycle position. Archived is checked first so an

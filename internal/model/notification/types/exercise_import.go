@@ -3,7 +3,7 @@ package notificationTypes
 import (
 	"encoding/json"
 
-	inboxModel "github.com/cybericebox/daemon/internal/model/notification/inbox"
+	inboxModel "github.com/cybericebox/backend/internal/model/notification/inbox"
 )
 
 // exerciseImportPayload is the end of a background task import, told to the user who started it.

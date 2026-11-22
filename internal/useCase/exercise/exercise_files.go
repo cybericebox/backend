@@ -6,9 +6,9 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 // FileLookup answers whether a task already stores a content; Found false leaves the other fields empty.
@@ -88,14 +88,11 @@ func (u *ExerciseUseCase) adoptFiles(ctx context.Context, exerciseID uuid.UUID, 
 		canonical[id] = stored
 	}
 	for v := range variants {
-		for t := range variants[v].Tasks {
-			for a := range variants[v].Tasks[t].Attachments {
-				attachment := &variants[v].Tasks[t].Attachments[a]
-				if stored, ok := canonical[attachment.FileID]; ok {
-					attachment.FileID = stored
-				}
+		variants[v].EachFileRef(func(attachment *exerciseModel.AttachmentRef) {
+			if stored, ok := canonical[attachment.FileID]; ok {
+				attachment.FileID = stored
 			}
-		}
+		})
 	}
 	return nil
 }

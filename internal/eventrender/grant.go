@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cybericebox/daemon/pkg/secret"
+	"github.com/cybericebox/backend/pkg/secret"
 	"github.com/gofrs/uuid"
 	"github.com/golang-jwt/jwt/v5"
 )

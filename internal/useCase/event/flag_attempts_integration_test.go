@@ -8,10 +8,10 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	challengeAttempt "github.com/cybericebox/daemon/internal/model/challengeAttempt"
-	participantModel "github.com/cybericebox/daemon/internal/model/participant"
-	"github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	challengeAttempt "github.com/cybericebox/backend/internal/model/challengeAttempt"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
+	"github.com/cybericebox/backend/internal/useCase/event"
 )
 
 type flagAttemptFixture struct {

@@ -12,13 +12,13 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
-	eventManagerModel "github.com/cybericebox/daemon/internal/model/eventManager"
-	mailModel "github.com/cybericebox/daemon/internal/model/mail"
-	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	mailUseCase "github.com/cybericebox/daemon/internal/useCase/mail"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
+	eventManagerModel "github.com/cybericebox/backend/internal/model/eventManager"
+	mailModel "github.com/cybericebox/backend/internal/model/mail"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	mailUseCase "github.com/cybericebox/backend/internal/useCase/mail"
 )
 
 type passThrough struct{}
@@ -279,7 +279,7 @@ func TestPlatformFooter_SaveAndPreviewPassTheDocument(t *testing.T) {
 // passes) and platform staff, admin_viewer included; a read-only moderator gets them masked or hidden.
 func TestEventMail_PrivateDataPerRole(t *testing.T) {
 	journal := []dispatchModel.DispatchDetail{{
-		DispatchInfo: dispatchModel.DispatchInfo{RecipientEmail: "olena@example.com", RecipientName: "Олена"},
+		DispatchInfo: dispatchModel.DispatchInfo{RecipientEmail: "olena@example.com", RecipientName: "Olena"},
 		Targets:      []dispatchModel.DispatchTarget{{Channel: "email", Status: "error", Recipient: "olena@example.com", Error: "550 <olena@example.com> unknown"}},
 	}}
 	settings := mailUseCase.EventSettingsView{SMTP: &mailUseCase.SMTPView{Host: "smtp.uni.edu", Username: "mailer@uni.edu"}}
@@ -303,7 +303,7 @@ func TestEventMail_PrivateDataPerRole(t *testing.T) {
 			require.Equal(t, c.private, strings.Contains(w.Body.String(), "olena@example.com"), w.Body.String())
 			if !c.private {
 				require.Contains(t, w.Body.String(), "o***@example.com")
-				require.Contains(t, w.Body.String(), "Олена")
+				require.Contains(t, w.Body.String(), "Olena")
 			}
 			w = serveAs(uc, c.role, http.MethodGet, "/api/events/"+eventID.String()+"/manage/mail", "")
 			require.Equal(t, http.StatusOK, w.Code, w.Body.String())

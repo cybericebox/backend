@@ -1,5 +1,5 @@
 -- One screen link per event (owner decision): at most one unrevoked link,
--- «Без обмеження» expiry (NULL), and a replace that revokes the old link
+-- "no limit" expiry (NULL), and a replace that revokes the old link
 -- and inserts the new one in one statement (the constraint is checked at
 -- commit, so the order inside the statement does not matter).
 UPDATE event_live_screen_links AS link

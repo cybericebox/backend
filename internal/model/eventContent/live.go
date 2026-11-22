@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/cybericebox/backend/internal/model/usertext"
 )
 
 // LiveLayout is the published or draft canvas for a projector/LED screen.
@@ -116,10 +118,10 @@ func DefaultLiveLayout() LiveLayout {
 		return out
 	}
 	organizers := func(id string) LiveWidget {
-		return LiveWidget{ID: id, Type: "logos", X: 1, Y: 8, W: 3, H: 1, Props: props("mode", `"fixed"`, "title", `"Організатори"`)}
+		return LiveWidget{ID: id, Type: "logos", X: 1, Y: 8, W: 3, H: 1, Props: props("mode", `"fixed"`, "title", "\""+usertext.LiveWidgetOrganizers+"\"")}
 	}
 	partners := func(id string) LiveWidget {
-		return LiveWidget{ID: id, Type: "logos", X: 4, Y: 8, W: 9, H: 1, Props: props("mode", `"carousel"`, "title", `"Партнери"`)}
+		return LiveWidget{ID: id, Type: "logos", X: 4, Y: 8, W: 9, H: 1, Props: props("mode", `"carousel"`, "title", "\""+usertext.LiveWidgetPartners+"\"")}
 	}
 	// One screen for all event states (no Scenes): the organizer may give each
 	// state its own screen in the editor.

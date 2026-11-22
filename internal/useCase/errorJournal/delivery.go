@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	errorJournal "github.com/cybericebox/daemon/internal/model/errorJournal"
-	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
+	errorJournal "github.com/cybericebox/backend/internal/model/errorJournal"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
 	"github.com/gofrs/uuid"
 	"time"
 )

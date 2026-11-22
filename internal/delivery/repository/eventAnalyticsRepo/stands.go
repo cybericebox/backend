@@ -6,11 +6,11 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	eventAnalyticsModel "github.com/cybericebox/daemon/internal/model/eventAnalytics"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	eventAnalyticsModel "github.com/cybericebox/backend/internal/model/eventAnalytics"
 )
 
-// StandsQueries are the statements of «Стенди» (§6.5); Queries embeds it.
+// StandsQueries are the statements of "Stands" (§6.5); Queries embeds it.
 type StandsQueries interface {
 	ListEventStandTeams(context.Context, uuid.UUID) ([]postgres.ListEventStandTeamsRow, error)
 	ListEventStandTransitions(context.Context, uuid.UUID) ([]postgres.ListEventStandTransitionsRow, error)

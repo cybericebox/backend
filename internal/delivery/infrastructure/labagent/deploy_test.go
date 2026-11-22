@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/gofrs/uuid"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"strings"
 	"testing"
 	"time"
@@ -15,10 +16,10 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	labAccessModel "github.com/cybericebox/daemon/internal/model/labAccess"
-	resourcesModel "github.com/cybericebox/daemon/internal/model/resources"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	labAccessModel "github.com/cybericebox/backend/internal/model/labAccess"
+	resourcesModel "github.com/cybericebox/backend/internal/model/resources"
 )
 
 // fakeAgent is an in-memory LabManager: it records the requests and answers each item with the
@@ -32,8 +33,12 @@ type fakeAgent struct {
 	itemState   labpb.ItemState // answer for every mutated item; default CREATED
 	itemError   string
 	retryable   bool
+	itemReason  string               // the machine code of a failed item
+	itemWait    *durationpb.Duration // its retry_after
 	clientCfg   string
 	createGroup *labpb.CreateLabGroupsRequest
+	// features is what GetFeatures answers (an error when nil).
+	features    *labpb.FeaturesResponse
 	createLabs  *labpb.CreateLabsRequest
 	createCl    *labpb.CreateLabGroupClientsRequest
 	access      *labpb.SetLabGroupAccessRequest
@@ -51,6 +56,9 @@ type fakeAgent struct {
 	listSelector                                 string
 	renewCSR, rotateKeyID, rotatePub, removedKey string
 	keyErr                                       error
+	// runChecks is the last RunChecks request; runChecksErr fails it.
+	runChecks    *labpb.RunChecksRequest
+	runChecksErr error
 	// clientGone makes Create answer EXISTS (without a config) until the client is deleted.
 	clientExists bool
 }
@@ -65,7 +73,7 @@ func (f *fakeAgent) state() labpb.ItemState {
 }
 
 func (f *fakeAgent) result(ref *labpb.ItemRef) *labpb.ItemResult {
-	return &labpb.ItemResult{Ref: ref, State: f.state(), Error: f.itemError, Retryable: f.retryable}
+	return &labpb.ItemResult{Ref: ref, State: f.state(), Error: f.itemError, Retryable: f.retryable, Reason: f.itemReason, RetryAfter: f.itemWait}
 }
 
 func (f *fakeAgent) CreateLabGroups(_ context.Context, in *labpb.CreateLabGroupsRequest, _ ...grpc.CallOption) (*labpb.BatchResult, error) {
@@ -250,9 +258,20 @@ func TestEveryMutatingCallCarriesTheInstanceLabel(t *testing.T) {
 func TestDeployLabSendsVariantOnceWithLabelsDeployGroupAndAllVariablesAsLabEnv(t *testing.T) {
 	f := &fakeAgent{groups: readyGroup()}
 	c := newClient(f)
-	web := exerciseModel.Device{Name: "web", Type: exerciseModel.DeviceTypeContainer, Image: "nginx",
-		EnvVars: []exerciseModel.EnvVar{{Name: "FLAG", Value: "ICE{x}"}, {Name: "MODE", Value: "ctf"}}}
-	topo := exerciseModel.Topology{VPN: exerciseModel.NetworkSpec{Enabled: true}, Devices: []exerciseModel.Device{web}}
+	web := exerciseModel.Device{
+		Name:  "web",
+		Type:  exerciseModel.DeviceTypeContainer,
+		Image: "nginx",
+		Bootstrap: exerciseModel.Bootstrap{
+			Env: []exerciseModel.EnvVar{
+				{Name: "FLAG", Value: "ICE{x}"},
+				{Name: "MODE", Value: "ctf"},
+			},
+		},
+	}
+	topo := exerciseModel.Topology{
+		Devices: []exerciseModel.Device{web, {ID: uuid.Must(uuid.NewV7()), Name: "attack", Type: exerciseModel.DeviceTypeVPNGateway}},
+	}
 	meta := infraModel.LabMeta{
 		Labels:      map[string]string{infraModel.LabelTask: "task-1", infraModel.LabelTeam: "team-1"},
 		GroupLabels: map[string]string{infraModel.LabelTeam: "team-1"},
@@ -288,7 +307,7 @@ func TestDeployLabSendsVariantOnceWithLabelsDeployGroupAndAllVariablesAsLabEnv(t
 
 func TestDeployLabIsIdempotentWhenObjectsExist(t *testing.T) {
 	f := &fakeAgent{groups: readyGroup(), itemState: labpb.ItemState_ITEM_STATE_EXISTS}
-	if err := newClient(f).DeployLab(context.Background(), "event-team", "c-1", infraModel.LabMeta{}, exerciseModel.Topology{VPN: exerciseModel.NetworkSpec{Enabled: true}}); err != nil {
+	if err := newClient(f).DeployLab(context.Background(), "event-team", "c-1", infraModel.LabMeta{}, vpnTopology(vpnGateway("attack", false))); err != nil {
 		t.Fatalf("existing objects are the desired state: %v", err)
 	}
 }
@@ -370,6 +389,9 @@ func TestReconcileLabGroupAccessSendsTheCompletePolicy(t *testing.T) {
 	if rule.GetAction() != labpb.LabGroupAccessAction_LAB_GROUP_ACCESS_ACTION_ALLOW || rule.GetClientNames()[0] != "p-participant" || rule.GetLabNames()[0] != "c-challenge" {
 		t.Fatalf("rule = %+v", rule)
 	}
+	if got := rule.GetGatewayNames(); len(got) != 1 || got[0] != "vpn" || len(rule.GetInclude()) != 0 {
+		t.Fatalf("an allow names the VPN gateway of its lab and no narrower subnets: %+v", rule)
+	}
 }
 
 func TestSuspendAndVPNDisableSendExplicitDesiredState(t *testing.T) {
@@ -384,8 +406,14 @@ func TestSuspendAndVPNDisableSendExplicitDesiredState(t *testing.T) {
 	if err := c.SetLabGroupVPNDisabled(context.Background(), "event-team", false); err != nil {
 		t.Fatal(err)
 	}
-	if got := f.updateGroup.GetItems()[0].GetChanges(); got.VpnDisabled == nil || *got.VpnDisabled || !got.GetProbeWhileSuspended() || got.Suspended != nil {
-		t.Fatalf("vpn request = %+v", got)
+	if got := f.updateGroup.GetItems()[0].GetChanges(); got.VpnEnabled == nil || !*got.VpnEnabled || got.VpnDisabled != nil || !got.GetProbeWhileSuspended() || got.Suspended != nil {
+		t.Fatalf("the VPN is switched on with vpn_enabled (contract 2.7), never the old flag: %+v", got)
+	}
+	if err := c.SetLabGroupVPNDisabled(context.Background(), "event-team", true); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.updateGroup.GetItems()[0].GetChanges(); got.VpnEnabled == nil || *got.VpnEnabled || got.VpnDisabled != nil {
+		t.Fatalf("vpn off request = %+v", got)
 	}
 }
 
@@ -710,4 +738,11 @@ func TestPrewarmImagesForwardsCredentials(t *testing.T) {
 	if _, err := newClient(f).PrewarmImages(context.Background(), []string{"a"}, nil); err != nil || len(f.prewarm.GetRegistryCredentials()) != 0 {
 		t.Fatalf("nil creds send none: %v %+v", err, f.prewarm)
 	}
+}
+
+func (f *fakeAgent) GetFeatures(context.Context, *labpb.Empty, ...grpc.CallOption) (*labpb.FeaturesResponse, error) {
+	if f.features == nil {
+		return nil, errors.New("features are not available")
+	}
+	return f.features, nil
 }

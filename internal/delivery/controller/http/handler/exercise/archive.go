@@ -13,22 +13,22 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/audit"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/middleware"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	"github.com/cybericebox/daemon/internal/model"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	exerciseUseCase "github.com/cybericebox/daemon/internal/useCase/exercise"
-	mediaUseCase "github.com/cybericebox/daemon/internal/useCase/media"
-	appErr "github.com/cybericebox/daemon/pkg/err"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/audit"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	"github.com/cybericebox/backend/internal/model"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	exerciseUseCase "github.com/cybericebox/backend/internal/useCase/exercise"
+	mediaUseCase "github.com/cybericebox/backend/internal/useCase/media"
+	appErr "github.com/cybericebox/backend/pkg/err"
 )
 
 type exportExercisesRequest struct {
 	IDs            []uuid.UUID `json:"IDs" binding:"required,min=1,max=100"`
 	IncludeSecrets bool        `json:"IncludeSecrets"`
 	Password       string      `json:"Password"`
-	// IncludeImages writes the platform images of the devices into the archive («з образами», up to 10 GiB): the export
+	// IncludeImages writes the platform images of the devices into the archive (with images, up to 10 GiB): the export
 	// then runs in the background, 202 {JobID}.
 	IncludeImages bool `json:"IncludeImages"`
 }
@@ -131,7 +131,7 @@ type exportJobStarted struct {
 	JobID uuid.UUID `json:"JobID"`
 }
 
-// startImageExport records the background export «з образами» of the tasks and answers 202 {JobID}. Every task is
+// startImageExport records the background export with images of the tasks and answers 202 {JobID}. Every task is
 // read first, so an unknown one is refused before any job is recorded.
 func (h *Handler) startImageExport(ctx *gin.Context, user uuid.UUID, req exportExercisesRequest) {
 	var firstName string
@@ -160,7 +160,7 @@ func (h *Handler) startImageExport(ctx *gin.Context, user uuid.UUID, req exportE
 }
 
 type exportJobResponse struct {
-	// State is running, done or failed.
+	// State is queued (no worker has started it yet), running, done or failed.
 	State string `json:"State"`
 	// File is the stored zip, read with GET /exercises/files/{FileID}/chunks/{index} (done only).
 	File *exportedFileResponse `json:"File,omitempty"`
@@ -169,7 +169,7 @@ type exportJobResponse struct {
 }
 
 // exportJob godoc
-// @Summary      State of a background export «з образами»
+// @Summary      State of a background export with images
 // @Description  running → done (File: the stored zip, read in chunks like any export) or failed (Error: Code, Message,
 // @Description  Context). Only the user who started it sees it (404 otherwise). The file is kept for the media grace
 // @Description  window (24 h by default).
@@ -497,21 +497,26 @@ type importJobError struct {
 	Context map[string]any `json:"Context,omitempty"`
 }
 
-// runningImport is one import of the caller that still runs.
+// runningImport is one open import of the caller: running, or failed and not yet closed.
 type runningImport struct {
-	JobID       string `json:"JobID"`
-	Stage       string `json:"Stage"`
-	ImagesDone  int    `json:"ImagesDone"`
-	ImagesTotal int    `json:"ImagesTotal"`
-	TasksDone   int    `json:"TasksDone"`
-	TasksTotal  int    `json:"TasksTotal"`
-	BytesPushed int64  `json:"BytesPushed"`
-	BytesTotal  int64  `json:"BytesTotal"`
+	JobID string `json:"JobID"`
+	// State is queued, running or failed; a failed one says why in Error and is closed with DELETE.
+	State string `json:"State"`
+	Stage string `json:"Stage"`
+	// Error is why it failed (failed only; an interrupted import has the interrupted code).
+	Error       *importJobError `json:"Error,omitempty"`
+	ImagesDone  int             `json:"ImagesDone"`
+	ImagesTotal int             `json:"ImagesTotal"`
+	TasksDone   int             `json:"TasksDone"`
+	TasksTotal  int             `json:"TasksTotal"`
+	BytesPushed int64           `json:"BytesPushed"`
+	BytesTotal  int64           `json:"BytesTotal"`
 }
 
 // runningImportJobs godoc
-// @Summary      The caller's background task imports that still run
+// @Summary      The caller's open background task imports: running, or failed and not closed
 // @Description  So a page on another device, or with cleared storage, can follow them (GET /exercises/import/jobs/{jobID}).
+// @Description  A running import without a heartbeat for 2 minutes is listed as failed (interrupted).
 // @Tags     exercises
 // @Produce  json
 // @Success  200  {object}  response.Response{data=[]runningImport}
@@ -529,14 +534,46 @@ func (h *Handler) runningImportJobs(ctx *gin.Context) {
 	}
 	out := make([]runningImport, 0, len(jobs))
 	for _, job := range jobs {
-		out = append(out, runningImport{
-			JobID: job.ID.String(), Stage: string(job.Stage),
+		item := runningImport{
+			JobID: job.ID.String(), State: string(job.State), Stage: string(job.Stage),
 			ImagesDone: job.Progress.ImagesDone, ImagesTotal: job.Progress.ImagesTotal,
 			TasksDone: job.Progress.TasksDone, TasksTotal: job.Progress.TasksTotal,
 			BytesPushed: job.Progress.BytesPushed, BytesTotal: job.Progress.BytesTotal,
-		})
+		}
+		if job.Error != nil {
+			item.Error = &importJobError{Code: job.Error.Code, Message: job.Error.Message, Context: job.Error.Context}
+		}
+		out = append(out, item)
 	}
 	response.AbortWithData(ctx, out)
+}
+
+// dismissImportJob godoc
+// @Summary      Close the row of a failed background task import
+// @Description  The import is no longer listed (GET /exercises/import/jobs); running it again shows it again. A
+// @Description  running import cannot be closed (409). Only the user who started it (404 otherwise).
+// @Tags     exercises
+// @Param    jobID  path  string  true  "import job ID"
+// @Success  200  {object}  response.Response
+// @Failure  404  {object}  response.Response
+// @Failure  409  {object}  response.Response
+// @Router   /exercises/import/jobs/{jobID} [delete]
+func (h *Handler) dismissImportJob(ctx *gin.Context) {
+	claims, ok := rbac.CurrentUserSessionFromContext(ctx.Request.Context())
+	if !ok {
+		response.AbortWithUnauthenticated(ctx)
+		return
+	}
+	id, err := uuid.FromString(ctx.Param("jobID"))
+	if err != nil {
+		response.AbortWithBadRequest(ctx, err)
+		return
+	}
+	if err = h.useCase.DismissArchiveImport(ctx, id, claims.UserID); err != nil {
+		response.AbortWithError(ctx, err)
+		return
+	}
+	response.AbortWithSuccess(ctx)
 }
 
 type importJobResponse struct {

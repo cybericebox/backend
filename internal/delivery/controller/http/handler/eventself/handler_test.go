@@ -13,20 +13,20 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/middleware"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventResultRepo"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	eventFormModel "github.com/cybericebox/daemon/internal/model/eventForm"
-	eventManagerModel "github.com/cybericebox/daemon/internal/model/eventManager"
-	eventStandModel "github.com/cybericebox/daemon/internal/model/eventStand"
-	eventTeamModel "github.com/cybericebox/daemon/internal/model/eventTeam"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	participantModel "github.com/cybericebox/daemon/internal/model/participant"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventResultRepo"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	eventFormModel "github.com/cybericebox/backend/internal/model/eventForm"
+	eventManagerModel "github.com/cybericebox/backend/internal/model/eventManager"
+	eventStandModel "github.com/cybericebox/backend/internal/model/eventStand"
+	eventTeamModel "github.com/cybericebox/backend/internal/model/eventTeam"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 func TestOwnChallengeResponseIncludesBoardMetadataWithoutFlag(t *testing.T) {
@@ -228,7 +228,7 @@ func TestPublicInfo_OnlyExposesPublishedIdentityAndTheme(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	eventID := uuid.Must(uuid.NewV7())
 	view := eventUseCase.EventInfoView{
-		EventID: eventID, Name: "Подія", Status: eventModel.LifecyclePublished,
+		EventID: eventID, Name: "Event", Status: eventModel.LifecyclePublished,
 		Theme:                  eventConfigModel.DefaultTheme(),
 		Infrastructure:         eventUseCase.EventInfrastructurePlan{HasDynamicLabs: true, RequiresVPN: true},
 		ScoreboardVisibility:   eventConfigModel.VisibilityPrivate,

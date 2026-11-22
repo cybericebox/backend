@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	preview "github.com/cybericebox/daemon/internal/model/participantPreview"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	event "github.com/cybericebox/daemon/internal/useCase/event"
-	"github.com/cybericebox/daemon/pkg/labaccess"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	preview "github.com/cybericebox/backend/internal/model/participantPreview"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	event "github.com/cybericebox/backend/internal/useCase/event"
+	"github.com/cybericebox/backend/pkg/labaccess"
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -75,7 +75,28 @@ func newPreviewFixture(t *testing.T, dynamic bool) *previewFixture {
 	if dynamic {
 		topo.Devices = []exerciseModel.Device{{Name: "target"}}
 	}
-	f.variants, _ = json.Marshal([]exerciseModel.Variant{{ID: f.variant, Tasks: []exerciseModel.Task{{ID: f.task, Name: "Task", Description: json.RawMessage(`{"root":{"children":[]}}`), Flag: []string{"ICE{secret}"}, Hints: []exerciseModel.Hint{{ID: f.hint, Text: "hidden-hint", Level: exerciseModel.HintLevelSteps}}, Attachments: []exerciseModel.AttachmentRef{{FileID: f.file, Name: "readme"}}}}, Topology: topo}})
+	f.variants, _ = json.Marshal(
+		[]exerciseModel.Variant{
+			{
+				ID: f.variant,
+				Tasks: []exerciseModel.Task{
+					{
+						ID:          f.task,
+						Name:        "Task",
+						Description: json.RawMessage(`{"root":{"children":[]}}`),
+						Check:       exerciseModel.FlagCheck("ICE{secret}"),
+						Hints: []exerciseModel.Hint{
+							{ID: f.hint, Text: "hidden-hint", Level: exerciseModel.HintLevelSteps},
+						},
+						Attachments: []exerciseModel.AttachmentRef{
+							{FileID: f.file, Name: "readme"},
+						},
+					},
+				},
+				Topology: topo,
+			},
+		},
+	)
 	now := time.Now()
 	f.selections, _ = json.Marshal([]preview.Selection{{ID: f.selection, ExerciseVersionID: f.version, VariantID: f.variant}})
 	f.infrastructureAllowed = true

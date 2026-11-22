@@ -16,7 +16,7 @@ func TestListSearch(t *testing.T) {
 		wantErr         bool
 	}{
 		{name: "empty", raw: "", want: ""},
-		{name: "trimmed", raw: "  Іван ", want: "Іван"},
+		{name: "trimmed", raw: "  Ivan ", want: "Ivan"},
 		{name: "at limit", raw: strings.Repeat("я", maxListSearchLength), want: strings.Repeat("я", maxListSearchLength)},
 		{name: "too long", raw: strings.Repeat("я", maxListSearchLength+1), wantErr: true},
 	}

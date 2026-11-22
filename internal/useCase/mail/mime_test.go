@@ -14,9 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	"github.com/cybericebox/daemon/pkg/email"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/pkg/email"
 )
 
 func TestDeliver_MIMEBodiesKeepContentAndFooter(t *testing.T) {
@@ -68,7 +68,7 @@ func TestDeliver_MIMEBodiesKeepContentAndFooter(t *testing.T) {
 			plain := strings.ReplaceAll(parts["text/plain"], "\r\n", "\n")
 			require.True(t, strings.HasPrefix(plain, text+"\n\nЦей лист надіслано автоматично."), plain)
 			require.Contains(t, plain, "Цей лист надіслано автоматично.")
-			require.Equal(t, 1, strings.Count(plain, "Політика конфіденційності"), "the footer is appended once")
+			require.Equal(t, 1, strings.Count(plain, "Цей лист надіслано автоматично."), "the footer is appended once")
 		})
 	}
 }

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	authUseCase "github.com/cybericebox/daemon/internal/useCase/auth"
+	authUseCase "github.com/cybericebox/backend/internal/useCase/auth"
 )
 
 type fakeAdminLinkIssuer struct {

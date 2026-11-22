@@ -10,8 +10,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	"github.com/cybericebox/daemon/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	"github.com/cybericebox/backend/internal/model/rbac"
 )
 
 type (
@@ -46,12 +46,6 @@ func (h *Handler) Init(router *gin.RouterGroup) {
 	h.initTasks(router)
 	h.initInfrastructure(router)
 	h.initMail(router)
-}
-
-// staff gates the aggregate routes: super_admin and any role that holds
-// analytics.read.
-func (h *Handler) staff() gin.HandlerFunc {
-	return h.prot.RequirePermission(rbac.PermAnalyticsRead)
 }
 
 type periodResponse struct {

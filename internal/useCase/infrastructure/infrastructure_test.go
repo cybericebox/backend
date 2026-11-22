@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/model"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	labAccessModel "github.com/cybericebox/daemon/internal/model/labAccess"
-	appErr "github.com/cybericebox/daemon/pkg/err"
+	"github.com/cybericebox/backend/internal/model"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	labAccessModel "github.com/cybericebox/backend/internal/model/labAccess"
+	appErr "github.com/cybericebox/backend/pkg/err"
 )
 
 func TestInfrastructureStatusWithoutAgentIsExplicitlyUnavailable(t *testing.T) {

@@ -9,12 +9,12 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventAnalyticsRepo"
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
-	eventAnalyticsModel "github.com/cybericebox/daemon/internal/model/eventAnalytics"
-	labTraffic "github.com/cybericebox/daemon/internal/model/labTraffic"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	"github.com/cybericebox/daemon/internal/useCase/eventAnalytics"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventAnalyticsRepo"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
+	eventAnalyticsModel "github.com/cybericebox/backend/internal/model/eventAnalytics"
+	labTraffic "github.com/cybericebox/backend/internal/model/labTraffic"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/useCase/eventAnalytics"
 )
 
 // reviewStore keeps the organizers' notes in memory.
@@ -210,7 +210,7 @@ func TestDismissIntegrityPattern(t *testing.T) {
 	th := eventAnalyticsModel.DefaultIntegrityThresholds()
 	by := uuid.UUID{15: 77}
 
-	// «Не підсвічувати такі випадки» for too_fast on the task: that solve is gone.
+	// "Stop highlighting such cases" for too_fast on the task: that solve is gone.
 	require.NoError(t, f.uc.DismissIntegrityPattern(ctx, f.eventID, f.tooFast, by, eventAnalyticsModel.DismissEvent, eventAnalyticsModel.IntegrityTooFast, "ignored", " fine "))
 	v, err := f.uc.GetEventAnalyticsIntegrity(ctx, f.eventID, nil, nil, th, eventAnalytics.IntegrityFilter{})
 	require.NoError(t, err)

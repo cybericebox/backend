@@ -5,8 +5,8 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	errorJournalUseCase "github.com/cybericebox/daemon/internal/useCase/errorJournal"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	errorJournalUseCase "github.com/cybericebox/backend/internal/useCase/errorJournal"
 	"github.com/jackc/pgx/v5"
 )
 

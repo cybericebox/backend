@@ -6,6 +6,8 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/golang-jwt/jwt/v5"
+
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
 // SetupTokenTTL is the default lifetime (SETUP_TOKEN_TTL overrides it) of a setup link: the one validity of every
@@ -62,8 +64,7 @@ func (c *Client) IssueSetupToken(userID uuid.UUID, ttl time.Duration) (signed, i
 			ID:        id,
 		},
 	}
-	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	signed, err = tok.SignedString(c.signKey)
+	signed, err = secret.SignHS256(claims, c.keys[0])
 	if err != nil {
 		return "", "", time.Time{}, fmt.Errorf("token: sign setup token: %w", err)
 	}
@@ -80,10 +81,10 @@ func (c *Client) ParseSetupToken(tokenStr string) (uuid.UUID, error) {
 
 // ParseSetupTokenID is ParseSetupToken that also returns the token id (jti).
 func (c *Client) ParseSetupTokenID(tokenStr string) (uuid.UUID, string, error) {
-	tok, err := jwt.ParseWithClaims(
+	tok, err := secret.ParseHS256(
 		tokenStr,
 		&setupClaims{},
-		c.keyFunc,
+		c.keys,
 		jwt.WithIssuer(issuer),
 		jwt.WithAudience(setupAudience),
 		jwt.WithExpirationRequired(),

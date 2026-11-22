@@ -19,12 +19,12 @@ import (
 	"go.uber.org/mock/gomock"
 	"golang.org/x/text/unicode/norm"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	exercise "github.com/cybericebox/daemon/internal/useCase/exercise"
-	"github.com/cybericebox/daemon/pkg/secret"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	exercise "github.com/cybericebox/backend/internal/useCase/exercise"
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
 func TestAssignExportPaths_Levels(t *testing.T) {
@@ -193,31 +193,31 @@ func exportFixtureVersions() []exerciseModel.ExerciseVersion {
 		return exerciseModel.Device{
 			ID: exportID(id), Name: name, Type: exerciseModel.DeviceTypeContainer, Image: "nginx:1.27",
 			SecurityPreset: exerciseModel.SecurityPresetStandard, ResourcePreset: "micro",
-			EnvVars: []exerciseModel.EnvVar{{Name: "MODE", Value: "prod"}},
+			Bootstrap: exerciseModel.Bootstrap{Env: []exerciseModel.EnvVar{{Name: "MODE", Value: "prod"}}},
 		}
 	}
 	topology := func(base int) exerciseModel.Topology {
 		return exerciseModel.Topology{
-			VPN:     exerciseModel.NetworkSpec{Enabled: true},
-			Devices: []exerciseModel.Device{device(base, "web"), device(base+1, "db")},
+			Devices: []exerciseModel.Device{device(base, "web"), device(base+1, "db"),
+				{ID: exportID(base + 90), Name: "vpn", Type: exerciseModel.DeviceTypeVPNGateway}},
 			Connections: []exerciseModel.Connection{{Endpoints: []exerciseModel.Endpoint{
-				{Kind: exerciseModel.EndpointVPN}, {Kind: exerciseModel.EndpointDevice, DeviceID: exportID(base)},
+				{Kind: exerciseModel.EndpointDevice, DeviceID: exportID(base + 90), Interface: "eth0"}, {Kind: exerciseModel.EndpointDevice, DeviceID: exportID(base)},
 			}}},
 			VisualRender: json.RawMessage(`{"nodes":[]}`),
 		}
 	}
 	task := func(id int, name string, attachments ...exerciseModel.AttachmentRef) exerciseModel.Task {
 		return exerciseModel.Task{
-			ID: exportID(id), Name: name, Description: json.RawMessage(`{"root":{"type":"text","text":"Опис"}}`),
-			Difficulty: exerciseModel.DifficultyMedium, Flag: []string{"ICE{" + name + "}"},
-			LinkedDeviceID: uuid.NullUUID{UUID: exportID(100), Valid: true}, DeviceFlagVar: "FLAG",
+			ID: exportID(id), Name: name, Description: json.RawMessage(`{"root":{"type":"text","text":"Description"}}`),
+			Difficulty: exerciseModel.DifficultyMedium, Check: exerciseModel.FlagCheck("ICE{" + name + "}"),
+			Key:         name,
 			Attachments: attachments,
-			Hints:       []exerciseModel.Hint{{ID: exportID(id + 50), Text: "підказка", Level: exerciseModel.HintLevelSteps}},
+			Hints:       []exerciseModel.Hint{{ID: exportID(id + 50), Text: "hint", Level: exerciseModel.HintLevelSteps}},
 		}
 	}
 	return []exerciseModel.ExerciseVersion{
-		{ID: exportID(900), ExerciseID: exportExerciseID, Status: exerciseModel.VersionStatusDraft, AdminNote: "нотатка", Variants: []exerciseModel.Variant{
-			{ID: exportID(1), Index: 1, Note: "перший", Topology: topology(100), Tasks: []exerciseModel.Task{
+		{ID: exportID(900), ExerciseID: exportExerciseID, Status: exerciseModel.VersionStatusDraft, AdminNote: "note", Variants: []exerciseModel.Variant{
+			{ID: exportID(1), Index: 1, Note: "first", Topology: topology(100), Tasks: []exerciseModel.Task{
 				task(10, "one", exerciseModel.AttachmentRef{FileID: fileOnce, Name: "once.txt"}),
 				task(11, "two", exerciseModel.AttachmentRef{FileID: fileCommon, Name: "common.bin"}),
 			}},
@@ -227,11 +227,10 @@ func exportFixtureVersions() []exerciseModel.ExerciseVersion {
 				task(11, "two", exerciseModel.AttachmentRef{FileID: fileCopy2, Name: "copy2.txt"}),
 			}},
 		}},
-		{ID: exportID(901), ExerciseID: exportExerciseID, Status: exerciseModel.VersionStatusCheckpoint, Label: "Знімок", Variants: []exerciseModel.Variant{
+		{ID: exportID(901), ExerciseID: exportExerciseID, Status: exerciseModel.VersionStatusCheckpoint, Label: "Snapshot", Variants: []exerciseModel.Variant{
 			{ID: exportID(3), Topology: topology(200), Tasks: []exerciseModel.Task{
 				func() exerciseModel.Task {
 					t := task(12, "three", exerciseModel.AttachmentRef{FileID: fileUnicode, Name: norm.NFD.String("Йод.txt")})
-					t.LinkedDeviceID = uuid.NullUUID{UUID: exportID(200), Valid: true}
 					return t
 				}(),
 			}},
@@ -242,7 +241,7 @@ func exportFixtureVersions() []exerciseModel.ExerciseVersion {
 // expectExport mocks the two reads an export does.
 func expectExport(t *testing.T, q *postgresMocks.MockQuerier, id uuid.UUID, name string, versions []exerciseModel.ExerciseVersion) {
 	t.Helper()
-	q.EXPECT().GetExerciseByID(gomock.Any(), id).Return(postgres.Exercise{ID: id, Name: name, Description: "опис", Tags: []string{"web"}}, nil)
+	q.EXPECT().GetExerciseByID(gomock.Any(), id).Return(postgres.Exercise{ID: id, Name: name, Description: "description", Tags: []string{"web"}}, nil)
 	rows := make([]postgres.ExerciseVersion, 0, len(versions))
 	for _, version := range versions {
 		rows = append(rows, postgres.ExerciseVersion{
@@ -257,7 +256,7 @@ func exportFixture(t *testing.T) []byte {
 	t.Helper()
 	ctrl := gomock.NewController(t)
 	q := postgresMocks.NewMockQuerier(ctrl)
-	expectExport(t, q, exportExerciseID, "Експорт", exportFixtureVersions())
+	expectExport(t, q, exportExerciseID, "Export", exportFixtureVersions())
 	uc := exercise.NewExerciseUseCase(exercise.Dependencies{Repo: q, Media: exportFixtureMedia()})
 	data, err := uc.ExportExerciseArchive(context.Background(), exportExerciseID, exercise.ExportOptions{}, exercise.DefaultLimits())
 	require.NoError(t, err)
@@ -315,8 +314,8 @@ func TestExportExerciseArchive_WritesSchema(t *testing.T) {
 		Exercise map[string]any `json:"exercise"`
 	}
 	require.NoError(t, json.Unmarshal(doc, &top))
-	require.Equal(t, "cib-exercise/1", top.Schema)
-	require.Equal(t, map[string]any{"id": "0192f0a0-0000-7000-8000-00000000e001", "name": "Експорт", "description": "опис", "tags": []any{"web"}}, top.Exercise)
+	require.Equal(t, "cib-exercise/1.0", top.Schema)
+	require.Equal(t, map[string]any{"id": "0192f0a0-0000-7000-8000-00000000e001", "name": "Export", "description": "description", "tags": []any{"web"}}, top.Exercise)
 	var generic any
 	require.NoError(t, json.Unmarshal(doc, &generic))
 	keys := map[string]bool{}
@@ -341,6 +340,7 @@ func TestExportExerciseArchive_EnumsByName(t *testing.T) {
 				Topology struct {
 					Devices []struct {
 						Type           any `json:"type"`
+						Profile        any `json:"profile"`
 						SecurityPreset any `json:"security_preset"`
 					} `json:"devices"`
 					Connections []struct {
@@ -359,9 +359,12 @@ func TestExportExerciseArchive_EnumsByName(t *testing.T) {
 	variant := doc.Versions[0].Variants[0]
 	require.Equal(t, "medium", variant.Tasks[0].Difficulty)
 	require.Equal(t, "steps", variant.Tasks[0].Hints[0].Level)
-	require.Equal(t, "container", variant.Topology.Devices[0].Type)
+	require.Equal(t, "node", variant.Topology.Devices[0].Type)
+	require.Equal(t, "container", variant.Topology.Devices[0].Profile)
 	require.Equal(t, "standard", variant.Topology.Devices[0].SecurityPreset)
-	require.Equal(t, "vpn", variant.Topology.Connections[0].Endpoints[0].Kind)
+	require.Equal(t, "device", variant.Topology.Connections[0].Endpoints[0].Kind)
+	require.Equal(t, "vpn", variant.Topology.Connections[0].Endpoints[0].Device, "a gateway is a device of the document")
+	require.Equal(t, "vpn_gateway", variant.Topology.Devices[2].Type)
 	require.Equal(t, "device", variant.Topology.Connections[0].Endpoints[1].Kind)
 	require.Equal(t, "web", variant.Topology.Connections[0].Endpoints[1].Device)
 }
@@ -441,7 +444,7 @@ func TestExportThenImport_RoundTripV2(t *testing.T) {
 	for i := range parsed.Versions {
 		exercise.NormalizeContentIDs(parsed.Versions[i].Variants)
 	}
-	require.Equal(t, exerciseModel.Exercise{Name: "Експорт", Description: "опис", Tags: []string{"web"}}, parsed.Exercise)
+	require.Equal(t, exerciseModel.Exercise{Name: "Export", Description: "description", Tags: []string{"web"}}, parsed.Exercise)
 	media := exportFixtureMedia()
 	want := contentIDs(t, exportFixtureVersions(), func(id uuid.UUID) []byte { return media.files[id].body })
 	got := contentIDs(t, parsed.Versions, func(id uuid.UUID) []byte {
@@ -457,11 +460,11 @@ func TestExportExerciseArchive_ProtectedV2(t *testing.T) {
 	variant := &versions[0].Variants[0]
 	sealed, err := cipher.EncryptWithContext([]byte("plain-secret-value"), exercise.EnvSecretContext(variant.ID, "web", "DB_PASS"))
 	require.NoError(t, err)
-	variant.Topology.Devices[0].EnvVars = append(variant.Topology.Devices[0].EnvVars, exerciseModel.EnvVar{Name: "DB_PASS", Value: sealed, Secret: true})
+	variant.Topology.Devices[0].Bootstrap.Env = append(variant.Topology.Devices[0].Bootstrap.Env, exerciseModel.EnvVar{Name: "DB_PASS", Value: sealed, Secret: true})
 
 	ctrl := gomock.NewController(t)
 	q := postgresMocks.NewMockQuerier(ctrl)
-	expectExport(t, q, exportExerciseID, "Експорт", versions)
+	expectExport(t, q, exportExerciseID, "Export", versions)
 	uc := exercise.NewExerciseUseCase(exercise.Dependencies{Repo: q, Cipher: cipher, Media: exportFixtureMedia()})
 	data, err := uc.ExportExerciseArchive(context.Background(), exportExerciseID, exercise.ExportOptions{IncludeSecrets: true, Password: "strong password"}, exercise.DefaultLimits())
 	require.NoError(t, err)
@@ -475,30 +478,30 @@ func TestExportExerciseArchive_ProtectedV2(t *testing.T) {
 	require.Contains(t, files, "files/v1/shared/common.bin")
 	parsed, err := exercise.ParseExerciseArchive(data, "strong password", exercise.DefaultLimits())
 	require.NoError(t, err)
-	require.Equal(t, "plain-secret-value", parsed.Versions[0].Variants[0].Topology.Devices[0].EnvVars[1].Value)
+	require.Equal(t, "plain-secret-value", parsed.Versions[0].Variants[0].Topology.Devices[0].Bootstrap.Env[1].Value)
 }
 
 func TestExportSeveralTasks_FoldersInOneZip(t *testing.T) {
 	second := uuid.FromStringOrNil("0192f0a0-0000-7000-8000-00000000e002")
 	ctrl := gomock.NewController(t)
 	q := postgresMocks.NewMockQuerier(ctrl)
-	expectExport(t, q, exportExerciseID, "Веб", exportFixtureVersions())
-	expectExport(t, q, second, "Веб", []exerciseModel.ExerciseVersion{{ID: exportID(902), Status: exerciseModel.VersionStatusDraft}})
+	expectExport(t, q, exportExerciseID, "Web", exportFixtureVersions())
+	expectExport(t, q, second, "Web", []exerciseModel.ExerciseVersion{{ID: exportID(902), Status: exerciseModel.VersionStatusDraft}})
 	uc := exercise.NewExerciseUseCase(exercise.Dependencies{Repo: q, Media: exportFixtureMedia()})
 	var items []exercise.NamedArchive
 	for _, id := range []uuid.UUID{exportExerciseID, second} {
 		data, err := uc.ExportExerciseArchive(context.Background(), id, exercise.ExportOptions{}, exercise.DefaultLimits())
 		require.NoError(t, err)
-		items = append(items, exercise.NamedArchive{Name: "Веб", Archive: data})
+		items = append(items, exercise.NamedArchive{Name: "Web", Archive: data})
 	}
 	bundle, err := exercise.BundleExerciseArchives(items, "", exercise.DefaultLimits())
 	require.NoError(t, err)
 
 	raw, err := exercise.ReadArchiveV1(bytes.NewReader(bundle), exercise.DefaultLimits())
 	require.NoError(t, err)
-	require.Contains(t, raw, "Веб/exercise.json")
-	require.Contains(t, raw, "Веб/files/v1/shared/common.bin")
-	require.Contains(t, raw, "Веб_2/exercise.json")
+	require.Contains(t, raw, "Web/exercise.json")
+	require.Contains(t, raw, "Web/files/v1/shared/common.bin")
+	require.Contains(t, raw, "Web_2/exercise.json")
 	for name := range raw {
 		require.False(t, strings.HasSuffix(name, "/manifest.json"), "only one root manifest: %s", name)
 	}
@@ -520,19 +523,19 @@ func TestExportSeveralTasks_ProtectedBundle(t *testing.T) {
 	variant := &versions[0].Variants[0]
 	sealed, err := cipher.EncryptWithContext([]byte("plain-secret-value"), exercise.EnvSecretContext(variant.ID, "web", "DB_PASS"))
 	require.NoError(t, err)
-	variant.Topology.Devices[0].EnvVars = append(variant.Topology.Devices[0].EnvVars, exerciseModel.EnvVar{Name: "DB_PASS", Value: sealed, Secret: true})
+	variant.Topology.Devices[0].Bootstrap.Env = append(variant.Topology.Devices[0].Bootstrap.Env, exerciseModel.EnvVar{Name: "DB_PASS", Value: sealed, Secret: true})
 	ctrl := gomock.NewController(t)
 	q := postgresMocks.NewMockQuerier(ctrl)
-	expectExport(t, q, exportExerciseID, "Веб", versions)
+	expectExport(t, q, exportExerciseID, "Web", versions)
 	uc := exercise.NewExerciseUseCase(exercise.Dependencies{Repo: q, Cipher: cipher, Media: exportFixtureMedia()})
 	data, err := uc.ExportExerciseArchive(context.Background(), exportExerciseID, exercise.ExportOptions{IncludeSecrets: true, Password: "pw"}, exercise.DefaultLimits())
 	require.NoError(t, err)
-	bundle, err := exercise.BundleExerciseArchives([]exercise.NamedArchive{{Name: "Веб", Archive: data}, {Name: "manifest.json", Archive: data}}, "pw", exercise.DefaultLimits())
+	bundle, err := exercise.BundleExerciseArchives([]exercise.NamedArchive{{Name: "Web", Archive: data}, {Name: "manifest.json", Archive: data}}, "pw", exercise.DefaultLimits())
 	require.NoError(t, err)
 	require.NotContains(t, string(bundle), "plain-secret-value")
 	files, err := exercise.ReadProtectedArchiveV1(bundle, "pw", exercise.DefaultLimits())
 	require.NoError(t, err)
-	require.Contains(t, string(files["Веб/exercise.json"]), "plain-secret-value")
+	require.Contains(t, string(files["Web/exercise.json"]), "plain-secret-value")
 	require.Contains(t, files, "manifest_2.json/exercise.json")
 }
 
@@ -552,16 +555,16 @@ func rawEntries(t *testing.T, data []byte) []string {
 // access, persistence, the internet network, two devices sharing a name, an endpoint to a device outside
 // the variant, an attachment without a stored name and a name clash that gives _2.
 func richVersions() []exerciseModel.ExerciseVersion {
-	ref := &exerciseModel.NetworkIPRef{Network: "vpn", Host: 10}
+	ref := &exerciseModel.NetworkIPRef{Gateway: "vpn", Host: 10}
 	devices := []exerciseModel.Device{
 		{
 			ID: exportID(300), Name: "web", Type: exerciseModel.DeviceTypeContainer, Image: "nginx:1.27",
 			ResourcePreset: "small", SecurityPreset: exerciseModel.SecurityPresetExtended,
 			Interfaces: []exerciseModel.Interface{{Name: "eth0", MAC: "02:00:00:00:00:01", IP: exerciseModel.IPConfig{
-				Type: exerciseModel.IPConfigTypeStatic, AddressRef: ref, GatewayRef: &exerciseModel.NetworkIPRef{Network: "vpn", Host: 1},
-				Routes: []exerciseModel.Route{{DstRef: &exerciseModel.NetworkSubnetRef{Network: "internet"}, Via: "10.0.0.1"}},
+				Type: exerciseModel.IPConfigTypeStatic, AddressRef: ref, GatewayRef: &exerciseModel.NetworkIPRef{Gateway: "vpn", Host: 1},
+				Routes: []exerciseModel.Route{{DstRef: &exerciseModel.NetworkSubnetRef{Gateway: "internet"}, Via: "10.0.0.1"}},
 			}}},
-			External:    &exerciseModel.ExternalAccess{Port: 8080, Protocol: "http"},
+			Access:      []exerciseModel.Access{{Kind: exerciseModel.AccessHTTP, Port: 8080, Protocol: "http"}},
 			Persistence: &exerciseModel.DevicePersistence{Enabled: true, Debounce: "5s"},
 		},
 		{ID: exportID(301), Name: "twin", Type: exerciseModel.DeviceTypeContainer, Image: "alpine"},
@@ -571,20 +574,20 @@ func richVersions() []exerciseModel.ExerciseVersion {
 	return []exerciseModel.ExerciseVersion{{ID: exportID(910), Status: exerciseModel.VersionStatusDraft, Variants: []exerciseModel.Variant{{
 		ID: exportID(20), Index: 1,
 		Topology: exerciseModel.Topology{
-			VPN:      exerciseModel.NetworkSpec{Enabled: true, DHCP: true, DHCPRanges: []exerciseModel.DHCPRange{{Start: 100, End: 200}}},
-			Internet: exerciseModel.NetworkSpec{Enabled: true, DNS: "1.1.1.1"},
-			Devices:  devices,
+			Devices: append(devices,
+				exerciseModel.Device{ID: exportID(310), Name: "vpn", Type: exerciseModel.DeviceTypeVPNGateway, DHCP: true, DHCPRanges: []exerciseModel.DHCPRange{{Start: 100, End: 200}}, ReverseConnections: true},
+				exerciseModel.Device{ID: exportID(311), Name: "internet", Type: exerciseModel.DeviceTypeInternetGateway, DNS: "1.1.1.1"}),
 			Connections: []exerciseModel.Connection{
-				{Endpoints: []exerciseModel.Endpoint{{Kind: exerciseModel.EndpointInternet}, {Kind: exerciseModel.EndpointDevice, DeviceID: exportID(302), Interface: "eth0"}}},
+				{Endpoints: []exerciseModel.Endpoint{{Kind: exerciseModel.EndpointDevice, DeviceID: exportID(311), Interface: "eth0"}, {Kind: exerciseModel.EndpointDevice, DeviceID: exportID(302), Interface: "eth0"}}},
 				{Endpoints: []exerciseModel.Endpoint{{Kind: exerciseModel.EndpointDevice, DeviceID: exportID(301)}, {Kind: exerciseModel.EndpointDevice, DeviceID: exportID(399)}}},
 			},
 		},
 		Tasks: []exerciseModel.Task{{
 			ID: exportID(30), Name: "rich", Difficulty: exerciseModel.DifficultyHard,
-			Description:    json.RawMessage(`{"root":{"type":"root","children":[]}}`),
-			LinkedDeviceID: uuid.NullUUID{UUID: exportID(302), Valid: true}, DeviceFlagVar: "FLAG",
+			Description: json.RawMessage(`{"root":{"type":"root","children":[]}}`),
+			Key:         "rich", Check: exerciseModel.TextCheck("answer"),
 			Placeholders: []exerciseModel.Placeholder{
-				{Key: "server", Kind: exerciseModel.PlaceholderIP, IPReference: "vpn", LastOctet: 10, ShowMask: true},
+				{Key: "server", Kind: exerciseModel.PlaceholderIP, IPReference: "gateway", Gateway: "vpn", LastOctet: 10, ShowMask: true},
 				{Key: "site", Kind: exerciseModel.PlaceholderExternalLink, AsLink: true, Scheme: "https"},
 			},
 			Attachments: []exerciseModel.AttachmentRef{
@@ -616,7 +619,7 @@ func richMedia() *exportMedia {
 func TestExportThenImport_RoundTripRich(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	q := postgresMocks.NewMockQuerier(ctrl)
-	expectExport(t, q, exportExerciseID, "Повний", richVersions())
+	expectExport(t, q, exportExerciseID, "Full", richVersions())
 	media := richMedia()
 	uc := exercise.NewExerciseUseCase(exercise.Dependencies{Repo: q, Media: media})
 	data, err := uc.ExportExerciseArchive(context.Background(), exportExerciseID, exercise.ExportOptions{}, exercise.DefaultLimits())
@@ -649,7 +652,7 @@ func exportVersions(t *testing.T, versions []exerciseModel.ExerciseVersion, medi
 	t.Helper()
 	ctrl := gomock.NewController(t)
 	q := postgresMocks.NewMockQuerier(ctrl)
-	expectExport(t, q, exportExerciseID, "Повний", versions)
+	expectExport(t, q, exportExerciseID, "Full", versions)
 	uc := exercise.NewExerciseUseCase(exercise.Dependencies{Repo: q, Media: media})
 	data, err := uc.ExportExerciseArchive(context.Background(), exportExerciseID, exercise.ExportOptions{}, exercise.DefaultLimits())
 	require.NoError(t, err)

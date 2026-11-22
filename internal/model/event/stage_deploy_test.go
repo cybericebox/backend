@@ -6,7 +6,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
 )
 
 func lead(pods int) time.Duration { return time.Duration(10+pods) * time.Minute }

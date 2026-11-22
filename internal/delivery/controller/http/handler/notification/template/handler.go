@@ -9,13 +9,13 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/middleware"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	emailModel "github.com/cybericebox/daemon/internal/model/notification/email"
-	inAppModel "github.com/cybericebox/daemon/internal/model/notification/inapp"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	emailUseCase "github.com/cybericebox/daemon/internal/useCase/notification/channels/email"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	emailModel "github.com/cybericebox/backend/internal/model/notification/email"
+	inAppModel "github.com/cybericebox/backend/internal/model/notification/inapp"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	emailUseCase "github.com/cybericebox/backend/internal/useCase/notification/channels/email"
 )
 
 type (

@@ -10,19 +10,19 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventAnalyticsRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventConfigRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventManagerRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventTeamRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/userRepo"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	eventTeamModel "github.com/cybericebox/daemon/internal/model/eventTeam"
-	labBindingModel "github.com/cybericebox/daemon/internal/model/labBinding"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
-	"github.com/cybericebox/daemon/internal/testhelpers"
-	"github.com/cybericebox/daemon/internal/useCase/eventAnalytics"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventAnalyticsRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventConfigRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventManagerRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventTeamRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/userRepo"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	eventTeamModel "github.com/cybericebox/backend/internal/model/eventTeam"
+	labBindingModel "github.com/cybericebox/backend/internal/model/labBinding"
+	userModel "github.com/cybericebox/backend/internal/model/user"
+	"github.com/cybericebox/backend/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/useCase/eventAnalytics"
 )
 
 // realisticPayload is a delta of a team's lab group as the lab agent sends it
@@ -37,7 +37,7 @@ func realisticPayload(seq int, observed time.Time, clients []string, handshake t
 		cl = append(cl, fmt.Sprintf(`{"name":%q,"labGroupName":"grp","status":{"ready":true,"assignedIp":"10.0.0.%d",%s}}`, name, i+2, stats))
 	}
 	return fmt.Sprintf(`{"agentId":"agent","sequence":"%d","snapshot":false,"observedAtUnixMs":"%d",`+
-		`"labs":[{"uid":"u","name":"web","labGroupName":"grp","status":{"phase":"Ready","ready":true,"vpnReady":true,`+
+		`"labs":[{"uid":"u","name":"web","labGroupName":"grp","status":{"phase":"Ready","ready":true,"gateways":[{"name":"attack","kind":"vpn","ready":true}],`+
 		`"devices":[{"name":"app","ready":true,"podPhase":"Running","cpuMillicores":"12","memoryBytes":"1048576","usageAvailable":true,`+
 		`"scheduling":{"state":"Started","queuedUnixMs":"1","dispatchedUnixMs":"2","startedUnixMs":"3"}}]}}],`+
 		`"groups":[{"name":"grp","status":{"phase":"Ready","vpnRegistered":true}}],"clients":[%s],`+

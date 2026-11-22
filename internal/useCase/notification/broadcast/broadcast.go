@@ -13,26 +13,28 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/broadcastRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	jobsModel "github.com/cybericebox/daemon/internal/model/jobs"
-	notificationModel "github.com/cybericebox/daemon/internal/model/notification"
-	broadcastModel "github.com/cybericebox/daemon/internal/model/notification/broadcast"
-	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
-	inboxModel "github.com/cybericebox/daemon/internal/model/notification/inbox"
-	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
-	notificationPayloads "github.com/cybericebox/daemon/internal/model/notification/types/payloads"
-	"github.com/cybericebox/daemon/internal/useCase/notification/channels/render"
-	"github.com/cybericebox/daemon/pkg/worker"
+	"github.com/cybericebox/backend/internal/delivery/repository/broadcastRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	jobsModel "github.com/cybericebox/backend/internal/model/jobs"
+	notificationModel "github.com/cybericebox/backend/internal/model/notification"
+	broadcastModel "github.com/cybericebox/backend/internal/model/notification/broadcast"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
+	inboxModel "github.com/cybericebox/backend/internal/model/notification/inbox"
+	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
+	notificationPayloads "github.com/cybericebox/backend/internal/model/notification/types/payloads"
+	"github.com/cybericebox/backend/internal/useCase/notification/channels/render"
+	"github.com/cybericebox/backend/pkg/worker"
 )
 
 const (
 	// chunkSize bounds the recipients one job run queues (River jobs time out
 	// after a minute); the job queues itself again while recipients remain.
 	chunkSize = 200
+	// exportPage is the page size of a CSV export read.
+	exportPage = 500
 )
 
 type (
@@ -306,6 +308,27 @@ func (u *NotificationBroadcastUseCase) ListBroadcasts(ctx context.Context, f bro
 	return items, nil
 }
 
+// ListBroadcastsPage is the history in the page-number mode: one page behind the filter and the total.
+func (u *NotificationBroadcastUseCase) ListBroadcastsPage(
+	ctx context.Context,
+	f broadcastModel.ListFilter,
+) ([]broadcastModel.Broadcast, int64, error) {
+	f.Limit, f.Cursor = clampLimit(f.Limit), ""
+	items, err := u.broadcasts.List(ctx, f)
+	if err != nil {
+		return nil, 0, model.ErrPlatform.WithError(err).
+			WithMessage("Failed to list broadcasts").
+			Err()
+	}
+	total, err := u.broadcasts.Count(ctx, f)
+	if err != nil {
+		return nil, 0, model.ErrPlatform.WithError(err).
+			WithMessage("Failed to count broadcasts").
+			Err()
+	}
+	return items, total, nil
+}
+
 // GetBroadcast loads one broadcast; expectedEventID (when not nil) hides a
 // broadcast of another scope behind a plain not-found.
 func (u *NotificationBroadcastUseCase) GetBroadcast(ctx context.Context, id uuid.UUID, scopeEventID *uuid.UUID) (broadcastModel.Broadcast, error) {
@@ -322,13 +345,81 @@ func (u *NotificationBroadcastUseCase) GetBroadcast(ctx context.Context, id uuid
 	return b, nil
 }
 
-// ListBroadcastDeliveries lists the recipients' outcomes, failures first.
-func (u *NotificationBroadcastUseCase) ListBroadcastDeliveries(ctx context.Context, id uuid.UUID, limit, offset int32) ([]broadcastModel.Delivery, error) {
-	items, err := u.broadcasts.Deliveries(ctx, id, clampLimit(limit), offset)
-	if err != nil {
-		return nil, model.ErrPlatform.WithError(err).WithMessage("Failed to list broadcast deliveries").Err()
+// ListBroadcastDeliveries lists the recipients' outcomes, failures first, with the total
+// for the same status filter ("", "error", "done" or "waiting").
+func (u *NotificationBroadcastUseCase) ListBroadcastDeliveries(
+	ctx context.Context,
+	id uuid.UUID,
+	status string,
+	limit, offset int32,
+) ([]broadcastModel.Delivery, int64, error) {
+	if !broadcastModel.ValidDeliveryStatus(status) {
+		return nil, 0, notificationModel.ErrBroadcastInvalid.WithMessage("Unknown delivery status").
+			Err()
 	}
-	return items, nil
+	items, err := u.broadcasts.Deliveries(ctx, id, status, clampLimit(limit), offset)
+	if err != nil {
+		return nil, 0, model.ErrPlatform.WithError(err).
+			WithMessage("Failed to list broadcast deliveries").
+			Err()
+	}
+	total, err := u.broadcasts.CountDeliveries(ctx, id, status)
+	if err != nil {
+		return nil, 0, model.ErrPlatform.WithError(err).
+			WithMessage("Failed to count broadcast deliveries").
+			Err()
+	}
+	return items, total, nil
+}
+
+// ExportBroadcastDeliveries hands every delivery row matching the status filter to emit, page by page.
+func (u *NotificationBroadcastUseCase) ExportBroadcastDeliveries(
+	ctx context.Context,
+	id uuid.UUID,
+	status string,
+	emit func(broadcastModel.Delivery) error,
+) error {
+	if !broadcastModel.ValidDeliveryStatus(status) {
+		return notificationModel.ErrBroadcastInvalid.WithMessage("Unknown delivery status").Err()
+	}
+	for offset := int32(0); ; offset += exportPage {
+		items, err := u.broadcasts.Deliveries(ctx, id, status, exportPage, offset)
+		if err != nil {
+			return model.ErrPlatform.WithError(err).
+				WithMessage("Failed to list broadcast deliveries").
+				Err()
+		}
+		for _, d := range items {
+			if err = emit(d); err != nil {
+				return err
+			}
+		}
+		if len(items) < exportPage {
+			return nil
+		}
+	}
+}
+
+// CancelBroadcast stops a broadcast that is still being sent: no further recipients are queued.
+// Recipients already queued still get their message. expectedEventID scopes the lookup like GetBroadcast.
+func (u *NotificationBroadcastUseCase) CancelBroadcast(
+	ctx context.Context,
+	id uuid.UUID,
+	scopeEventID *uuid.UUID,
+) (broadcastModel.Broadcast, error) {
+	if _, err := u.GetBroadcast(ctx, id, scopeEventID); err != nil {
+		return broadcastModel.Broadcast{}, err
+	}
+	canceled, err := u.broadcasts.Cancel(ctx, id)
+	if err != nil {
+		return broadcastModel.Broadcast{}, model.ErrPlatform.WithError(err).
+			WithMessage("Failed to cancel the broadcast").
+			Err()
+	}
+	if !canceled {
+		return broadcastModel.Broadcast{}, notificationModel.ErrBroadcastNotRunning.Err()
+	}
+	return u.GetBroadcast(ctx, id, scopeEventID)
 }
 
 func clampLimit(limit int32) int32 {

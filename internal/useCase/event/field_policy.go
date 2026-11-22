@@ -6,12 +6,12 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventFormRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventTeamRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	eventFormModel "github.com/cybericebox/daemon/internal/model/eventForm"
-	participantModel "github.com/cybericebox/daemon/internal/model/participant"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventFormRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventTeamRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	eventFormModel "github.com/cybericebox/backend/internal/model/eventForm"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
 )
 
 // A required field added while people already answered can be asked from
@@ -71,11 +71,6 @@ func recountTeamFields(ctx context.Context, teams *eventTeamRepo.Repository, eve
 		counts[row.TeamID] = int32(len(missingRequired(form, row.Values)))
 	}
 	return teams.SetFieldsMissing(ctx, eventID, counts)
-}
-
-// setTeamFields stores fields_missing of one team after its fields were saved.
-func setTeamFields(ctx context.Context, teams *eventTeamRepo.Repository, eventID, teamID uuid.UUID, form eventFormModel.Form, values map[string]any) error {
-	return teams.SetFieldsMissing(ctx, eventID, map[uuid.UUID]int32{teamID: int32(len(missingRequired(form, values)))})
 }
 
 // requireFieldsFilled rejects a solution submission while the participant (or

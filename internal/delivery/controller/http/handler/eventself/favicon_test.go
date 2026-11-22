@@ -11,9 +11,9 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/middleware"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 func TestEventInfoResponsesIncludeTheSavedFavicon(t *testing.T) {

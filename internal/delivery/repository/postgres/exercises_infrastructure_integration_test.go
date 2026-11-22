@@ -7,9 +7,9 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/exerciseRepo"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/exerciseRepo"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 // TestExerciseVariantsHaveInfrastructure pins the SQL twin of
@@ -49,7 +49,7 @@ func TestExerciseHasInfrastructure_FromSavedTopology(t *testing.T) {
 
 	save := func(ex exerciseModel.Exercise, variants []exerciseModel.Variant, publish bool) {
 		t.Helper()
-		if _, err := repo.UpsertDraft(ctx, ex.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{Variants: variants}, itNow, uuid.NullUUID{}); err != nil {
+		if _, err := repo.ForceUpsertDraft(ctx, ex.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{Variants: variants}, itNow, uuid.NullUUID{}); err != nil {
 			t.Fatalf("UpsertDraft: %v", err)
 		}
 		if publish {
@@ -92,7 +92,7 @@ func TestVariantDevices_DeviceLessExercise(t *testing.T) {
 	repo := exerciseRepo.New(db.Queries)
 
 	plain := mustCreateExercise(t, repo, "IT device-less")
-	if _, err := repo.UpsertDraft(ctx, plain.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{Variants: itVariants()}, itNow, uuid.NullUUID{}); err != nil {
+	if _, err := repo.ForceUpsertDraft(ctx, plain.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{Variants: itVariants()}, itNow, uuid.NullUUID{}); err != nil {
 		t.Fatalf("UpsertDraft: %v", err)
 	}
 	version, err := repo.Publish(ctx, plain.ID, itNow.Add(time.Hour))
@@ -106,7 +106,7 @@ func TestVariantDevices_DeviceLessExercise(t *testing.T) {
 	lab := mustCreateExercise(t, repo, "IT with device")
 	variants := itVariants()
 	variants[0].Topology.Devices = []exerciseModel.Device{{ID: uuid.Must(uuid.NewV7()), Name: "host-1", Type: "container"}}
-	if _, err = repo.UpsertDraft(ctx, lab.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{Variants: variants}, itNow, uuid.NullUUID{}); err != nil {
+	if _, err = repo.ForceUpsertDraft(ctx, lab.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{Variants: variants}, itNow, uuid.NullUUID{}); err != nil {
 		t.Fatalf("UpsertDraft: %v", err)
 	}
 	labVersion, err := repo.Publish(ctx, lab.ID, itNow.Add(time.Hour))

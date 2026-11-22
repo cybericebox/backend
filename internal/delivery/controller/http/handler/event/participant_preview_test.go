@@ -1,7 +1,7 @@
 package event_test
 
 import (
-	eventManagerModel "github.com/cybericebox/daemon/internal/model/eventManager"
+	eventManagerModel "github.com/cybericebox/backend/internal/model/eventManager"
 	"github.com/gofrs/uuid"
 	"net/http"
 	"net/http/httptest"

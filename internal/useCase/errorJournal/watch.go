@@ -8,8 +8,8 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	errorJournal "github.com/cybericebox/daemon/internal/model/errorJournal"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
+	errorJournal "github.com/cybericebox/backend/internal/model/errorJournal"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
 )
 
 const (
@@ -241,6 +241,20 @@ func (j *Journal) ReportAgentErrors(ctx context.Context, agent string, in AgentE
 	if in.CertNotAfter != nil {
 		j.certCondition(ctx, agent, in.CertNotAfter)
 	}
+}
+
+// ReportAgentFeatureGap records that a feature the cluster is configured for is held back on some lab nodes of the
+// agent: persistence or lifecycle, a code of the fixed list and the node counts, nothing else. The caller reports a
+// gap when it appears or changes; the journal groups the events by agent and feature.
+func (j *Journal) ReportAgentFeatureGap(agent, feature string, reason infraModel.UnavailableReason) {
+	j.Report(errorJournal.Event{
+		Kind: errorJournal.KindLabComponent, Source: agent + "/features", Key: "feature-gap:" + feature,
+		Message: feature + " held back: " + reason.Code + " on " + strconv.Itoa(reason.NodesFailed) + " of " + strconv.Itoa(reason.NodesAsked) + " lab nodes",
+		Details: map[string]string{
+			"agent": agent, "feature": feature, "code": reason.Code,
+			"nodes_failed": strconv.Itoa(reason.NodesFailed), "nodes_asked": strconv.Itoa(reason.NodesAsked),
+		},
+	})
 }
 
 // AgentRecords is the registry of enrolled agents (the part the certificate check reads).

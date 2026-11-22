@@ -8,10 +8,10 @@ import (
 	"github.com/gofrs/uuid"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	exercise "github.com/cybericebox/daemon/internal/useCase/exercise"
-	inboxUseCase "github.com/cybericebox/daemon/internal/useCase/notification/inbox"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	exercise "github.com/cybericebox/backend/internal/useCase/exercise"
+	inboxUseCase "github.com/cybericebox/backend/internal/useCase/notification/inbox"
 )
 
 type fakeProposalInbox struct {

@@ -8,14 +8,14 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/liveScreenRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
+	"github.com/cybericebox/backend/internal/delivery/repository/liveScreenRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
 )
 
-// An event has 1..10 live screens («Екран 1», «Екран 2», …), each with its
+// An event has 1..10 live screens ("Screen 1", "Screen 2", …), each with its
 // own name, published layout, draft and screen link. Every per-screen method
 // takes the screen ID; uuid.Nil is the event's first screen, which the
 // single-screen routes (before screens existed) keep addressing.
@@ -41,7 +41,7 @@ type LiveScreenEditorView struct {
 	Draft     *eventContentModel.LiveLayout
 }
 
-// CreateLiveScreenInput: Name empty = «Екран N». CopyFrom copies another
+// CreateLiveScreenInput: Name empty = the default "Screen N" name. CopyFrom copies another
 // screen (its published layout and draft); Layout starts from a template the
 // editor sends (published as is, without a draft); neither = the default.
 type CreateLiveScreenInput struct {
@@ -153,7 +153,7 @@ func (u *EventUseCase) CreateLiveScreen(ctx context.Context, eventID uuid.UUID, 
 		return LiveScreenSummaryView{}, eventContentModel.ErrLiveLayoutInvalid.WithError(errors.New("a new screen copies a screen or takes a layout, not both")).Err()
 	}
 	name := ""
-	// A blank name is no name: «Екран N».
+	// A blank name is no name: the default "Screen N" name.
 	if strings.TrimSpace(in.Name) != "" {
 		normalized, err := eventContentModel.NormalizeLiveDisplayName(in.Name)
 		if err != nil {

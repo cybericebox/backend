@@ -9,7 +9,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	notificationModel "github.com/cybericebox/daemon/internal/model/notification"
+	notificationModel "github.com/cybericebox/backend/internal/model/notification"
 )
 
 type Level string

@@ -7,8 +7,8 @@ import (
 	"net/url"
 	"strings"
 
-	contentModel "github.com/cybericebox/daemon/internal/model/eventContent"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
+	contentModel "github.com/cybericebox/backend/internal/model/eventContent"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
 	"github.com/gofrs/uuid"
 )
 

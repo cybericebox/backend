@@ -1,175 +1,208 @@
-// Package labaccess signs the lab access tokens of the laboratory L7 proxy: the
-// handoff links. The platform sets no cookie on the lab domain (the API and the
-// labs live on different domains): the task page asks for a link per device and
-// opens https://<device>-<code>.<base>/_auth?t=<jwt>. The proxy verifies the
-// EdDSA (Ed25519) signature offline, then sets its own cookie and redirects to
-// the site root. The proxy holds only the public keys of the tenant: every
-// infrastructure agent has its own tenant and its own signing key, so a token
-// is signed with the key of the agent that holds the lab group (iss = the tenant
-// name, kid = the key id, aud = laboratory-proxy).
+// Package labaccess signs the access grants of the laboratory: the proof that lets one user open one device
+// of one lab, on the web (the L7 proxy) or as a console (the L7 proxy and the device-access service).
 //
-// A token carries what the operator knows and nothing else: the lab group
-// (group_id, also the namespace), the LabGroupClient of that group (client, the
-// same object that is the VPN peer), the device host label the link is for
-// (host), the end of the session the proxy cookie gets (sess: the event's
-// effective finish plus a buffer, or a test deploy's lease end; DefaultSessionTTL
-// is the fallback), and iat, exp and a version. The token itself lives about a
-// minute (LAB_ACCESS_TOKEN_TTL, five at most) and is stateless: nothing is
-// remembered about it on either side. The proxy authorizes every request by the
-// group access policy, so blocking a client refuses a still valid session.
-// Clients are created by the platform when a team is formed or a member is
-// added, never while issuing a link.
+// A grant is one compact JWS, EdDSA (Ed25519), signed with the key of the tenant (every infrastructure
+// agent is a tenant with its own key; the laboratory holds only the public keys). The platform returns it
+// next to a query-free URL (https://<host>/_auth) and the frontend posts it in a form, so it never appears
+// in a URL, a history entry or a referrer. The proxy verifies the signature offline and the grant itself is
+// the session: there is no refresh, no sliding and no replay memory. Opening the device again fetches a new
+// grant.
+//
+// A grant carries what the operator knows and nothing else: iss = the tenant, kid = the key id, sub = the
+// LabGroupClient of the user (the same object that is the VPN peer), group_id = the lab group (also the
+// namespace), lab, dev (the topology device name), host (the full access host the grant is bound to), kind
+// (web or console), aud and iat, nbf, exp. No platform user, event or team id is in it. The proxy authorizes
+// every request by the group access policy as well, so blocking a client refuses a still valid grant.
+// Clients are created by the platform when a team is formed or a member is added, never while issuing.
+//
+// exp is the end of the access the platform wants (the event's effective finish plus a buffer, or a test
+// deploy's lease end; the configured session TTL is the fallback), never later than the limit the agent
+// reports (ProxyFeature.grant_max_ttl_seconds), so the proxy accepts what is signed.
 package labaccess
 
 import (
 	"crypto/ed25519"
 	"errors"
 	"fmt"
-	"github.com/gofrs/uuid"
 	"net/url"
 	"strings"
 	"time"
 
+	"github.com/gofrs/uuid"
 	"github.com/golang-jwt/jwt/v5"
 )
 
 const (
-	// DefaultSessionTTL is the default session length when the caller names no end (LAB_SESSION_TTL; an
+	// DefaultSessionTTL is the default grant length when the caller names no end (LAB_SESSION_TTL; an
 	// event without a finish).
 	DefaultSessionTTL = 24 * time.Hour
-	// DefaultTokenTTL is how long an access token can be opened.
-	DefaultTokenTTL = time.Minute
-	// AuthPath is the proxy path that consumes a handoff link.
+	// AuthPath is the path the form with the grant is posted to, on the device host.
 	AuthPath = "/_auth"
+	// GrantType is the typ header of a grant.
+	GrantType = "cib-grant"
 )
 
-// Audience is the token's aud: the proxy accepts only tokens meant for it.
-const Audience = "laboratory-proxy"
+// The audiences of a grant: the proxy accepts only grants meant for it; a console grant is also meant for
+// the device-access service, which must not accept a web grant.
+const (
+	Audience             = "laboratory-proxy"
+	DeviceAccessAudience = "laboratory-device-access"
+)
 
-// Config sets how long a token can be opened.
+// Kind is what the grant opens.
+type Kind string
+
+const (
+	// KindWeb opens a web device on its own host, the proxy keeps the grant as a cookie.
+	KindWeb Kind = "web"
+	// KindConsole opens the console of a device on its console host.
+	KindConsole Kind = "console"
+)
+
+// consoleHostLetter is the last character of the first label of a console host: the access kind of
+// <device>-<code><letter> (the laboratory's names.AccessKindTerminal).
+const consoleHostLetter = 't'
+
+// Config sets the fallback length of a grant.
 type Config struct {
-	// TokenTTL is how long a token can be opened (default one minute). The proxy of each agent states
-	// its own limit (SigningKey.MaxTokenTTL), which caps it.
-	TokenTTL time.Duration
-	// SessionTTL is the session length when the caller names no end; zero means DefaultSessionTTL.
+	// SessionTTL is the grant length when the caller names no end; zero means DefaultSessionTTL.
 	SessionTTL time.Duration
 }
 
-// SigningKey is the key of one tenant that signs its access tokens: the tenant name is the issuer, KeyID
-// the key id the proxy picks the verifying key by (the token's kid header).
+// SigningKey is the key of one tenant that signs its grants: the tenant name is the issuer, KeyID the key id
+// the proxy picks the verifying key by (the grant's kid header).
 type SigningKey struct {
 	Tenant string
 	KeyID  string
 	Key    ed25519.PrivateKey
-	// MaxTokenTTL and MaxSessionTTL are what the tenant's proxy accepts (its agent reports them): the
-	// longest link and the longest session. Zero = not reported, no cap is applied here.
-	MaxTokenTTL   time.Duration
-	MaxSessionTTL time.Duration
+	// GrantMaxTTL is the longest exp - iat the tenant's proxy and device-access accept (its agent reports
+	// it). Zero = not reported, no cap is applied here.
+	GrantMaxTTL time.Duration
 }
 
-// Session is who the link is for, in the operator's own terms: a LabGroup and
-// one LabGroupClient of that group. The client is the same object that is the
-// participant's VPN peer, so blocking it in the group access policy blocks the
-// VPN and the web together. The platform knows which event, team or test deploy
-// a group belongs to and which user a client is; the token does not say.
+// Session is who the grant is for and what it opens, in the operator's own terms: a LabGroup and one
+// LabGroupClient of that group (the same object that is the participant's VPN peer, so blocking it in the
+// group access policy blocks the VPN and the web together), one device of one lab. The platform knows which
+// event, team or test deploy a group belongs to and which user a client is; the grant does not say.
 type Session struct {
-	// Group is the lab group name (e-<event>-t-<team> or t-<deploy>), which is
-	// also its namespace.
+	// Group is the lab group name (e-<event>-t-<team> or t-<deploy>), which is also its namespace.
 	Group string
 	// Client is the LabGroupClient name inside the group (p-<user id>).
 	Client string
-	// AccessURL is the device URL from the lab status (https://<device>-<code>.<base>/...).
-	// The link is built on its origin; its first host label is the token's host.
+	// Lab is the lab name inside the group.
+	Lab string
+	// Device is the topology device name.
+	Device string
+	// Kind is what the grant opens; empty means KindWeb.
+	Kind Kind
+	// AccessURL is the device URL from the lab status (https://<device>-<code><letter>.<base>/...). The
+	// grant is bound to its host and the post goes to its origin.
 	AccessURL string
-	// ExpiresAt is the wanted end of the session (the event's effective finish
-	// plus a buffer, or a test deploy's lease end). Zero, or a time that is not in
-	// the future, means the fallback TTL.
+	// ExpiresAt is the wanted end of the grant (the event's effective finish plus a buffer, or a test
+	// deploy's lease end). Zero, or a time that is not in the future, means the fallback TTL.
 	ExpiresAt time.Time
 }
 
-// Link is a signed handoff link.
+// Link is what the platform hands to the frontend: where to post and what to post.
 type Link struct {
-	LabID    uuid.UUID
-	Revision string
-	// URL is the full link to open in the browser.
-	URL string
-	// Token is the signed JWT inside the link.
-	Token string
-	// ExpiresAt is the end of the session the proxy will grant.
-	ExpiresAt time.Time
+	LabID    uuid.UUID `json:"LabID"`
+	Revision string    `json:"Revision"`
+	// URL is https://<host>/_auth, never with a query or a fragment: the grant must not be in a URL.
+	URL string `json:"URL"`
+	// Grant is the signed JWS, posted in the form field `grant`.
+	Grant string `json:"Grant"`
+	// ExpiresAt is the end of the grant (its exp).
+	ExpiresAt time.Time `json:"ExpiresAt"`
 }
 
-// claims: iss = the tenant, sub = the LabGroupClient, aud = laboratory-proxy, iat/nbf/exp and
-// group_id (the lab group id), host (<device>-<code>) and sess (the unix end of the session).
+// claims: iss = the tenant, sub = the LabGroupClient, aud, iat/nbf/exp and group_id (the lab group id), lab,
+// dev, host (the full host of the device access) and kind.
 type claims struct {
 	GroupID string `json:"group_id"`
+	Lab     string `json:"lab"`
+	Dev     string `json:"dev"`
 	Host    string `json:"host"`
-	Session int64  `json:"sess"`
+	Kind    string `json:"kind"`
 	jwt.RegisteredClaims
 }
 
 type Issuer struct {
-	ttl        time.Duration
 	sessionTTL time.Duration
 }
 
-// New returns an issuer; the signing key is given per token.
+// New returns an issuer; the signing key is given per grant.
 func New(cfg Config) (*Issuer, error) {
 	if cfg.SessionTTL == 0 {
 		cfg.SessionTTL = DefaultSessionTTL
 	}
-	if cfg.SessionTTL < 0 || cfg.TokenTTL < 0 {
-		return nil, errors.New("labaccess: the session and the token ttl must be positive")
+	if cfg.SessionTTL < 0 {
+		return nil, errors.New("labaccess: the session ttl must be positive")
 	}
-	if cfg.TokenTTL == 0 {
-		cfg.TokenTTL = DefaultTokenTTL
-	}
-	return &Issuer{ttl: cfg.TokenTTL, sessionTTL: cfg.SessionTTL}, nil
+	return &Issuer{sessionTTL: cfg.SessionTTL}, nil
 }
 
-// TokenTTL is how long a link can be opened.
-func (i *Issuer) TokenTTL() time.Duration { return i.ttl }
-
-// SessionTTL is the session length when the caller names no end.
+// SessionTTL is the grant length when the caller names no end.
 func (i *Issuer) SessionTTL() time.Duration { return i.sessionTTL }
 
-// Issue signs an access link for one device with the tenant's key, valid for the token TTL from now.
+// hostLetter is the access kind character of an access host: the last character of its first label.
+func hostLetter(host string) byte {
+	label, _, _ := strings.Cut(host, ".")
+	if label == "" {
+		return 0
+	}
+	return label[len(label)-1]
+}
+
+// Issue signs a grant for one device with the tenant's key, valid from now.
 func (i *Issuer) Issue(sk SigningKey, s Session, now time.Time) (Link, error) {
 	if sk.Tenant == "" || sk.KeyID == "" || len(sk.Key) != ed25519.PrivateKeySize {
 		return Link{}, errors.New("labaccess: no signing key")
 	}
-	if s.Group == "" || s.Client == "" {
+	if s.Group == "" || s.Client == "" || s.Lab == "" || s.Device == "" {
 		return Link{}, errors.New("labaccess: incomplete session")
+	}
+	kind := s.Kind
+	if kind == "" {
+		kind = KindWeb
+	}
+	if kind != KindWeb && kind != KindConsole {
+		return Link{}, fmt.Errorf("labaccess: unknown kind %q", kind)
 	}
 	origin, err := url.Parse(s.AccessURL)
 	if err != nil || origin.Scheme == "" || origin.Hostname() == "" {
 		return Link{}, errors.New("labaccess: the device has no web address")
 	}
-	host := strings.SplitN(origin.Hostname(), ".", 2)[0]
+	host := strings.ToLower(origin.Hostname()) // the full host of the device access: the proxy requires exact equality
+	// The kind must agree with the access letter of the host, as the proxy checks.
+	if isConsoleHost := hostLetter(host) == consoleHostLetter; isConsoleHost != (kind == KindConsole) {
+		return Link{}, errors.New("labaccess: the kind does not agree with the access host")
+	}
 	end := now.Add(i.sessionTTL)
 	if s.ExpiresAt.After(now) {
 		end = s.ExpiresAt
 	}
-	// The proxy cuts a session at its own limit: say so in the link instead of promising more.
-	if sk.MaxSessionTTL > 0 && end.After(now.Add(sk.MaxSessionTTL)) {
-		end = now.Add(sk.MaxSessionTTL)
+	// The proxy refuses a longer grant: say so in the grant instead of promising more.
+	if sk.GrantMaxTTL > 0 && end.After(now.Add(sk.GrantMaxTTL)) {
+		end = now.Add(sk.GrantMaxTTL)
 	}
-	ttl := i.ttl
-	if sk.MaxTokenTTL > 0 {
-		ttl = min(ttl, sk.MaxTokenTTL)
+	aud := jwt.ClaimStrings{Audience}
+	if kind == KindConsole {
+		aud = jwt.ClaimStrings{Audience, DeviceAccessAudience}
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodEdDSA, claims{
-		GroupID: s.Group, Host: host, Session: end.Unix(),
+		GroupID: s.Group, Lab: s.Lab, Dev: s.Device, Host: host, Kind: string(kind),
 		RegisteredClaims: jwt.RegisteredClaims{
-			Issuer: sk.Tenant, Subject: s.Client, Audience: jwt.ClaimStrings{Audience},
-			IssuedAt: jwt.NewNumericDate(now), NotBefore: jwt.NewNumericDate(now), ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
+			Issuer: sk.Tenant, Subject: s.Client, Audience: aud,
+			IssuedAt: jwt.NewNumericDate(now), NotBefore: jwt.NewNumericDate(now), ExpiresAt: jwt.NewNumericDate(end),
 		},
 	})
 	token.Header["kid"] = sk.KeyID
+	token.Header["typ"] = GrantType
 	signed, err := token.SignedString(sk.Key)
 	if err != nil {
-		return Link{}, fmt.Errorf("sign lab access token: %w", err)
+		return Link{}, fmt.Errorf("sign lab access grant: %w", err)
 	}
-	link := url.URL{Scheme: origin.Scheme, Host: origin.Host, Path: AuthPath, RawQuery: url.Values{"t": {signed}}.Encode()}
-	return Link{URL: link.String(), Token: signed, ExpiresAt: end}, nil
+	// The URL carries no query and no fragment: the grant is posted, never put in an address.
+	link := url.URL{Scheme: origin.Scheme, Host: strings.ToLower(origin.Host), Path: AuthPath}
+	return Link{URL: link.String(), Grant: signed, ExpiresAt: end.Truncate(time.Second)}, nil
 }

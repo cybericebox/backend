@@ -7,11 +7,11 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/exerciseRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	"github.com/cybericebox/daemon/internal/delivery/repository/testDeployRepo"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/exerciseRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/delivery/repository/testDeployRepo"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 // The exercise-scoped list joins through the version, is owner-only, and keeps
@@ -25,7 +25,7 @@ func TestListOwnedTestDeploysForExercise_ScopesByExerciseAndOwner(t *testing.T) 
 
 	versionOf := func(name string) uuid.UUID {
 		ex := mustCreateExercise(t, exercises, name)
-		v, err := exercises.UpsertDraft(ctx, ex.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{Variants: itVariants()}, itNow, uuid.NullUUID{})
+		v, err := exercises.ForceUpsertDraft(ctx, ex.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{Variants: itVariants()}, itNow, uuid.NullUUID{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -72,7 +72,7 @@ func TestCreateIfUnderLimit_ExactlyOneOfConcurrentCreatesWins(t *testing.T) {
 	exercises := exerciseRepo.New(db.Queries)
 	owner, other := seedVPNUser(t, db, "td-race-owner@test.test"), seedVPNUser(t, db, "td-race-other@test.test")
 	ex := mustCreateExercise(t, exercises, "IT deploy race")
-	version, err := exercises.UpsertDraft(ctx, ex.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{Variants: itVariants()}, itNow, uuid.NullUUID{})
+	version, err := exercises.ForceUpsertDraft(ctx, ex.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{Variants: itVariants()}, itNow, uuid.NullUUID{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +150,7 @@ func TestMarkTestDeploySolved_IsIdempotentAndOwnerScoped(t *testing.T) {
 	deploys := testDeployRepo.New(db.Queries)
 	owner, stranger := seedVPNUser(t, db, "td-solved-owner@test.test"), seedVPNUser(t, db, "td-solved-stranger@test.test")
 	ex := mustCreateExercise(t, exercises, "IT deploy solved")
-	v, err := exercises.UpsertDraft(ctx, ex.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{Variants: itVariants()}, itNow, uuid.NullUUID{})
+	v, err := exercises.ForceUpsertDraft(ctx, ex.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{Variants: itVariants()}, itNow, uuid.NullUUID{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,7 +182,7 @@ func TestTestDeploys_ShareTheAuthorsGroup(t *testing.T) {
 	deploys := testDeployRepo.New(db.Queries)
 	owner := seedVPNUser(t, db, "td-shared@test.test")
 	ex := mustCreateExercise(t, exercises, "IT deploy shared")
-	v, err := exercises.UpsertDraft(ctx, ex.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{Variants: itVariants()}, itNow, uuid.NullUUID{})
+	v, err := exercises.ForceUpsertDraft(ctx, ex.ID, uuid.Must(uuid.NewV7()), exerciseModel.ExerciseVersion{Variants: itVariants()}, itNow, uuid.NullUUID{})
 	if err != nil {
 		t.Fatal(err)
 	}

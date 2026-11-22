@@ -4,8 +4,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/rs/zerolog/log"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
-	"github.com/cybericebox/daemon/pkg/err"
+	"github.com/cybericebox/backend/pkg/err"
 
 	"context"
 	"errors"
@@ -13,9 +15,9 @@ import (
 	"net"
 	"strings"
 
-	"github.com/cybericebox/daemon/internal/model"
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
-	"github.com/cybericebox/daemon/pkg/overload"
+	"github.com/cybericebox/backend/internal/model"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
+	"github.com/cybericebox/backend/pkg/overload"
 )
 
 const ErrorCtxKey = "error"
@@ -172,6 +174,11 @@ func isDBUnavailable(e error) bool {
 func OnlyCancellation(err error) bool {
 	if err == context.Canceled {
 		return true
+	}
+	// A gRPC call cut short by the caller's context answers with status Canceled, not context.Canceled
+	// («rpc error: code = Canceled desc = context canceled»).
+	if st, ok := err.(interface{ GRPCStatus() *status.Status }); ok {
+		return st.GRPCStatus().Code() == codes.Canceled
 	}
 	switch wrapped := err.(type) {
 	case interface{ Unwrap() []error }:

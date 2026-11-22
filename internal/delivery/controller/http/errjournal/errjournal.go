@@ -19,9 +19,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	errorJournal "github.com/cybericebox/daemon/internal/model/errorJournal"
-	"github.com/cybericebox/daemon/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	errorJournal "github.com/cybericebox/backend/internal/model/errorJournal"
+	"github.com/cybericebox/backend/internal/model/rbac"
 )
 
 // HeaderRequestID carries the request id in and out.
@@ -45,16 +45,6 @@ var reSaneRequestID = regexp.MustCompile(`^[A-Za-z0-9._-]{8,64}$`)
 
 // SetPermission names the permission that refused the request (RequirePermission calls it before it aborts 403).
 func SetPermission(c *gin.Context, permission string) { c.Set(keyPermission, permission) }
-
-// RequestID is the id of the request, empty before the middleware ran.
-func RequestID(c *gin.Context) string {
-	if v, ok := c.Get(keyRequestID); ok {
-		if s, ok := v.(string); ok {
-			return s
-		}
-	}
-	return ""
-}
 
 // Middleware captures the outcome of every request. Place it right inside the recovery middleware and outside the
 // error handler, so the status it reads is the one the client got. sink may be nil (nothing is captured, ids are

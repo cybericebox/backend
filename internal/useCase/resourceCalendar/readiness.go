@@ -8,9 +8,9 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	errorJournal "github.com/cybericebox/daemon/internal/model/errorJournal"
-	calModel "github.com/cybericebox/daemon/internal/model/resourceCalendar"
-	inboxUseCase "github.com/cybericebox/daemon/internal/useCase/notification/inbox"
+	errorJournal "github.com/cybericebox/backend/internal/model/errorJournal"
+	calModel "github.com/cybericebox/backend/internal/model/resourceCalendar"
+	inboxUseCase "github.com/cybericebox/backend/internal/useCase/notification/inbox"
 )
 
 // Escalation stages of a not_connected alarm: a day before the deploy lead, two hours before, at the lead.

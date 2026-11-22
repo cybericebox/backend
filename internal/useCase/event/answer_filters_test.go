@@ -6,12 +6,12 @@ import (
 )
 
 func TestParseAnswerFilters(t *testing.T) {
-	filters, err := ParseAnswerFilters(`[{"Key":" city ","Op":"contains","Value":" Київ "},{"Key":"langs","Op":"any","Values":["Go","Rust"]},{"Key":"agree","Op":"bool","Value":false},{"Key":"cv","Op":"present","Value":true}]`)
+	filters, err := ParseAnswerFilters(`[{"Key":" city ","Op":"contains","Value":" Kyiv "},{"Key":"langs","Op":"any","Values":["Go","Rust"]},{"Key":"agree","Op":"bool","Value":false},{"Key":"cv","Op":"present","Value":true}]`)
 	if err != nil {
 		t.Fatalf("ParseAnswerFilters: %v", err)
 	}
 	got := string(answerFiltersJSON(filters))
-	want := `[{"key":"city","op":"contains","value":"Київ"},{"key":"langs","op":"any","values":["Go","Rust"]},{"key":"agree","op":"bool","value":false},{"key":"cv","op":"present","value":true}]`
+	want := `[{"key":"city","op":"contains","value":"Kyiv"},{"key":"langs","op":"any","values":["Go","Rust"]},{"key":"agree","op":"bool","value":false},{"key":"cv","op":"present","value":true}]`
 	if got != want {
 		t.Fatalf("filters JSON = %s, want %s", got, want)
 	}

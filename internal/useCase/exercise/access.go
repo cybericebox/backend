@@ -5,13 +5,13 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/exerciseRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	eventManagerModel "github.com/cybericebox/daemon/internal/model/eventManager"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	"github.com/cybericebox/daemon/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/delivery/repository/exerciseRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	eventManagerModel "github.com/cybericebox/backend/internal/model/eventManager"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	"github.com/cybericebox/backend/internal/model/rbac"
 )
 
 // Actor is the caller of an exercise route: platform RBAC plus, for event
@@ -105,7 +105,7 @@ func (u *ExerciseUseCase) AuthorizeExercise(ctx context.Context, actor Actor, id
 	return Access{}, nil
 }
 
-// RedactFlags removes the fixed flags (and the device env var carrying them) a non-admin reader of a published catalog version may not see: they stay
+// RedactFlags removes the solution (answer values and state conditions) a non-admin reader of a published catalog version may not see: they stay
 // only where the exercise is attached to an event the caller manages, at the version that attachment pins and,
 // for a fixed-variant attachment, in that variant alone. The view's own variants are never mutated.
 func (u *ExerciseUseCase) RedactFlags(ctx context.Context, actor Actor, v VersionView) (VersionView, error) {
@@ -134,9 +134,8 @@ func (u *ExerciseUseCase) RedactFlags(ctx context.Context, actor Actor, v Versio
 			continue
 		}
 		tasks := make([]exerciseModel.Task, len(variants[i].Tasks))
-		copy(tasks, variants[i].Tasks)
 		for ti := range tasks {
-			tasks[ti].Flag, tasks[ti].DeviceFlagVar = nil, ""
+			tasks[ti] = variants[i].Tasks[ti].WithoutSolution()
 		}
 		variants[i].Tasks = tasks
 	}
@@ -144,17 +143,16 @@ func (u *ExerciseUseCase) RedactFlags(ctx context.Context, actor Actor, v Versio
 	return v, nil
 }
 
-// WithoutFlags is the version with every flag taken out (Task.Flag and the device env var that carries it,
-// DeviceFlagVar), for a reader who sees the content but never the flags (an event viewer). The view's own variants
+// WithoutFlags is the version with every solution taken out (the answer values and the state conditions of each
+// task), for a reader who sees the content but never the flags (an event viewer). The view's own variants
 // are never mutated.
 func WithoutFlags(v VersionView) VersionView {
 	variants := make([]exerciseModel.Variant, len(v.Variants))
 	copy(variants, v.Variants)
 	for i := range variants {
 		tasks := make([]exerciseModel.Task, len(variants[i].Tasks))
-		copy(tasks, variants[i].Tasks)
 		for ti := range tasks {
-			tasks[ti].Flag, tasks[ti].DeviceFlagVar = nil, ""
+			tasks[ti] = variants[i].Tasks[ti].WithoutSolution()
 		}
 		variants[i].Tasks = tasks
 	}
@@ -162,14 +160,15 @@ func WithoutFlags(v VersionView) VersionView {
 	return v
 }
 
-// WithoutNotes is the version with the internal notes blanked (AdminNote, every Variants[].Note): they are for full
-// access only, i.e. admins and the owner event's owners/managers (Access.Flags). The view's own variants are never
-// mutated.
+// WithoutNotes is the version with the internal notes blanked (AdminNote, every Variants[].Note) and the opponents of
+// every variant taken out (author content for the Academy): they are for full access only, i.e. admins and the owner
+// event's owners/managers (Access.Flags). The view's own variants are never mutated.
 func WithoutNotes(v VersionView) VersionView {
 	variants := make([]exerciseModel.Variant, len(v.Variants))
 	copy(variants, v.Variants)
 	for i := range variants {
 		variants[i].Note = ""
+		variants[i].Opponents = nil
 	}
 	v.AdminNote, v.Variants = "", variants
 	return v

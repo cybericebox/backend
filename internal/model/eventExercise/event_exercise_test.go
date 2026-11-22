@@ -7,7 +7,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	eventExerciseModel "github.com/cybericebox/daemon/internal/model/eventExercise"
+	eventExerciseModel "github.com/cybericebox/backend/internal/model/eventExercise"
 )
 
 func TestNew_RequiresConsistentVariantMode(t *testing.T) {
