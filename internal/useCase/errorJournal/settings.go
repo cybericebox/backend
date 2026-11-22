@@ -5,8 +5,8 @@ import (
 	"net/mail"
 	"strings"
 
-	errorJournal "github.com/cybericebox/daemon/internal/model/errorJournal"
-	"github.com/cybericebox/daemon/pkg/telegram"
+	errorJournal "github.com/cybericebox/backend/internal/model/errorJournal"
+	"github.com/cybericebox/backend/pkg/telegram"
 )
 
 // Limits of the notification lists.

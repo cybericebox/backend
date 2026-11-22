@@ -3,8 +3,8 @@ package platformAnalytics
 import (
 	"time"
 
-	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
-	platformAnalyticsModel "github.com/cybericebox/daemon/internal/model/platformAnalytics"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
+	platformAnalyticsModel "github.com/cybericebox/backend/internal/model/platformAnalytics"
 )
 
 type (

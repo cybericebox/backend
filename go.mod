@@ -1,4 +1,4 @@
-module github.com/cybericebox/daemon
+module github.com/cybericebox/backend
 
 go 1.27.0
 
@@ -7,7 +7,7 @@ toolchain go1.27.4
 require (
 	cloud.google.com/go/recaptchaenterprise/v2 v2.29.1
 	github.com/caarlos0/env/v11 v11.4.2
-	github.com/cybericebox/laboratory v1.2.1-0.20261121140227-3a8d6157c21c
+	github.com/cybericebox/laboratory v1.10.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/go-webauthn/webauthn v0.18.2
 	github.com/gofrs/uuid v4.4.0+incompatible

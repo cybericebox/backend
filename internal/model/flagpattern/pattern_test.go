@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cybericebox/daemon/internal/model/flagpattern"
+	"github.com/cybericebox/backend/internal/model/flagpattern"
 )
 
 func TestParse_CardinalityAndLiteralCompatibility(t *testing.T) {

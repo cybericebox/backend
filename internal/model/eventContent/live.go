@@ -9,7 +9,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/cybericebox/daemon/internal/model/usertext"
+	"github.com/cybericebox/backend/internal/model/usertext"
 )
 
 // LiveLayout is the published or draft canvas for a projector/LED screen.

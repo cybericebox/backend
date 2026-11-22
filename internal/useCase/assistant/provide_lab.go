@@ -10,12 +10,12 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	assistantModel "github.com/cybericebox/daemon/internal/model/assistant"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
-	exerciseUseCase "github.com/cybericebox/daemon/internal/useCase/exercise"
-	pkgerr "github.com/cybericebox/daemon/pkg/err"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	assistantModel "github.com/cybericebox/backend/internal/model/assistant"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	userModel "github.com/cybericebox/backend/internal/model/user"
+	exerciseUseCase "github.com/cybericebox/backend/internal/useCase/exercise"
+	pkgerr "github.com/cybericebox/backend/pkg/err"
 )
 
 // More refusals of an outbox request, next to the ones in outbox.go.

@@ -9,12 +9,12 @@ import (
 	"github.com/gofrs/uuid"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabObservationRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/platformStandRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	eventStandModel "github.com/cybericebox/daemon/internal/model/eventStand"
-	labMonitoringModel "github.com/cybericebox/daemon/internal/model/labMonitoring"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabObservationRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/platformStandRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	eventStandModel "github.com/cybericebox/backend/internal/model/eventStand"
+	labMonitoringModel "github.com/cybericebox/backend/internal/model/labMonitoring"
 )
 
 // maxCursor is the "start from the newest row" observation cursor.

@@ -7,12 +7,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	labMonitoringModel "github.com/cybericebox/daemon/internal/model/labMonitoring"
-	platformAnalyticsModel "github.com/cybericebox/daemon/internal/model/platformAnalytics"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	"github.com/cybericebox/daemon/internal/model/usertext"
-	platformAnalyticsUseCase "github.com/cybericebox/daemon/internal/useCase/platformAnalytics"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	labMonitoringModel "github.com/cybericebox/backend/internal/model/labMonitoring"
+	platformAnalyticsModel "github.com/cybericebox/backend/internal/model/platformAnalytics"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/model/usertext"
+	platformAnalyticsUseCase "github.com/cybericebox/backend/internal/useCase/platformAnalytics"
 )
 
 // InfrastructureUseCase is the port of the infrastructure section.

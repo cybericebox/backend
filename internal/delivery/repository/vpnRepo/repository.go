@@ -9,8 +9,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	vpnModel "github.com/cybericebox/daemon/internal/model/vpn"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	vpnModel "github.com/cybericebox/backend/internal/model/vpn"
 )
 
 // Queries is the narrow slice of the sqlc Querier this repository needs.

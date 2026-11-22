@@ -3,12 +3,12 @@ package event
 import (
 	"context"
 	"errors"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabRetentionRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabRevealRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/teamChallengeRepo"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabRetentionRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabRevealRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/teamChallengeRepo"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
 	"time"
 )
 

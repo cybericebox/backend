@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 // TestLabFailedTemplates_UseLaboratoryWording: the seeded platform texts of

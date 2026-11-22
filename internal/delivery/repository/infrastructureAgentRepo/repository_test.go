@@ -8,8 +8,8 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
 )
 
 type queryStub struct {

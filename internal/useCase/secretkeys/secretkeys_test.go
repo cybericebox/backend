@@ -10,16 +10,16 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/secretctx"
+	"github.com/cybericebox/backend/internal/secretctx"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	vpnModel "github.com/cybericebox/daemon/internal/model/vpn"
-	exerciseUseCase "github.com/cybericebox/daemon/internal/useCase/exercise"
-	imageRegistryUseCase "github.com/cybericebox/daemon/internal/useCase/imageRegistry"
-	mailUseCase "github.com/cybericebox/daemon/internal/useCase/mail"
-	vpnUseCase "github.com/cybericebox/daemon/internal/useCase/vpn"
-	"github.com/cybericebox/daemon/pkg/secret"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	vpnModel "github.com/cybericebox/backend/internal/model/vpn"
+	exerciseUseCase "github.com/cybericebox/backend/internal/useCase/exercise"
+	imageRegistryUseCase "github.com/cybericebox/backend/internal/useCase/imageRegistry"
+	mailUseCase "github.com/cybericebox/backend/internal/useCase/mail"
+	vpnUseCase "github.com/cybericebox/backend/internal/useCase/vpn"
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
 const (

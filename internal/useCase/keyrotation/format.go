@@ -5,7 +5,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/cybericebox/daemon/pkg/secret"
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
 // Preconditions are the three lines every operator reads before a run. The job cannot see which instances hold the

@@ -2,12 +2,12 @@ package event_test
 
 import (
 	"context"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventConfigRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabRepo"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventConfigRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabRepo"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 	"testing"

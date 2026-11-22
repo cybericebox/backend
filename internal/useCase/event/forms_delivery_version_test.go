@@ -10,10 +10,10 @@ import (
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	"github.com/cybericebox/daemon/internal/model/eventContent/testutil"
-	participantModel "github.com/cybericebox/daemon/internal/model/participant"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	"github.com/cybericebox/backend/internal/model/eventContent/testutil"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
 )
 
 func TestGetOwnEventFormReturnsDeliveredVersionInsteadOfCurrentFormVersion(t *testing.T) {

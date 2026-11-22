@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cybericebox/daemon/pkg/secret"
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
 const testKey = "6368616e676520746869732070617373776f726420746f206120736563726574"

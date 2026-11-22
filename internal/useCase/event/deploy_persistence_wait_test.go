@@ -9,11 +9,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/labBindingRepo"
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
-	eventStandModel "github.com/cybericebox/daemon/internal/model/eventStand"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	labBindingModel "github.com/cybericebox/daemon/internal/model/labBinding"
+	"github.com/cybericebox/backend/internal/delivery/repository/labBindingRepo"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
+	eventStandModel "github.com/cybericebox/backend/internal/model/eventStand"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	labBindingModel "github.com/cybericebox/backend/internal/model/labBinding"
 )
 
 // The agent refusing a persistent lab because state persistence is not available (yet) is a wait that is retried, not a

@@ -7,7 +7,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	challengeAttempt "github.com/cybericebox/daemon/internal/model/challengeAttempt"
+	challengeAttempt "github.com/cybericebox/backend/internal/model/challengeAttempt"
 )
 
 func TestNew_PreservesReceivedTime(t *testing.T) {

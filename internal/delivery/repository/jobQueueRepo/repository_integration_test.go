@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/jobQueueRepo"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/jobQueueRepo"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 func TestCancelEventNotificationsCancelsOnlyUnstartedNoticesOfThatEvent(t *testing.T) {

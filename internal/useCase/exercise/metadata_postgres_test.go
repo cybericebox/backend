@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/exerciseRepo"
-	"github.com/cybericebox/daemon/internal/testhelpers"
-	exercise "github.com/cybericebox/daemon/internal/useCase/exercise"
+	"github.com/cybericebox/backend/internal/delivery/repository/exerciseRepo"
+	"github.com/cybericebox/backend/internal/testhelpers"
+	exercise "github.com/cybericebox/backend/internal/useCase/exercise"
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 )

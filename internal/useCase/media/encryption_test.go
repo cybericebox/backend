@@ -13,12 +13,12 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/config"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	"github.com/cybericebox/daemon/internal/testhelpers"
-	media "github.com/cybericebox/daemon/internal/useCase/media"
-	"github.com/cybericebox/daemon/pkg/filecrypt"
-	"github.com/cybericebox/daemon/pkg/secret"
+	"github.com/cybericebox/backend/internal/config"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	"github.com/cybericebox/backend/internal/testhelpers"
+	media "github.com/cybericebox/backend/internal/useCase/media"
+	"github.com/cybericebox/backend/pkg/filecrypt"
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
 var encCfg = config.MediaConfig{MaxUploadBytes: 1 << 30, UploadChunkBytes: 70000, UploadTTL: time.Hour, GCGrace: time.Hour}

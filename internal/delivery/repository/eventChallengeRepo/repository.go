@@ -9,10 +9,10 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventChallengeModel "github.com/cybericebox/daemon/internal/model/eventChallenge"
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventChallengeModel "github.com/cybericebox/backend/internal/model/eventChallenge"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
 )
 
 type Queries interface {

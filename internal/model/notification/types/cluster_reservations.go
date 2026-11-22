@@ -3,7 +3,7 @@ package notificationTypes
 import (
 	"encoding/json"
 
-	inboxModel "github.com/cybericebox/daemon/internal/model/notification/inbox"
+	inboxModel "github.com/cybericebox/backend/internal/model/notification/inbox"
 )
 
 // reservationEndPayload is an event reservation that ends while the event runs, or was made smaller than what runs

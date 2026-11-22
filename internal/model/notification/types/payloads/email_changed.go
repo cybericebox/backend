@@ -3,7 +3,7 @@ package notificationPayloads
 import (
 	"encoding/json"
 
-	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
+	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
 )
 
 // EmailChangedPayload is sent to the address an account just left. It carries the new address and

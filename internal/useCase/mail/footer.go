@@ -7,9 +7,9 @@ import (
 	"slices"
 	"strings"
 
-	mailModel "github.com/cybericebox/daemon/internal/model/mail"
-	"github.com/cybericebox/daemon/internal/model/usertext"
-	"github.com/cybericebox/daemon/internal/useCase/notification/channels/render"
+	mailModel "github.com/cybericebox/backend/internal/model/mail"
+	"github.com/cybericebox/backend/internal/model/usertext"
+	"github.com/cybericebox/backend/internal/useCase/notification/channels/render"
 )
 
 // footerBox is small, muted footer text. Alignment belongs to its document.

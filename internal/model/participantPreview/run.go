@@ -4,7 +4,7 @@ package participantPreviewModel
 import (
 	"time"
 
-	"github.com/cybericebox/daemon/internal/model/challengeAttempt"
+	"github.com/cybericebox/backend/internal/model/challengeAttempt"
 	"github.com/gofrs/uuid"
 )
 

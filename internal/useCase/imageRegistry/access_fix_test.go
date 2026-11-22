@@ -14,10 +14,10 @@ import (
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	imageRegistryModel "github.com/cybericebox/daemon/internal/model/imageRegistry"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	imageRegistryModel "github.com/cybericebox/backend/internal/model/imageRegistry"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
 )
 
 // The agent takes one credential per bare host: Docker Hub spellings collapse

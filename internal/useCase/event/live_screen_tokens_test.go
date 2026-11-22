@@ -13,8 +13,8 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
 )
 
 func randomScreenToken(t *testing.T) string {

@@ -12,9 +12,9 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	errorJournal "github.com/cybericebox/daemon/internal/model/errorJournal"
-	eventStandModel "github.com/cybericebox/daemon/internal/model/eventStand"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
+	errorJournal "github.com/cybericebox/backend/internal/model/errorJournal"
+	eventStandModel "github.com/cybericebox/backend/internal/model/eventStand"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
 )
 
 func (f *standFixture) bindingState(t *testing.T, teamName string) (readiness int16, wait string, attempts int32, deployed bool) {

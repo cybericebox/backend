@@ -11,7 +11,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 	"github.com/gofrs/uuid"
 	"golang.org/x/text/unicode/norm"
 )

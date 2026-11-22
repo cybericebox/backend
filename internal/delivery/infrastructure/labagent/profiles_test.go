@@ -12,9 +12,9 @@ import (
 
 	labpb "github.com/cybericebox/laboratory/pkg/agent/protobuf"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	resourcesModel "github.com/cybericebox/daemon/internal/model/resources"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	resourcesModel "github.com/cybericebox/backend/internal/model/resources"
 )
 
 func nodeOf(profile exerciseModel.NodeProfile) exerciseModel.Topology {

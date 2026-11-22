@@ -6,7 +6,7 @@ import (
 
 	"github.com/riverqueue/river"
 
-	jobsModel "github.com/cybericebox/daemon/internal/model/jobs"
+	jobsModel "github.com/cybericebox/backend/internal/model/jobs"
 )
 
 // mediagcWorker is the consumer: it has no payload to decode, it just runs

@@ -11,9 +11,9 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/daemon/internal/delivery/infrastructure/labagent"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	"github.com/cybericebox/daemon/pkg/agentcrypto"
+	"github.com/cybericebox/backend/internal/delivery/infrastructure/labagent"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	"github.com/cybericebox/backend/pkg/agentcrypto"
 )
 
 // Registry lists the agents with their stored connection material.

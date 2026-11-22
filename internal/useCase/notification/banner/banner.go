@@ -8,11 +8,11 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/siteBannerRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	notificationModel "github.com/cybericebox/daemon/internal/model/notification"
-	siteBannerModel "github.com/cybericebox/daemon/internal/model/siteBanner"
+	"github.com/cybericebox/backend/internal/delivery/repository/siteBannerRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	notificationModel "github.com/cybericebox/backend/internal/model/notification"
+	siteBannerModel "github.com/cybericebox/backend/internal/model/siteBanner"
 )
 
 type Dependencies struct {

@@ -10,13 +10,13 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/broadcastRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/dispatchRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/siteBannerRepo"
-	broadcastModel "github.com/cybericebox/daemon/internal/model/notification/broadcast"
-	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
-	siteBannerModel "github.com/cybericebox/daemon/internal/model/siteBanner"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/broadcastRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/dispatchRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/siteBannerRepo"
+	broadcastModel "github.com/cybericebox/backend/internal/model/notification/broadcast"
+	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
+	siteBannerModel "github.com/cybericebox/backend/internal/model/siteBanner"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 // activate makes a seeded user a deliverable recipient (active account).

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/cybericebox/daemon/pkg/secret"
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
 // The reasons a verdict cannot be given.

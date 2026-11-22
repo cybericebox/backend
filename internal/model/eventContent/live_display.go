@@ -9,7 +9,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/model/usertext"
+	"github.com/cybericebox/backend/internal/model/usertext"
 )
 
 // LiveDisplay is one live screen of an event ("Screen 1", "Screen 2", …): its

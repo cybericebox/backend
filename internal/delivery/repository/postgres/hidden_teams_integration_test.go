@@ -9,10 +9,10 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventTeamRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	eventTeamModel "github.com/cybericebox/daemon/internal/model/eventTeam"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventTeamRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	eventTeamModel "github.com/cybericebox/backend/internal/model/eventTeam"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 // hiddenFixture is an event with one first-solves-ladder challenge and teams that

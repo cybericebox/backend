@@ -11,7 +11,7 @@ import (
 	"github.com/gofrs/uuid"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 // Constants of the laboratory, not settings: they are the same on every agent.

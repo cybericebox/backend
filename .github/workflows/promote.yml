@@ -45,7 +45,7 @@ permissions:
   contents: read
 
 env:
-  IMAGES: cybericebox/daemon
+  IMAGES: cybericebox/backend
   RC: ${{ inputs.rc }}
 
 jobs:

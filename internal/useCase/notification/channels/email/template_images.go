@@ -10,13 +10,13 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	"github.com/cybericebox/daemon/internal/model/notification/branding"
-	emailModel "github.com/cybericebox/daemon/internal/model/notification/email"
-	"github.com/cybericebox/daemon/internal/useCase/notification/channels/render"
-	appErr "github.com/cybericebox/daemon/pkg/err"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	"github.com/cybericebox/backend/internal/model/notification/branding"
+	emailModel "github.com/cybericebox/backend/internal/model/notification/email"
+	"github.com/cybericebox/backend/internal/useCase/notification/channels/render"
+	appErr "github.com/cybericebox/backend/pkg/err"
 )
 
 // TemplateMedia is the narrow media port of the email template use cases

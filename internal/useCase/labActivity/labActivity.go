@@ -17,10 +17,10 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/assistantStatsRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/labActivityRepo"
-	assistantModel "github.com/cybericebox/daemon/internal/model/assistant"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
+	"github.com/cybericebox/backend/internal/delivery/repository/assistantStatsRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/labActivityRepo"
+	assistantModel "github.com/cybericebox/backend/internal/model/assistant"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
 )
 
 const (

@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/cybericebox/daemon/internal/model"
-	eventFormModel "github.com/cybericebox/daemon/internal/model/eventForm"
-	notificationModel "github.com/cybericebox/daemon/internal/model/notification"
-	settingsModel "github.com/cybericebox/daemon/internal/model/notification/settings"
-	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
+	"github.com/cybericebox/backend/internal/model"
+	eventFormModel "github.com/cybericebox/backend/internal/model/eventForm"
+	notificationModel "github.com/cybericebox/backend/internal/model/notification"
+	settingsModel "github.com/cybericebox/backend/internal/model/notification/settings"
+	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
 )
 
 // SignalDefault is the platform default subscription an Event inherits for one

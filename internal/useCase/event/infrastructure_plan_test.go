@@ -3,7 +3,7 @@ package event
 import (
 	"testing"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 func TestInfrastructurePlan_StaticOnlyStartsWithoutLaboratories(t *testing.T) {

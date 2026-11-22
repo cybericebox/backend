@@ -12,11 +12,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	labBindingModel "github.com/cybericebox/daemon/internal/model/labBinding"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	labBindingModel "github.com/cybericebox/backend/internal/model/labBinding"
 )
 
 var allLifecycleCaps = infraModel.LifecycleCapabilities{PerLabStop: true, RequiredSnapshot: true, ConfirmedRuntime: true, RetainedRestart: true, FullGroupStop: true}

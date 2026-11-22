@@ -6,10 +6,10 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventStandModel "github.com/cybericebox/daemon/internal/model/eventStand"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventStandModel "github.com/cybericebox/backend/internal/model/eventStand"
 )
 
 // ReadinessView is the organizers' one look before the start: which tasks participants still do not see and which

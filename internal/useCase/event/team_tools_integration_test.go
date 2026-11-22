@@ -9,14 +9,14 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventTeamRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/participantRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	"github.com/cybericebox/daemon/internal/delivery/repository/userRepo"
-	eventTeamModel "github.com/cybericebox/daemon/internal/model/eventTeam"
-	participantModel "github.com/cybericebox/daemon/internal/model/participant"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
-	event "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventTeamRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/participantRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/delivery/repository/userRepo"
+	eventTeamModel "github.com/cybericebox/backend/internal/model/eventTeam"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
+	userModel "github.com/cybericebox/backend/internal/model/user"
+	event "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 // toolsTokens records the setup links that were issued and revoked.

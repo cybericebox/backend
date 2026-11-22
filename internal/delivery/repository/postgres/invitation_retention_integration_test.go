@@ -7,12 +7,12 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventTeamRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/participantRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/retentionRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/userRepo"
-	eventTeamModel "github.com/cybericebox/daemon/internal/model/eventTeam"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventTeamRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/participantRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/retentionRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/userRepo"
+	eventTeamModel "github.com/cybericebox/backend/internal/model/eventTeam"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 // rtScheduledEvent seeds an event that starts at startAt and finishes a week

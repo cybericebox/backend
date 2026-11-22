@@ -8,12 +8,12 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	labCheckModel "github.com/cybericebox/daemon/internal/model/labCheck"
-	teamChallengeModel "github.com/cybericebox/daemon/internal/model/teamChallenge"
-	"github.com/cybericebox/daemon/pkg/err"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	labCheckModel "github.com/cybericebox/backend/internal/model/labCheck"
+	teamChallengeModel "github.com/cybericebox/backend/internal/model/teamChallenge"
+	"github.com/cybericebox/backend/pkg/err"
 )
 
 // LabCheckStore keeps the manual runs of checks that were asked for (the rate limit). Nil: a manual run is refused.

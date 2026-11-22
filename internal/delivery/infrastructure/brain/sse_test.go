@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cybericebox/daemon/internal/delivery/infrastructure/brain"
+	"github.com/cybericebox/backend/internal/delivery/infrastructure/brain"
 )
 
 func TestReadFramesParsesIDEventAndMultilineData(t *testing.T) {

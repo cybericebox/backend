@@ -13,10 +13,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	imageRegistryRepo "github.com/cybericebox/daemon/internal/delivery/repository/imageRegistryRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	"github.com/cybericebox/daemon/pkg/ociregistry"
+	imageRegistryRepo "github.com/cybericebox/backend/internal/delivery/repository/imageRegistryRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	"github.com/cybericebox/backend/pkg/ociregistry"
 )
 
 type storedExternal struct{ reference, scope string }

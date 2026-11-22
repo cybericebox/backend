@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 	"github.com/gofrs/uuid"
 )
 

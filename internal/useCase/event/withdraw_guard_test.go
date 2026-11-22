@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	resourcesModel "github.com/cybericebox/daemon/internal/model/resources"
+	resourcesModel "github.com/cybericebox/backend/internal/model/resources"
 )
 
 type endingGate struct {

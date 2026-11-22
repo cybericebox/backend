@@ -1,6 +1,6 @@
 package exercise
 
-import exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+import exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 
 // The built-in observations of check.state next to File and Custom. Exactly one observation is set on a condition. They
 // run nothing of the device. Expected text may use the task and variable substitutions of the document.

@@ -9,9 +9,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	_ "github.com/cybericebox/daemon/internal/model/notification/types/payloads"
-	"github.com/cybericebox/daemon/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	_ "github.com/cybericebox/backend/internal/model/notification/types/payloads"
+	"github.com/cybericebox/backend/internal/model/rbac"
 )
 
 // fakeProt satisfies IProtection; RequirePermission is a no-op pass-through.

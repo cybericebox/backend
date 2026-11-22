@@ -10,8 +10,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	eventStandModel "github.com/cybericebox/daemon/internal/model/eventStand"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	eventStandModel "github.com/cybericebox/backend/internal/model/eventStand"
 )
 
 func TestConfigDoesNotRetainLegacyRegistrationWindow(t *testing.T) {

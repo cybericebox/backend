@@ -8,9 +8,9 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	userModel "github.com/cybericebox/backend/internal/model/user"
 )
 
 var now = time.Date(2026, 7, 12, 12, 0, 0, 0, time.UTC)

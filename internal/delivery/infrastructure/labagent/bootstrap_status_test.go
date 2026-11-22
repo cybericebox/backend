@@ -7,7 +7,7 @@ import (
 
 	labpb "github.com/cybericebox/laboratory/pkg/agent/protobuf"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 // The bootstrap phase and reason of a device reach the lab status that staff and the task author read.

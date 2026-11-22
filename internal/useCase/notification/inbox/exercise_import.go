@@ -7,7 +7,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	inboxModel "github.com/cybericebox/daemon/internal/model/notification/inbox"
+	inboxModel "github.com/cybericebox/backend/internal/model/notification/inbox"
 )
 
 // ImportEnd is the end of a background task import, as the exercise use case reports it.

@@ -11,11 +11,11 @@ import (
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	exercise "github.com/cybericebox/daemon/internal/useCase/exercise"
-	"github.com/cybericebox/daemon/pkg/secret"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	exercise "github.com/cybericebox/backend/internal/useCase/exercise"
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
 const testKey = "6368616e676520746869732070617373776f726420746f206120736563726574"

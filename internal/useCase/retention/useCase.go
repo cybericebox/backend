@@ -11,13 +11,13 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/retentionRepo"
-	"github.com/cybericebox/daemon/internal/model"
-	eventAnalyticsModel "github.com/cybericebox/daemon/internal/model/eventAnalytics"
-	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
-	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
-	notificationPayloads "github.com/cybericebox/daemon/internal/model/notification/types/payloads"
-	retentionModel "github.com/cybericebox/daemon/internal/model/retention"
+	"github.com/cybericebox/backend/internal/delivery/repository/retentionRepo"
+	"github.com/cybericebox/backend/internal/model"
+	eventAnalyticsModel "github.com/cybericebox/backend/internal/model/eventAnalytics"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
+	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
+	notificationPayloads "github.com/cybericebox/backend/internal/model/notification/types/payloads"
+	retentionModel "github.com/cybericebox/backend/internal/model/retention"
 )
 
 // deletionDateLayout is the date format of the warning email (uk templates).

@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/model"
-	imageRegistryModel "github.com/cybericebox/daemon/internal/model/imageRegistry"
-	inboxUseCase "github.com/cybericebox/daemon/internal/useCase/notification/inbox"
+	"github.com/cybericebox/backend/internal/model"
+	imageRegistryModel "github.com/cybericebox/backend/internal/model/imageRegistry"
+	inboxUseCase "github.com/cybericebox/backend/internal/useCase/notification/inbox"
 )
 
 type (

@@ -7,8 +7,8 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/labBindingRepo"
-	labBindingModel "github.com/cybericebox/daemon/internal/model/labBinding"
+	"github.com/cybericebox/backend/internal/delivery/repository/labBindingRepo"
+	labBindingModel "github.com/cybericebox/backend/internal/model/labBinding"
 )
 
 func pendingLab(team, exercise uuid.UUID, created time.Time, deployed bool) labBindingRepo.PendingLab {

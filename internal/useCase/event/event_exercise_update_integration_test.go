@@ -9,10 +9,10 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/exerciseRepo"
-	eventExerciseModel "github.com/cybericebox/daemon/internal/model/eventExercise"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
+	"github.com/cybericebox/backend/internal/delivery/repository/exerciseRepo"
+	eventExerciseModel "github.com/cybericebox/backend/internal/model/eventExercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
 )
 
 // publishSetVersion publishes the next version of the set's exercise after mutate changed a copy of the pinned one.

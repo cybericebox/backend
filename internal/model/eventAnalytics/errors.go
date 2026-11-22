@@ -1,9 +1,9 @@
 package eventAnalyticsModel
 
 import (
-	"github.com/cybericebox/daemon/pkg/err"
+	"github.com/cybericebox/backend/pkg/err"
 
-	"github.com/cybericebox/daemon/internal/model"
+	"github.com/cybericebox/backend/internal/model"
 )
 
 // EventAnalyticsObjectCode — next free detail code: 9

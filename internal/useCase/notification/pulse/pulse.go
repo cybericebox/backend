@@ -17,12 +17,12 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	inboxModel "github.com/cybericebox/daemon/internal/model/notification/inbox"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	siteModel "github.com/cybericebox/daemon/internal/model/site"
-	siteBannerModel "github.com/cybericebox/daemon/internal/model/siteBanner"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	inboxModel "github.com/cybericebox/backend/internal/model/notification/inbox"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	siteModel "github.com/cybericebox/backend/internal/model/site"
+	siteBannerModel "github.com/cybericebox/backend/internal/model/siteBanner"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 // Banner kinds.

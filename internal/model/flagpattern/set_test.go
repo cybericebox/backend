@@ -6,7 +6,7 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/cybericebox/daemon/internal/model/flagpattern"
+	"github.com/cybericebox/backend/internal/model/flagpattern"
 )
 
 func TestPatternAt_MixedRadixLastPositionFastest(t *testing.T) {

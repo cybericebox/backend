@@ -10,7 +10,7 @@ import (
 	"github.com/gofrs/uuid"
 	"google.golang.org/protobuf/encoding/protojson"
 
-	labMonitoringModel "github.com/cybericebox/daemon/internal/model/labMonitoring"
+	labMonitoringModel "github.com/cybericebox/backend/internal/model/labMonitoring"
 	labpb "github.com/cybericebox/laboratory/pkg/agent/protobuf"
 )
 

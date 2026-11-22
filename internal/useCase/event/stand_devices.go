@@ -2,20 +2,20 @@ package event
 
 import (
 	"context"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/labBindingRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/labBindingRepo"
 	"sort"
 	"time"
 
 	"github.com/gofrs/uuid"
 
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
-	eventStandModel "github.com/cybericebox/daemon/internal/model/eventStand"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	labBindingModel "github.com/cybericebox/daemon/internal/model/labBinding"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
+	eventStandModel "github.com/cybericebox/backend/internal/model/eventStand"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	labBindingModel "github.com/cybericebox/backend/internal/model/labBinding"
 )
 
 // StandDetailView is one team stand with the live state of each of its Labs: launch queue,

@@ -8,8 +8,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/model"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
+	"github.com/cybericebox/backend/internal/model"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
 )
 
 // readAheadBytes is how much one range request fetches at most: a zip reader reads a few KiB at a time, and a

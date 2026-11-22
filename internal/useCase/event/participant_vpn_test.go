@@ -10,9 +10,9 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	vpnModel "github.com/cybericebox/daemon/internal/model/vpn"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	vpnModel "github.com/cybericebox/backend/internal/model/vpn"
 )
 
 type participantVPNStoreStub struct{ config string }

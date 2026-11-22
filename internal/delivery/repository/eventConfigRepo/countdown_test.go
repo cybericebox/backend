@@ -3,8 +3,8 @@ package eventConfigRepo
 import (
 	"testing"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
 )
 
 func TestToDomainCountdown(t *testing.T) {

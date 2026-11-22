@@ -8,11 +8,11 @@ import (
 	"github.com/gofrs/uuid"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	vpnModel "github.com/cybericebox/daemon/internal/model/vpn"
-	"github.com/cybericebox/daemon/internal/useCase/vpn"
-	"github.com/cybericebox/daemon/pkg/secret"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	vpnModel "github.com/cybericebox/backend/internal/model/vpn"
+	"github.com/cybericebox/backend/internal/useCase/vpn"
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
 const testKey = "6368616e676520746869732070617373776f726420746f206120736563726574"

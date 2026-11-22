@@ -8,8 +8,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	"github.com/cybericebox/daemon/pkg/err"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	"github.com/cybericebox/backend/pkg/err"
 )
 
 func TestRunDeployChecks_AsksForTheTaskOfTheDeploy(t *testing.T) {

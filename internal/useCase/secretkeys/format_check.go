@@ -5,7 +5,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/cybericebox/daemon/pkg/secret"
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
 // Locator says where a key of a family is kept, for the operator who has to remove it: a file with its mode, or the

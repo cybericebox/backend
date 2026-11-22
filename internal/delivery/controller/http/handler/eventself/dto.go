@@ -6,12 +6,12 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/handler/labview"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	siteBannerModel "github.com/cybericebox/daemon/internal/model/siteBanner"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
-	"github.com/cybericebox/daemon/pkg/pagination"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/handler/labview"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	siteBannerModel "github.com/cybericebox/backend/internal/model/siteBanner"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
+	"github.com/cybericebox/backend/pkg/pagination"
 )
 
 type ownChallengeResponse struct {

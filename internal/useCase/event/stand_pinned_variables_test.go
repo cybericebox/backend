@@ -10,9 +10,9 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/labBindingRepo"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	labBindingModel "github.com/cybericebox/daemon/internal/model/labBinding"
+	"github.com/cybericebox/backend/internal/delivery/repository/labBindingRepo"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	labBindingModel "github.com/cybericebox/backend/internal/model/labBinding"
 )
 
 // memoryStandVariables is the store of the pinned variables in memory, keyed like the table.

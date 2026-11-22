@@ -9,8 +9,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	eventChallengeModel "github.com/cybericebox/daemon/internal/model/eventChallenge"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	eventChallengeModel "github.com/cybericebox/backend/internal/model/eventChallenge"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 func TestSetPointsRange(t *testing.T) {

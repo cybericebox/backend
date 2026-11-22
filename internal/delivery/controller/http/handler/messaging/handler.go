@@ -6,19 +6,19 @@ package messaging
 import (
 	"context"
 	"fmt"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/middleware"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	broadcastModel "github.com/cybericebox/daemon/internal/model/notification/broadcast"
-	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	siteBannerModel "github.com/cybericebox/daemon/internal/model/siteBanner"
-	broadcastUseCase "github.com/cybericebox/daemon/internal/useCase/notification/broadcast"
-	"github.com/cybericebox/daemon/pkg/pagination"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	broadcastModel "github.com/cybericebox/backend/internal/model/notification/broadcast"
+	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	siteBannerModel "github.com/cybericebox/backend/internal/model/siteBanner"
+	broadcastUseCase "github.com/cybericebox/backend/internal/useCase/notification/broadcast"
+	"github.com/cybericebox/backend/pkg/pagination"
 )
 
 type (

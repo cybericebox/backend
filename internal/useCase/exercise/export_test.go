@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 // SetClock fixes the time of the lease checks.

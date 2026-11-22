@@ -34,12 +34,12 @@ sql:
             go_type: "float64"
           - column: "events_metadata.data"
             go_type:
-              import: "github.com/cybericebox/daemon/internal/model/event"
+              import: "github.com/cybericebox/backend/internal/model/event"
               type: "EventMetadata"
               package: "eventModel"
           - column: "event_team_challenges.snapshot"
             go_type:
-              import: "github.com/cybericebox/daemon/internal/model/event"
+              import: "github.com/cybericebox/backend/internal/model/event"
               type: "ChallengeSnapshot"
               package: "eventModel"
           - column: "event_challenges.prerequisites"

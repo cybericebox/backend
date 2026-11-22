@@ -3,7 +3,7 @@ package config_test
 import (
 	"testing"
 
-	"github.com/cybericebox/daemon/internal/config"
+	"github.com/cybericebox/backend/internal/config"
 )
 
 func TestValidateSiteLinks(t *testing.T) {

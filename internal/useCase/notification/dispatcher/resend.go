@@ -6,11 +6,11 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	jobsModel "github.com/cybericebox/daemon/internal/model/jobs"
-	notificationModel "github.com/cybericebox/daemon/internal/model/notification"
-	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	jobsModel "github.com/cybericebox/backend/internal/model/jobs"
+	notificationModel "github.com/cybericebox/backend/internal/model/notification"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
 )
 
 // ResendDispatch sends the failed channels of a dispatch again from its stored content. Channels that were

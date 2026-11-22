@@ -9,10 +9,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	"github.com/cybericebox/daemon/internal/delivery/repository/waitDetailRepo"
-	eventStandModel "github.com/cybericebox/daemon/internal/model/eventStand"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/delivery/repository/waitDetailRepo"
+	eventStandModel "github.com/cybericebox/backend/internal/model/eventStand"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 // The need and the room of a Lab that waits for the reservation reach the stand counters, so the reason the

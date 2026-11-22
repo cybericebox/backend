@@ -7,7 +7,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	inboxModel "github.com/cybericebox/daemon/internal/model/notification/inbox"
+	inboxModel "github.com/cybericebox/backend/internal/model/notification/inbox"
 )
 
 // ReservationNotice is an event reservation part people hear about: it ends while the event runs, or it was made

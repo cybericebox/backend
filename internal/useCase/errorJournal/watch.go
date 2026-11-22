@@ -8,8 +8,8 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	errorJournal "github.com/cybericebox/daemon/internal/model/errorJournal"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
+	errorJournal "github.com/cybericebox/backend/internal/model/errorJournal"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
 )
 
 const (

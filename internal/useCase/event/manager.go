@@ -7,16 +7,16 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventManagerRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventManagerModel "github.com/cybericebox/daemon/internal/model/eventManager"
-	participantModel "github.com/cybericebox/daemon/internal/model/participant"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	signalModel "github.com/cybericebox/daemon/internal/model/signal"
-	"github.com/cybericebox/daemon/internal/model/usertext"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventManagerRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventManagerModel "github.com/cybericebox/backend/internal/model/eventManager"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	signalModel "github.com/cybericebox/backend/internal/model/signal"
+	"github.com/cybericebox/backend/internal/model/usertext"
 )
 
 // ListEventManagers lists every event-local management membership. The event

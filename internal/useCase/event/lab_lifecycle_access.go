@@ -6,14 +6,14 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/teamChallengeRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
-	eventStandModel "github.com/cybericebox/daemon/internal/model/eventStand"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	labBindingModel "github.com/cybericebox/daemon/internal/model/labBinding"
-	participantModel "github.com/cybericebox/daemon/internal/model/participant"
+	"github.com/cybericebox/backend/internal/delivery/repository/teamChallengeRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
+	eventStandModel "github.com/cybericebox/backend/internal/model/eventStand"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	labBindingModel "github.com/cybericebox/backend/internal/model/labBinding"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
 	"github.com/gofrs/uuid"
 )
 

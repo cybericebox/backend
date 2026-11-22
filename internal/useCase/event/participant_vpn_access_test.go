@@ -3,8 +3,8 @@ package event_test
 import (
 	"context"
 	"errors"
-	eventStandModel "github.com/cybericebox/daemon/internal/model/eventStand"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
+	eventStandModel "github.com/cybericebox/backend/internal/model/eventStand"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"testing"
@@ -13,11 +13,11 @@ import (
 	"github.com/gofrs/uuid"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	participantModel "github.com/cybericebox/daemon/internal/model/participant"
-	vpnModel "github.com/cybericebox/daemon/internal/model/vpn"
-	event "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
+	vpnModel "github.com/cybericebox/backend/internal/model/vpn"
+	event "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 type earlyVPNInfra struct {

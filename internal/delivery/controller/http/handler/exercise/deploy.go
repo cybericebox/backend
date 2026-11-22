@@ -1,16 +1,16 @@
 package exercise
 
 import (
-	exerciseUseCase "github.com/cybericebox/daemon/internal/useCase/exercise"
+	exerciseUseCase "github.com/cybericebox/backend/internal/useCase/exercise"
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/handler/labview"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	"github.com/cybericebox/daemon/pkg/labaccess"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/handler/labview"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	"github.com/cybericebox/backend/pkg/labaccess"
 )
 
 type deployListItem struct {

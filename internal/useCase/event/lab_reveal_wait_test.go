@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	eventStandModel "github.com/cybericebox/daemon/internal/model/eventStand"
-	calModel "github.com/cybericebox/daemon/internal/model/resourceCalendar"
+	eventStandModel "github.com/cybericebox/backend/internal/model/eventStand"
+	calModel "github.com/cybericebox/backend/internal/model/resourceCalendar"
 )
 
 // A cohort that cannot be reserved because the agents offer no state persistence says so, not "no room".

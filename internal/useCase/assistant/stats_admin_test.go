@@ -9,8 +9,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	assistantModel "github.com/cybericebox/daemon/internal/model/assistant"
-	"github.com/cybericebox/daemon/internal/useCase/assistant"
+	assistantModel "github.com/cybericebox/backend/internal/model/assistant"
+	"github.com/cybericebox/backend/internal/useCase/assistant"
 )
 
 type memModes struct {

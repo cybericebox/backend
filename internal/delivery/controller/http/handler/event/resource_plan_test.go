@@ -10,9 +10,9 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	eventHandler "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/event"
-	resourcesModel "github.com/cybericebox/daemon/internal/model/resources"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	eventHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/event"
+	resourcesModel "github.com/cybericebox/backend/internal/model/resources"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 type resourcePlanUC struct {

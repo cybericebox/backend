@@ -2,11 +2,11 @@ package event_test
 
 import (
 	"context"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabRevealRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/resourceCalendarRepo"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	calModel "github.com/cybericebox/daemon/internal/model/resourceCalendar"
-	"github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabRevealRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/resourceCalendarRepo"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	calModel "github.com/cybericebox/backend/internal/model/resourceCalendar"
+	"github.com/cybericebox/backend/internal/useCase/event"
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 	"testing"

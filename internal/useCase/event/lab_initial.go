@@ -3,11 +3,11 @@ package event
 import (
 	"context"
 	"fmt"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabRepo"
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	labBindingModel "github.com/cybericebox/daemon/internal/model/labBinding"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabRepo"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	labBindingModel "github.com/cybericebox/backend/internal/model/labBinding"
 	"github.com/gofrs/uuid"
 	"time"
 )

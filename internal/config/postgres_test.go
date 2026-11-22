@@ -6,7 +6,7 @@ import (
 
 	"github.com/caarlos0/env/v11"
 
-	"github.com/cybericebox/daemon/internal/config"
+	"github.com/cybericebox/backend/internal/config"
 )
 
 func TestPostgresPoolDefaultsAndValidation(t *testing.T) {

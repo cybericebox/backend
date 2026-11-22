@@ -6,8 +6,8 @@ import (
 	labpb "github.com/cybericebox/laboratory/pkg/agent/protobuf"
 	"github.com/stretchr/testify/require"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	labAccessModel "github.com/cybericebox/daemon/internal/model/labAccess"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	labAccessModel "github.com/cybericebox/backend/internal/model/labAccess"
 )
 
 func TestVPNGatewaysAreReadFromTheSpecOfALab(t *testing.T) {

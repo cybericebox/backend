@@ -6,7 +6,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
 )
 
 // TouchParticipantPresence records that the user was online on the event now.

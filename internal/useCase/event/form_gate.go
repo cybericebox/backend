@@ -5,10 +5,10 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	eventFormRepo "github.com/cybericebox/daemon/internal/delivery/repository/eventFormRepo"
-	"github.com/cybericebox/daemon/internal/model"
-	eventFormModel "github.com/cybericebox/daemon/internal/model/eventForm"
-	participantModel "github.com/cybericebox/daemon/internal/model/participant"
+	eventFormRepo "github.com/cybericebox/backend/internal/delivery/repository/eventFormRepo"
+	"github.com/cybericebox/backend/internal/model"
+	eventFormModel "github.com/cybericebox/backend/internal/model/eventForm"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
 )
 
 // requireEventCapability checks only a delivery that explicitly selected the

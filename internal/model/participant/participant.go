@@ -10,8 +10,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	"github.com/cybericebox/daemon/pkg/tools"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	"github.com/cybericebox/backend/pkg/tools"
 )
 
 type Status int32

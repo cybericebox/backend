@@ -11,9 +11,9 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	eventHandler "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/event"
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	eventHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/event"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 type liveContractScreen struct {

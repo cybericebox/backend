@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 func TestPublicResultsFreezeCarriesConfiguredBannerAndLegacyDefaults(t *testing.T) {

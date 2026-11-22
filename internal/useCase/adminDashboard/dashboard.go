@@ -8,10 +8,10 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/dashboardRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/platformAnalyticsRepo"
-	"github.com/cybericebox/daemon/internal/model"
-	"github.com/cybericebox/daemon/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/delivery/repository/dashboardRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/platformAnalyticsRepo"
+	"github.com/cybericebox/backend/internal/model"
+	"github.com/cybericebox/backend/internal/model/rbac"
 )
 
 // Attention kinds: what needs the admin and where to fix it (Target is a place of the admin panel: stands,

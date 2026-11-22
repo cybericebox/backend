@@ -10,7 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/middleware"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
 )
 
 func TestCaptureRequestReceivedAt_PersistsArrivalAcrossHandlerWork(t *testing.T) {

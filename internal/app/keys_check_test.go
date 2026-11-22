@@ -10,8 +10,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/useCase/secretkeys"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/useCase/secretkeys"
 )
 
 var checkLifetimes = secretkeys.Lifetimes{SessionIdle: 12 * time.Hour, SessionAbsolute: 168 * time.Hour, EventRenderGrant: 5 * time.Minute}

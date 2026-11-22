@@ -7,7 +7,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/platformAnalyticsRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/platformAnalyticsRepo"
 )
 
 func TestGetTasks(t *testing.T) {

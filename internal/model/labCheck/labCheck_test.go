@@ -7,8 +7,8 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	labCheckModel "github.com/cybericebox/daemon/internal/model/labCheck"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	labCheckModel "github.com/cybericebox/backend/internal/model/labCheck"
 )
 
 var t0 = time.Date(2026, 11, 11, 12, 0, 0, 0, time.UTC)

@@ -12,8 +12,8 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
-	settingsModel "github.com/cybericebox/daemon/internal/model/notification/settings"
-	"github.com/cybericebox/daemon/internal/model/rbac"
+	settingsModel "github.com/cybericebox/backend/internal/model/notification/settings"
+	"github.com/cybericebox/backend/internal/model/rbac"
 )
 
 func (f *fakeUseCase) ListSignalDefaults(context.Context) ([]settingsModel.SignalDefault, error) {

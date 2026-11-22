@@ -6,8 +6,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/model"
-	assistantModel "github.com/cybericebox/daemon/internal/model/assistant"
+	"github.com/cybericebox/backend/internal/model"
+	assistantModel "github.com/cybericebox/backend/internal/model/assistant"
 )
 
 // StatsAdminStore keeps the statistics collection modes.

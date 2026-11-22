@@ -10,9 +10,9 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
 )
 
 func eventContentImageURL(eventID, fileID uuid.UUID) string {

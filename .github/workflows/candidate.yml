@@ -1,7 +1,7 @@
 name: Candidate
 
 # A push to a release line (release/X.Y: the first one is the cut made by the operator, the others are merged pull requests) builds the
-# next candidate vX.Y.Z-rc.N: the image cybericebox/daemon and, last, the git tag with a GitHub pre-release. Z is 0 while the line has no final
+# next candidate vX.Y.Z-rc.N: the image cybericebox/backend and, last, the git tag with a GitHub pre-release. Z is 0 while the line has no final
 # release, otherwise the newest final patch + 1 (after vX.Y.0 is promoted the next merge gives vX.Y.1-rc.1); N counts up from 1
 # (.github/scripts/release_version.py). The platform repositories share X.Y (one line, release/X.Y, in all of them); Z is each one's own.
 #
@@ -100,8 +100,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: daemon
-            image: cybericebox/daemon
+          - name: backend
+            image: cybericebox/backend
     steps:
       - name: Check repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

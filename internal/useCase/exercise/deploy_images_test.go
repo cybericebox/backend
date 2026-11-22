@@ -13,13 +13,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	imageRegistryModel "github.com/cybericebox/daemon/internal/model/imageRegistry"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	"github.com/cybericebox/daemon/internal/useCase/exercise"
-	imageRegistryUseCase "github.com/cybericebox/daemon/internal/useCase/imageRegistry"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	imageRegistryModel "github.com/cybericebox/backend/internal/model/imageRegistry"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	"github.com/cybericebox/backend/internal/useCase/exercise"
+	imageRegistryUseCase "github.com/cybericebox/backend/internal/useCase/imageRegistry"
 )
 
 const rewrittenWeb = "ghcr.io/acme/tasks@sha256:1111111111111111111111111111111111111111111111111111111111111111"

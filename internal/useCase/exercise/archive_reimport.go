@@ -1,6 +1,6 @@
 package exercise
 
-import exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+import exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 
 func importItemKey(prefix string) string {
 	if prefix == "" {

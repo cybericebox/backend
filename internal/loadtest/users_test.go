@@ -11,13 +11,13 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/sessionRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/userRepo"
-	"github.com/cybericebox/daemon/internal/loadtest"
-	sessionPkg "github.com/cybericebox/daemon/internal/session"
-	"github.com/cybericebox/daemon/internal/testhelpers"
-	"github.com/cybericebox/daemon/pkg/password"
-	"github.com/cybericebox/daemon/pkg/secret"
+	"github.com/cybericebox/backend/internal/delivery/repository/sessionRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/userRepo"
+	"github.com/cybericebox/backend/internal/loadtest"
+	sessionPkg "github.com/cybericebox/backend/internal/session"
+	"github.com/cybericebox/backend/internal/testhelpers"
+	"github.com/cybericebox/backend/pkg/password"
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
 func TestValidateRun(t *testing.T) {

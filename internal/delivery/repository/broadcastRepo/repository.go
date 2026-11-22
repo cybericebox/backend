@@ -8,10 +8,10 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	broadcastModel "github.com/cybericebox/daemon/internal/model/notification/broadcast"
-	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
-	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	broadcastModel "github.com/cybericebox/backend/internal/model/notification/broadcast"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
+	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
 )
 
 // Queries is the narrow slice of the sqlc Querier this repository needs.

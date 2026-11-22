@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"testing"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 	yzip "github.com/yeka/zip"
 )
 

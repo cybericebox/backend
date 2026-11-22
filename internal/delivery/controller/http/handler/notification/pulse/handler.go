@@ -10,11 +10,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/middleware"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	siteModel "github.com/cybericebox/daemon/internal/model/site"
-	pulseUseCase "github.com/cybericebox/daemon/internal/useCase/notification/pulse"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	siteModel "github.com/cybericebox/backend/internal/model/site"
+	pulseUseCase "github.com/cybericebox/backend/internal/useCase/notification/pulse"
 )
 
 // guestFreshFor is how long a guest's pulse may be reused without asking: the answer is the same for

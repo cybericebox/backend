@@ -7,8 +7,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	labMonitoringModel "github.com/cybericebox/daemon/internal/model/labMonitoring"
-	inboxUseCase "github.com/cybericebox/daemon/internal/useCase/notification/inbox"
+	labMonitoringModel "github.com/cybericebox/backend/internal/model/labMonitoring"
+	inboxUseCase "github.com/cybericebox/backend/internal/useCase/notification/inbox"
 )
 
 type fakeWithdrawalNotifier struct {

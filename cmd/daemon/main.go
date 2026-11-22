@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/cybericebox/daemon/internal/app"
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/useCase/keyrotation"
+	"github.com/cybericebox/backend/internal/app"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/useCase/keyrotation"
 )
 
 const usage = "usage: daemon [admin-link | recompute-lab-telemetry <event id or tag> [--force] | erase-lab-telemetry <user id> | keys status [--strict] | keys check [<family> <key id>] | keys reencrypt <family> [--dry-run] [--yes] [--expect-key <id>]]"

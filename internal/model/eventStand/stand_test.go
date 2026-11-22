@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 var standNow = time.Date(2026, 10, 1, 9, 0, 0, 0, time.UTC)

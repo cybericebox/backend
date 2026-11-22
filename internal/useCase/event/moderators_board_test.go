@@ -12,11 +12,11 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventStandModel "github.com/cybericebox/daemon/internal/model/eventStand"
-	teamChallengeModel "github.com/cybericebox/daemon/internal/model/teamChallenge"
-	event "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventStandModel "github.com/cybericebox/backend/internal/model/eventStand"
+	teamChallengeModel "github.com/cybericebox/backend/internal/model/teamChallenge"
+	event "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 func TestModeratorsBoardShowsPreparedChallengesUnlocked(t *testing.T) {

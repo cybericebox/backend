@@ -7,10 +7,10 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/repository"
-	"github.com/cybericebox/daemon/internal/delivery/repository/retentionRepo"
-	retentionUseCase "github.com/cybericebox/daemon/internal/useCase/retention"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/repository"
+	"github.com/cybericebox/backend/internal/delivery/repository/retentionRepo"
+	retentionUseCase "github.com/cybericebox/backend/internal/useCase/retention"
 )
 
 // RunEraseLabTelemetry is the `erase-lab-telemetry <user id>` subcommand: it erases one person from the lab

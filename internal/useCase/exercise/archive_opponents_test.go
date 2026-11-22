@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 // opponentDoc is a one-variant document with two tasks (recon, root) and two devices (web, db) and the given opponents.

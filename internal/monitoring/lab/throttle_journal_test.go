@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/model/errorJournal"
+	"github.com/cybericebox/backend/internal/model/errorJournal"
 )
 
 func TestThrottleJournalWritesOneGroupedEntryPerDevicePerWindow(t *testing.T) {

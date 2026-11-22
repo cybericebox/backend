@@ -14,17 +14,17 @@ import (
 	"github.com/gofrs/uuid"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/audit"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/protection"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	"github.com/cybericebox/daemon/internal/model"
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	adminAuditUseCase "github.com/cybericebox/daemon/internal/useCase/adminAudit"
-	authUseCase "github.com/cybericebox/daemon/internal/useCase/auth"
-	"github.com/cybericebox/daemon/pkg/overload"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/audit"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/protection"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	"github.com/cybericebox/backend/internal/model"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	adminAuditUseCase "github.com/cybericebox/backend/internal/useCase/adminAudit"
+	authUseCase "github.com/cybericebox/backend/internal/useCase/auth"
+	"github.com/cybericebox/backend/pkg/overload"
 )
 
 // fakeUseCase is a hand-written stand-in for the auth use case: OpenSession fails with sessionErr (a garbage,

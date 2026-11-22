@@ -11,7 +11,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/model/flagpattern"
+	"github.com/cybericebox/backend/internal/model/flagpattern"
 )
 
 // Limits of the check of a task. Each is part of the document contract (cib-exercise/1.0) and is repeated in the

@@ -10,10 +10,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	authHandler "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/auth"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
-	authUseCase "github.com/cybericebox/daemon/internal/useCase/auth"
+	authHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/auth"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
+	authUseCase "github.com/cybericebox/backend/internal/useCase/auth"
 )
 
 // googleLinkFake records what the pending-link routes pass to the use case.

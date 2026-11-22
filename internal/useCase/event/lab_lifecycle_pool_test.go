@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
 )
 
 func labs(n int) []eventLabModel.Lab {

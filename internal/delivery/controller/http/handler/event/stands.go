@@ -6,14 +6,14 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/handler/labview"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	eventStandModel "github.com/cybericebox/daemon/internal/model/eventStand"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	labBindingModel "github.com/cybericebox/daemon/internal/model/labBinding"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	teamChallengeModel "github.com/cybericebox/daemon/internal/model/teamChallenge"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/handler/labview"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	eventStandModel "github.com/cybericebox/backend/internal/model/eventStand"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	labBindingModel "github.com/cybericebox/backend/internal/model/labBinding"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	teamChallengeModel "github.com/cybericebox/backend/internal/model/teamChallenge"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 type standsResponse struct {

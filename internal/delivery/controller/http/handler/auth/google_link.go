@@ -6,7 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 )
 
 // googleLinkTicketMaxAge is the life of the ticket cookie (the ticket itself lives as long on the server).

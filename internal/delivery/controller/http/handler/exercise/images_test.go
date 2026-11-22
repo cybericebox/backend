@@ -12,13 +12,13 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	exerciseHandler "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/exercise"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	imageRegistryModel "github.com/cybericebox/daemon/internal/model/imageRegistry"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	exerciseUseCase "github.com/cybericebox/daemon/internal/useCase/exercise"
-	imageRegistryUseCase "github.com/cybericebox/daemon/internal/useCase/imageRegistry"
+	exerciseHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/exercise"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	imageRegistryModel "github.com/cybericebox/backend/internal/model/imageRegistry"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	exerciseUseCase "github.com/cybericebox/backend/internal/useCase/exercise"
+	imageRegistryUseCase "github.com/cybericebox/backend/internal/useCase/imageRegistry"
 )
 
 func (f *fakeUC) CheckImageAvailability(_ context.Context, scope imageRegistryUseCase.Scope, images []string) ([]imageRegistryModel.Availability, error) {

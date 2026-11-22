@@ -12,10 +12,10 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/platformStandRepo"
-	"github.com/cybericebox/daemon/internal/model"
-	eventStandModel "github.com/cybericebox/daemon/internal/model/eventStand"
-	labMonitoringModel "github.com/cybericebox/daemon/internal/model/labMonitoring"
+	"github.com/cybericebox/backend/internal/delivery/repository/platformStandRepo"
+	"github.com/cybericebox/backend/internal/model"
+	eventStandModel "github.com/cybericebox/backend/internal/model/eventStand"
+	labMonitoringModel "github.com/cybericebox/backend/internal/model/labMonitoring"
 )
 
 // ErrUnknownFacetField: the facet was asked for a field the table has no facet for.

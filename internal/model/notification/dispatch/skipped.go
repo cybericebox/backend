@@ -3,7 +3,7 @@ package dispatchModel
 import (
 	"errors"
 
-	"github.com/cybericebox/daemon/internal/model/usertext"
+	"github.com/cybericebox/backend/internal/model/usertext"
 )
 
 // SkippedMessageReserved is the journal text of a recipient on a reserved domain.

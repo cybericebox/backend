@@ -1,7 +1,7 @@
 package infrastructure
 
 import (
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 // Availability says how many of the laboratories that are used can do something. It never names a laboratory.

@@ -1,9 +1,9 @@
 package exercise
 
 import (
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	exerciseUseCase "github.com/cybericebox/daemon/internal/useCase/exercise"
-	"github.com/cybericebox/daemon/pkg/pagination"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	exerciseUseCase "github.com/cybericebox/backend/internal/useCase/exercise"
+	"github.com/cybericebox/backend/pkg/pagination"
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 )

@@ -8,14 +8,14 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/autoRecreateRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabRetentionRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/labBindingRepo"
-	"github.com/cybericebox/daemon/internal/model"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventStandModel "github.com/cybericebox/daemon/internal/model/eventStand"
-	labBindingModel "github.com/cybericebox/daemon/internal/model/labBinding"
+	"github.com/cybericebox/backend/internal/delivery/repository/autoRecreateRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabRetentionRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/labBindingRepo"
+	"github.com/cybericebox/backend/internal/model"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventStandModel "github.com/cybericebox/backend/internal/model/eventStand"
+	labBindingModel "github.com/cybericebox/backend/internal/model/labBinding"
 )
 
 // autoRecreateFailedLabs recreates the Labs the agent accepted and that then failed (a crash loop, a failed phase, not

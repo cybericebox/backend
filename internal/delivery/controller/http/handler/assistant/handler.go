@@ -24,15 +24,15 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/download"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/middleware"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/sse"
-	"github.com/cybericebox/daemon/internal/limits"
-	assistantModel "github.com/cybericebox/daemon/internal/model/assistant"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	assistantUseCase "github.com/cybericebox/daemon/internal/useCase/assistant"
-	exerciseUseCase "github.com/cybericebox/daemon/internal/useCase/exercise"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/download"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/sse"
+	"github.com/cybericebox/backend/internal/limits"
+	assistantModel "github.com/cybericebox/backend/internal/model/assistant"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	assistantUseCase "github.com/cybericebox/backend/internal/useCase/assistant"
+	exerciseUseCase "github.com/cybericebox/backend/internal/useCase/exercise"
 )
 
 const (

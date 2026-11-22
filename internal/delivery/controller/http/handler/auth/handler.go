@@ -4,19 +4,19 @@ import (
 	"context"
 	"io"
 
-	"github.com/cybericebox/daemon/internal/config"
+	"github.com/cybericebox/backend/internal/config"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/middleware"
-	"github.com/cybericebox/daemon/internal/limits"
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
-	passkeyModel "github.com/cybericebox/daemon/internal/model/passkey"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	tablePrefsModel "github.com/cybericebox/daemon/internal/model/tablePrefs"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
-	authUseCase "github.com/cybericebox/daemon/internal/useCase/auth"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
+	"github.com/cybericebox/backend/internal/limits"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
+	passkeyModel "github.com/cybericebox/backend/internal/model/passkey"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	tablePrefsModel "github.com/cybericebox/backend/internal/model/tablePrefs"
+	userModel "github.com/cybericebox/backend/internal/model/user"
+	authUseCase "github.com/cybericebox/backend/internal/useCase/auth"
 )
 
 type (

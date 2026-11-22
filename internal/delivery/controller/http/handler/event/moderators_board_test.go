@@ -10,8 +10,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	eventManagerModel "github.com/cybericebox/daemon/internal/model/eventManager"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	eventManagerModel "github.com/cybericebox/backend/internal/model/eventManager"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 type moderatorsBoardUC struct {

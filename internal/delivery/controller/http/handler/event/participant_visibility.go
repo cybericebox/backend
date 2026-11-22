@@ -3,7 +3,7 @@ package event
 import (
 	"github.com/gin-gonic/gin"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 )
 
 type setIndividualParticipantVisibilityRequest struct {

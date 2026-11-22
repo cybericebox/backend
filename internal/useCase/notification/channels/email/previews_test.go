@@ -15,12 +15,12 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
-	mailModel "github.com/cybericebox/daemon/internal/model/mail"
-	"github.com/cybericebox/daemon/internal/model/notification/branding"
-	emailModel "github.com/cybericebox/daemon/internal/model/notification/email"
-	"github.com/cybericebox/daemon/internal/model/notification/emaildefaults"
-	mailUseCase "github.com/cybericebox/daemon/internal/useCase/mail"
-	emailUseCase "github.com/cybericebox/daemon/internal/useCase/notification/channels/email"
+	mailModel "github.com/cybericebox/backend/internal/model/mail"
+	"github.com/cybericebox/backend/internal/model/notification/branding"
+	emailModel "github.com/cybericebox/backend/internal/model/notification/email"
+	"github.com/cybericebox/backend/internal/model/notification/emaildefaults"
+	mailUseCase "github.com/cybericebox/backend/internal/useCase/mail"
+	emailUseCase "github.com/cybericebox/backend/internal/useCase/notification/channels/email"
 )
 
 type noPresets struct{}

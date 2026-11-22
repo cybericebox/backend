@@ -10,9 +10,9 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	assistantModel "github.com/cybericebox/daemon/internal/model/assistant"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	"github.com/cybericebox/daemon/internal/useCase/assistant"
+	assistantModel "github.com/cybericebox/backend/internal/model/assistant"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	"github.com/cybericebox/backend/internal/useCase/assistant"
 )
 
 func opponentRig(t *testing.T, opponents ...exerciseModel.Opponent) *runRig {

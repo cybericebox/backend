@@ -3,7 +3,7 @@ package notificationTypes
 import (
 	"encoding/json"
 
-	inboxModel "github.com/cybericebox/daemon/internal/model/notification/inbox"
+	inboxModel "github.com/cybericebox/backend/internal/model/notification/inbox"
 )
 
 // registryCredentialPayload is the registry credential check: a platform token or an organizer secret stopped

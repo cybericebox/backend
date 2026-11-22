@@ -7,8 +7,8 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	appErr "github.com/cybericebox/daemon/pkg/err"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	appErr "github.com/cybericebox/backend/pkg/err"
 )
 
 func publicOf(t *testing.T, failure error) map[string]any {

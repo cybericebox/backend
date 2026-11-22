@@ -7,8 +7,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	eventStandModel "github.com/cybericebox/daemon/internal/model/eventStand"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	eventStandModel "github.com/cybericebox/backend/internal/model/eventStand"
 )
 
 type Repository struct{ db postgres.DBTX }

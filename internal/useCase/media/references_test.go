@@ -8,11 +8,11 @@ import (
 	"github.com/gofrs/uuid"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	media "github.com/cybericebox/daemon/internal/useCase/media"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	media "github.com/cybericebox/backend/internal/useCase/media"
 )
 
 func TestGetReferences_ReturnsFileIDs(t *testing.T) {

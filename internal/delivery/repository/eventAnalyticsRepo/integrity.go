@@ -8,8 +8,8 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	eventAnalyticsModel "github.com/cybericebox/daemon/internal/model/eventAnalytics"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	eventAnalyticsModel "github.com/cybericebox/backend/internal/model/eventAnalytics"
 )
 
 // IntegrityQueries are the statements of "Integrity" (§6.6); Queries

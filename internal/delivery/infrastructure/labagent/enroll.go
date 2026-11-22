@@ -15,7 +15,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
 
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
 )
 
 // enrollTimeout bounds the enrollment call: one connection, one request.

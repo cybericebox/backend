@@ -12,14 +12,14 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventLabObservationRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/infrastructureAgentRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/platformStandRepo"
-	"github.com/cybericebox/daemon/internal/model"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	labAccessModel "github.com/cybericebox/daemon/internal/model/labAccess"
-	labMonitoringModel "github.com/cybericebox/daemon/internal/model/labMonitoring"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventLabObservationRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/infrastructureAgentRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/platformStandRepo"
+	"github.com/cybericebox/backend/internal/model"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	labAccessModel "github.com/cybericebox/backend/internal/model/labAccess"
+	labMonitoringModel "github.com/cybericebox/backend/internal/model/labMonitoring"
 )
 
 // Agent is the port to the infrastructure agent. It is nil when no agent is

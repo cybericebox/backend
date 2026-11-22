@@ -10,9 +10,9 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/assistantStatsRepo"
-	assistantModel "github.com/cybericebox/daemon/internal/model/assistant"
-	"github.com/cybericebox/daemon/internal/useCase/assistant"
+	"github.com/cybericebox/backend/internal/delivery/repository/assistantStatsRepo"
+	assistantModel "github.com/cybericebox/backend/internal/model/assistant"
+	"github.com/cybericebox/backend/internal/useCase/assistant"
 )
 
 var (

@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 // The email_changed type has no migration: its setting and default template are created at start,

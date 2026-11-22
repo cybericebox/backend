@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/limits"
+	"github.com/cybericebox/backend/internal/limits"
 )
 
 func TestDefaultsAreTheDocumentedOnes(t *testing.T) {

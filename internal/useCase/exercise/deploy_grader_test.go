@@ -12,12 +12,12 @@ import (
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	labAccessModel "github.com/cybericebox/daemon/internal/model/labAccess"
-	labCheckModel "github.com/cybericebox/daemon/internal/model/labCheck"
-	"github.com/cybericebox/daemon/internal/useCase/exercise"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	labAccessModel "github.com/cybericebox/backend/internal/model/labAccess"
+	labCheckModel "github.com/cybericebox/backend/internal/model/labCheck"
+	"github.com/cybericebox/backend/internal/useCase/exercise"
 )
 
 // agentConfig is the client config the laboratory agent returns: the peer's AllowedIPs is what the agent chose.

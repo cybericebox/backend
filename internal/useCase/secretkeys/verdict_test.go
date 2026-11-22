@@ -8,8 +8,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/useCase/secretkeys"
-	"github.com/cybericebox/daemon/pkg/secret"
+	"github.com/cybericebox/backend/internal/useCase/secretkeys"
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
 var snapshotAt = time.Date(2026, 11, 14, 9, 0, 0, 0, time.UTC)

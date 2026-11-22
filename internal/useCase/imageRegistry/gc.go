@@ -7,9 +7,9 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/daemon/internal/model"
-	"github.com/cybericebox/daemon/pkg/ociregistry"
-	"github.com/cybericebox/daemon/pkg/ociregistry/provider"
+	"github.com/cybericebox/backend/internal/model"
+	"github.com/cybericebox/backend/pkg/ociregistry"
+	"github.com/cybericebox/backend/pkg/ociregistry/provider"
 )
 
 const (

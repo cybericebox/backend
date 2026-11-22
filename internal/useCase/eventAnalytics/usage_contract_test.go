@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventAnalyticsRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventAnalyticsRepo"
 	"github.com/gofrs/uuid"
 )
 

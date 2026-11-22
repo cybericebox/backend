@@ -10,7 +10,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/golang-jwt/jwt/v5"
 
-	"github.com/cybericebox/daemon/pkg/token"
+	"github.com/cybericebox/backend/pkg/token"
 )
 
 // TestSetupToken_RoundTrip verifies the full generate→parse cycle for setup tokens,

@@ -12,11 +12,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	adminAuditHandler "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/adminAudit"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	adminAuditUseCase "github.com/cybericebox/daemon/internal/useCase/adminAudit"
+	adminAuditHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/adminAudit"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	adminAuditUseCase "github.com/cybericebox/backend/internal/useCase/adminAudit"
 )
 
 type fakeUC struct {

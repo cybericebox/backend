@@ -10,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 func pollChanges(t *testing.T, h *Handler, eventID uuid.UUID, query, ifNoneMatch string) (*httptest.ResponseRecorder, resultsChangesResponse) {

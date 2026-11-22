@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/config"
+	"github.com/cybericebox/backend/internal/config"
 )
 
 // flakyListener fails the first accepts with a non-timeout error (file descriptors exhausted), then works.

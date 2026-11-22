@@ -9,8 +9,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	utils "github.com/cybericebox/daemon/internal/delivery/controller/http/utils"
-	"github.com/cybericebox/daemon/pkg/pagination"
+	utils "github.com/cybericebox/backend/internal/delivery/controller/http/utils"
+	"github.com/cybericebox/backend/pkg/pagination"
 )
 
 func TestGetCursorPaginationParams_Defaults(t *testing.T) {

@@ -9,7 +9,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/platformAnalyticsRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/platformAnalyticsRepo"
 )
 
 // ouStore serves the overview and users ports; every other section's calls

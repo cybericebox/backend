@@ -6,7 +6,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/assert"
 
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
 )
 
 type gapRecorder struct{ reported []string }

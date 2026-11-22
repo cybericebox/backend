@@ -17,8 +17,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
 )
 
 func (f *fakeAgent) RunChecks(_ context.Context, in *labpb.RunChecksRequest, _ ...grpc.CallOption) (*labpb.BatchResult, error) {

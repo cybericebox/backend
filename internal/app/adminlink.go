@@ -7,10 +7,10 @@ import (
 	"io"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/repository"
-	authUseCase "github.com/cybericebox/daemon/internal/useCase/auth"
-	"github.com/cybericebox/daemon/pkg/token"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/repository"
+	authUseCase "github.com/cybericebox/backend/internal/useCase/auth"
+	"github.com/cybericebox/backend/pkg/token"
 )
 
 // adminLinkIssuer is the part of the auth use case the admin-link command needs.

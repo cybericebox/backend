@@ -6,15 +6,15 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/emailTemplateRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/notificationSettingsRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	notificationModel "github.com/cybericebox/daemon/internal/model/notification"
-	emailModel "github.com/cybericebox/daemon/internal/model/notification/email"
-	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
-	_ "github.com/cybericebox/daemon/internal/model/notification/types/payloads"
-	"github.com/cybericebox/daemon/internal/useCase/notification/channels/render"
+	"github.com/cybericebox/backend/internal/delivery/repository/emailTemplateRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/notificationSettingsRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	notificationModel "github.com/cybericebox/backend/internal/model/notification"
+	emailModel "github.com/cybericebox/backend/internal/model/notification/email"
+	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
+	_ "github.com/cybericebox/backend/internal/model/notification/types/payloads"
+	"github.com/cybericebox/backend/internal/useCase/notification/channels/render"
 )
 
 type NotificationEmailTemplateUseCase struct {

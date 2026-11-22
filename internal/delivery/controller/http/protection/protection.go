@@ -15,15 +15,15 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/audit"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/errjournal"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	adminAuditUseCase "github.com/cybericebox/daemon/internal/useCase/adminAudit"
-	authUseCase "github.com/cybericebox/daemon/internal/useCase/auth"
-	appErr "github.com/cybericebox/daemon/pkg/err"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/audit"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/errjournal"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	adminAuditUseCase "github.com/cybericebox/backend/internal/useCase/adminAudit"
+	authUseCase "github.com/cybericebox/backend/internal/useCase/auth"
+	appErr "github.com/cybericebox/backend/pkg/err"
 )
 
 // IUseCase is the auth port the middleware depends on.

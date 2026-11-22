@@ -11,12 +11,12 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/delivery/repository/vpnRepo"
-	"github.com/cybericebox/daemon/internal/model"
-	vpnModel "github.com/cybericebox/daemon/internal/model/vpn"
-	"github.com/cybericebox/daemon/internal/secretctx"
-	"github.com/cybericebox/daemon/pkg/secret"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/delivery/repository/vpnRepo"
+	"github.com/cybericebox/backend/internal/model"
+	vpnModel "github.com/cybericebox/backend/internal/model/vpn"
+	"github.com/cybericebox/backend/internal/secretctx"
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
 // IRepository is the narrow data port the vpnRepo wraps (the sqlc Querier

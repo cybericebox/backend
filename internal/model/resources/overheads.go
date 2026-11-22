@@ -5,7 +5,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 // ProfileOverheads keeps, per agent, the fixed cost each node profile adds to a pod (the microVM RuntimeClass

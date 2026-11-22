@@ -13,13 +13,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
-	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
-	participantModel "github.com/cybericebox/daemon/internal/model/participant"
-	signalModel "github.com/cybericebox/daemon/internal/model/signal"
-	event "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
+	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
+	signalModel "github.com/cybericebox/backend/internal/model/signal"
+	event "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 type invitationTokens struct{}

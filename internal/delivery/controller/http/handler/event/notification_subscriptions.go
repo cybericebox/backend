@@ -5,8 +5,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 // notificationSubscriptionResponse is the effective subscription of an Event.

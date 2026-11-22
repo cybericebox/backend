@@ -8,10 +8,10 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/infrastructureAgentRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/labPlacementRepo"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/infrastructureAgentRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/labPlacementRepo"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 func newAdminAgent(name string, priority int, now time.Time) infraModel.AgentRecord {

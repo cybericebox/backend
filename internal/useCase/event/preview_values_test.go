@@ -7,7 +7,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
 )
 
 // The template previews of an event show its own data: name, tag, site links in the real format (the same as

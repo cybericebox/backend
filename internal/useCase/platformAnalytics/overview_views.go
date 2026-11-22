@@ -3,7 +3,7 @@ package platformAnalytics
 import (
 	"time"
 
-	platformAnalyticsModel "github.com/cybericebox/daemon/internal/model/platformAnalytics"
+	platformAnalyticsModel "github.com/cybericebox/backend/internal/model/platformAnalytics"
 )
 
 type (

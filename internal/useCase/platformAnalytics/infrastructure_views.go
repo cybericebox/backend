@@ -5,8 +5,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	labMonitoringModel "github.com/cybericebox/daemon/internal/model/labMonitoring"
-	platformAnalyticsModel "github.com/cybericebox/daemon/internal/model/platformAnalytics"
+	labMonitoringModel "github.com/cybericebox/backend/internal/model/labMonitoring"
+	platformAnalyticsModel "github.com/cybericebox/backend/internal/model/platformAnalytics"
 )
 
 type (

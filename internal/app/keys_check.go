@@ -10,15 +10,15 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/repository"
-	"github.com/cybericebox/daemon/internal/delivery/repository/keyRotationRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	"github.com/cybericebox/daemon/internal/delivery/repository/secretKeysRepo"
-	"github.com/cybericebox/daemon/internal/eventrender"
-	"github.com/cybericebox/daemon/internal/useCase/keyrotation"
-	"github.com/cybericebox/daemon/internal/useCase/secretkeys"
-	"github.com/cybericebox/daemon/pkg/secret"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/repository"
+	"github.com/cybericebox/backend/internal/delivery/repository/keyRotationRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/delivery/repository/secretKeysRepo"
+	"github.com/cybericebox/backend/internal/eventrender"
+	"github.com/cybericebox/backend/internal/useCase/keyrotation"
+	"github.com/cybericebox/backend/internal/useCase/secretkeys"
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
 // Exit codes of `keys check`.

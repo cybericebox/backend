@@ -9,11 +9,11 @@ import (
 	"github.com/gofrs/uuid"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	eventChallengeModel "github.com/cybericebox/daemon/internal/model/eventChallenge"
-	participantModel "github.com/cybericebox/daemon/internal/model/participant"
-	event "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	eventChallengeModel "github.com/cybericebox/backend/internal/model/eventChallenge"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
+	event "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 type hintFixture struct {

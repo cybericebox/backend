@@ -10,11 +10,11 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventAnalyticsRepo"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventAnalyticsModel "github.com/cybericebox/daemon/internal/model/eventAnalytics"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	eventManagerModel "github.com/cybericebox/daemon/internal/model/eventManager"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventAnalyticsRepo"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventAnalyticsModel "github.com/cybericebox/backend/internal/model/eventAnalytics"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	eventManagerModel "github.com/cybericebox/backend/internal/model/eventManager"
 )
 
 type (

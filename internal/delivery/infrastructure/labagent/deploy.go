@@ -18,12 +18,12 @@ import (
 	labclient "github.com/cybericebox/laboratory/pkg/agent/client"
 	labpb "github.com/cybericebox/laboratory/pkg/agent/protobuf"
 
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	labAccessModel "github.com/cybericebox/daemon/internal/model/labAccess"
-	resourcesModel "github.com/cybericebox/daemon/internal/model/resources"
-	appErr "github.com/cybericebox/daemon/pkg/err"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	labAccessModel "github.com/cybericebox/backend/internal/model/labAccess"
+	resourcesModel "github.com/cybericebox/backend/internal/model/resources"
+	appErr "github.com/cybericebox/backend/pkg/err"
 )
 
 // deployVariantID names the one variant a single-lab deploy sends. A deploy

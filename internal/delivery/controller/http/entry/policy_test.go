@@ -3,7 +3,7 @@ package entry
 import (
 	"testing"
 
-	"github.com/cybericebox/daemon/internal/config"
+	"github.com/cybericebox/backend/internal/config"
 )
 
 var testHosts = config.HostsConfig{

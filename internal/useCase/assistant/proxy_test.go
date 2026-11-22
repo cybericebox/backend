@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cybericebox/daemon/internal/delivery/infrastructure/brain/brainfake"
-	assistantModel "github.com/cybericebox/daemon/internal/model/assistant"
-	"github.com/cybericebox/daemon/internal/useCase/assistant"
+	"github.com/cybericebox/backend/internal/delivery/infrastructure/brain/brainfake"
+	assistantModel "github.com/cybericebox/backend/internal/model/assistant"
+	"github.com/cybericebox/backend/internal/useCase/assistant"
 )
 
 func enrolledRig(t *testing.T, mutate func(*assistant.Dependencies)) *rig {

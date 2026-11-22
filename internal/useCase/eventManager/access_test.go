@@ -8,9 +8,9 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	eventManagerModel "github.com/cybericebox/daemon/internal/model/eventManager"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	eventManager "github.com/cybericebox/daemon/internal/useCase/eventManager"
+	eventManagerModel "github.com/cybericebox/backend/internal/model/eventManager"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	eventManager "github.com/cybericebox/backend/internal/useCase/eventManager"
 )
 
 type fakeMemberships struct {

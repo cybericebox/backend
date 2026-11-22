@@ -7,11 +7,11 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventTeamRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	"github.com/cybericebox/daemon/internal/delivery/repository/teamChallengeRepo"
-	eventTeamModel "github.com/cybericebox/daemon/internal/model/eventTeam"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventTeamRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/delivery/repository/teamChallengeRepo"
+	eventTeamModel "github.com/cybericebox/backend/internal/model/eventTeam"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 // The variant use of an event exercise counts distinct teams over all its

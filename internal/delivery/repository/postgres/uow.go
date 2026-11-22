@@ -1,14 +1,14 @@
 package postgres
 
-//go:generate go run go.uber.org/mock/mockgen -destination mocks/mock_uow.go -package postgresMocks github.com/cybericebox/daemon/internal/delivery/repository/postgres UoW
-//go:generate go run go.uber.org/mock/mockgen -destination mocks/mock_querier.go -package postgresMocks github.com/cybericebox/daemon/internal/delivery/repository/postgres Querier
+//go:generate go run go.uber.org/mock/mockgen -destination mocks/mock_uow.go -package postgresMocks github.com/cybericebox/backend/internal/delivery/repository/postgres UoW
+//go:generate go run go.uber.org/mock/mockgen -destination mocks/mock_querier.go -package postgresMocks github.com/cybericebox/backend/internal/delivery/repository/postgres Querier
 
 import (
 	"context"
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/cybericebox/daemon/internal/model"
+	"github.com/cybericebox/backend/internal/model"
 )
 
 // UoW is the transaction handle returned to business logic. Save persists the

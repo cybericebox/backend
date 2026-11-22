@@ -12,9 +12,9 @@ import (
 
 	labpb "github.com/cybericebox/laboratory/pkg/agent/protobuf"
 
-	errorJournal "github.com/cybericebox/daemon/internal/model/errorJournal"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	resourcesModel "github.com/cybericebox/daemon/internal/model/resources"
+	errorJournal "github.com/cybericebox/backend/internal/model/errorJournal"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	resourcesModel "github.com/cybericebox/backend/internal/model/resources"
 )
 
 // The fleet is the calendar's port to the agents' reservations.

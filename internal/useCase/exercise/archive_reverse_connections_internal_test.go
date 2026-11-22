@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 // reverse_connections is a key of a VPN gateway device: read, kept, written back by the export and refused on any other device.

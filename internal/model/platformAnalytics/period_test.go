@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	platformAnalyticsModel "github.com/cybericebox/daemon/internal/model/platformAnalytics"
+	platformAnalyticsModel "github.com/cybericebox/backend/internal/model/platformAnalytics"
 )
 
 var now = time.Date(2026, 9, 30, 13, 20, 0, 0, time.UTC)

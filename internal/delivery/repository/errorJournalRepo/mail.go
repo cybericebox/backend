@@ -2,8 +2,8 @@ package errorJournalRepo
 
 import (
 	"context"
-	mailModel "github.com/cybericebox/daemon/internal/model/mail"
-	errorJournalUseCase "github.com/cybericebox/daemon/internal/useCase/errorJournal"
+	mailModel "github.com/cybericebox/backend/internal/model/mail"
+	errorJournalUseCase "github.com/cybericebox/backend/internal/useCase/errorJournal"
 )
 
 func (r *Repository) SMTPProviderStates(ctx context.Context) ([]errorJournalUseCase.SMTPProviderState, error) {

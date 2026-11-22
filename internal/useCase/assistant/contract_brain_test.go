@@ -16,8 +16,8 @@ import (
 	"testing"
 	"time"
 
-	assistantModel "github.com/cybericebox/daemon/internal/model/assistant"
-	exerciseUseCase "github.com/cybericebox/daemon/internal/useCase/exercise"
+	assistantModel "github.com/cybericebox/backend/internal/model/assistant"
+	exerciseUseCase "github.com/cybericebox/backend/internal/useCase/exercise"
 )
 
 // The contract test runs the REAL cyber-brain (built from the sibling checkout, no Docker, no NATS) behind the fake's TLS and

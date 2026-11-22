@@ -11,8 +11,8 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/mediaRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/delivery/repository/mediaRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
 )
 
 // memQueries is an in-memory stand-in for the media queries with the semantics the use case relies on: a blob is shared by

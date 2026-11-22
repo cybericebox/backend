@@ -6,9 +6,9 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	assistantModel "github.com/cybericebox/daemon/internal/model/assistant"
-	assistantUseCase "github.com/cybericebox/daemon/internal/useCase/assistant"
-	exerciseUseCase "github.com/cybericebox/daemon/internal/useCase/exercise"
+	assistantModel "github.com/cybericebox/backend/internal/model/assistant"
+	assistantUseCase "github.com/cybericebox/backend/internal/useCase/assistant"
+	exerciseUseCase "github.com/cybericebox/backend/internal/useCase/exercise"
 )
 
 // AssistantProxy passes one call of the authoring chat to cyber-brain as the user (the HTTP handler's port).

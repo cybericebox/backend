@@ -3,7 +3,7 @@ package notificationModel_test
 import (
 	"testing"
 
-	notificationModel "github.com/cybericebox/daemon/internal/model/notification"
+	notificationModel "github.com/cybericebox/backend/internal/model/notification"
 )
 
 func TestTemplateStatus_Typed(t *testing.T) {

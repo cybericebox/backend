@@ -6,10 +6,10 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventChallengeGroupRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	eventChallengeGroupModel "github.com/cybericebox/daemon/internal/model/eventChallengeGroup"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventChallengeGroupRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	eventChallengeGroupModel "github.com/cybericebox/backend/internal/model/eventChallengeGroup"
 )
 
 func (u *EventUseCase) CreateChallengeGroup(ctx context.Context, eventID uuid.UUID, in CreateChallengeGroupInput) (ChallengeGroupView, error) {

@@ -2,8 +2,8 @@ package errorJournalRepo_test
 
 import (
 	"context"
-	errorJournal "github.com/cybericebox/daemon/internal/model/errorJournal"
-	errorJournalUseCase "github.com/cybericebox/daemon/internal/useCase/errorJournal"
+	errorJournal "github.com/cybericebox/backend/internal/model/errorJournal"
+	errorJournalUseCase "github.com/cybericebox/backend/internal/useCase/errorJournal"
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 	"sync"

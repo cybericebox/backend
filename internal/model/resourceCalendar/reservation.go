@@ -6,7 +6,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	resourcesModel "github.com/cybericebox/daemon/internal/model/resources"
+	resourcesModel "github.com/cybericebox/backend/internal/model/resources"
 )
 
 // Amount is the CPU and memory of a reservation, an agent or a team.

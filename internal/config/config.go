@@ -15,10 +15,10 @@ import (
 	"github.com/caarlos0/env/v11"
 	"github.com/rs/zerolog/log"
 
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	resourcesModel "github.com/cybericebox/daemon/internal/model/resources"
-	retentionModel "github.com/cybericebox/daemon/internal/model/retention"
-	"github.com/cybericebox/daemon/pkg/secret"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	resourcesModel "github.com/cybericebox/backend/internal/model/resources"
+	retentionModel "github.com/cybericebox/backend/internal/model/retention"
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
 type (

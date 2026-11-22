@@ -5,8 +5,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/model"
-	"github.com/cybericebox/daemon/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/model"
+	"github.com/cybericebox/backend/internal/model/rbac"
 )
 
 // GetSelfProfile returns the signed-in user's lightweight profile.

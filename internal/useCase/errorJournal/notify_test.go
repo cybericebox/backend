@@ -12,9 +12,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	errorJournal "github.com/cybericebox/daemon/internal/model/errorJournal"
-	mailUseCase "github.com/cybericebox/daemon/internal/useCase/mail"
-	"github.com/cybericebox/daemon/pkg/email"
+	errorJournal "github.com/cybericebox/backend/internal/model/errorJournal"
+	mailUseCase "github.com/cybericebox/backend/internal/useCase/mail"
+	"github.com/cybericebox/backend/pkg/email"
 )
 
 func TestErrorEmail_HasShortSubjectAndFullScrubbedBody(t *testing.T) {

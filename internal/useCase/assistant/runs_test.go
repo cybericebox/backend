@@ -19,15 +19,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/delivery/infrastructure/brain/brainfake"
-	"github.com/cybericebox/daemon/internal/delivery/repository/assistantRunRepo"
-	assistantModel "github.com/cybericebox/daemon/internal/model/assistant"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
-	"github.com/cybericebox/daemon/internal/useCase/assistant"
-	exerciseUseCase "github.com/cybericebox/daemon/internal/useCase/exercise"
-	labActivityUseCase "github.com/cybericebox/daemon/internal/useCase/labActivity"
+	"github.com/cybericebox/backend/internal/delivery/infrastructure/brain/brainfake"
+	"github.com/cybericebox/backend/internal/delivery/repository/assistantRunRepo"
+	assistantModel "github.com/cybericebox/backend/internal/model/assistant"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	userModel "github.com/cybericebox/backend/internal/model/user"
+	"github.com/cybericebox/backend/internal/useCase/assistant"
+	exerciseUseCase "github.com/cybericebox/backend/internal/useCase/exercise"
+	labActivityUseCase "github.com/cybericebox/backend/internal/useCase/labActivity"
 )
 
 // memRuns is the run store in memory.

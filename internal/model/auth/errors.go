@@ -3,9 +3,9 @@ package authModel
 import (
 	"net/http"
 
-	"github.com/cybericebox/daemon/pkg/err"
+	"github.com/cybericebox/backend/pkg/err"
 
-	"github.com/cybericebox/daemon/internal/model"
+	"github.com/cybericebox/backend/internal/model"
 )
 
 // StatusClientClosedRequest is the non-standard 499 the access log uses for a request the client abandoned.

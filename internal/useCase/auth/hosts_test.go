@@ -1,6 +1,6 @@
 package auth_test
 
-import "github.com/cybericebox/daemon/internal/config"
+import "github.com/cybericebox/backend/internal/config"
 
 // testHosts is a full host set under domain.
 func testHosts(domain string) config.HostsConfig {

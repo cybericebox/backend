@@ -6,11 +6,11 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	notificationModel "github.com/cybericebox/daemon/internal/model/notification"
-	broadcastModel "github.com/cybericebox/daemon/internal/model/notification/broadcast"
-	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	notificationModel "github.com/cybericebox/backend/internal/model/notification"
+	broadcastModel "github.com/cybericebox/backend/internal/model/notification/broadcast"
+	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
 )
 
 // Broadcast templates are saved broadcast messages of one scope (scopeEventID

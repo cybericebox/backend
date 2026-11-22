@@ -1,13 +1,13 @@
 package eventAnalyticsModel_test
 
 import (
-	labBindingModel "github.com/cybericebox/daemon/internal/model/labBinding"
+	labBindingModel "github.com/cybericebox/backend/internal/model/labBinding"
 	"testing"
 	"time"
 
 	"github.com/gofrs/uuid"
 
-	eventAnalyticsModel "github.com/cybericebox/daemon/internal/model/eventAnalytics"
+	eventAnalyticsModel "github.com/cybericebox/backend/internal/model/eventAnalytics"
 )
 
 var t0 = time.Date(2026, 9, 29, 10, 0, 0, 0, time.UTC)

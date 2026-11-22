@@ -8,10 +8,10 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/exerciseRepo"
-	"github.com/cybericebox/daemon/internal/model"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	appErr "github.com/cybericebox/daemon/pkg/err"
+	"github.com/cybericebox/backend/internal/delivery/repository/exerciseRepo"
+	"github.com/cybericebox/backend/internal/model"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	appErr "github.com/cybericebox/backend/pkg/err"
 )
 
 // importIdentity pairs the imported version with the stored working copy of the target exercise (see

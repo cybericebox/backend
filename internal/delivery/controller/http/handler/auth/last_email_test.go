@@ -10,8 +10,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	authHandler "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/auth"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
+	authHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/auth"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 )
 
 func lastEmailEngine(uc *fakeUC) *gin.Engine {

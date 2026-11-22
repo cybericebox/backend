@@ -8,7 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	authHandler "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/auth"
+	authHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/auth"
 )
 
 // The session keeps the connection's peer address only when it is public; a forwarding header never counts, and a

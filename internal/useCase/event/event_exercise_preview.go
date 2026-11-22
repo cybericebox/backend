@@ -7,10 +7,10 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventChallengeRepo"
-	"github.com/cybericebox/daemon/internal/model"
-	eventExerciseModel "github.com/cybericebox/daemon/internal/model/eventExercise"
-	calModel "github.com/cybericebox/daemon/internal/model/resourceCalendar"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventChallengeRepo"
+	"github.com/cybericebox/backend/internal/model"
+	eventExerciseModel "github.com/cybericebox/backend/internal/model/eventExercise"
+	calModel "github.com/cybericebox/backend/internal/model/resourceCalendar"
 )
 
 // EventExerciseUpdateTeam is a team whose stand the update would recreate.

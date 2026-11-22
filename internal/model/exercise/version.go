@@ -8,8 +8,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/cybericebox/daemon/internal/model/flagpattern"
-	appErr "github.com/cybericebox/daemon/pkg/err"
+	"github.com/cybericebox/backend/internal/model/flagpattern"
+	appErr "github.com/cybericebox/backend/pkg/err"
 	"github.com/gofrs/uuid"
 )
 

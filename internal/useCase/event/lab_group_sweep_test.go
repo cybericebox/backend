@@ -9,8 +9,8 @@ import (
 	"github.com/gofrs/uuid"
 	"go.uber.org/mock/gomock"
 
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	event "github.com/cybericebox/daemon/internal/useCase/event"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	event "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 // sweepInfrastructure lists a fixed set of groups and records what is destroyed.

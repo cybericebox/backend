@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 const oldSeededFooter = `{"type": "rich_text", "content": {"root": {"type": "root", "children": [{"type": "paragraph", "children": [{"type": "text", "text": "%s", "format": 0}]}]}}}`

@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 // TestLegalDocumentsMigration: the down migration brings the version number back (1 for an accepted row), and running

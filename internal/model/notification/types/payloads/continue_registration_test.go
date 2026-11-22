@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
-	notificationPayloads "github.com/cybericebox/daemon/internal/model/notification/types/payloads"
+	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
+	notificationPayloads "github.com/cybericebox/backend/internal/model/notification/types/payloads"
 )
 
 func TestContinueRegistrationPayload(t *testing.T) {

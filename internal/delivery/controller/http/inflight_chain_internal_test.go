@@ -10,12 +10,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/middleware"
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
-	errorJournal "github.com/cybericebox/daemon/internal/model/errorJournal"
-	authUseCase "github.com/cybericebox/daemon/internal/useCase/auth"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
+	errorJournal "github.com/cybericebox/backend/internal/model/errorJournal"
+	authUseCase "github.com/cybericebox/backend/internal/useCase/auth"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 // chainUseCase is just enough of the use case for NewController to build its chain: no event tags, and every

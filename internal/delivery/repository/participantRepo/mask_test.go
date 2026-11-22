@@ -5,8 +5,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	participantModel "github.com/cybericebox/daemon/internal/model/participant"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
 )
 
 // M6: a pending invitation must not read out the profile name of the invited account.

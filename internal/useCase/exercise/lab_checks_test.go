@@ -11,12 +11,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	labCheckModel "github.com/cybericebox/daemon/internal/model/labCheck"
-	"github.com/cybericebox/daemon/internal/useCase/exercise"
-	apperr "github.com/cybericebox/daemon/pkg/err"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	labCheckModel "github.com/cybericebox/backend/internal/model/labCheck"
+	"github.com/cybericebox/backend/internal/useCase/exercise"
+	apperr "github.com/cybericebox/backend/pkg/err"
 )
 
 // memoryLabChecks keeps results and asks in memory, with the same rate limit rule as the table.

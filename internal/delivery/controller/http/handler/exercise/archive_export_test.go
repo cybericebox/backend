@@ -7,8 +7,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	exerciseUseCase "github.com/cybericebox/daemon/internal/useCase/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	exerciseUseCase "github.com/cybericebox/backend/internal/useCase/exercise"
 )
 
 // Two exercises with one name export as one zip: folders <name>/ and <name>_2/, one root manifest.

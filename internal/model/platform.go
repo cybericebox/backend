@@ -1,5 +1,5 @@
 package model
 
-import "github.com/cybericebox/daemon/pkg/err"
+import "github.com/cybericebox/backend/pkg/err"
 
 var ErrPlatform = err.ErrInternal.WithObjectCode(PlatformObjectCode)

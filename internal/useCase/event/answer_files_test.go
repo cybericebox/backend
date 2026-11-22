@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	participantModel "github.com/cybericebox/daemon/internal/model/participant"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
 	"strings"
 	"testing"
 	"time"
@@ -15,12 +15,12 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventFormModel "github.com/cybericebox/daemon/internal/model/eventForm"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	event "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventFormModel "github.com/cybericebox/backend/internal/model/eventForm"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	event "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 const fileFormDocument = `{"blocks":[

@@ -13,9 +13,9 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	assistantModel "github.com/cybericebox/daemon/internal/model/assistant"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	assistantModel "github.com/cybericebox/backend/internal/model/assistant"
 )
 
 type Queries interface {

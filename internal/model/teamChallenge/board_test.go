@@ -6,7 +6,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	teamChallengeModel "github.com/cybericebox/daemon/internal/model/teamChallenge"
+	teamChallengeModel "github.com/cybericebox/backend/internal/model/teamChallenge"
 )
 
 func TestLockedSnapshotKeepsOnlyNameAndDifficulty(t *testing.T) {

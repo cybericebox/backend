@@ -5,8 +5,8 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
 )
 
 // SupportedProfiles are the node profiles the platform supports (the setting "Node profiles"); the container only

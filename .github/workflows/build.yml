@@ -32,8 +32,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: daemon
-            image: cybericebox/daemon
+          - name: backend
+            image: cybericebox/backend
     steps:
       # The scripts that run with the Docker Hub credentials are the ones of the branch the workflow runs on (develop or release/*, the
       # branches the environment allows), never the ones of the commit that is built: that commit is data for the build.

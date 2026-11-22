@@ -11,11 +11,11 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventManagerModel "github.com/cybericebox/daemon/internal/model/eventManager"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	notificationModel "github.com/cybericebox/daemon/internal/model/notification"
-	emailUseCase "github.com/cybericebox/daemon/internal/useCase/notification/channels/email"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventManagerModel "github.com/cybericebox/backend/internal/model/eventManager"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	notificationModel "github.com/cybericebox/backend/internal/model/notification"
+	emailUseCase "github.com/cybericebox/backend/internal/useCase/notification/channels/email"
 )
 
 // previewContractUC is a read-only Event member: manage is forbidden, so the

@@ -7,9 +7,9 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	eventFormRepo "github.com/cybericebox/daemon/internal/delivery/repository/eventFormRepo"
-	eventFormModel "github.com/cybericebox/daemon/internal/model/eventForm"
-	signalModel "github.com/cybericebox/daemon/internal/model/signal"
+	eventFormRepo "github.com/cybericebox/backend/internal/delivery/repository/eventFormRepo"
+	eventFormModel "github.com/cybericebox/backend/internal/model/eventForm"
+	signalModel "github.com/cybericebox/backend/internal/model/signal"
 )
 
 // FormDeliveryAssignment is the event-owned delivery rule supplied by the

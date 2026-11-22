@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	appErr "github.com/cybericebox/daemon/pkg/err"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	appErr "github.com/cybericebox/backend/pkg/err"
 )
 
 // twoVariants is a version of two variants whose tasks line up; the tests break one of them and read the public context.

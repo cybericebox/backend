@@ -11,8 +11,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/sse"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/sse"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 // journalStreamUC returns the first stamp once, then the second one.

@@ -10,13 +10,13 @@ import (
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/errjournal"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/handler"
-	_ "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/apidocs"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/middleware"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/protection"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/errjournal"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/handler"
+	_ "github.com/cybericebox/backend/internal/delivery/controller/http/handler/apidocs"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/protection"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 )
 
 type (

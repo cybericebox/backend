@@ -5,8 +5,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/model/usertext"
-	platformAnalyticsUseCase "github.com/cybericebox/daemon/internal/useCase/platformAnalytics"
+	"github.com/cybericebox/backend/internal/model/usertext"
+	platformAnalyticsUseCase "github.com/cybericebox/backend/internal/useCase/platformAnalytics"
 )
 
 // csvPrevious prints the previous period's value; empty for all time.

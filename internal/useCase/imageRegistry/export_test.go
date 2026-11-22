@@ -10,9 +10,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	imageRegistryModel "github.com/cybericebox/daemon/internal/model/imageRegistry"
-	appErr "github.com/cybericebox/daemon/pkg/err"
-	"github.com/cybericebox/daemon/pkg/ociregistry/archivetest"
+	imageRegistryModel "github.com/cybericebox/backend/internal/model/imageRegistry"
+	appErr "github.com/cybericebox/backend/pkg/err"
+	"github.com/cybericebox/backend/pkg/ociregistry/archivetest"
 )
 
 // importedImage pushes a legacy docker save archive through the archive import and returns its reference.

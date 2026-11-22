@@ -8,8 +8,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/cybericebox/daemon/pkg/safeconv"
-	"github.com/cybericebox/daemon/pkg/worker"
+	"github.com/cybericebox/backend/pkg/safeconv"
+	"github.com/cybericebox/backend/pkg/worker"
 	"strings"
 	"time"
 
@@ -18,10 +18,10 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	errorJournal "github.com/cybericebox/daemon/internal/model/errorJournal"
-	errorJournalUseCase "github.com/cybericebox/daemon/internal/useCase/errorJournal"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	errorJournal "github.com/cybericebox/backend/internal/model/errorJournal"
+	errorJournalUseCase "github.com/cybericebox/backend/internal/useCase/errorJournal"
 )
 
 // Queries is the narrow slice of the sqlc Querier this repository needs.

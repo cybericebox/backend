@@ -8,7 +8,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 // Migration 0206 closes the open CPU throttling requests (hundreds on the khctf day) without deleting anything,

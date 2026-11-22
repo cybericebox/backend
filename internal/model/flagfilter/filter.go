@@ -27,7 +27,7 @@ import (
 	"math/big"
 	"math/bits"
 
-	"github.com/cybericebox/daemon/internal/model/flagpattern"
+	"github.com/cybericebox/backend/internal/model/flagpattern"
 )
 
 type Mode int16

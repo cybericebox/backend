@@ -6,10 +6,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/audit"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	infrastructureUseCase "github.com/cybericebox/daemon/internal/useCase/infrastructure"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/audit"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	infrastructureUseCase "github.com/cybericebox/backend/internal/useCase/infrastructure"
 )
 
 type (

@@ -9,10 +9,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	exerciseHandler "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/exercise"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	exerciseUseCase "github.com/cybericebox/daemon/internal/useCase/exercise"
+	exerciseHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/exercise"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	exerciseUseCase "github.com/cybericebox/backend/internal/useCase/exercise"
 )
 
 func TestCatalogColumnsPreference(t *testing.T) {

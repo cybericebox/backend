@@ -9,8 +9,8 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/assert"
 
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
-	calModel "github.com/cybericebox/daemon/internal/model/resourceCalendar"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
+	calModel "github.com/cybericebox/backend/internal/model/resourceCalendar"
 )
 
 func revealLab(team uuid.UUID, reserved bool, created time.Time) eventLabModel.Lab {

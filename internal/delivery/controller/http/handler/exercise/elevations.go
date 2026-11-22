@@ -7,10 +7,10 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/audit"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	exerciseUseCase "github.com/cybericebox/daemon/internal/useCase/exercise"
-	calendarUseCase "github.com/cybericebox/daemon/internal/useCase/resourceCalendar"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/audit"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	exerciseUseCase "github.com/cybericebox/backend/internal/useCase/exercise"
+	calendarUseCase "github.com/cybericebox/backend/internal/useCase/resourceCalendar"
 )
 
 // requestElevation godoc

@@ -3,7 +3,7 @@ package eventContentModel
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/cybericebox/daemon/internal/model/eventContent/testutil"
+	"github.com/cybericebox/backend/internal/model/eventContent/testutil"
 	"strings"
 	"testing"
 )

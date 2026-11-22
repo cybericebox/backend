@@ -8,11 +8,11 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	imageRegistryModel "github.com/cybericebox/daemon/internal/model/imageRegistry"
-	inboxUseCase "github.com/cybericebox/daemon/internal/useCase/notification/inbox"
-	"github.com/cybericebox/daemon/pkg/ociregistry"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	imageRegistryModel "github.com/cybericebox/backend/internal/model/imageRegistry"
+	inboxUseCase "github.com/cybericebox/backend/internal/useCase/notification/inbox"
+	"github.com/cybericebox/backend/pkg/ociregistry"
 )
 
 // Alert keys of the platform tokens (an organizer secret's is "event_secret:<id>").

@@ -4,17 +4,17 @@ import (
 	"context"
 	"time"
 
-	utils "github.com/cybericebox/daemon/internal/delivery/controller/http/utils"
+	utils "github.com/cybericebox/backend/internal/delivery/controller/http/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/audit"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
-	adminAuditUseCase "github.com/cybericebox/daemon/internal/useCase/adminAudit"
-	authUseCase "github.com/cybericebox/daemon/internal/useCase/auth"
-	"github.com/cybericebox/daemon/pkg/pagination"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/audit"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	userModel "github.com/cybericebox/backend/internal/model/user"
+	adminAuditUseCase "github.com/cybericebox/backend/internal/useCase/adminAudit"
+	authUseCase "github.com/cybericebox/backend/internal/useCase/auth"
+	"github.com/cybericebox/backend/pkg/pagination"
 )
 
 type (

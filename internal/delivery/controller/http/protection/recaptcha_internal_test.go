@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cybericebox/daemon/internal/config"
+	"github.com/cybericebox/backend/internal/config"
 )
 
 // The secret must travel in the POST body: a failed request is logged with its URL.

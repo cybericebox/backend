@@ -12,11 +12,11 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
-	eventStandModel "github.com/cybericebox/daemon/internal/model/eventStand"
-	siteBannerModel "github.com/cybericebox/daemon/internal/model/siteBanner"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
+	eventStandModel "github.com/cybericebox/backend/internal/model/eventStand"
+	siteBannerModel "github.com/cybericebox/backend/internal/model/siteBanner"
 )
 
 // Queries is the narrow slice of the sqlc Querier this repository needs.

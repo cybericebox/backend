@@ -6,10 +6,10 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	notificationModel "github.com/cybericebox/daemon/internal/model/notification"
-	emailModel "github.com/cybericebox/daemon/internal/model/notification/email"
-	inAppModel "github.com/cybericebox/daemon/internal/model/notification/inapp"
-	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
+	notificationModel "github.com/cybericebox/backend/internal/model/notification"
+	emailModel "github.com/cybericebox/backend/internal/model/notification/email"
+	inAppModel "github.com/cybericebox/backend/internal/model/notification/inapp"
+	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
 )
 
 // BroadcastContent is the custom message of one broadcast. Channel handlers

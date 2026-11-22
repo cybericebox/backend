@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 	"github.com/gofrs/uuid"
 )
 

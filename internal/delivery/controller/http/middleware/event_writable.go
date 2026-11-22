@@ -8,7 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 )
 
 // EventWriteGuard is implemented by the event use case: it refuses writes to an archived event.

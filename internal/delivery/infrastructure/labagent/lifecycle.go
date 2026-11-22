@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
 	labpb "github.com/cybericebox/laboratory/pkg/agent/protobuf"
 	"github.com/gofrs/uuid"
 )

@@ -2,18 +2,18 @@ package event
 
 import (
 	"context"
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
-	calendarUseCase "github.com/cybericebox/daemon/internal/useCase/resourceCalendar"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
+	calendarUseCase "github.com/cybericebox/backend/internal/useCase/resourceCalendar"
 	"time"
 
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/daemon/internal/model"
-	eventExerciseModel "github.com/cybericebox/daemon/internal/model/eventExercise"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	resourcesModel "github.com/cybericebox/daemon/internal/model/resources"
+	"github.com/cybericebox/backend/internal/model"
+	eventExerciseModel "github.com/cybericebox/backend/internal/model/eventExercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	resourcesModel "github.com/cybericebox/backend/internal/model/resources"
 )
 
 // ApprovalStore reads the approved resource elevations of exercises (satisfied by *exerciseRepo.Repository).

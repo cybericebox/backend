@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	signalModel "github.com/cybericebox/daemon/internal/model/signal"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	signalModel "github.com/cybericebox/backend/internal/model/signal"
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"

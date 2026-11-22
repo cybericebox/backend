@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/cybericebox/daemon/internal/model/usertext"
+	"github.com/cybericebox/backend/internal/model/usertext"
 )
 
 // Kinds of a failed email target, so the journal can show a human line. The

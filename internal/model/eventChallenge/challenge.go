@@ -10,9 +10,9 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	challengeAttempt "github.com/cybericebox/daemon/internal/model/challengeAttempt"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	challengeAttempt "github.com/cybericebox/backend/internal/model/challengeAttempt"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 const defaultPoints int32 = 100

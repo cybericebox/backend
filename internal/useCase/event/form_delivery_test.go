@@ -8,9 +8,9 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	eventFormModel "github.com/cybericebox/daemon/internal/model/eventForm"
-	signalModel "github.com/cybericebox/daemon/internal/model/signal"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	eventFormModel "github.com/cybericebox/backend/internal/model/eventForm"
+	signalModel "github.com/cybericebox/backend/internal/model/signal"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 type formDeliveryStore struct {

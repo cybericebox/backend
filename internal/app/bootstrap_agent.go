@@ -7,8 +7,8 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/daemon/internal/config"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
+	"github.com/cybericebox/backend/internal/config"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
 )
 
 // agentBootstrapper is the part of the agents use case the startup needs.

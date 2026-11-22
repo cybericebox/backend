@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 // The migrations of the hardening work (0205 and later) go down and up again; the full chain cannot go down to an empty

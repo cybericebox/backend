@@ -8,7 +8,7 @@ import (
 
 	labpb "github.com/cybericebox/laboratory/pkg/agent/protobuf"
 
-	labBindingModel "github.com/cybericebox/daemon/internal/model/labBinding"
+	labBindingModel "github.com/cybericebox/backend/internal/model/labBinding"
 )
 
 // ThrottleAlertPercent is the share of throttled CFS periods above which a device is starved by its CPU limit.

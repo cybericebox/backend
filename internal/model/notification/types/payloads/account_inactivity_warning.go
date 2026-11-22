@@ -3,7 +3,7 @@ package notificationPayloads
 import (
 	"encoding/json"
 
-	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
+	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
 )
 
 type AccountInactivityWarningPayload struct {

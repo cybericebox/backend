@@ -17,9 +17,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/cybericebox/daemon/internal/delivery/infrastructure/agentfleet"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	"github.com/cybericebox/daemon/pkg/agentcrypto"
+	"github.com/cybericebox/backend/internal/delivery/infrastructure/agentfleet"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	"github.com/cybericebox/backend/pkg/agentcrypto"
 )
 
 type memAgents struct {

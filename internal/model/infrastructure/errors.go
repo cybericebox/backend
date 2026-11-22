@@ -3,8 +3,8 @@ package infrastructure
 import (
 	"net/http"
 
-	"github.com/cybericebox/daemon/internal/model"
-	"github.com/cybericebox/daemon/pkg/err"
+	"github.com/cybericebox/backend/internal/model"
+	"github.com/cybericebox/backend/pkg/err"
 )
 
 // next free detail code: 21 (18 was retired with the per-agent publish check)

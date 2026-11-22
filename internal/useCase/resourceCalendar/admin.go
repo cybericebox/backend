@@ -8,8 +8,8 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	calModel "github.com/cybericebox/daemon/internal/model/resourceCalendar"
-	infraUseCase "github.com/cybericebox/daemon/internal/useCase/infrastructure"
+	calModel "github.com/cybericebox/backend/internal/model/resourceCalendar"
+	infraUseCase "github.com/cybericebox/backend/internal/useCase/infrastructure"
 )
 
 // MaxTimelineRange is the longest range one timeline request covers.

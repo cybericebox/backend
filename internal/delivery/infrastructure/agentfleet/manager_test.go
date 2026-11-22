@@ -9,8 +9,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/infrastructure/labagent"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
+	"github.com/cybericebox/backend/internal/delivery/infrastructure/labagent"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
 )
 
 type memRegistry struct{ records []infraModel.AgentRecord }

@@ -7,7 +7,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
-	signalModel "github.com/cybericebox/daemon/internal/model/signal"
+	signalModel "github.com/cybericebox/backend/internal/model/signal"
 )
 
 const testSignalType signalModel.Type = "participant.open_registration.completed"

@@ -8,8 +8,8 @@ import (
 	"github.com/gofrs/uuid"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	tablePrefsModel "github.com/cybericebox/daemon/internal/model/tablePrefs"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	tablePrefsModel "github.com/cybericebox/backend/internal/model/tablePrefs"
 )
 
 func TestTablePrefs_SaveGetResetAreKeyedOnTheCaller(t *testing.T) {

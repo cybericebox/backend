@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	inAppModel "github.com/cybericebox/daemon/internal/model/notification/inapp"
+	inAppModel "github.com/cybericebox/backend/internal/model/notification/inapp"
 )
 
 // L21: Link and Actions were stored as typed; a manager's template could carry javascript:.

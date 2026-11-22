@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/advisory"
+	"github.com/cybericebox/backend/internal/advisory"
 
 	"github.com/golang-migrate/migrate/v4"
 	migratepgx "github.com/golang-migrate/migrate/v4/database/pgx/v5"
@@ -20,8 +20,8 @@ import (
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/model"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/model"
 )
 
 const migrationTable = "ap_backend_schema_migrations"

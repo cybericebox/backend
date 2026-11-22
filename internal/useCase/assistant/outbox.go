@@ -15,7 +15,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/daemon/internal/delivery/infrastructure/brain"
+	"github.com/cybericebox/backend/internal/delivery/infrastructure/brain"
 )
 
 // The codes the platform answers an outbox request with when it cannot give a result. The schema is additive: the brain

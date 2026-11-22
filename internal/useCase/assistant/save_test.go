@@ -16,14 +16,14 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/infrastructure/brain/brainfake"
-	assistantModel "github.com/cybericebox/daemon/internal/model/assistant"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	adminAuditUseCase "github.com/cybericebox/daemon/internal/useCase/adminAudit"
-	"github.com/cybericebox/daemon/internal/useCase/assistant"
-	exerciseUseCase "github.com/cybericebox/daemon/internal/useCase/exercise"
+	"github.com/cybericebox/backend/internal/delivery/infrastructure/brain/brainfake"
+	assistantModel "github.com/cybericebox/backend/internal/model/assistant"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	adminAuditUseCase "github.com/cybericebox/backend/internal/useCase/adminAudit"
+	"github.com/cybericebox/backend/internal/useCase/assistant"
+	exerciseUseCase "github.com/cybericebox/backend/internal/useCase/exercise"
 )
 
 var (

@@ -14,9 +14,9 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/assistantStatsRepo"
-	assistantModel "github.com/cybericebox/daemon/internal/model/assistant"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	"github.com/cybericebox/backend/internal/delivery/repository/assistantStatsRepo"
+	assistantModel "github.com/cybericebox/backend/internal/model/assistant"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 // ParticipantFilter says which participants refused that their data is used. Consent comes later; today nobody is

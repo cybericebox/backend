@@ -7,9 +7,9 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventResultRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/scoreboardRepo"
-	"github.com/cybericebox/daemon/internal/model"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventResultRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/scoreboardRepo"
+	"github.com/cybericebox/backend/internal/model"
 )
 
 const liveResultsReplayLimit int32 = 500

@@ -9,12 +9,12 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventAnalyticsRepo"
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
-	eventAnalyticsModel "github.com/cybericebox/daemon/internal/model/eventAnalytics"
-	labTraffic "github.com/cybericebox/daemon/internal/model/labTraffic"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	"github.com/cybericebox/daemon/internal/useCase/eventAnalytics"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventAnalyticsRepo"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
+	eventAnalyticsModel "github.com/cybericebox/backend/internal/model/eventAnalytics"
+	labTraffic "github.com/cybericebox/backend/internal/model/labTraffic"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/useCase/eventAnalytics"
 )
 
 // reviewStore keeps the organizers' notes in memory.

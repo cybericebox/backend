@@ -6,8 +6,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/challengeAttemptRepo"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
+	"github.com/cybericebox/backend/internal/delivery/repository/challengeAttemptRepo"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
 )
 
 // fixedAward calculates the immutable award for static and time profiles.

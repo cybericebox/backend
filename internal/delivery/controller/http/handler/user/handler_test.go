@@ -12,14 +12,14 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/audit"
-	userHandler "github.com/cybericebox/daemon/internal/delivery/controller/http/handler/user"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
-	adminAuditUseCase "github.com/cybericebox/daemon/internal/useCase/adminAudit"
-	authUseCase "github.com/cybericebox/daemon/internal/useCase/auth"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/audit"
+	userHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/user"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	userModel "github.com/cybericebox/backend/internal/model/user"
+	adminAuditUseCase "github.com/cybericebox/backend/internal/useCase/adminAudit"
+	authUseCase "github.com/cybericebox/backend/internal/useCase/auth"
 )
 
 // fakeUC satisfies IUseCase.

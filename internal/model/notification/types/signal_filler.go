@@ -3,7 +3,7 @@ package notificationTypes
 import (
 	"encoding/json"
 
-	userModel "github.com/cybericebox/daemon/internal/model/user"
+	userModel "github.com/cybericebox/backend/internal/model/user"
 )
 
 // SignalPayloadFiller converts a durable signal payload into final variables

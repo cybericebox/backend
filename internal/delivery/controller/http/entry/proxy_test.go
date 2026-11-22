@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/config"
+	"github.com/cybericebox/backend/internal/config"
 )
 
 func listen(t *testing.T) net.Listener {

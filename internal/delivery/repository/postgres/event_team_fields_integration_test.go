@@ -4,11 +4,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventTeamRepo"
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
-	eventFormModel "github.com/cybericebox/daemon/internal/model/eventForm"
-	eventTeamModel "github.com/cybericebox/daemon/internal/model/eventTeam"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventTeamRepo"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
+	eventFormModel "github.com/cybericebox/backend/internal/model/eventForm"
+	eventTeamModel "github.com/cybericebox/backend/internal/model/eventTeam"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 func TestTeamFieldsConfigAndAnswersRoundTrip(t *testing.T) {

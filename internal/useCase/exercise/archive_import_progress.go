@@ -7,7 +7,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 // importProgressInterval is the least time between two throttled progress writes of a running import (a count

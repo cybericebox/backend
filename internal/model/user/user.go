@@ -6,9 +6,9 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	"github.com/cybericebox/daemon/pkg/tools"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	"github.com/cybericebox/backend/pkg/tools"
 )
 
 // User is the domain entity for a platform account. All mutations live on the

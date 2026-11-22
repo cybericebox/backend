@@ -6,7 +6,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
 )
 
 var (

@@ -9,7 +9,7 @@ import (
 
 	"golang.org/x/net/publicsuffix"
 
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
 )
 
 // HostsConfig names every public host of the platform. DOMAIN is the only input: every host derives

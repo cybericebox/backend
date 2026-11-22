@@ -8,7 +8,7 @@ import (
 
 	labpb "github.com/cybericebox/laboratory/pkg/agent/protobuf"
 
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
 )
 
 // MaintenanceInterval is how often an agent's maintenance windows are read: the agent has no change feed.

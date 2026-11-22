@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 // The golden cases are those of the page's own tests of descriptionValues (see the file's "source"): the same placeholders

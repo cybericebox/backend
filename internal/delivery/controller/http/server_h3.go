@@ -10,7 +10,7 @@ import (
 	"github.com/quic-go/quic-go/http3"
 	"golang.org/x/time/rate"
 
-	"github.com/cybericebox/daemon/internal/config"
+	"github.com/cybericebox/backend/internal/config"
 )
 
 // QUIC limits (the UDP flood posture):

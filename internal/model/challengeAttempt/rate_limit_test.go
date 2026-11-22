@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	challengeAttempt "github.com/cybericebox/daemon/internal/model/challengeAttempt"
-	"github.com/cybericebox/daemon/pkg/err"
+	challengeAttempt "github.com/cybericebox/backend/internal/model/challengeAttempt"
+	"github.com/cybericebox/backend/pkg/err"
 )
 
 func TestRateLimitSince(t *testing.T) {

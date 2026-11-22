@@ -14,13 +14,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	notificationModel "github.com/cybericebox/daemon/internal/model/notification"
-	"github.com/cybericebox/daemon/internal/model/notification/branding"
-	"github.com/cybericebox/daemon/internal/useCase/event"
-	emailUseCase "github.com/cybericebox/daemon/internal/useCase/notification/channels/email"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	notificationModel "github.com/cybericebox/backend/internal/model/notification"
+	"github.com/cybericebox/backend/internal/model/notification/branding"
+	"github.com/cybericebox/backend/internal/useCase/event"
+	emailUseCase "github.com/cybericebox/backend/internal/useCase/notification/channels/email"
 )
 
 // eventDataURI is the data: URI the preview inlines an image as.

@@ -3,8 +3,8 @@ package event
 import (
 	"fmt"
 
-	eventStandModel "github.com/cybericebox/daemon/internal/model/eventStand"
-	calModel "github.com/cybericebox/daemon/internal/model/resourceCalendar"
+	eventStandModel "github.com/cybericebox/backend/internal/model/eventStand"
+	calModel "github.com/cybericebox/backend/internal/model/resourceCalendar"
 )
 
 // reservationShortage is a refusal for lack of room in the event reservation that says how much was needed and how

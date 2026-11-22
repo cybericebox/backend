@@ -10,9 +10,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/config"
-	"github.com/cybericebox/daemon/internal/delivery/repository/mediaRepo"
-	"github.com/cybericebox/daemon/pkg/secret"
+	"github.com/cybericebox/backend/internal/config"
+	"github.com/cybericebox/backend/internal/delivery/repository/mediaRepo"
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
 // IRepository is the narrow data port: the whole mediaRepo query slice (file

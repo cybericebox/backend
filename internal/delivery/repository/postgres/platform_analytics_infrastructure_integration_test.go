@@ -8,8 +8,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/platformAnalyticsRepo"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/platformAnalyticsRepo"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 var paiBase = time.Date(2026, 9, 10, 0, 0, 0, 0, time.UTC)

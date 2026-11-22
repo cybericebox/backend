@@ -9,18 +9,18 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventConfigRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventManagerRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventStandRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventTeamRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/labAccessSyncRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
-	eventManagerModel "github.com/cybericebox/daemon/internal/model/eventManager"
-	eventTeamModel "github.com/cybericebox/daemon/internal/model/eventTeam"
-	labBindingModel "github.com/cybericebox/daemon/internal/model/labBinding"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventConfigRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventManagerRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventStandRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventTeamRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/labAccessSyncRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
+	eventManagerModel "github.com/cybericebox/backend/internal/model/eventManager"
+	eventTeamModel "github.com/cybericebox/backend/internal/model/eventTeam"
+	labBindingModel "github.com/cybericebox/backend/internal/model/labBinding"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 func TestTeamGroupCleanupIsQueuedWithoutChallengeLabs(t *testing.T) {

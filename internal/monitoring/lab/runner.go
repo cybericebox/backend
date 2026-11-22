@@ -14,7 +14,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"google.golang.org/protobuf/encoding/protojson"
 
-	labMonitoringModel "github.com/cybericebox/daemon/internal/model/labMonitoring"
+	labMonitoringModel "github.com/cybericebox/backend/internal/model/labMonitoring"
 	labpb "github.com/cybericebox/laboratory/pkg/agent/protobuf"
 )
 

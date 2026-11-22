@@ -7,8 +7,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	broadcastModel "github.com/cybericebox/daemon/internal/model/notification/broadcast"
-	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
+	broadcastModel "github.com/cybericebox/backend/internal/model/notification/broadcast"
+	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
 )
 
 func TestTemplateInputValidate(t *testing.T) {

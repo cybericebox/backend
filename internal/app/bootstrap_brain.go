@@ -7,8 +7,8 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/daemon/internal/config"
-	assistantModel "github.com/cybericebox/daemon/internal/model/assistant"
+	"github.com/cybericebox/backend/internal/config"
+	assistantModel "github.com/cybericebox/backend/internal/model/assistant"
 )
 
 // brainBootstrapper is the part of the assistant use case the startup needs.

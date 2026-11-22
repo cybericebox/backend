@@ -15,13 +15,13 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/sse"
-	"github.com/cybericebox/daemon/internal/limits"
-	errorJournalModel "github.com/cybericebox/daemon/internal/model/errorJournal"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	adminAuditUseCase "github.com/cybericebox/daemon/internal/useCase/adminAudit"
-	errorJournalUseCase "github.com/cybericebox/daemon/internal/useCase/errorJournal"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/sse"
+	"github.com/cybericebox/backend/internal/limits"
+	errorJournalModel "github.com/cybericebox/backend/internal/model/errorJournal"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	adminAuditUseCase "github.com/cybericebox/backend/internal/useCase/adminAudit"
+	errorJournalUseCase "github.com/cybericebox/backend/internal/useCase/errorJournal"
 )
 
 const (

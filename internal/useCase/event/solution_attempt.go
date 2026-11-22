@@ -6,12 +6,12 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	challengeAttemptRepo "github.com/cybericebox/daemon/internal/delivery/repository/challengeAttemptRepo"
-	teamChallengeRepo "github.com/cybericebox/daemon/internal/delivery/repository/teamChallengeRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	challengeAttemptModel "github.com/cybericebox/daemon/internal/model/challengeAttempt"
-	"github.com/cybericebox/daemon/pkg/pagination"
+	challengeAttemptRepo "github.com/cybericebox/backend/internal/delivery/repository/challengeAttemptRepo"
+	teamChallengeRepo "github.com/cybericebox/backend/internal/delivery/repository/teamChallengeRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	challengeAttemptModel "github.com/cybericebox/backend/internal/model/challengeAttempt"
+	"github.com/cybericebox/backend/pkg/pagination"
 )
 
 func (u *EventUseCase) ListSolutionAttempts(ctx context.Context, f ListSolutionAttemptsFilter) (SolutionAttemptsListResult, error) {

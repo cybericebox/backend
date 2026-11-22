@@ -8,7 +8,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 // The archive limits are the platform settings' (exerciseModel.ArchiveLimits, read once per import or export and

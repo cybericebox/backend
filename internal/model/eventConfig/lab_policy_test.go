@@ -1,7 +1,7 @@
 package eventConfigModel
 
 import (
-	eventLabModel "github.com/cybericebox/daemon/internal/model/eventLab"
+	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
 	"github.com/gofrs/uuid"
 	"testing"
 	"time"

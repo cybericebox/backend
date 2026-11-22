@@ -8,10 +8,10 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/dashboardRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/platformAnalyticsRepo"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	"github.com/cybericebox/daemon/internal/useCase/adminDashboard"
+	"github.com/cybericebox/backend/internal/delivery/repository/dashboardRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/platformAnalyticsRepo"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/useCase/adminDashboard"
 )
 
 type fakeStore struct{ calls []string }

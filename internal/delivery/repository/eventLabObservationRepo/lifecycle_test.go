@@ -2,7 +2,7 @@ package eventLabObservationRepo
 
 import (
 	"context"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
 	labpb "github.com/cybericebox/laboratory/pkg/agent/protobuf"
 	"github.com/gofrs/uuid"
 	"google.golang.org/protobuf/encoding/protojson"

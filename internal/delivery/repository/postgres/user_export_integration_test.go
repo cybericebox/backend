@@ -9,11 +9,11 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/tablePrefsRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/userExportRepo"
-	tablePrefsModel "github.com/cybericebox/daemon/internal/model/tablePrefs"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/tablePrefsRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/userExportRepo"
+	tablePrefsModel "github.com/cybericebox/backend/internal/model/tablePrefs"
+	userModel "github.com/cybericebox/backend/internal/model/user"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 // The «download my data» queries on real rows: a person in a team with a teammate gets their own participation,

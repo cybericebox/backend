@@ -9,8 +9,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/googleLinkTicketRepo"
-	"github.com/cybericebox/daemon/internal/testhelpers"
+	"github.com/cybericebox/backend/internal/delivery/repository/googleLinkTicketRepo"
+	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
 // The pending Google link: one ticket per (account, Google identity), single-use, short-lived, with a bounded number

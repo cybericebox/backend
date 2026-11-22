@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	retentionModel "github.com/cybericebox/daemon/internal/model/retention"
+	retentionModel "github.com/cybericebox/backend/internal/model/retention"
 )
 
 // testHosts is the set every test config starts with: the domain is required, so MustGetConfig

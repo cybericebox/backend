@@ -16,14 +16,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	postgresMocks "github.com/cybericebox/daemon/internal/delivery/repository/postgres/mocks"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	platformSettingsModel "github.com/cybericebox/daemon/internal/model/platformSettings"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	calModel "github.com/cybericebox/daemon/internal/model/resourceCalendar"
-	retentionModel "github.com/cybericebox/daemon/internal/model/retention"
-	appErr "github.com/cybericebox/daemon/pkg/err"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	postgresMocks "github.com/cybericebox/backend/internal/delivery/repository/postgres/mocks"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	platformSettingsModel "github.com/cybericebox/backend/internal/model/platformSettings"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	calModel "github.com/cybericebox/backend/internal/model/resourceCalendar"
+	retentionModel "github.com/cybericebox/backend/internal/model/retention"
+	appErr "github.com/cybericebox/backend/pkg/err"
 )
 
 const daySeconds = int64(24 * 60 * 60)

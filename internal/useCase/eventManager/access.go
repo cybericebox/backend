@@ -8,8 +8,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	eventManagerModel "github.com/cybericebox/daemon/internal/model/eventManager"
-	"github.com/cybericebox/daemon/internal/model/rbac"
+	eventManagerModel "github.com/cybericebox/backend/internal/model/eventManager"
+	"github.com/cybericebox/backend/internal/model/rbac"
 )
 
 // MembershipReader is the narrow port needed to authorize a management action.

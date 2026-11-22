@@ -1,12 +1,12 @@
 package event
 
 import (
-	"github.com/cybericebox/daemon/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/model/rbac"
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 type createManagedTeamRequest struct {

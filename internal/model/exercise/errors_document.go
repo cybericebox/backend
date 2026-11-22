@@ -3,8 +3,8 @@ package exerciseModel
 import (
 	"net/http"
 
-	"github.com/cybericebox/daemon/internal/model"
-	"github.com/cybericebox/daemon/pkg/err"
+	"github.com/cybericebox/backend/internal/model"
+	"github.com/cybericebox/backend/pkg/err"
 )
 
 // Errors of the exercise document cib-exercise/1.0 (the check of a task, the keys and requirements of tasks, the

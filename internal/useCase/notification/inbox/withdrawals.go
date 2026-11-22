@@ -8,7 +8,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	inboxModel "github.com/cybericebox/daemon/internal/model/notification/inbox"
+	inboxModel "github.com/cybericebox/backend/internal/model/notification/inbox"
 )
 
 // LabWithdrawalAlert is a group of labs a lab cluster withdrew again and again: not every pod of it got a node within

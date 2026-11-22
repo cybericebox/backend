@@ -6,7 +6,7 @@ import (
 	"slices"
 	"time"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 // State is the last known state of one check. A check without a result is not in the list at all.

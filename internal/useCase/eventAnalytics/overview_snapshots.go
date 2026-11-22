@@ -6,10 +6,10 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/eventAnalyticsRepo"
-	"github.com/cybericebox/daemon/internal/model"
-	eventAnalyticsModel "github.com/cybericebox/daemon/internal/model/eventAnalytics"
-	notificationTypes "github.com/cybericebox/daemon/internal/model/notification/types"
+	"github.com/cybericebox/backend/internal/delivery/repository/eventAnalyticsRepo"
+	"github.com/cybericebox/backend/internal/model"
+	eventAnalyticsModel "github.com/cybericebox/backend/internal/model/eventAnalytics"
+	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
 )
 
 // leadersLimit is how many teams the overview's mini leaderboard shows.

@@ -4,7 +4,7 @@ import (
 	"math"
 	"strconv"
 
-	participantModel "github.com/cybericebox/daemon/internal/model/participant"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
 )
 
 // parseStatusParam reads the status filter of a participant list. A number outside the 32 bits of a status is

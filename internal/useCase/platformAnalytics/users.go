@@ -7,9 +7,9 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/platformAnalyticsRepo"
-	platformAnalyticsModel "github.com/cybericebox/daemon/internal/model/platformAnalytics"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
+	"github.com/cybericebox/backend/internal/delivery/repository/platformAnalyticsRepo"
+	platformAnalyticsModel "github.com/cybericebox/backend/internal/model/platformAnalytics"
+	userModel "github.com/cybericebox/backend/internal/model/user"
 )
 
 // UsersPeopleLimit bounds the per-user table of the most active accounts.

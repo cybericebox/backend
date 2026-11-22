@@ -14,12 +14,12 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/model"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	imageRegistryModel "github.com/cybericebox/daemon/internal/model/imageRegistry"
-	imageRegistryUseCase "github.com/cybericebox/daemon/internal/useCase/imageRegistry"
-	appErr "github.com/cybericebox/daemon/pkg/err"
-	"github.com/cybericebox/daemon/pkg/ociregistry"
+	"github.com/cybericebox/backend/internal/model"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	imageRegistryModel "github.com/cybericebox/backend/internal/model/imageRegistry"
+	imageRegistryUseCase "github.com/cybericebox/backend/internal/useCase/imageRegistry"
+	appErr "github.com/cybericebox/backend/pkg/err"
+	"github.com/cybericebox/backend/pkg/ociregistry"
 	yzip "github.com/yeka/zip"
 )
 

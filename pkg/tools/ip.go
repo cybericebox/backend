@@ -3,7 +3,7 @@ package tools
 import (
 	"net/netip"
 
-	"github.com/cybericebox/daemon/pkg/err"
+	"github.com/cybericebox/backend/pkg/err"
 )
 
 // FromStringToNetPrefixSlice parses CIDR strings into netip prefixes.

@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/cybericebox/daemon/internal/delivery/infrastructure/brain"
-	"github.com/cybericebox/daemon/internal/delivery/infrastructure/brain/brainfake"
-	"github.com/cybericebox/daemon/pkg/agentcrypto"
+	"github.com/cybericebox/backend/internal/delivery/infrastructure/brain"
+	"github.com/cybericebox/backend/internal/delivery/infrastructure/brain/brainfake"
+	"github.com/cybericebox/backend/pkg/agentcrypto"
 )
 
 func enrolled(t *testing.T, f *brainfake.Fake) (*brain.Client, agentcrypto.ClientKey) {

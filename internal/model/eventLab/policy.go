@@ -1,7 +1,7 @@
 package eventLabModel
 
 import (
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 	"time"
 )
 

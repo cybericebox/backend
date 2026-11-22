@@ -2,19 +2,19 @@ package event
 
 import (
 	"encoding/json"
-	calendarUseCase "github.com/cybericebox/daemon/internal/useCase/resourceCalendar"
-	"github.com/cybericebox/daemon/pkg/pagination"
+	calendarUseCase "github.com/cybericebox/backend/internal/useCase/resourceCalendar"
+	"github.com/cybericebox/backend/pkg/pagination"
 	"time"
 
 	"github.com/gofrs/uuid"
 
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
-	eventExerciseModel "github.com/cybericebox/daemon/internal/model/eventExercise"
-	eventFormModel "github.com/cybericebox/daemon/internal/model/eventForm"
-	resourcesModel "github.com/cybericebox/daemon/internal/model/resources"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
+	eventExerciseModel "github.com/cybericebox/backend/internal/model/eventExercise"
+	eventFormModel "github.com/cybericebox/backend/internal/model/eventForm"
+	resourcesModel "github.com/cybericebox/backend/internal/model/resources"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 type eventResponse struct {

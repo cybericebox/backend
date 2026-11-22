@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cybericebox/daemon/pkg/ratelimit"
+	"github.com/cybericebox/backend/pkg/ratelimit"
 )
 
 type fakeClock struct{ t time.Time }

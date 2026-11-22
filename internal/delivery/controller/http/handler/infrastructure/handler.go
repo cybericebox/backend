@@ -10,16 +10,16 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/audit"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/handler/labview"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	eventStandModel "github.com/cybericebox/daemon/internal/model/eventStand"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	adminAuditUseCase "github.com/cybericebox/daemon/internal/useCase/adminAudit"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
-	infrastructureUseCase "github.com/cybericebox/daemon/internal/useCase/infrastructure"
-	"github.com/cybericebox/daemon/pkg/pagination"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/audit"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/handler/labview"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	eventStandModel "github.com/cybericebox/backend/internal/model/eventStand"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	adminAuditUseCase "github.com/cybericebox/backend/internal/useCase/adminAudit"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
+	infrastructureUseCase "github.com/cybericebox/backend/internal/useCase/infrastructure"
+	"github.com/cybericebox/backend/pkg/pagination"
 )
 
 const observationsDefaultPageSize = 100

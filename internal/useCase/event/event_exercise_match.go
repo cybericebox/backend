@@ -6,8 +6,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	eventChallengeModel "github.com/cybericebox/daemon/internal/model/eventChallenge"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	eventChallengeModel "github.com/cybericebox/backend/internal/model/eventChallenge"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 // taskMatch is how the board challenges of a set meet the tasks of a new version of its exercise. A challenge

@@ -1,6 +1,6 @@
 package dispatcherUseCase
 
-//go:generate go run go.uber.org/mock/mockgen -destination mocks/mock_deps.go -package mocks github.com/cybericebox/daemon/internal/useCase/notification/dispatcher Handler
+//go:generate go run go.uber.org/mock/mockgen -destination mocks/mock_deps.go -package mocks github.com/cybericebox/backend/internal/useCase/notification/dispatcher Handler
 
 import (
 	"context"
@@ -8,19 +8,19 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/broadcastRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/dispatchRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/postgres"
-	"github.com/cybericebox/daemon/internal/delivery/repository/temporalCodeRepo"
-	"github.com/cybericebox/daemon/internal/delivery/repository/userRepo"
-	"github.com/cybericebox/daemon/internal/model/notification/types"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
-	"github.com/cybericebox/daemon/pkg/secret"
-	"github.com/cybericebox/daemon/pkg/worker"
+	"github.com/cybericebox/backend/internal/delivery/repository/broadcastRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/dispatchRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/delivery/repository/temporalCodeRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/userRepo"
+	"github.com/cybericebox/backend/internal/model/notification/types"
+	userModel "github.com/cybericebox/backend/internal/model/user"
+	"github.com/cybericebox/backend/pkg/secret"
+	"github.com/cybericebox/backend/pkg/worker"
 
 	// Driver-registration: payload init() self-registers into the type registry,
 	// so notificationTypes.Supports/Variables work in the dispatch path.
-	_ "github.com/cybericebox/daemon/internal/model/notification/types/payloads"
+	_ "github.com/cybericebox/backend/internal/model/notification/types/payloads"
 )
 
 const (

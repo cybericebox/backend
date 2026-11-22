@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
 )
 
 // With the fair reveal («all ready») the same exercise of every team forms one

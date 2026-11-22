@@ -6,8 +6,8 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/model"
-	labBindingModel "github.com/cybericebox/daemon/internal/model/labBinding"
+	"github.com/cybericebox/backend/internal/model"
+	labBindingModel "github.com/cybericebox/backend/internal/model/labBinding"
 )
 
 // CleanupWithdrawnLaboratories performs the irreversible part of an event's

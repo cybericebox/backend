@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 	labpb "github.com/cybericebox/laboratory/pkg/agent/protobuf"
 )
 

@@ -3,7 +3,7 @@ package dispatchModel_test
 import (
 	"testing"
 
-	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
 )
 
 func TestClassifyMailError(t *testing.T) {

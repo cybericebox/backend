@@ -14,10 +14,10 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	"github.com/cybericebox/daemon/internal/model"
-	authModel "github.com/cybericebox/daemon/internal/model/auth"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	userModel "github.com/cybericebox/daemon/internal/model/user"
+	"github.com/cybericebox/backend/internal/model"
+	authModel "github.com/cybericebox/backend/internal/model/auth"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	userModel "github.com/cybericebox/backend/internal/model/user"
 )
 
 // MaxAvatarBytes caps avatar size (upload and provider download); AVATAR_MAX_BYTES sets it once at start.

@@ -8,11 +8,11 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/dispatchRepo"
-	repositoryTools "github.com/cybericebox/daemon/internal/delivery/repository/tools"
-	"github.com/cybericebox/daemon/internal/model"
-	notificationModel "github.com/cybericebox/daemon/internal/model/notification"
-	dispatchModel "github.com/cybericebox/daemon/internal/model/notification/dispatch"
+	"github.com/cybericebox/backend/internal/delivery/repository/dispatchRepo"
+	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
+	"github.com/cybericebox/backend/internal/model"
+	notificationModel "github.com/cybericebox/backend/internal/model/notification"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
 )
 
 // MaxBulkResend is the most dispatches one resend request takes.

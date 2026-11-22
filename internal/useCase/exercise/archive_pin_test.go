@@ -9,12 +9,12 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	imageRegistryModel "github.com/cybericebox/daemon/internal/model/imageRegistry"
-	jobsModel "github.com/cybericebox/daemon/internal/model/jobs"
-	mediaModel "github.com/cybericebox/daemon/internal/model/media"
-	exercise "github.com/cybericebox/daemon/internal/useCase/exercise"
-	imageRegistryUseCase "github.com/cybericebox/daemon/internal/useCase/imageRegistry"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	imageRegistryModel "github.com/cybericebox/backend/internal/model/imageRegistry"
+	jobsModel "github.com/cybericebox/backend/internal/model/jobs"
+	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	exercise "github.com/cybericebox/backend/internal/useCase/exercise"
+	imageRegistryUseCase "github.com/cybericebox/backend/internal/useCase/imageRegistry"
 )
 
 // pinningImages is the image registry of an import that also fixes external references by digest: a reference without a

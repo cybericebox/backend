@@ -12,8 +12,8 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
 func TestPublicPageResponseContainsOnlyPublishedContent(t *testing.T) {

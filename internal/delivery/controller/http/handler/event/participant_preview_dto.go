@@ -1,8 +1,8 @@
 package event
 
 import (
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/handler/labview"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/handler/labview"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 	"github.com/gofrs/uuid"
 	"time"
 )

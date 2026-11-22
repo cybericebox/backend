@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/cybericebox/daemon/internal/delivery/repository/platformAnalyticsRepo"
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
-	platformAnalyticsModel "github.com/cybericebox/daemon/internal/model/platformAnalytics"
+	"github.com/cybericebox/backend/internal/delivery/repository/platformAnalyticsRepo"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
+	platformAnalyticsModel "github.com/cybericebox/backend/internal/model/platformAnalytics"
 )
 
 const (

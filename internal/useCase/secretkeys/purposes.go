@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/cybericebox/daemon/pkg/secret"
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
 // PurposeKind says how `keys check` can speak about what a derived purpose key seals.

@@ -9,7 +9,7 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
 )
 
 // Trigger determines when an assignment becomes eligible to create deliveries.

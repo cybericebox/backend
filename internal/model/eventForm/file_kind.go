@@ -10,7 +10,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	eventContentModel "github.com/cybericebox/daemon/internal/model/eventContent"
+	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
 )
 
 // FileKind is a group of file formats an organizer may allow for a question.

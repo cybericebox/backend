@@ -5,8 +5,8 @@
 package eventAnalyticsModel
 
 import (
-	eventManagerModel "github.com/cybericebox/daemon/internal/model/eventManager"
-	"github.com/cybericebox/daemon/internal/model/rbac"
+	eventManagerModel "github.com/cybericebox/backend/internal/model/eventManager"
+	"github.com/cybericebox/backend/internal/model/rbac"
 )
 
 // Access is what one viewer may see in the analytics of one event.

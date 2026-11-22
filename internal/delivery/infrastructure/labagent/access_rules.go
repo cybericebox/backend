@@ -9,8 +9,8 @@ import (
 
 	labpb "github.com/cybericebox/laboratory/pkg/agent/protobuf"
 
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
-	labAccessModel "github.com/cybericebox/daemon/internal/model/labAccess"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
+	labAccessModel "github.com/cybericebox/backend/internal/model/labAccess"
 )
 
 // defaultVPNGateway is the name the daemon gives the VPN gateway of every lab it builds (see buildGateway). It stands for a lab

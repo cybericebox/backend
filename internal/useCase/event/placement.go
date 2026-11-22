@@ -8,8 +8,8 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
-	eventExerciseModel "github.com/cybericebox/daemon/internal/model/eventExercise"
-	infraModel "github.com/cybericebox/daemon/internal/model/infrastructure"
+	eventExerciseModel "github.com/cybericebox/backend/internal/model/eventExercise"
+	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
 )
 
 // placementNeedTTL is how long the labs an event needs are reused; the pinned versions change rarely.

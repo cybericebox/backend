@@ -7,8 +7,8 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
-	eventChallengeModel "github.com/cybericebox/daemon/internal/model/eventChallenge"
-	exerciseModel "github.com/cybericebox/daemon/internal/model/exercise"
+	eventChallengeModel "github.com/cybericebox/backend/internal/model/eventChallenge"
+	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
 
 func challengeNamed(name string, task uuid.UUID) eventChallengeModel.EventChallenge {

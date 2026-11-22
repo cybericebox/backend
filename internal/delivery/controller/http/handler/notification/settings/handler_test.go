@@ -11,9 +11,9 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	settingsModel "github.com/cybericebox/daemon/internal/model/notification/settings"
-	"github.com/cybericebox/daemon/internal/model/rbac"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	settingsModel "github.com/cybericebox/backend/internal/model/notification/settings"
+	"github.com/cybericebox/backend/internal/model/rbac"
 )
 
 type fakeUseCase struct {

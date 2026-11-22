@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	siteBannerModel "github.com/cybericebox/daemon/internal/model/siteBanner"
+	siteBannerModel "github.com/cybericebox/backend/internal/model/siteBanner"
 )
 
 func input() siteBannerModel.Input {

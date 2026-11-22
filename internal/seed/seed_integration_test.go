@@ -11,10 +11,10 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	"github.com/cybericebox/daemon/internal/seed"
-	"github.com/cybericebox/daemon/internal/testhelpers"
-	"github.com/cybericebox/daemon/pkg/password"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	"github.com/cybericebox/backend/internal/seed"
+	"github.com/cybericebox/backend/internal/testhelpers"
+	"github.com/cybericebox/backend/pkg/password"
 )
 
 func newSeeder(t *testing.T) (*seed.Seeder, *testhelpers.TestDB) {

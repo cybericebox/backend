@@ -9,7 +9,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cybericebox/daemon/internal/config"
+	"github.com/cybericebox/backend/internal/config"
 )
 
 const testRenderSecretNext = "fedcba9876543210fedcba9876543210-next-render-secret"

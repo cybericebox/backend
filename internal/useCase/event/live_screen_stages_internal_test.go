@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	eventModel "github.com/cybericebox/daemon/internal/model/event"
+	eventModel "github.com/cybericebox/backend/internal/model/event"
 )
 
 // The screen timer walks the stages in time order, whatever the stored order.

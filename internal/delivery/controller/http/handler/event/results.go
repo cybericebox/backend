@@ -11,17 +11,17 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/download"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/response"
-	"github.com/cybericebox/daemon/internal/delivery/controller/http/sse"
-	"github.com/cybericebox/daemon/internal/limits"
-	eventConfigModel "github.com/cybericebox/daemon/internal/model/eventConfig"
-	"github.com/cybericebox/daemon/internal/model/rbac"
-	siteBannerModel "github.com/cybericebox/daemon/internal/model/siteBanner"
-	"github.com/cybericebox/daemon/internal/model/usertext"
-	eventUseCase "github.com/cybericebox/daemon/internal/useCase/event"
-	"github.com/cybericebox/daemon/pkg/pagination"
-	"github.com/cybericebox/daemon/pkg/tools"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/download"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/sse"
+	"github.com/cybericebox/backend/internal/limits"
+	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
+	"github.com/cybericebox/backend/internal/model/rbac"
+	siteBannerModel "github.com/cybericebox/backend/internal/model/siteBanner"
+	"github.com/cybericebox/backend/internal/model/usertext"
+	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
+	"github.com/cybericebox/backend/pkg/pagination"
+	"github.com/cybericebox/backend/pkg/tools"
 )
 
 type resultsFreezeStateResponse struct {
