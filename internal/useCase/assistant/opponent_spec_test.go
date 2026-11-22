@@ -98,7 +98,7 @@ func TestAnOpponentIsDeployedFromItsGetOpponentSpecAndThePullSecretIsNeverKept(t
 	start := r.brn.StartedRequests()[0]
 	if start.GetSpecId() != "spec-7" || start.GetFoothold() != "dmz" || start.GetAccess().GetVpn().GetEntry() == "" || start.GetAccess().GetVpn().GetAddr() != "10.8.4.10:9099" ||
 		start.GetBrief() != "think like a thief" || len(start.GetGoal()) != 2 {
-		t.Fatalf("StartRun with the spec and the filled inputs: %v", start)
+		t.Fatalf("StartRun with the spec and the fixed inputs: %v", start)
 	}
 	id := run.ID.String()
 	r.brn.Emit(id, "run_finished", `{"type":"run_finished","status":"done"}`)
@@ -133,16 +133,11 @@ func TestWithoutGetOpponentTheFallbackToolsImageIsDeployed(t *testing.T) {
 }
 
 func TestAnOpponentSpecThePlatformCannotDeployIsRefusedBeforeAnyLab(t *testing.T) {
-	footless := attacker()
-	footless.Foothold = ""
 	for name, c := range map[string]struct {
 		opponent exerciseModel.Opponent
 		answer   func() (*brainapiv1.OpponentSpec, error)
 		want     error
 	}{
-		"an attacker whose manifest names no foothold": {footless, func() (*brainapiv1.OpponentSpec, error) {
-			return spec(time.Now().Add(time.Hour)), nil
-		}, assistantModel.ErrAssistantOpponentSpecInvalid.Err()},
 		"no image": {attacker(), func() (*brainapiv1.OpponentSpec, error) {
 			s := spec(time.Now().Add(time.Hour))
 			s.Deploy.Image = ""
@@ -218,5 +213,27 @@ func TestAReusablePullCredentialWithoutExpiryIsDeployed(t *testing.T) {
 	}
 	if place := r.labs.places[0]; place.Pull == nil || place.Pull.Password != pullSecret {
 		t.Fatalf("the credential goes to the lab: %+v", place.Pull)
+	}
+}
+
+// The inputs StartRun carries are fixed: an attacker or attack-defender whose manifest names no foothold is refused before the
+// brain is asked (and so before the fallback tools image could be deployed).
+func TestAnOpponentWithoutAFootholdIsRefusedBeforeTheBrainIsAsked(t *testing.T) {
+	for _, role := range []exerciseModel.OpponentRole{exerciseModel.OpponentAttack, exerciseModel.OpponentAttackDefense} {
+		t.Run(string(role), func(t *testing.T) {
+			o := attacker()
+			o.Role, o.Foothold = role, ""
+			r := opponentRig(t, o)
+			_, err := r.uc.StartOpponentRun(context.Background(), runActor, runExercise, runVersion, runVariant, 1)
+			if !errors.Is(err, assistantModel.ErrAssistantOpponentSpecInvalid.Err()) {
+				t.Fatalf("%v", err)
+			}
+			if n := len(r.fake.Opponents.Requests()); n != 0 {
+				t.Fatalf("the brain was asked %d times", n)
+			}
+			if r.labs.deployCount != 0 {
+				t.Fatal("nothing is deployed")
+			}
+		})
 	}
 }
