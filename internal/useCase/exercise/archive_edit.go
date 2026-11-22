@@ -14,6 +14,9 @@ import (
 type EditBase struct {
 	VersionID     uuid.UUID
 	DraftRevision string
+	// PublishedVersionID is the task's published version then (uuid.Nil: none). An edit with no working copy is applied only while
+	// it is still the published one.
+	PublishedVersionID uuid.UUID
 }
 
 // EditTarget is the task an archive is the edit of (ExerciseID uuid.Nil: no edit, a new task) and what the edit started from.
@@ -24,8 +27,10 @@ type EditTarget struct {
 
 // EditedArchiveTarget says which task an archive is the edited version of: the task its document names (it came from an
 // ExportTaskVersionForEdit), when the caller may edit that task and it is not archived. uuid.Nil is no edit: an archive that
-// names no task, one that names a task the caller may not edit or that is gone, or a bundle of several tasks, is a new task.
-// It reads nothing else and writes nothing. A broken archive is an error.
+// names no task is a new task. The edit export of a task (the document has its "edit" base) is refused when the caller may no
+// longer edit the task or see its flags (ErrExerciseForbidden), when it is gone (ErrExerciseNotFound) or archived
+// (ErrExerciseArchived): such an edit is never saved as a new task. Any other archive that names a task the caller may not edit,
+// or that is gone, is a new task. It reads nothing else and writes nothing. A broken archive is an error.
 func (u *ExerciseUseCase) EditedArchiveTarget(ctx context.Context, actor Actor, archive []byte, lim exerciseModel.ArchiveLimits) (EditTarget, error) {
 	parsed, err := ParseExerciseArchive(archive, "", lim)
 	if err != nil {
@@ -33,6 +38,19 @@ func (u *ExerciseUseCase) EditedArchiveTarget(ctx context.Context, actor Actor, 
 	}
 	if parsed.SourceExerciseID == uuid.Nil {
 		return EditTarget{}, nil
+	}
+	if parsed.EditBase.VersionID != uuid.Nil {
+		access, accessErr := u.AuthorizeExercise(ctx, actor, parsed.SourceExerciseID, ActionWrite)
+		if accessErr != nil {
+			return EditTarget{}, accessErr
+		}
+		if !access.Full || !access.Flags {
+			return EditTarget{}, exerciseModel.ErrExerciseForbidden.Err()
+		}
+		if _, _, err = u.previewTarget(ctx, actor, parsed.SourceExerciseID); err != nil {
+			return EditTarget{}, err
+		}
+		return EditTarget{ExerciseID: parsed.SourceExerciseID, Base: parsed.EditBase}, nil
 	}
 	if _, _, err = u.previewTarget(ctx, actor, parsed.SourceExerciseID); err != nil {
 		if errors.Is(err, exerciseModel.ErrExerciseForbidden.Err()) || errors.Is(err, exerciseModel.ErrExerciseNotFound.Err()) || errors.Is(err, exerciseModel.ErrExerciseArchived.Err()) {

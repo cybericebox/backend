@@ -161,6 +161,7 @@ func (u *ExerciseUseCase) PreviewArchiveImport(ctx context.Context, actor Actor,
 			}
 			item.TargetExercise = &info
 			item.ReplacesDraft = targetEntity.DraftVersionID.Valid
+			item.PublishedVersionID = uuidPtr(targetEntity.PublishedVersionID)
 			if targetEntity.DraftVersionID.Valid {
 				item.DraftVersionID, item.DraftRevision = uuidPtr(targetEntity.DraftVersionID), targetVersion.Revision()
 			}

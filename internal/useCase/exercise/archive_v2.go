@@ -40,6 +40,8 @@ type (
 	archiveEditV2 struct {
 		Version       string `json:"version,omitempty"`
 		DraftRevision string `json:"draft_revision,omitempty"`
+		// PublishedVersion is the task's published version at the export ("" when it had none).
+		PublishedVersion string `json:"published_version,omitempty"`
 	}
 
 	// archiveExerciseV2: id suggests a re-import target; a new exercise gets its own.
@@ -1066,7 +1068,7 @@ func (e *archiveEditV2) base() EditBase {
 	if e == nil {
 		return EditBase{}
 	}
-	return EditBase{VersionID: uuid.FromStringOrNil(e.Version), DraftRevision: e.DraftRevision}
+	return EditBase{VersionID: uuid.FromStringOrNil(e.Version), DraftRevision: e.DraftRevision, PublishedVersionID: uuid.FromStringOrNil(e.PublishedVersion)}
 }
 
 // buildV2DocumentWithEdit is buildV2DocumentWithImages for the export an edit starts from: it records the edit base.

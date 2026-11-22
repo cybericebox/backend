@@ -323,6 +323,16 @@ func (u *MediaUseCase) ReadFileChunk(ctx context.Context, id uuid.UUID, index in
 	return rc, f, length, nil
 }
 
+// DiscardFile removes a file its owner stored and nothing came to use (the source of an import that was refused), at once
+// instead of after the collector's grace. A file that is referenced, of another user or gone is left as it is. Its blob is
+// removed by the collector once nothing holds it.
+func (u *MediaUseCase) DiscardFile(ctx context.Context, id, owner uuid.UUID) error {
+	if err := u.files.DeleteUnreferencedFile(ctx, id, owner); err != nil {
+		return model.ErrPlatform.WithError(err).WithMessage("Failed to remove the file").Err()
+	}
+	return nil
+}
+
 // GetFile returns a logical file's metadata (no blob access, so it works
 // without object storage) — e.g. to validate references and sum sizes.
 func (u *MediaUseCase) GetFile(ctx context.Context, id uuid.UUID) (mediaModel.File, error) {

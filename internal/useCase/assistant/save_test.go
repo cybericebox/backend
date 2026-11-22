@@ -155,6 +155,15 @@ type fakeFiles struct {
 	body []byte
 	// owner is who the stored file belongs to (zero: the author of the test).
 	owner uuid.UUID
+	// discarded are the stored files removed again.
+	discarded []uuid.UUID
+}
+
+// DiscardFile records that the stored file was removed again.
+func (f *fakeFiles) DiscardFile(_ context.Context, id, _ uuid.UUID) error {
+	f.line.add("discard")
+	f.discarded = append(f.discarded, id)
+	return nil
 }
 
 func (f *fakeFiles) UploadFile(_ context.Context, _, _ string, r io.Reader, _ uuid.UUID) (mediaModel.File, error) {
@@ -180,6 +189,8 @@ type memSaves struct {
 	hash map[string]string
 	// completeFails makes the next n Complete calls fail.
 	completeFails int
+	// lose makes every claim go to another request.
+	lose bool
 }
 
 func key(session string, author uuid.UUID) string { return session + "/" + author.String() }
@@ -195,6 +206,9 @@ func (m *memSaves) Claim(_ context.Context, session string, author uuid.UUID, ha
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	k := key(session, author)
+	if m.lose {
+		return false, nil
+	}
 	if r, ok := m.rows[k]; ok && !(r.State == assistantModel.SaveFailed || (r.State == assistantModel.SavePending && r.JobID == uuid.Nil && r.ClaimedAt.Before(staleBefore))) {
 		return false, nil
 	}

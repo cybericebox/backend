@@ -556,7 +556,7 @@ func (u *ExerciseUseCase) ExportExerciseArchive(ctx context.Context, id uuid.UUI
 // the brain asks for the source of an existing task). It is the admin export's format and content for that one version, without
 // secret values: every secret variable is delivered by name with an empty value, which an import of the edited task
 // (RestoreKeptSecrets) turns back into the stored value, by variant, device and variable name. ErrExerciseNotFound for a task that does not
-// exist, ErrExerciseVersionNotFound for a version that is not of that task, ErrExerciseForbidden when the user may not edit it
+// exist, ErrExerciseArchived for an archived one, ErrExerciseVersionNotFound for a version that is not of that task, ErrExerciseForbidden when the user may not edit it
 // (rights as for saving a change of the task: exercises.write, or owner or manager of the event whose task it is). A task that has
 // a working copy is exported as that working copy whichever version is asked for (it must still be a version of the task).
 func (u *ExerciseUseCase) ExportTaskVersionForEdit(ctx context.Context, actor Actor, id, versionID uuid.UUID) ([]byte, error) {
@@ -625,6 +625,15 @@ func (u *ExerciseUseCase) planExportVersions(ctx context.Context, id, only uuid.
 	e, err := u.exercises.GetByID(ctx, id)
 	if err != nil {
 		return exportPlan{}, err
+	}
+	if opts.edit != nil {
+		// An archived task is frozen: it is not given out for editing.
+		if err = e.EnsureNotArchived(); err != nil {
+			return exportPlan{}, err
+		}
+		if e.PublishedVersionID.Valid {
+			opts.edit.PublishedVersion = e.PublishedVersionID.UUID.String()
+		}
 	}
 	versions, err := u.exercises.ListVersions(ctx, id)
 	if err != nil {

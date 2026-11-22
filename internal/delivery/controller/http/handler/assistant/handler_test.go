@@ -201,6 +201,8 @@ func (files) UploadFile(context.Context, string, string, io.Reader, uuid.UUID) (
 	return mediaModel.File{ID: taskID}, nil
 }
 
+func (files) DiscardFile(context.Context, uuid.UUID, uuid.UUID) error { return nil }
+
 func (files) GetFile(_ context.Context, id uuid.UUID) (mediaModel.File, error) {
 	return mediaModel.File{ID: id}, nil
 }

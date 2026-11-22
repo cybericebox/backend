@@ -429,6 +429,9 @@ type Querier interface {
 	// Removes a canonical Lab that never reached the agent and nothing else holds on to (no binding, no archive, no
 	// pin), with its objectives. The main statement counts the Lab row.
 	DeleteUnbornEventTeamLab(ctx context.Context, id uuid.UUID) (int64, error)
+	// Removes one file at once for the one who stored it (a stored source that nothing came to use), only while nothing references
+	// it, and gives its reference back to the blob; the collector removes the blob once nothing holds it.
+	DeleteUnreferencedFile(ctx context.Context, arg DeleteUnreferencedFileParams) (int64, error)
 	// GC step 1: drop grace-expired unreferenced files, decrement their blobs.
 	DeleteUnreferencedFiles(ctx context.Context, createdBefore time.Time) ([]DeleteUnreferencedFilesRow, error)
 	DeleteUserDraftKey(ctx context.Context, arg DeleteUserDraftKeyParams) (int64, error)

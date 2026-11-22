@@ -32,6 +32,7 @@ type Queries interface {
 	DeleteFileReferences(ctx context.Context, arg postgres.DeleteFileReferencesParams) (int64, error)
 	DeleteFileReferencesBatch(ctx context.Context, arg postgres.DeleteFileReferencesBatchParams) (int64, error)
 	DeleteUnreferencedFiles(ctx context.Context, createdBefore time.Time) ([]postgres.DeleteUnreferencedFilesRow, error)
+	DeleteUnreferencedFile(ctx context.Context, arg postgres.DeleteUnreferencedFileParams) (int64, error)
 	ListOrphanBlobs(ctx context.Context, touchedBefore time.Time) ([]postgres.ListOrphanBlobsRow, error)
 	DeleteBlob(ctx context.Context, contentHash string) (int64, error)
 	DeleteEncryptedBlob(ctx context.Context, arg postgres.DeleteEncryptedBlobParams) (string, error)
@@ -84,6 +85,13 @@ func (r *Repository) DeleteReferencesBatch(ctx context.Context, refType string, 
 // DeleteUnreferenced removes files with no references older than the cutoff.
 func (r *Repository) DeleteUnreferenced(ctx context.Context, createdBefore time.Time) error {
 	_, err := r.q.DeleteUnreferencedFiles(ctx, createdBefore)
+	return err
+}
+
+// DeleteUnreferencedFile removes one unreferenced file of its owner at once (its blob is left to the collector). Removing a file
+// that is referenced, of another user or already gone does nothing.
+func (r *Repository) DeleteUnreferencedFile(ctx context.Context, id, owner uuid.UUID) error {
+	_, err := r.q.DeleteUnreferencedFile(ctx, postgres.DeleteUnreferencedFileParams{ID: id, CreatedBy: uuid.NullUUID{UUID: owner, Valid: true}})
 	return err
 }
 

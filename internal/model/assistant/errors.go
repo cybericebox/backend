@@ -7,7 +7,7 @@ import (
 	"github.com/cybericebox/backend/pkg/err"
 )
 
-// next free detail code: 18
+// next free detail code: 22
 
 var (
 	// ErrAssistantUnavailable: the assistant is off (no BRAIN_ENDPOINT), not enrolled yet, or the platform secrets
@@ -110,4 +110,21 @@ var (
 	ErrAssistantSecretValue = err.ErrInvalidData.WithObjectCode(model.AssistantObjectCode).
 				WithMessage("The finished task carries a secret value, which the assistant never sets").
 				WithDetailCode(18)
+
+	// ErrAssistantEditForbidden: the finished task is the edit of a task the user may no longer edit (or whose flags they may not
+	// see). It is refused, never saved as a new task.
+	ErrAssistantEditForbidden = err.ErrForbidden.WithObjectCode(model.AssistantObjectCode).
+					WithMessage("The task this edit belongs to can no longer be edited by you").
+					WithDetailCode(19)
+
+	// ErrAssistantEditGone: the finished task is the edit of a task that no longer exists. It is refused, never saved as a new task.
+	ErrAssistantEditGone = err.ErrObjectNotFound.WithObjectCode(model.AssistantObjectCode).
+				WithMessage("The task this edit belongs to no longer exists").
+				WithDetailCode(20)
+
+	// ErrAssistantEditArchived: the finished task is the edit of a task that was archived since. It is refused, never saved as a
+	// new task.
+	ErrAssistantEditArchived = err.ErrConflict.WithObjectCode(model.AssistantObjectCode).
+					WithMessage("The task this edit belongs to is archived").
+					WithDetailCode(21)
 )

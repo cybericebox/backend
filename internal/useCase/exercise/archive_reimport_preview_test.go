@@ -427,3 +427,23 @@ func TestReimportPreviewRejectsAnUnpublishedFormerCurrentVersion(t *testing.T) {
 	_, err := uc.PreviewArchiveImport(context.Background(), exercise.Actor{UserID: importer, Role: rbac.RoleSuperAdmin}, exercise.PreviewArchiveInput{UploadID: archiveUpID, FixedExerciseID: id})
 	require.ErrorIs(t, err, exerciseModel.ErrExerciseModified.Err(), "a concurrent Publish cannot leave a former version presented as the current working baseline")
 }
+
+// The preview of an update names the target's published version it was made against (an edit with no working copy is applied only
+// while it is still that one).
+func TestReimportPreviewNamesThePublishedVersionOfTheTarget(t *testing.T) {
+	q := postgresMocks.NewMockQuerier(gomock.NewController(t))
+	sources := newFakeSources()
+	id, version := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	q.EXPECT().GetExerciseByID(gomock.Any(), id).Return(postgres.Exercise{ID: id, Name: "Existing target", PublishedVersionID: uuid.NullUUID{UUID: version, Valid: true}}, nil).AnyTimes()
+	q.EXPECT().GetExerciseVersionByID(gomock.Any(), version).Return(postgres.ExerciseVersion{ID: version, ExerciseID: id, Name: "Existing target", Status: "published", Variants: []byte(`[]`)}, nil).AnyTimes()
+	expectNoUsage(q)
+	archive := mustExerciseArchive(t, `{"name":"Portable task"}`, `[{"status":"draft","variants":[]}]`)
+	sources.stage(archiveUpID, importer, archive, mediaModel.UploadPurposeExerciseArchive)
+	uc := newUC(q, newFakeMedia())
+	uc.SetArchiveImport(exercise.ArchiveImportDependencies{Sources: sources})
+	view, err := uc.PreviewArchiveImport(context.Background(), exercise.Actor{UserID: importer, Role: rbac.RoleSuperAdmin}, exercise.PreviewArchiveInput{UploadID: archiveUpID, FixedExerciseID: id})
+	require.NoError(t, err)
+	require.Len(t, view.Items, 1)
+	require.NotNil(t, view.Items[0].PublishedVersionID)
+	require.Equal(t, version, *view.Items[0].PublishedVersionID)
+}

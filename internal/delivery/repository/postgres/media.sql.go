@@ -311,6 +311,34 @@ func (q *Queries) DeleteObjectRemoval(ctx context.Context, objectKey string) err
 	return err
 }
 
+const deleteUnreferencedFile = `-- name: DeleteUnreferencedFile :execrows
+WITH doomed AS (
+    DELETE FROM files f
+        WHERE f.id = $1
+            AND f.created_by = $2
+            AND NOT EXISTS (SELECT 1 FROM file_references r WHERE r.file_id = f.id)
+        RETURNING f.content_hash)
+UPDATE file_blobs b
+SET ref_count = b.ref_count - 1
+FROM doomed
+WHERE b.content_hash = doomed.content_hash
+`
+
+type DeleteUnreferencedFileParams struct {
+	ID        uuid.UUID     `json:"id"`
+	CreatedBy uuid.NullUUID `json:"created_by"`
+}
+
+// Removes one file at once for the one who stored it (a stored source that nothing came to use), only while nothing references
+// it, and gives its reference back to the blob; the collector removes the blob once nothing holds it.
+func (q *Queries) DeleteUnreferencedFile(ctx context.Context, arg DeleteUnreferencedFileParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteUnreferencedFile, arg.ID, arg.CreatedBy)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteUnreferencedFiles = `-- name: DeleteUnreferencedFiles :many
 WITH doomed AS (
     DELETE FROM files f

@@ -33,7 +33,7 @@ func TestSaveOfAnEditedTaskUpdatesTheTaskItCameFromAndRestoresItsSecrets(t *test
 	require.NoError(t, err)
 	assert.True(t, done)
 	assert.NotContains(t, s.line.list(), "import", "no new task is made")
-	assert.Equal(t, []string{"brain:archive", "upload", "preview", "commit", "brain:save"}, s.line.list())
+	assert.Equal(t, []string{"brain:archive", "upload", "preview", "commit", "discard", "brain:save"}, s.line.list())
 	source := exerciseUseCase.PreviewArchiveInput{FileID: fileID, FixedExerciseID: editedTask}
 	assert.Equal(t, source, s.importer.previewIn)
 	assert.Equal(t, source, s.importer.commitIn.PreviewArchiveInput)
@@ -118,7 +118,8 @@ var (
 func editBasedOn(t *testing.T, from uuid.UUID, revision string, draft *uuid.UUID, now string) *saveRig {
 	t.Helper()
 	s := editRig(t, draft != nil)
-	s.importer.editBase = exerciseUseCase.EditBase{VersionID: from, DraftRevision: revision}
+	s.importer.editBase = exerciseUseCase.EditBase{VersionID: from, DraftRevision: revision, PublishedVersionID: publishedRow}
+	s.importer.previewItems[0].PublishedVersionID = &publishedRow
 	s.importer.previewItems[0].DraftVersionID = draft
 	s.importer.previewItems[0].DraftRevision = now
 	return s
@@ -162,4 +163,72 @@ func TestSaveOfAnEditWithNoWorkingCopyEitherWayIsAPlainUpdate(t *testing.T) {
 	done, err := s.save(t)
 	require.NoError(t, err)
 	assert.True(t, done)
+}
+
+// An edit exported with no working copy is applied only while the task's published version is still the one it was exported at:
+// another editor publishing a version since is the concurrent-edit 409, and nothing is claimed, committed or told.
+func TestSaveOfAnEditWithNoWorkingCopyIsRefusedWhenAnotherVersionWasPublished(t *testing.T) {
+	republished := uuid.FromStringOrNil("99999999-9999-4999-8999-999999999999")
+	for name, now := range map[string]*uuid.UUID{"another version published": &republished, "unpublished": nil} {
+		t.Run(name, func(t *testing.T) {
+			s := editBasedOn(t, publishedRow, "", nil, "")
+			s.importer.previewItems[0].PublishedVersionID = now
+			_, err := s.save(t)
+			require.ErrorIs(t, err, exerciseModel.ErrDraftModified.Err())
+			assert.Contains(t, s.line.list(), "stale")
+			assert.NotContains(t, s.line.list(), "commit")
+			assert.Empty(t, s.savedBodies())
+			_, found, _ := s.saves.Get(t.Context(), "s1", userOne)
+			assert.False(t, found, "no claim is left behind")
+		})
+	}
+}
+
+// The archive an edit stores for its preview is removed again whenever the edit is not committed from it: a refusal (409), a
+// failed preview, a claim another request won and a failed commit. A commit done at once does not need it either; a queued job
+// reads it later, so it stays.
+func TestTheStoredArchiveOfAnEditIsRemovedWhenNothingUsesIt(t *testing.T) {
+	cases := map[string]struct {
+		arrange func(s *saveRig)
+		kept    bool
+	}{
+		"refused as stale": {arrange: func(s *saveRig) { s.importer.previewItems[0].DraftRevision = "R9" }},
+		"failed preview":   {arrange: func(s *saveRig) { s.importer.previewErr = errors.New("boom") }},
+		"lost claim":       {arrange: func(s *saveRig) { s.saves.lose = true }},
+		"failed commit":    {arrange: func(s *saveRig) { s.importer.commitErr = exerciseModel.ErrImportConfirmationStale.Err() }},
+		"committed":        {arrange: func(*saveRig) {}},
+		"queued job":       {arrange: func(s *saveRig) { s.importer.commitStart = exerciseUseCase.ArchiveImportStart{JobID: jobID} }, kept: true},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			s := editBasedOn(t, publishedRow, "", nil, "")
+			c.arrange(s)
+			_, _ = s.save(t)
+			if c.kept {
+				assert.Empty(t, s.files.discarded, "the queued job reads the stored archive")
+				return
+			}
+			assert.Equal(t, []uuid.UUID{fileID}, s.files.discarded, "no stored archive is left behind")
+		})
+	}
+}
+
+// The finished task is the edit of a task the user may no longer edit, that is gone or archived: the save is refused with its own
+// code before anything is stored or claimed, never saved as a new task.
+func TestSaveOfAnEditOfATaskNoLongerEditableIsRefused(t *testing.T) {
+	for name, c := range map[string]struct{ from, want error }{
+		"forbidden": {exerciseModel.ErrExerciseForbidden.Err(), assistantModel.ErrAssistantEditForbidden.Err()},
+		"gone":      {exerciseModel.ErrExerciseNotFound.Err(), assistantModel.ErrAssistantEditGone.Err()},
+		"archived":  {exerciseModel.ErrExerciseArchived.Err(), assistantModel.ErrAssistantEditArchived.Err()},
+	} {
+		t.Run(name, func(t *testing.T) {
+			s := editRig(t, false)
+			s.importer.editErr = c.from
+			_, err := s.save(t)
+			require.ErrorIs(t, err, c.want)
+			assert.Equal(t, []string{"brain:archive"}, s.line.list(), "nothing is stored, imported or claimed")
+			_, found, _ := s.saves.Get(t.Context(), "s1", userOne)
+			assert.False(t, found)
+		})
+	}
 }

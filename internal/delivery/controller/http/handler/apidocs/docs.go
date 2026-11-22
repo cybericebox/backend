@@ -39886,6 +39886,10 @@ const docTemplate = `{
                 "Name": {
                     "type": "string"
                 },
+                "PublishedVersionID": {
+                    "description": "PublishedVersionID is the target's published version this preview was made against (nil when it has none).",
+                    "type": "string"
+                },
                 "ReplacesDraft": {
                     "type": "boolean"
                 },

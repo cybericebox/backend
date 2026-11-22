@@ -10,6 +10,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -201,9 +202,8 @@ func TestEditedArchiveTarget(t *testing.T) {
 	assert.Equal(t, stored.ExerciseID, target.ExerciseID, "an editor of the task: it is an edit of it")
 
 	nobody := Actor{UserID: freshID(), Role: rbac.RoleUser}
-	target, err = u.EditedArchiveTarget(context.Background(), nobody, archive, DefaultLimits())
-	require.NoError(t, err)
-	assert.Equal(t, uuid.Nil, target.ExerciseID, "a user who may not edit the task: a new task")
+	_, err = u.EditedArchiveTarget(context.Background(), nobody, archive, DefaultLimits())
+	require.ErrorIs(t, err, exerciseModel.ErrExerciseForbidden.Err(), "the edit of a task the user may not edit is refused, never imported as a new task")
 
 	files, err := ReadArchiveV1(bytes.NewReader(archive), DefaultLimits())
 	require.NoError(t, err)
@@ -217,6 +217,70 @@ func TestEditedArchiveTarget(t *testing.T) {
 	target, err = u.EditedArchiveTarget(context.Background(), admin, anonymous, DefaultLimits())
 	require.NoError(t, err)
 	assert.Equal(t, uuid.Nil, target.ExerciseID, "no id: a new task")
+}
+
+// The edit export of a task that is archived or gone since is refused with its own code; it is never imported as a new task.
+func TestEditedArchiveTargetRefusesATaskThatIsArchivedOrGone(t *testing.T) {
+	cipher, err := secret.New(strings.Repeat("57", 32))
+	require.NoError(t, err)
+	stored, _ := editedFixture(t, cipher)
+	admin := Actor{UserID: freshID(), Role: rbac.RoleAdmin}
+	archive, err := editUseCase(t, stored, cipher).ExportTaskVersionForEdit(context.Background(), admin, stored.ExerciseID, stored.ID)
+	require.NoError(t, err)
+
+	archived := postgresMocks.NewMockQuerier(gomock.NewController(t))
+	archived.EXPECT().GetExerciseByID(gomock.Any(), stored.ExerciseID).Return(postgres.Exercise{ID: stored.ExerciseID, Name: stored.Name,
+		ArchivedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true}}, nil).AnyTimes()
+	_, err = (&ExerciseUseCase{exercises: exerciseRepo.New(archived), cipher: cipher}).EditedArchiveTarget(context.Background(), admin, archive, DefaultLimits())
+	require.ErrorIs(t, err, exerciseModel.ErrExerciseArchived.Err())
+
+	gone := postgresMocks.NewMockQuerier(gomock.NewController(t))
+	gone.EXPECT().GetExerciseByID(gomock.Any(), stored.ExerciseID).Return(postgres.Exercise{}, pgx.ErrNoRows).AnyTimes()
+	_, err = (&ExerciseUseCase{exercises: exerciseRepo.New(gone), cipher: cipher}).EditedArchiveTarget(context.Background(), admin, archive, DefaultLimits())
+	require.ErrorIs(t, err, exerciseModel.ErrExerciseNotFound.Err())
+}
+
+// An archived task is not given out for editing.
+func TestEditExportRefusesAnArchivedTask(t *testing.T) {
+	cipher, err := secret.New(strings.Repeat("58", 32))
+	require.NoError(t, err)
+	stored, _ := editedFixture(t, cipher)
+	variants, err := json.Marshal(stored.Variants)
+	require.NoError(t, err)
+	q := postgresMocks.NewMockQuerier(gomock.NewController(t))
+	q.EXPECT().GetExerciseByID(gomock.Any(), stored.ExerciseID).Return(postgres.Exercise{ID: stored.ExerciseID, Name: stored.Name,
+		ArchivedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true}}, nil).AnyTimes()
+	q.EXPECT().ListExerciseVersions(gomock.Any(), stored.ExerciseID).Return([]postgres.ExerciseVersion{{
+		ID: stored.ID, ExerciseID: stored.ExerciseID, Status: "published", Variants: variants,
+	}}, nil).AnyTimes()
+	q.EXPECT().GetDraftRevision(gomock.Any(), stored.ExerciseID).Return(postgres.GetDraftRevisionRow{}, pgx.ErrNoRows).AnyTimes()
+	u := &ExerciseUseCase{exercises: exerciseRepo.New(q), cipher: cipher}
+	_, err = u.ExportTaskVersionForEdit(context.Background(), Actor{UserID: freshID(), Role: rbac.RoleAdmin}, stored.ExerciseID, stored.ID)
+	require.ErrorIs(t, err, exerciseModel.ErrExerciseArchived.Err())
+}
+
+// The edit export of a task without a working copy records the task's published version then, so a save can tell that another
+// version was published since.
+func TestEditExportRecordsThePublishedVersion(t *testing.T) {
+	cipher, err := secret.New(strings.Repeat("59", 32))
+	require.NoError(t, err)
+	stored, _ := editedFixture(t, cipher)
+	variants, err := json.Marshal(stored.Variants)
+	require.NoError(t, err)
+	published := freshID()
+	q := postgresMocks.NewMockQuerier(gomock.NewController(t))
+	q.EXPECT().GetExerciseByID(gomock.Any(), stored.ExerciseID).Return(postgres.Exercise{ID: stored.ExerciseID, Name: stored.Name,
+		PublishedVersionID: uuid.NullUUID{UUID: published, Valid: true}}, nil).AnyTimes()
+	q.EXPECT().ListExerciseVersions(gomock.Any(), stored.ExerciseID).Return([]postgres.ExerciseVersion{{
+		ID: published, ExerciseID: stored.ExerciseID, Status: "published", Variants: variants,
+	}}, nil).AnyTimes()
+	q.EXPECT().GetDraftRevision(gomock.Any(), stored.ExerciseID).Return(postgres.GetDraftRevisionRow{}, pgx.ErrNoRows).AnyTimes()
+	u := &ExerciseUseCase{exercises: exerciseRepo.New(q), cipher: cipher}
+	archive, err := u.ExportTaskVersionForEdit(context.Background(), Actor{UserID: freshID(), Role: rbac.RoleAdmin}, stored.ExerciseID, published)
+	require.NoError(t, err)
+	parsed, err := ParseExerciseArchive(archive, "", DefaultLimits())
+	require.NoError(t, err)
+	assert.Equal(t, EditBase{VersionID: published, PublishedVersionID: published}, parsed.EditBase)
 }
 
 // A task that has a working copy is exported for editing as that working copy, whichever version was asked for, and the export

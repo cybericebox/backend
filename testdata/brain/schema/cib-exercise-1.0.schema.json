@@ -721,6 +721,9 @@
         "draft_revision": {
           "type": "string"
         },
+        "published_version": {
+          "type": "string"
+        },
         "version": {
           "type": "string"
         }
