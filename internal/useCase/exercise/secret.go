@@ -202,7 +202,8 @@ func (u *ExerciseUseCase) inheritVariantSecrets(target *exerciseModel.Variant, s
 			submitted[targetKey] = true
 		}
 	}
-	return nil
+	// The secret credentials of the defender block take the same rule (one map of submitted keys for both).
+	return u.inheritDefenderSecrets(target, source, linked, submitted)
 }
 
 // sourceSecret is the source variant's secret value of (device, env) and its origin, "" when it has none.
@@ -343,6 +344,9 @@ func (u *ExerciseUseCase) decryptExportedSecrets(versions []exerciseModel.Exerci
 				}
 			}
 		}
+		if err := u.decryptExportedDefenderSecrets(versions[vi].Variants); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -379,6 +383,9 @@ func (u *ExerciseUseCase) encryptImportedSecrets(versions []exerciseModel.Exerci
 				}
 			}
 		}
+		if err := u.encryptImportedDefenderSecrets(versions[vi].Variants); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -404,6 +411,7 @@ func maskSecrets(variants []exerciseModel.Variant) []exerciseModel.Variant {
 			devices[di].Bootstrap.Env = envs
 		}
 		out[vi].Topology.Devices = devices
+		out[vi].Defender = maskDefender(out[vi].Defender)
 	}
 	return out
 }
@@ -453,5 +461,5 @@ func (u *ExerciseUseCase) restoreKeptSecrets(imported *exerciseModel.ExerciseVer
 			}
 		}
 	}
-	return nil
+	return u.restoreKeptDefenderSecrets(imported.Variants, stored.Variants)
 }

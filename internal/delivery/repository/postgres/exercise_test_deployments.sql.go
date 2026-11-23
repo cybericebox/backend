@@ -30,8 +30,8 @@ func (q *Queries) CountActiveExerciseTestDeploys(ctx context.Context, arg CountA
 }
 
 const createExerciseTestDeploy = `-- name: CreateExerciseTestDeploy :one
-INSERT INTO exercise_test_deployments (id, group_name, lab_name, version_id, variant_id, created_by, created_at, expires_at, flags, event_id, run_seconds)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, group_name, version_id, variant_id, created_by, created_at, expires_at, flags, solved, lab_name, event_id, ending_at, run_seconds
+INSERT INTO exercise_test_deployments (id, group_name, lab_name, version_id, variant_id, created_by, created_at, expires_at, flags, event_id, run_seconds, dossier)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, group_name, version_id, variant_id, created_by, created_at, expires_at, flags, solved, lab_name, event_id, ending_at, run_seconds, dossier
 `
 
 type CreateExerciseTestDeployParams struct {
@@ -46,6 +46,7 @@ type CreateExerciseTestDeployParams struct {
 	Flags      []byte        `json:"flags"`
 	EventID    uuid.NullUUID `json:"event_id"`
 	RunSeconds pgtype.Int4   `json:"run_seconds"`
+	Dossier    []byte        `json:"dossier"`
 }
 
 func (q *Queries) CreateExerciseTestDeploy(ctx context.Context, arg CreateExerciseTestDeployParams) (ExerciseTestDeployment, error) {
@@ -61,6 +62,7 @@ func (q *Queries) CreateExerciseTestDeploy(ctx context.Context, arg CreateExerci
 		arg.Flags,
 		arg.EventID,
 		arg.RunSeconds,
+		arg.Dossier,
 	)
 	var i ExerciseTestDeployment
 	err := row.Scan(
@@ -77,6 +79,7 @@ func (q *Queries) CreateExerciseTestDeploy(ctx context.Context, arg CreateExerci
 		&i.EventID,
 		&i.EndingAt,
 		&i.RunSeconds,
+		&i.Dossier,
 	)
 	return i, err
 }
@@ -100,7 +103,7 @@ func (q *Queries) DeleteOwnedExerciseTestDeploy(ctx context.Context, arg DeleteO
 
 const extendOwnedExerciseTestDeploy = `-- name: ExtendOwnedExerciseTestDeploy :one
 UPDATE exercise_test_deployments SET expires_at = $1, ending_at = NULL
-WHERE id = $2 AND created_by = $3 RETURNING id, group_name, version_id, variant_id, created_by, created_at, expires_at, flags, solved, lab_name, event_id, ending_at, run_seconds
+WHERE id = $2 AND created_by = $3 RETURNING id, group_name, version_id, variant_id, created_by, created_at, expires_at, flags, solved, lab_name, event_id, ending_at, run_seconds, dossier
 `
 
 type ExtendOwnedExerciseTestDeployParams struct {
@@ -126,12 +129,13 @@ func (q *Queries) ExtendOwnedExerciseTestDeploy(ctx context.Context, arg ExtendO
 		&i.EventID,
 		&i.EndingAt,
 		&i.RunSeconds,
+		&i.Dossier,
 	)
 	return i, err
 }
 
 const getOwnedExerciseTestDeploy = `-- name: GetOwnedExerciseTestDeploy :one
-SELECT id, group_name, version_id, variant_id, created_by, created_at, expires_at, flags, solved, lab_name, event_id, ending_at, run_seconds FROM exercise_test_deployments WHERE id = $1 AND created_by = $2
+SELECT id, group_name, version_id, variant_id, created_by, created_at, expires_at, flags, solved, lab_name, event_id, ending_at, run_seconds, dossier FROM exercise_test_deployments WHERE id = $1 AND created_by = $2
 `
 
 type GetOwnedExerciseTestDeployParams struct {
@@ -156,12 +160,13 @@ func (q *Queries) GetOwnedExerciseTestDeploy(ctx context.Context, arg GetOwnedEx
 		&i.EventID,
 		&i.EndingAt,
 		&i.RunSeconds,
+		&i.Dossier,
 	)
 	return i, err
 }
 
 const listExpiredExerciseTestDeploys = `-- name: ListExpiredExerciseTestDeploys :many
-SELECT id, group_name, version_id, variant_id, created_by, created_at, expires_at, flags, solved, lab_name, event_id, ending_at, run_seconds FROM exercise_test_deployments WHERE expires_at <= $1 ORDER BY expires_at
+SELECT id, group_name, version_id, variant_id, created_by, created_at, expires_at, flags, solved, lab_name, event_id, ending_at, run_seconds, dossier FROM exercise_test_deployments WHERE expires_at <= $1 ORDER BY expires_at
 `
 
 func (q *Queries) ListExpiredExerciseTestDeploys(ctx context.Context, expiresAt time.Time) ([]ExerciseTestDeployment, error) {
@@ -187,6 +192,7 @@ func (q *Queries) ListExpiredExerciseTestDeploys(ctx context.Context, expiresAt 
 			&i.EventID,
 			&i.EndingAt,
 			&i.RunSeconds,
+			&i.Dossier,
 		); err != nil {
 			return nil, err
 		}
@@ -199,7 +205,7 @@ func (q *Queries) ListExpiredExerciseTestDeploys(ctx context.Context, expiresAt 
 }
 
 const listOwnedExerciseTestDeploys = `-- name: ListOwnedExerciseTestDeploys :many
-SELECT id, group_name, version_id, variant_id, created_by, created_at, expires_at, flags, solved, lab_name, event_id, ending_at, run_seconds FROM exercise_test_deployments WHERE created_by = $1 ORDER BY expires_at
+SELECT id, group_name, version_id, variant_id, created_by, created_at, expires_at, flags, solved, lab_name, event_id, ending_at, run_seconds, dossier FROM exercise_test_deployments WHERE created_by = $1 ORDER BY expires_at
 `
 
 func (q *Queries) ListOwnedExerciseTestDeploys(ctx context.Context, createdBy uuid.UUID) ([]ExerciseTestDeployment, error) {
@@ -225,6 +231,7 @@ func (q *Queries) ListOwnedExerciseTestDeploys(ctx context.Context, createdBy uu
 			&i.EventID,
 			&i.EndingAt,
 			&i.RunSeconds,
+			&i.Dossier,
 		); err != nil {
 			return nil, err
 		}
@@ -237,7 +244,7 @@ func (q *Queries) ListOwnedExerciseTestDeploys(ctx context.Context, createdBy uu
 }
 
 const listOwnedExerciseTestDeploysForExercise = `-- name: ListOwnedExerciseTestDeploysForExercise :many
-SELECT d.id, d.group_name, d.version_id, d.variant_id, d.created_by, d.created_at, d.expires_at, d.flags, d.solved, d.lab_name, d.event_id, d.ending_at, d.run_seconds FROM exercise_test_deployments d
+SELECT d.id, d.group_name, d.version_id, d.variant_id, d.created_by, d.created_at, d.expires_at, d.flags, d.solved, d.lab_name, d.event_id, d.ending_at, d.run_seconds, d.dossier FROM exercise_test_deployments d
 JOIN exercise_versions v ON v.id = d.version_id
 WHERE d.created_by = $1 AND v.exercise_id = $2
 ORDER BY d.expires_at
@@ -271,6 +278,7 @@ func (q *Queries) ListOwnedExerciseTestDeploysForExercise(ctx context.Context, a
 			&i.EventID,
 			&i.EndingAt,
 			&i.RunSeconds,
+			&i.Dossier,
 		); err != nil {
 			return nil, err
 		}
@@ -295,7 +303,7 @@ func (q *Queries) LockExerciseTestDeploysOf(ctx context.Context, owner string) e
 const markExerciseTestDeploySolved = `-- name: MarkExerciseTestDeploySolved :one
 UPDATE exercise_test_deployments
 SET solved = CASE WHEN solved @> jsonb_build_array($1::text) THEN solved ELSE solved || jsonb_build_array($1::text) END
-WHERE id = $2 AND created_by = $3 RETURNING id, group_name, version_id, variant_id, created_by, created_at, expires_at, flags, solved, lab_name, event_id, ending_at, run_seconds
+WHERE id = $2 AND created_by = $3 RETURNING id, group_name, version_id, variant_id, created_by, created_at, expires_at, flags, solved, lab_name, event_id, ending_at, run_seconds, dossier
 `
 
 type MarkExerciseTestDeploySolvedParams struct {
@@ -322,6 +330,7 @@ func (q *Queries) MarkExerciseTestDeploySolved(ctx context.Context, arg MarkExer
 		&i.EventID,
 		&i.EndingAt,
 		&i.RunSeconds,
+		&i.Dossier,
 	)
 	return i, err
 }

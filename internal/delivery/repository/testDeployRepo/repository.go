@@ -62,10 +62,10 @@ type Repository struct{ q Queries }
 
 func New(q Queries) *Repository { return &Repository{q: q} }
 func ToRow(v exerciseModel.TestDeploy) postgres.ExerciseTestDeployment {
-	return postgres.ExerciseTestDeployment{EventID: deployEventRef(v.EventID), ID: v.ID, GroupName: v.GroupName, LabName: v.LabName, VersionID: v.VersionID, VariantID: v.VariantID, CreatedBy: v.CreatedBy, CreatedAt: v.CreatedAt, ExpiresAt: v.ExpiresAt, Flags: marshalFlags(v.Flags), Solved: marshalSolved(v.Solved)}
+	return postgres.ExerciseTestDeployment{EventID: deployEventRef(v.EventID), ID: v.ID, GroupName: v.GroupName, LabName: v.LabName, VersionID: v.VersionID, VariantID: v.VariantID, CreatedBy: v.CreatedBy, CreatedAt: v.CreatedAt, ExpiresAt: v.ExpiresAt, Flags: marshalFlags(v.Flags), Solved: marshalSolved(v.Solved), Dossier: marshalDossier(v.Dossier)}
 }
 func toDomain(v postgres.ExerciseTestDeployment) exerciseModel.TestDeploy {
-	out := exerciseModel.TestDeploy{EventID: deployEventID(v.EventID), ID: v.ID, GroupName: v.GroupName, LabName: v.LabName, VersionID: v.VersionID, VariantID: v.VariantID, CreatedBy: v.CreatedBy, CreatedAt: v.CreatedAt, ExpiresAt: v.ExpiresAt, Flags: unmarshalFlags(v.Flags), Solved: unmarshalSolved(v.Solved)}
+	out := exerciseModel.TestDeploy{EventID: deployEventID(v.EventID), ID: v.ID, GroupName: v.GroupName, LabName: v.LabName, VersionID: v.VersionID, VariantID: v.VariantID, CreatedBy: v.CreatedBy, CreatedAt: v.CreatedAt, ExpiresAt: v.ExpiresAt, Flags: unmarshalFlags(v.Flags), Solved: unmarshalSolved(v.Solved), Dossier: unmarshalDossier(v.Dossier)}
 	if v.EndingAt.Valid {
 		at := v.EndingAt.Time.UTC()
 		out.EndingAt = &at
@@ -76,7 +76,7 @@ func toDomain(v postgres.ExerciseTestDeployment) exerciseModel.TestDeploy {
 	return out
 }
 func (r *Repository) Create(ctx context.Context, v exerciseModel.TestDeploy) (exerciseModel.TestDeploy, error) {
-	row, e := r.q.CreateExerciseTestDeploy(ctx, postgres.CreateExerciseTestDeployParams{EventID: deployEventRef(v.EventID), ID: v.ID, GroupName: v.GroupName, LabName: v.LabName, VersionID: v.VersionID, VariantID: v.VariantID, CreatedBy: v.CreatedBy, CreatedAt: v.CreatedAt, ExpiresAt: v.ExpiresAt, Flags: marshalFlags(v.Flags), RunSeconds: runSeconds(v.Length)})
+	row, e := r.q.CreateExerciseTestDeploy(ctx, postgres.CreateExerciseTestDeployParams{EventID: deployEventRef(v.EventID), ID: v.ID, GroupName: v.GroupName, LabName: v.LabName, VersionID: v.VersionID, VariantID: v.VariantID, CreatedBy: v.CreatedBy, CreatedAt: v.CreatedAt, ExpiresAt: v.ExpiresAt, Flags: marshalFlags(v.Flags), RunSeconds: runSeconds(v.Length), Dossier: marshalDossier(v.Dossier)})
 	return toDomain(row), e
 }
 func (r *Repository) GetOwned(ctx context.Context, id, owner uuid.UUID) (exerciseModel.TestDeploy, error) {
@@ -186,4 +186,25 @@ func runSeconds(d time.Duration) pgtype.Int4 {
 		return pgtype.Int4{}
 	}
 	return pgtype.Int4{Int32: int32(d / time.Second), Valid: true}
+}
+
+// marshalDossier is the stored form of the deployed dossier; nil for none (SQL NULL).
+func marshalDossier(d *exerciseModel.DeployedDossier) []byte {
+	if d == nil {
+		return nil
+	}
+	data, _ := json.Marshal(d)
+	return data
+}
+
+// unmarshalDossier reads the stored dossier; none, or one this build cannot read, is nil (the lab then shows no dossier).
+func unmarshalDossier(data []byte) *exerciseModel.DeployedDossier {
+	if len(data) == 0 {
+		return nil
+	}
+	var d exerciseModel.DeployedDossier
+	if json.Unmarshal(data, &d) != nil {
+		return nil
+	}
+	return &d
 }

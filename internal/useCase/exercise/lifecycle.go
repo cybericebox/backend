@@ -82,6 +82,10 @@ func (u *ExerciseUseCase) SaveDraft(ctx context.Context, exerciseID uuid.UUID, i
 	// merge fills blanks from the stored draft — merged values are ciphertext
 	// and must never be re-encrypted.
 	submitted := submittedSecretKeys(version.Variants)
+	// The secret credentials of the defender blocks share the map (their keys have a prefix of their own).
+	for key := range submittedDefenderSecrets(version.Variants) {
+		submitted[key] = true
+	}
 	originTypedSecrets(version.Variants, submitted)
 	mergeSource, err := u.secretMergeSource(ctx, e)
 	if err != nil {
@@ -98,6 +102,7 @@ func (u *ExerciseUseCase) SaveDraft(ctx context.Context, exerciseID uuid.UUID, i
 	copyOf := in.CopyOf
 	if mergeSource != nil {
 		mergeKeptSecrets(version.Variants, mergeSource.Variants)
+		mergeKeptDefenderSecrets(version.Variants, mergeSource.Variants)
 		copyOf = newCopiesOnly(version.Variants, mergeSource.Variants, copyOf)
 	}
 	// A linked variant or a copy gets its source's secret under its own id (a ciphertext opens only there).
@@ -105,6 +110,9 @@ func (u *ExerciseUseCase) SaveDraft(ctx context.Context, exerciseID uuid.UUID, i
 		return VersionView{}, err
 	}
 	if err := u.encryptSecrets(version.Variants, submitted); err != nil {
+		return VersionView{}, err
+	}
+	if err := u.encryptDefenderSecrets(version.Variants, submitted); err != nil {
 		return VersionView{}, err
 	}
 	// Slow content/secret preparation is outside the transaction. Lock first,

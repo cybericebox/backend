@@ -81,6 +81,7 @@ type (
 		DeployVariantTest(ctx context.Context, userID, versionID, variantID uuid.UUID, length time.Duration) (exerciseModel.DeployHandle, error)
 		TestRunLengths(ctx context.Context) (allowed []int, defaultMinutes int)
 		DeployTestStatus(ctx context.Context, userID, deployID uuid.UUID) (exerciseModel.LabDeployStatus, error)
+		TestDeployDossier(ctx context.Context, actor exerciseUseCase.Actor, deployID uuid.UUID) (exerciseUseCase.DossierView, error)
 		DestroyDeployTest(ctx context.Context, userID, deployID uuid.UUID) error
 		ResetTestDeployDevice(ctx context.Context, userID, deployID uuid.UUID, device string) error
 		RescueTestDeployDevice(ctx context.Context, userID, deployID uuid.UUID, device string, enable bool) error
@@ -275,6 +276,7 @@ func (h *Handler) Init(router *gin.RouterGroup) {
 		ex.GET("deploys", self, h.listDeploys)
 		ex.GET("test-runs/lengths", self, h.testRunLengths)
 		ex.GET("deploys/:deployID", self, h.deployStatus)
+		ex.GET("deploys/:deployID/dossier", self, h.deployDossier)
 		ex.POST("deploys/:deployID/extend", self, h.extendDeploy)
 		ex.POST("deploys/:deployID/link", self, h.deployLink)
 		ex.POST("deploys/:deployID/check", self, h.checkDeploy)

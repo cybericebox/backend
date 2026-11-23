@@ -21,7 +21,7 @@ import (
 )
 
 // The versions of the document's `schema` key the import reads. 1.1 is 1.0 plus the console keys (a device's console_ports
-// and serial_ports, a connection's kind, an opponent's seat): the fields tagged cib:"1.1". A 1.0 document stays valid
+// and serial_ports, a connection's kind, an opponent's seat, a variant's defender block): the fields tagged cib:"1.1". A 1.0 document stays valid
 // forever; the export writes the lowest version that holds the content (archiveSchemaOf).
 const (
 	archiveSchema10 = "cib-exercise/1.0"
@@ -64,6 +64,9 @@ func archiveSchemaOf(versions []archiveVersionV2) string {
 				if opponent.Seat != "" {
 					return archiveSchema11
 				}
+			}
+			if variant.Defender != nil {
+				return archiveSchema11
 			}
 		}
 	}
@@ -128,6 +131,9 @@ type (
 		// their image, toolset, keys and budget: naming one of those is refused. Not for a linked variant (it takes its
 		// base's).
 		Opponents []exerciseModel.Opponent `json:"opponents,omitempty"`
+		// Defender (document 1.1): what the defender of the lab is told (seat, topology, off_limits, credentials). A secret
+		// credential value travels only in a password-protected archive. Not for a linked variant (it takes its base's).
+		Defender *exerciseModel.Defender `json:"defender,omitempty" cib:"1.1"`
 	}
 
 	archiveTaskV2 struct {
@@ -789,7 +795,7 @@ func (v archiveVariantV2) toDomain(path string, number int, id uuid.UUID, links 
 	if err != nil {
 		return exerciseModel.Variant{}, err
 	}
-	variant := exerciseModel.Variant{ID: id, Index: v.Index, Note: v.Note, Weight: weightValue(v.Weight), Topology: topology, Opponents: exerciseModel.CopyOpponents(v.Opponents)}
+	variant := exerciseModel.Variant{ID: id, Index: v.Index, Note: v.Note, Weight: weightValue(v.Weight), Topology: topology, Opponents: exerciseModel.CopyOpponents(v.Opponents), Defender: exerciseModel.CopyDefender(v.Defender)}
 	for ti, task := range v.Tasks {
 		value, taskErr := task.toDomain(fmt.Sprintf("%s.tasks[%d]", path, ti+1), deviceIDs, links)
 		if taskErr != nil {
@@ -1231,7 +1237,7 @@ func exportVariantV2(variant exerciseModel.Variant, paths map[uuid.UUID]string, 
 		}
 		topology.Connections = append(topology.Connections, out)
 	}
-	result := archiveVariantV2{ID: optionalID(variant.ID), Index: variant.Index, Note: variant.Note, Weight: weightPointer(variant.Weight), Topology: topology, Opponents: exerciseModel.CopyOpponents(variant.Opponents)}
+	result := archiveVariantV2{ID: optionalID(variant.ID), Index: variant.Index, Note: variant.Note, Weight: weightPointer(variant.Weight), Topology: topology, Opponents: exerciseModel.CopyOpponents(variant.Opponents), Defender: exerciseModel.CopyDefender(variant.Defender)}
 	for _, task := range variant.Tasks {
 		result.Tasks = append(result.Tasks, exportTaskV2(task, refs, paths))
 	}

@@ -651,6 +651,54 @@ type variantDTO struct {
 	// Opponents are the Academy's automated attackers and defenders of the variant: author content, in the responses
 	// for the authors of the exercise only (a request that omits them removes them). A linked variant takes its base's.
 	Opponents []opponentDTO `json:"Opponents,omitempty"`
+	// Defender is what the defender of the lab is told (its dossier): author content, in the responses for the authors of the
+	// exercise only (a request that omits it removes it). A secret credential's Value is always empty in a response; an
+	// empty secret Value in a request keeps the stored one. A linked variant takes its base's.
+	Defender *defenderDTO `json:"Defender,omitempty"`
+}
+
+// defenderDTO is the defender block of a variant. Seat is the node with serial ports the human defender sits at; Topology is
+// "full" (default when empty) or "none"; OffLimits are device names the defender must not console into.
+type defenderDTO struct {
+	Seat        string                   `json:"Seat,omitempty"`
+	Topology    string                   `json:"Topology,omitempty"`
+	OffLimits   []string                 `json:"OffLimits,omitempty"`
+	Credentials []defenderCredentialDTO `json:"Credentials,omitempty"`
+}
+
+// defenderCredentialDTO is one operator credential: a device, optionally one of its console ports, a user and the value.
+type defenderCredentialDTO struct {
+	Device string `json:"Device"`
+	Port   string `json:"Port,omitempty"`
+	User   string `json:"User,omitempty"`
+	Value  string `json:"Value"`
+	Secret bool   `json:"Secret,omitempty"`
+}
+
+func (d *defenderDTO) toDomain() *exerciseModel.Defender {
+	if d == nil {
+		return nil
+	}
+	out := &exerciseModel.Defender{Seat: d.Seat, Topology: exerciseModel.DefenderTopology(d.Topology), OffLimits: d.OffLimits}
+	for _, c := range d.Credentials {
+		out.Credentials = append(out.Credentials, exerciseModel.DefenderCredential{Device: c.Device, Port: c.Port, User: c.User, Value: c.Value, Secret: c.Secret})
+	}
+	return out
+}
+
+func defenderToDTO(d *exerciseModel.Defender) *defenderDTO {
+	if d == nil {
+		return nil
+	}
+	out := &defenderDTO{Seat: d.Seat, Topology: string(d.Topology), OffLimits: d.OffLimits}
+	for _, c := range d.Credentials {
+		value := c.Value
+		if c.Secret {
+			value = "" // never sent back, whatever the read model held
+		}
+		out.Credentials = append(out.Credentials, defenderCredentialDTO{Device: c.Device, Port: c.Port, User: c.User, Value: value, Secret: c.Secret})
+	}
+	return out
 }
 
 // opponentDTO is one opponent of a variant. Goal and StartAfter name tasks of the variant by Key; Operates names devices
@@ -994,6 +1042,7 @@ func (d variantDTO) toDomain() exerciseModel.Variant {
 			Operates: o.Operates, Foothold: o.Foothold, Brief: o.Brief, Seat: o.Seat,
 		})
 	}
+	out.Defender = d.Defender.toDomain()
 	if d.ID != nil {
 		out.ID = *d.ID
 	}
@@ -1361,6 +1410,7 @@ func variantToDTO(v exerciseModel.Variant) variantDTO {
 			Role: string(o.Role), Band: o.Band, Goal: o.Goal, StartAfter: o.Start.After, Operates: o.Operates, Foothold: o.Foothold, Brief: o.Brief, Seat: o.Seat,
 		})
 	}
+	d.Defender = defenderToDTO(v.Defender)
 	return d
 }
 

@@ -28,6 +28,9 @@ type TestDeploy struct {
 	// Length is the run length the author chose: the lease, counted only while the lab runs (zero: not kept, for a row
 	// made before it was).
 	Length time.Duration
+	// Dossier is the human defender's dossier as the lab was deployed (nil: the variant declares no defender block, or a bot
+	// took the seat). A later edit of the draft never changes it; its secret credentials stay sealed.
+	Dossier *DeployedDossier
 }
 
 // Kinds of a test deploy. The kind follows the row shape, never the live variant: a draft variant may gain or lose

@@ -7473,6 +7473,34 @@ definitions:
       Note:
         type: string
     type: object
+  exercise.defenderCredentialDTO:
+    properties:
+      Device:
+        type: string
+      Port:
+        type: string
+      Secret:
+        type: boolean
+      User:
+        type: string
+      Value:
+        type: string
+    type: object
+  exercise.defenderDTO:
+    properties:
+      Credentials:
+        items:
+          $ref: '#/definitions/exercise.defenderCredentialDTO'
+        type: array
+      OffLimits:
+        items:
+          type: string
+        type: array
+      Seat:
+        type: string
+      Topology:
+        type: string
+    type: object
   exercise.deployAccessResponse:
     properties:
       Device:
@@ -7952,6 +7980,59 @@ definitions:
       Owner:
         type: string
       Path:
+        type: string
+    type: object
+  exercise.dossierCredentialResponse:
+    properties:
+      Device:
+        type: string
+      Port:
+        type: string
+      User:
+        type: string
+      Value:
+        type: string
+    type: object
+  exercise.dossierLinkResponse:
+    properties:
+      ConsoleKind:
+        type: string
+      ConsolePort:
+        type: string
+      Device:
+        type: string
+      Path:
+        type: string
+      Program:
+        type: string
+      SerialPort:
+        type: string
+    type: object
+  exercise.dossierResponse:
+    properties:
+      Credentials:
+        items:
+          $ref: '#/definitions/exercise.dossierCredentialResponse'
+        type: array
+      Declared:
+        type: boolean
+      Forbidden:
+        items:
+          type: string
+        type: array
+      Links:
+        items:
+          $ref: '#/definitions/exercise.dossierLinkResponse'
+        type: array
+      Operates:
+        description: Operates are the devices the defender operates (the subset of
+          Topology operates).
+        items:
+          type: string
+        type: array
+      Topology:
+        description: Topology is full (the schema view of the whole lab), operates
+          (only Operates and their links) or none.
         type: string
     type: object
   exercise.elevationCapacityResponse:
@@ -9316,6 +9397,13 @@ definitions:
           CopyOf (request only, never in a response): the variant this new one was copied from, so a secret left
           blank in the copy takes that variant's value.
         type: string
+      Defender:
+        allOf:
+        - $ref: '#/definitions/exercise.defenderDTO'
+        description: |-
+          Defender is what the defender of the lab is told (its dossier): author content, in the responses for the authors of the
+          exercise only (a request that omits it removes it). A secret credential's Value is always empty in a response; an
+          empty secret Value in a request keeps the stored one. A linked variant takes its base's.
       ID:
         type: string
       ImageOverrides:
@@ -27661,6 +27749,47 @@ paths:
           schema:
             $ref: '#/definitions/response.Response'
       summary: Reset one device of the author's own test lab to its base image
+      tags:
+      - exercises
+  /exercises/deploys/{deployID}/dossier:
+    get:
+      description: 'The console map of the defender''s seat, the forbidden devices,
+        the operator credentials (with their values) and the topology mode (full,
+        operates, none), as the lab was deployed. The owner of the test lab with author
+        access to the exercise only (checked on every read), never an event preview,
+        once the lab is ready (409 otherwise). Declared false: the lab was deployed
+        without a defender block. Never cached.'
+      parameters:
+      - description: test deployment id
+        in: path
+        name: deployID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/exercise.dossierResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: The dossier of the human defender of a test lab
       tags:
       - exercises
   /exercises/deploys/{deployID}/link:

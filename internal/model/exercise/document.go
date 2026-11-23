@@ -74,6 +74,9 @@ func (v Variant) ValidateDocument() error {
 	if err := v.ValidateOpponents(); err != nil {
 		return err
 	}
+	if err := v.ValidateDefender(); err != nil {
+		return err
+	}
 	return v.ValidateSubstitutions()
 }
 

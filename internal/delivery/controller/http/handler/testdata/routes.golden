@@ -492,6 +492,7 @@ GET    /api/exercises/deploys/:deployID | gate: self | layers: -
 POST   /api/exercises/deploys/:deployID/check | gate: self | layers: -
 POST   /api/exercises/deploys/:deployID/devices/:device/rescue | gate: self | layers: -
 POST   /api/exercises/deploys/:deployID/devices/:device/reset | gate: self | layers: -
+GET    /api/exercises/deploys/:deployID/dossier | gate: self | layers: -
 POST   /api/exercises/deploys/:deployID/extend | gate: self | layers: -
 POST   /api/exercises/deploys/:deployID/link | gate: self | layers: -
 POST   /api/exercises/deploys/:deployID/tasks/:taskID/run-checks | gate: self | layers: -

@@ -836,6 +836,7 @@ type ExerciseTestDeployment struct {
 	EventID    uuid.NullUUID      `json:"event_id"`
 	EndingAt   pgtype.Timestamptz `json:"ending_at"`
 	RunSeconds pgtype.Int4        `json:"run_seconds"`
+	Dossier    []byte             `json:"dossier"`
 }
 
 type ExerciseVersion struct {

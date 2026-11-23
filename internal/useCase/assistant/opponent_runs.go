@@ -100,9 +100,9 @@ func (u *UseCase) opponentSpec(ctx context.Context, runID uuid.UUID, o exerciseM
 	return place, spec.GetSpecId(), true, nil
 }
 
-// TODO(owner-design): the defender's admin credentials for its operates devices belong on the tools host, so the brain gets no
-// extra secrets. The manifest holds none today (a device's access entry names a user and a command, never a password or key),
-// so nothing is placed; this waits for where those credentials come from.
+// The defender's operator credentials stay on the tools host, so the brain gets no extra secret: the deploy writes them, with
+// the console map and the topology, into the dossier files of the tools device (/run/eda/*.json, console design 9a.4) from the
+// variant's defender block.
 //
 // A role that operates devices gets its console lines too (console design, section 8): with a seat the tools device takes the
 // seat's place (its first data NIC and its console cables, port for port; this comes before the foothold and Beside), without

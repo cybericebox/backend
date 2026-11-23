@@ -427,6 +427,10 @@ func (u *ExerciseUseCase) deployVariantTest(ctx context.Context, eventID *uuid.U
 		if topo, devices, err = topo.WithToolsDevices(places); err != nil {
 			return exerciseModel.DeployHandle{}, err
 		}
+		// The dossier of each defender, after auto-cabling, so it is the run's real cabling.
+		if topo, err = u.withDossierFiles(variant, topo, devices, places); err != nil {
+			return exerciseModel.DeployHandle{}, err
+		}
 		// The fallback tools image (BRAIN_TOOLS_IMAGE) is checked like every image of the lab; the brain's image is applied as
 		// it is: it is hidden from the check (a device without an image is not checked) and put back after it.
 		brainImages = map[uuid.UUID]string{}
@@ -468,6 +472,10 @@ func (u *ExerciseUseCase) deployVariantTest(ctx context.Context, eventID *uuid.U
 		return exerciseModel.DeployHandle{}, err
 	}
 	deploy := exerciseModel.TestDeploy{EventID: eventID, Flags: deployFlags, ID: id, GroupName: testGroupName(ownerID), LabName: testLabName(id), VersionID: versionID, VariantID: variantID, CreatedBy: ownerID, CreatedAt: now, ExpiresAt: now.Add(lease), Length: lease}
+	// The human defender's dossier is kept as the variant is now (never for an event's preview: event staff are not authors).
+	if eventID == nil {
+		deploy.Dossier = deployedDossier(variant, tools)
+	}
 	retained, provisioned := false, false
 	// Everything an author does to their test labs is serialized, so the group is created with the
 	// first lab, grows with the next ones and is deleted with the last one without racing.

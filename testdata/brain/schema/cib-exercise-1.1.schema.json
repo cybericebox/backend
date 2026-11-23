@@ -63,6 +63,59 @@
       },
       "type": "object"
     },
+    "Defender": {
+      "additionalProperties": false,
+      "properties": {
+        "credentials": {
+          "items": {
+            "$ref": "#/$defs/DefenderCredential"
+          },
+          "type": "array"
+        },
+        "off_limits": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "seat": {
+          "type": "string"
+        },
+        "topology": {
+          "enum": [
+            "full",
+            "operates",
+            "none"
+          ],
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "DefenderCredential": {
+      "additionalProperties": false,
+      "properties": {
+        "device": {
+          "type": "string"
+        },
+        "port": {
+          "type": "string"
+        },
+        "secret": {
+          "type": "boolean"
+        },
+        "user": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "device"
+      ],
+      "type": "object"
+    },
     "DevicePersistence": {
       "additionalProperties": false,
       "properties": {
@@ -1071,6 +1124,9 @@
     "archiveVariantV2": {
       "additionalProperties": false,
       "properties": {
+        "defender": {
+          "$ref": "#/$defs/Defender"
+        },
         "device_images": {
           "additionalProperties": {
             "oneOf": [

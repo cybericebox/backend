@@ -50,6 +50,14 @@ func ExerciseEnv(variantID uuid.UUID, device, name string) []byte {
 	return []byte("exercise-env:" + variantID.String() + ":" + device + ":" + name)
 }
 
+// ExerciseDefenderCredential binds a secret operator credential of a variant's defender block to the variant it is sealed to,
+// the device, the console port and the user (the identity a save keeps a credential by): a value copied to another credential
+// does not open there. A device name may not hold ':', a port name is console<n> or aux<n> and a user follows the account
+// pattern, so the parts cannot run into one another.
+func ExerciseDefenderCredential(variantID uuid.UUID, device, port, user string) []byte {
+	return []byte("exercise-defender:" + variantID.String() + ":" + device + ":" + port + ":" + user)
+}
+
 // FileKey binds the wrapped key of a stored file to its blob (the content hash): a wrapped key copied to another blob
 // does not open there.
 func FileKey(contentHash string) []byte { return []byte("media-file-key:" + contentHash) }
