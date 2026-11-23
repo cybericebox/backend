@@ -1,4 +1,4 @@
-# Routes that declare no keys yet (TestEveryRouteDeclaresKeys). The list only shrinks; maxUndeclared counts it.
+# Routes that declare no keys yet (TestEveryRouteDeclaresKeys). The list only shrinks.
 # METHOD /api/path | P1b area and A.3 row; "open:" when the row is not settled in the spec
 # area 2: admin, analytics, dashboard
 GET /api/admin/assistant/statistics | area 2, A.3 #48
@@ -421,7 +421,6 @@ GET /api/exercises/test-labs/bookings | area 6, A.3 #534 open: the row breaks th
 GET /api/exercises/test-labs/room | area 6, A.3 #537 open: the row breaks the catalogue rules: key event.exercises.create (scopes [event]) cannot be checked at platform; key event.exercises.update (scopes [event]) cannot be checked at platform
 GET /api/exercises/test-runs/lengths | area 6, A.3 #538 open: the row breaks the catalogue rules: key event.exercises.create (scopes [event]) cannot be checked at platform; key event.exercises.update (scopes [event]) cannot be checked at platform
 GET /api/exercises/uploads/:uploadID | area 6, A.3 #541 open: the row breaks the catalogue rules: key event.exercises.create (scopes [event]) cannot be checked at platform; key event.exercises.update (scopes [event]) cannot be checked at platform
-POST /api/assistant/sessions/:id/save | area 6, A.3 #89 open: keys cell not in a declarable form
 POST /api/exercises | area 6, A.3 #449 open: scope "body OwnerEventID → event (none: catalog)" is not a scope source of the plan
 POST /api/exercises/deploys/:deployID/check | area 6, A.3 #499 open: scope "own deploy (owner = caller)" is not a scope source of the plan
 POST /api/exercises/deploys/:deployID/devices/:device/rescue | area 6, A.3 #500 open: scope "own deploy (owner = caller)" is not a scope source of the plan

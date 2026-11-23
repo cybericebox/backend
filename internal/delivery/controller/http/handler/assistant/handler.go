@@ -87,7 +87,7 @@ func (h *Handler) Init(r *gin.RouterGroup) {
 	g.POST("sessions/:id/start", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.CyberbrainChatUse), self), h.author, h.passSessionJSON(http.MethodPost, "/start"))
 	g.POST("sessions/:id/stop", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.CyberbrainChatUse), self), h.author, h.passSessionJSON(http.MethodPost, "/stop"))
 	// save imports the finished task (a background import waits for its images), then tells the brain
-	g.POST("sessions/:id/save", long, self, h.author, h.save)
+	g.POST("sessions/:id/save", long, h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.CyberbrainChatUse).WithData(authz.ExercisesCreate, authz.ExercisesUpdate, authz.EventExercisesCreate, authz.EventExercisesUpdate), self), h.author, h.save)
 	g.GET("sessions/:id/archive", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.CyberbrainSessionsRead), self), h.author, h.archive)
 	g.DELETE("sessions/:id", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.CyberbrainChatUse), self), h.author, h.passSessionJSON(http.MethodDelete, ""))
 	g.GET("sessions/:id/events", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.CyberbrainSessionsRead), self), h.author, h.events)

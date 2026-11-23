@@ -39,7 +39,7 @@ POST   /api/assistant/sessions/:id/attachments | gate: self | layers: assistant.
 DELETE /api/assistant/sessions/:id/attachments/:aid | gate: self | layers: assistant.author | keys: cyberbrain.chat.use @ platform
 GET    /api/assistant/sessions/:id/events | gate: self | layers: assistant.author | keys: cyberbrain.sessions.read @ platform
 POST   /api/assistant/sessions/:id/messages | gate: self | layers: assistant.author | keys: cyberbrain.chat.use @ platform
-POST   /api/assistant/sessions/:id/save | gate: self | layers: download.LongOperation.func,assistant.author | keys: ?
+POST   /api/assistant/sessions/:id/save | gate: self | layers: download.LongOperation.func,assistant.author | keys: cyberbrain.chat.use @ platform data(exercises.create,exercises.update,event.exercises.create,event.exercises.update)
 POST   /api/assistant/sessions/:id/start | gate: self | layers: assistant.author | keys: cyberbrain.chat.use @ platform
 POST   /api/assistant/sessions/:id/stop | gate: self | layers: assistant.author | keys: cyberbrain.chat.use @ platform
 DELETE /api/auth/account | gate: self | layers: - | keys: self @ self
@@ -441,7 +441,7 @@ GET    /api/events/self/team-fields | gate: self | layers: middleware.ResolveEve
 GET    /api/exercises | gate: self | layers: - | keys: ?
 POST   /api/exercises | gate: self | layers: - | keys: ?
 DELETE /api/exercises/:id | gate: self | layers: exercise.authorize.func | keys: anyOf(exercises.delete,event.exercises.delete,(author)) @ object(exercise)
-GET    /api/exercises/:id | gate: self | layers: exercise.authorize.func | keys: anyOf(exercises.read,event.exercises.read,event.tasks.read,(author)) @ object(exercise)
+GET    /api/exercises/:id | gate: self | layers: exercise.authorize.func | keys: anyOf(exercises.read,event.exercises.read,event.tasks.read,(author)) @ object(exercise) data(exercises.flags.read,event.flags.read)
 PATCH  /api/exercises/:id | gate: self | layers: exercise.authorize.func | keys: anyOf(exercises.update,event.exercises.update,(author)) @ object(exercise)
 PUT    /api/exercises/:id/access | gate: exercises.write | layers: - | keys: exercises.audiences.update @ object(exercise)
 POST   /api/exercises/:id/archive | gate: self | layers: exercise.authorize.func | keys: anyOf(exercises.update,event.exercises.update,(author)) @ object(exercise)
@@ -465,7 +465,7 @@ POST   /api/exercises/:id/unarchive | gate: self | layers: exercise.authorize.fu
 GET    /api/exercises/:id/usage | gate: self | layers: exercise.authorize.func | keys: anyOf(exercises.read,event.exercises.read,(author)) @ object(exercise)
 GET    /api/exercises/:id/variant-stats | gate: self | layers: exercise.authorize.func | keys: anyOf(exercises.read,event.exercises.read,(author)) @ object(exercise)
 GET    /api/exercises/:id/versions | gate: self | layers: exercise.authorize.func | keys: anyOf(exercises.read,event.exercises.read,(author)) @ object(exercise)
-GET    /api/exercises/:id/versions/:versionID | gate: self | layers: exercise.authorize.func | keys: anyOf(exercises.read,event.exercises.read,event.tasks.read,(author)) @ object(exercise)
+GET    /api/exercises/:id/versions/:versionID | gate: self | layers: exercise.authorize.func | keys: anyOf(exercises.read,event.exercises.read,event.tasks.read,(author)) @ object(exercise) data(exercises.flags.read,event.flags.read)
 POST   /api/exercises/:id/versions/:versionID/restore | gate: self | layers: exercise.authorize.func | keys: anyOf(exercises.update,event.exercises.update,(author)) @ object(exercise)
 POST   /api/exercises/:id/versions/:versionID/rollback | gate: self | layers: exercise.authorize.func | keys: anyOf(exercises.publish,event.exercises.publish) @ object(exercise)
 POST   /api/exercises/:id/versions/:versionID/variants/:variantID/deploy | gate: self | layers: - | keys: allOf(exercises.testlab.start) + anyOf(exercises.update,event.exercises.update,(author)) @ object(exercise)
@@ -501,7 +501,7 @@ GET    /api/exercises/elevations/:elevationID | gate: exercises.elevations.read 
 POST   /api/exercises/elevations/:elevationID/approve | gate: exercises.elevations.write | layers: - | keys: exercises.elevations.update @ platform
 POST   /api/exercises/elevations/:elevationID/reject | gate: exercises.elevations.write | layers: - | keys: exercises.elevations.update @ platform
 GET    /api/exercises/elevations/pending-count | gate: exercises.elevations.read | layers: - | keys: exercises.elevations.read @ platform
-POST   /api/exercises/export | gate: self | layers: - | keys: anyOf(exercises.export,event.tasks.export) @ object(exercise)
+POST   /api/exercises/export | gate: self | layers: - | keys: anyOf(exercises.export,event.tasks.export) @ object(exercise) data(exercises.secrets.read,exercises.flags.read,event.flags.read)
 GET    /api/exercises/export/jobs/:jobID | gate: self | layers: - | keys: ?
 POST   /api/exercises/files | gate: self | layers: - | keys: ?
 GET    /api/exercises/files/:fileID | gate: self | layers: - | keys: ?

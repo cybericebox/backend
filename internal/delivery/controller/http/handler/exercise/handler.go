@@ -233,7 +233,7 @@ func (h *Handler) Init(router *gin.RouterGroup) {
 		ex.GET("import/example", self, h.importExample)
 		ex.GET("import/example/document", self, h.importExampleDocument)
 		// every task of the selection is authorized in the handler (AuthorizeExport)
-		ex.POST("export", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesExport, authz.EventTasksExport), self), h.export)
+		ex.POST("export", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesExport, authz.EventTasksExport).WithData(authz.ExercisesSecretsRead, authz.ExercisesFlagsRead, authz.EventFlagsRead), self), h.export)
 		// the background export's state, for the user who started it only (the use case scopes it to them)
 		ex.GET("export/jobs/:jobID", self, h.exportJob)
 		ex.POST("import", long, self, h.importArchive)
@@ -295,7 +295,7 @@ func (h *Handler) Init(router *gin.RouterGroup) {
 		ex.POST("bulk/unarchive", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesUpdate, authz.EventExercisesUpdate).Or(authz.RelAuthor), self), h.bulkUnarchive)
 		ex.PUT("bulk/access", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesAudiencesUpdate), h.prot.RequirePermission(rbac.PermExercisesWrite)), h.bulkSetAccess)
 
-		ex.GET(":id", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesRead, authz.EventExercisesRead, authz.EventTasksRead).Or(authz.RelAuthor), self), h.authorize(exerciseUseCase.ActionReadPublished), h.get)
+		ex.GET(":id", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesRead, authz.EventExercisesRead, authz.EventTasksRead).Or(authz.RelAuthor).WithData(authz.ExercisesFlagsRead, authz.EventFlagsRead), self), h.authorize(exerciseUseCase.ActionReadPublished), h.get)
 		ex.GET(":id/usage", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesRead, authz.EventExercisesRead).Or(authz.RelAuthor), self), h.authorize(exerciseUseCase.ActionRead), h.usage)
 		ex.GET(":id/variant-stats", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesRead, authz.EventExercisesRead).Or(authz.RelAuthor), self), h.authorize(exerciseUseCase.ActionRead), h.variantStats)
 		ex.PATCH(":id", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesUpdate, authz.EventExercisesUpdate).Or(authz.RelAuthor), self), h.authorize(exerciseUseCase.ActionWrite), h.update)
@@ -309,7 +309,7 @@ func (h *Handler) Init(router *gin.RouterGroup) {
 		ex.POST(":id/files/lookup", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesUpdate, authz.EventExercisesUpdate).Or(authz.RelAuthor), self), h.authorize(exerciseUseCase.ActionWrite), h.lookupFile)
 
 		ex.GET(":id/versions", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesRead, authz.EventExercisesRead).Or(authz.RelAuthor), self), h.authorize(exerciseUseCase.ActionRead), h.listVersions)
-		ex.GET(":id/versions/:versionID", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesRead, authz.EventExercisesRead, authz.EventTasksRead).Or(authz.RelAuthor), self), h.authorize(exerciseUseCase.ActionReadPublished), h.getVersion)
+		ex.GET(":id/versions/:versionID", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesRead, authz.EventExercisesRead, authz.EventTasksRead).Or(authz.RelAuthor).WithData(authz.ExercisesFlagsRead, authz.EventFlagsRead), self), h.authorize(exerciseUseCase.ActionReadPublished), h.getVersion)
 		ex.POST(":id/versions/:versionID/rollback", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesPublish, authz.EventExercisesPublish), self), h.authorize(exerciseUseCase.ActionPublish), h.rollback)
 		ex.POST(":id/versions/:versionID/restore", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesUpdate, authz.EventExercisesUpdate).Or(authz.RelAuthor), self), h.authorize(exerciseUseCase.ActionWrite), h.restore)
 		ex.POST(":id/checkpoints", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesUpdate, authz.EventExercisesUpdate).Or(authz.RelAuthor), self), h.authorize(exerciseUseCase.ActionWrite), h.checkpoint)
