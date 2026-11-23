@@ -109,8 +109,8 @@ type Opponent struct {
 	// Brief is the author's text for the opponent (author content, not UI text).
 	Brief string `json:"brief,omitempty"`
 	// Seat (defense and attack-defense only, document 1.1) is the device a human defender of the task sits at: a node with
-	// serial ports. A run of the opponent takes that seat (the deploy and the auto-cabling do it, a later phase); here it is
-	// only checked.
+	// serial ports. A bot run of the opponent takes that seat (ToolsPlacement.Seat: its first data NIC and its console cables,
+	// port for port); a human run deploys it as authored.
 	Seat string `json:"seat,omitempty" cib:"1.1"`
 }
 
@@ -397,9 +397,10 @@ func validateOperates(at string, opponent Opponent, deviceNames map[string]bool)
 	return nil
 }
 
-// WithoutOpponents is the variant without its opponents: what a reader who is not the author may see.
+// WithoutOpponents is the variant without its opponents and its defender block: what a reader who is not the author may see.
 func (v Variant) WithoutOpponents() Variant {
 	v.Opponents = nil
+	v.Defender = nil
 	return v
 }
 

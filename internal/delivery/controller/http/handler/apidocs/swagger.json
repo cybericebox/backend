@@ -18694,6 +18694,65 @@
                 }
             }
         },
+        "/exercises/deploys/{deployID}/dossier": {
+            "get": {
+                "description": "The console map of the defender's seat, the forbidden devices, the operator credentials (with their values) and whether the topology is shown. The owner of the test lab only, once the lab is ready (409 otherwise). Declared false: the variant has no defender block. Never cached.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "exercises"
+                ],
+                "summary": "The dossier of the human defender of a test lab",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "test deployment id",
+                        "name": "deployID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/exercise.dossierResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/exercises/deploys/{deployID}/link": {
             "post": {
                 "description": "Returns URL (https://\u003cdevice\u003e-\u003ccode\u003e\u003cletter\u003e.\u003cbase\u003e/_auth, no query) and Grant (a signed JWS) for the author of the deploy; the page posts Grant to URL in a form (field grant, optional next). The grant lasts until the deploy's lease ends, capped by the laboratory's limit; the page fetches a new one on every click. The laboratory proxy sets its own cookie; the platform sets none. Test traffic is never counted for an event.",
@@ -40706,6 +40765,49 @@
                 }
             }
         },
+        "exercise.defenderCredentialDTO": {
+            "type": "object",
+            "properties": {
+                "Device": {
+                    "type": "string"
+                },
+                "Port": {
+                    "type": "string"
+                },
+                "Secret": {
+                    "type": "boolean"
+                },
+                "User": {
+                    "type": "string"
+                },
+                "Value": {
+                    "type": "string"
+                }
+            }
+        },
+        "exercise.defenderDTO": {
+            "type": "object",
+            "properties": {
+                "Credentials": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/exercise.defenderCredentialDTO"
+                    }
+                },
+                "OffLimits": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "Seat": {
+                    "type": "string"
+                },
+                "Topology": {
+                    "type": "string"
+                }
+            }
+        },
         "exercise.deployAccessResponse": {
             "type": "object",
             "properties": {
@@ -41343,6 +41445,75 @@
                 },
                 "Path": {
                     "type": "string"
+                }
+            }
+        },
+        "exercise.dossierCredentialResponse": {
+            "type": "object",
+            "properties": {
+                "Device": {
+                    "type": "string"
+                },
+                "Port": {
+                    "type": "string"
+                },
+                "User": {
+                    "type": "string"
+                },
+                "Value": {
+                    "type": "string"
+                }
+            }
+        },
+        "exercise.dossierLinkResponse": {
+            "type": "object",
+            "properties": {
+                "ConsoleKind": {
+                    "type": "string"
+                },
+                "ConsolePort": {
+                    "type": "string"
+                },
+                "Device": {
+                    "type": "string"
+                },
+                "Path": {
+                    "type": "string"
+                },
+                "Program": {
+                    "type": "string"
+                },
+                "SerialPort": {
+                    "type": "string"
+                }
+            }
+        },
+        "exercise.dossierResponse": {
+            "type": "object",
+            "properties": {
+                "Credentials": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/exercise.dossierCredentialResponse"
+                    }
+                },
+                "Declared": {
+                    "type": "boolean"
+                },
+                "Forbidden": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "Links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/exercise.dossierLinkResponse"
+                    }
+                },
+                "ShowsTopology": {
+                    "type": "boolean"
                 }
             }
         },
@@ -43254,6 +43425,14 @@
                 "CopyOf": {
                     "description": "CopyOf (request only, never in a response): the variant this new one was copied from, so a secret left\nblank in the copy takes that variant's value.",
                     "type": "string"
+                },
+                "Defender": {
+                    "description": "Defender is what the defender of the lab is told (its dossier): author content, in the responses for the authors of the\nexercise only (a request that omits it removes it). A secret credential's Value is always empty in a response; an\nempty secret Value in a request keeps the stored one. A linked variant takes its base's.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/exercise.defenderDTO"
+                        }
+                    ]
                 },
                 "ID": {
                     "type": "string"

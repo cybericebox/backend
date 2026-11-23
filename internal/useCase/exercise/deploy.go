@@ -427,6 +427,10 @@ func (u *ExerciseUseCase) deployVariantTest(ctx context.Context, eventID *uuid.U
 		if topo, devices, err = topo.WithToolsDevices(places); err != nil {
 			return exerciseModel.DeployHandle{}, err
 		}
+		// The dossier of each defender, after auto-cabling, so it is the run's real cabling.
+		if topo, err = u.withDossierFiles(variant, topo, devices, places); err != nil {
+			return exerciseModel.DeployHandle{}, err
+		}
 		// The fallback tools image (BRAIN_TOOLS_IMAGE) is checked like every image of the lab; the brain's image is applied as
 		// it is: it is hidden from the check (a device without an image is not checked) and put back after it.
 		brainImages = map[uuid.UUID]string{}

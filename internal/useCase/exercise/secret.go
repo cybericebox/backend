@@ -343,6 +343,9 @@ func (u *ExerciseUseCase) decryptExportedSecrets(versions []exerciseModel.Exerci
 				}
 			}
 		}
+		if err := u.decryptExportedDefenderSecrets(versions[vi].Variants); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -379,6 +382,9 @@ func (u *ExerciseUseCase) encryptImportedSecrets(versions []exerciseModel.Exerci
 				}
 			}
 		}
+		if err := u.encryptImportedDefenderSecrets(versions[vi].Variants); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -404,6 +410,7 @@ func maskSecrets(variants []exerciseModel.Variant) []exerciseModel.Variant {
 			devices[di].Bootstrap.Env = envs
 		}
 		out[vi].Topology.Devices = devices
+		out[vi].Defender = maskDefender(out[vi].Defender)
 	}
 	return out
 }
@@ -453,5 +460,5 @@ func (u *ExerciseUseCase) restoreKeptSecrets(imported *exerciseModel.ExerciseVer
 			}
 		}
 	}
-	return nil
+	return u.restoreKeptDefenderSecrets(imported.Variants, stored.Variants)
 }

@@ -346,6 +346,13 @@ func firstSecretValue(versions []exerciseModel.ExerciseVersion) string {
 					}
 				}
 			}
+			if variant.Defender != nil {
+				for ci, c := range variant.Defender.Credentials {
+					if c.Secret && c.Value != "" {
+						return fmt.Sprintf("versions[%d].variants[%d].defender.credentials[%d]", vi+1, xi+1, ci+1)
+					}
+				}
+			}
 		}
 	}
 	return ""

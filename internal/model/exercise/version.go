@@ -183,6 +183,10 @@ type Variant struct {
 	// Opponents are the automated attackers and defenders the Academy may run against this variant's lab: author
 	// content, never shown to participants and ignored by events (see opponent.go). A linked variant takes its base's.
 	Opponents []Opponent `json:"opponents,omitempty"`
+	// Defender (document 1.1) is what the defender of the lab is told: its seat, whether it sees the topology, the devices it
+	// must not touch and the operator credentials (see defender.go). Author content: never in a participant-facing view,
+	// ignored by events for now. A linked variant takes its base's.
+	Defender *Defender `json:"defender,omitempty"`
 }
 
 // ImageOverride is a linked variant's own image for one device of its base.
@@ -421,6 +425,14 @@ func MissingSecrets(variants []Variant) []MissingSecret {
 			for _, env := range device.Bootstrap.Env {
 				if env.Secret && env.Value == "" {
 					out = append(out, MissingSecret{Variant: variantIndex + 1, Device: device.Name, Key: env.Name})
+				}
+			}
+		}
+		// A secret operator credential of the defender block without a value: its key is the field of the credential.
+		if variant.Defender != nil {
+			for ci, c := range variant.Defender.Credentials {
+				if c.Secret && c.Value == "" {
+					out = append(out, MissingSecret{Variant: variantIndex + 1, Device: c.Device, Key: fmt.Sprintf("defender.credentials[%d]", ci+1)})
 				}
 			}
 		}

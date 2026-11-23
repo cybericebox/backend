@@ -283,6 +283,9 @@ func (f *fakeUC) InfrastructureAvailable() bool                           { retu
 func (f *fakeUC) MaxActiveTestDeploys() int                               { return 2 }
 func (f *fakeUC) DevicePersistenceAllowed() bool                          { return true }
 func (f *fakeUC) ConsoleCablesAvailable() bool                            { return false }
+func (f *fakeUC) TestDeployDossier(context.Context, uuid.UUID, uuid.UUID) (exerciseUseCase.DossierView, error) {
+	return exerciseUseCase.DossierView{}, nil
+}
 func (f *fakeUC) DraftDocument(_ context.Context, _ uuid.UUID, withFlags bool) ([]byte, error) {
 	f.documentFlags = withFlags
 	return []byte("schema: cib-exercise/1.0\n"), f.err

@@ -8,7 +8,6 @@ import (
 // Errors of console ports and console cables. Each carries the public context variant (1-based position in the version, added
 // by the version checks and the deploy) and device (its name) or connection (1-based position in the variant's connections),
 // and field where the editor marks a field (console_ports[2].command, serial_ports[1].path, kind).
-// Detail 11 is reserved for ErrDefenderInvalid (the defender block of the dossier, a later phase).
 var (
 	// ErrConsolePortInvalid: a console port breaks its rules; reason is name, command, user, native or stdio_twice.
 	ErrConsolePortInvalid = err.ErrInvalidData.WithObjectCode(model.ConsoleObjectCode).
@@ -43,6 +42,12 @@ var (
 	// ErrConsoleUnavailable: the lab uses console ports or cables and no laboratory agent offers them.
 	ErrConsoleUnavailable = err.ErrConflict.WithObjectCode(model.ConsoleObjectCode).
 				WithMessage("No connected laboratory agent offers console cables").WithDetailCode(10)
+	// ErrDefenderInvalid: the defender block of a variant (the dossier of the defender) breaks a rule; field names the key
+	// (defender.seat, defender.off_limits[2], defender.credentials[1].port) and reason why: seat_unknown, seat_no_serial,
+	// topology, off_limits_unknown, off_limits_repeated, off_limits_cabled, credential_unknown, credential_user,
+	// credential_value, too_many.
+	ErrDefenderInvalid = err.ErrInvalidData.WithObjectCode(model.ConsoleObjectCode).
+				WithMessage("Invalid defender block").WithDetailCode(11)
 	// ErrConsolePortOnNetwork: a network connection ends on a console or serial port, or on a port name that is no interface
 	// of the node. Context connection, device, port, field kind and reason: port (a declared port, so the connection should be
 	// a console cable) or port_name (only the name of a port, and the device has no such interface).
