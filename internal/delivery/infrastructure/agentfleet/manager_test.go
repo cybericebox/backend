@@ -162,12 +162,60 @@ func TestManagerUpkeepGoesToTheAgentsOwnConnection(t *testing.T) {
 	if _, err := m.Enroll(ctx, "a:443", nil, "t", "csr", "pub", "k"); !errors.Is(err, ErrEnrollmentUnsupported) {
 		t.Fatalf("without an enroller = %v", err)
 	}
-	m.cfg.Enroll = func(_ context.Context, endpoint string, _ []byte, token, csr, pub, kid string) (string, error) {
+	m.cfg.Enroll = func(_ context.Context, endpoint, _ string, _ []byte, token, csr, pub, kid string) (string, error) {
 		return endpoint + "|" + token + "|" + csr + "|" + pub + "|" + kid, nil
 	}
 	if got, err := m.Enroll(ctx, "a:443", nil, "t", "csr", "pub", "k"); err != nil || got != "a:443|t|csr|pub|k" {
 		t.Fatalf("enroll = %q %v", got, err)
 	}
+}
+
+func TestTheEnvironmentAgentIsVerifiedAgainstItsServerName(t *testing.T) {
+	env, other := admin("env", 1, true), admin("other", 2, true)
+	env.Source, env.Endpoint = infraModel.AgentSourceEnv, "laboratory-agent.laboratory-agent.svc:5454"
+	reg := &memRegistry{records: []infraModel.AgentRecord{env, other}}
+	dialed := map[string]string{}
+	var enrolled []string
+	cfg := Config{
+		Instance: "prod", Registry: reg, Cipher: plainCipher{}, Fleet: labagent.NewFleet(nil, nil),
+		EnvAgent: EnvAgent{Endpoint: " laboratory-agent.laboratory-agent.svc:5454 ", ServerName: "ctl.example.test"},
+		Dial: func(c labagent.Connection, _ string) (*labagent.Client, error) {
+			dialed[c.Endpoint] = c.ServerName
+			return &labagent.Client{Client: closedClient{}}, nil
+		},
+		Enroll: func(_ context.Context, endpoint, serverName string, _ []byte, _, _, _, _ string) (string, error) {
+			enrolled = append(enrolled, endpoint+"|"+serverName)
+			return "cert", nil
+		},
+	}
+	m := New(cfg)
+	ctx := context.Background()
+	if err := m.Reload(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if dialed[env.Endpoint] != "ctl.example.test" || dialed[other.Endpoint] != "" {
+		t.Fatalf("dialed server names = %v: only the environment agent gets AGENT_SERVER_NAME", dialed)
+	}
+	for _, endpoint := range []string{env.Endpoint, other.Endpoint} {
+		if _, err := m.Enroll(ctx, endpoint, nil, "t", "csr", "pub", "k"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(enrolled) != 2 || enrolled[0] != env.Endpoint+"|ctl.example.test" || enrolled[1] != other.Endpoint+"|" {
+		t.Fatalf("enrollments = %v", enrolled)
+	}
+	m.stopAll()
+
+	// A changed server name dials the agent again.
+	cfg.EnvAgent.ServerName = "ctl2.example.test"
+	m2 := New(cfg)
+	if err := m2.Reload(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if dialed[env.Endpoint] != "ctl2.example.test" {
+		t.Fatalf("server name after the change = %q", dialed[env.Endpoint])
+	}
+	m2.stopAll()
 }
 
 func TestMembersCarryTheStoredFeaturesAndShareThemAcrossReloads(t *testing.T) {

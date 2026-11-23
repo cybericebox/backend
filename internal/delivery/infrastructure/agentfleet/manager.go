@@ -5,6 +5,7 @@ package agentfleet
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"time"
 
@@ -35,8 +36,9 @@ type Cipher interface {
 type Monitor func(ctx context.Context, member *labagent.Member) error
 
 // Enroller performs the enrollment call of a new agent over server-authenticated TLS (the platform has
-// no certificate yet). nil means the agent API of this build cannot enroll.
-type Enroller func(ctx context.Context, endpoint string, caPEM []byte, token, csrPEM, accessPublicKeyPEM, accessKeyID string) (certPEM string, err error)
+// no certificate yet), verifying the agent against serverName (empty: the host of endpoint). nil means the agent
+// API of this build cannot enroll.
+type Enroller func(ctx context.Context, endpoint, serverName string, caPEM []byte, token, csrPEM, accessPublicKeyPEM, accessKeyID string) (certPEM string, err error)
 
 // KeyUpkeep is the optional part of an agent client that renews its certificate and rotates the access
 // keys of its tenant over its mutual-TLS connection.
@@ -63,6 +65,8 @@ type Config struct {
 	Dial Dialer
 	// Enroll performs the enrollment call; see Enroller.
 	Enroll Enroller
+	// EnvAgent is the agent of the deployment config (AGENT_ENDPOINT, AGENT_SERVER_NAME).
+	EnvAgent EnvAgent
 
 	// Profiles holds the node profile cell of every agent; ProfileSource lists the stored reports, applied at every
 	// reload (a replica that does not monitor learns the reports of the one that does). Both optional.
@@ -71,6 +75,22 @@ type Config struct {
 
 	// Interval is how often the registry is re-read; a minute by default.
 	Interval time.Duration
+}
+
+// EnvAgent names the agent of the deployment config and the name its certificate is verified against. The agent
+// with this endpoint (the bootstrapped one) is dialed and enrolled with ServerName; every other agent, and this
+// one when ServerName is empty, is verified against the host of its endpoint.
+type EnvAgent struct {
+	Endpoint   string
+	ServerName string
+}
+
+// serverName is the name the certificate of the agent at endpoint is verified against; empty means its host.
+func (e EnvAgent) serverName(endpoint string) string {
+	if e.ServerName == "" || strings.TrimSpace(e.Endpoint) == "" || strings.TrimSpace(endpoint) != strings.TrimSpace(e.Endpoint) {
+		return ""
+	}
+	return e.ServerName
 }
 
 type running struct {
@@ -182,8 +202,8 @@ func (m *Manager) Run(ctx context.Context) {
 	}
 }
 
-func signature(r infraModel.AgentRecord) string {
-	return r.Endpoint + "\x00" + r.CertPEM + "\x00" + r.KeyCiphertext + "\x00" + r.CAPEM + "\x00" + r.AccessKeyID + "\x00" + r.AccessPrivateKeyCiphertext
+func signature(r infraModel.AgentRecord, serverName string) string {
+	return r.Endpoint + "\x00" + serverName + "\x00" + r.CertPEM + "\x00" + r.KeyCiphertext + "\x00" + r.CAPEM + "\x00" + r.AccessKeyID + "\x00" + r.AccessPrivateKeyCiphertext
 }
 
 // Reload makes the fleet match the registry. An agent whose material cannot be opened is skipped
@@ -235,7 +255,8 @@ func (m *Manager) Reload(ctx context.Context) error {
 // material is unchanged (the member is refreshed with the new name, priority and enabled flag),
 // otherwise a freshly dialed one. nil when the material cannot be used.
 func (m *Manager) member(r infraModel.AgentRecord) *running {
-	sig := signature(r)
+	serverName := m.cfg.EnvAgent.serverName(r.Endpoint)
+	sig := signature(r, serverName)
 	if old := m.current[r.ID]; old != nil && old.signature == sig {
 		// The fleet's readers hold the old member: replace it instead of changing it in place.
 		updated := *old.member
@@ -252,7 +273,7 @@ func (m *Manager) member(r infraModel.AgentRecord) *running {
 		log.Error().Str("agent", r.Name).Msg("Agent fleet: cannot open the agent credentials, the agent is skipped")
 		return nil
 	}
-	client, err := m.cfg.Dial(labagent.Connection{Endpoint: r.Endpoint, CertPEM: []byte(r.CertPEM), KeyPEM: key, CAPEM: []byte(r.CAPEM)}, m.cfg.Instance)
+	client, err := m.cfg.Dial(labagent.Connection{Endpoint: r.Endpoint, ServerName: serverName, CertPEM: []byte(r.CertPEM), KeyPEM: key, CAPEM: []byte(r.CAPEM)}, m.cfg.Instance)
 	if err != nil {
 		log.Error().Err(err).Str("agent", r.Name).Msg("Agent fleet: cannot connect to the agent, it is skipped")
 		return nil
@@ -319,12 +340,12 @@ func (m *Manager) stopAll() {
 }
 
 // Enroll asks the agent at endpoint to issue a certificate for the request and to trust the access
-// public key.
+// public key. The agent of the deployment config is verified against its configured server name.
 func (m *Manager) Enroll(ctx context.Context, endpoint string, caPEM []byte, token, csrPEM, accessPublicKeyPEM, accessKeyID string) (string, error) {
 	if m.cfg.Enroll == nil {
 		return "", ErrEnrollmentUnsupported
 	}
-	return m.cfg.Enroll(ctx, endpoint, caPEM, token, csrPEM, accessPublicKeyPEM, accessKeyID)
+	return m.cfg.Enroll(ctx, endpoint, m.cfg.EnvAgent.serverName(endpoint), caPEM, token, csrPEM, accessPublicKeyPEM, accessKeyID)
 }
 
 // upkeep finds the key upkeep of an agent's connection in the fleet.

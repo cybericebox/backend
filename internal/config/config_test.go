@@ -234,6 +234,27 @@ func TestAgentBootstrapConfig(t *testing.T) {
 	if got := MustGetConfig().Infrastructure.Agent.Name; got != "eu-1" {
 		t.Fatalf("name = %q", got)
 	}
+	if agent.ServerName != "" {
+		t.Fatalf("server name = %q, want empty by default (the host of AGENT_ENDPOINT)", agent.ServerName)
+	}
+	t.Setenv("AGENT_ENDPOINT", "laboratory-agent.laboratory-agent.svc:5454")
+	t.Setenv("AGENT_SERVER_NAME", "ctl.example.test")
+	if got := MustGetConfig().Infrastructure.Agent; got.ServerName != "ctl.example.test" || got.Endpoint != "laboratory-agent.laboratory-agent.svc:5454" {
+		t.Fatalf("agent = %+v", got)
+	}
+}
+
+func TestAgentConfigServerNameIsAHostName(t *testing.T) {
+	for _, name := range []string{"", "ctl.example.test", "CTL.Example.Test", "agent"} {
+		if err := (AgentConfig{InstanceID: "cybericebox", ServerName: name}).Validate(); err != nil {
+			t.Errorf("%q rejected: %v", name, err)
+		}
+	}
+	for _, name := range []string{"ctl.example.test:5454", "https://ctl.example.test", "has space", "-ctl.example.test", "ctl..example.test"} {
+		if (AgentConfig{InstanceID: "cybericebox", ServerName: name}).Validate() == nil {
+			t.Errorf("%q accepted", name)
+		}
+	}
 }
 
 func TestBrainConfig_DefaultsEnvAndRejectsInvalidEndpoint(t *testing.T) {

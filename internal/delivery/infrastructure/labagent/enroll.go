@@ -24,9 +24,9 @@ const enrollTimeout = 30 * time.Second
 // Enroll asks the agent at endpoint to issue a client certificate for the request and to trust the
 // access public key, with the one-time token of the agent's tenant. It works over server-authenticated TLS
 // only (the platform has no certificate yet): the agent is verified against caPEM, or the system roots
-// when it is empty. A used, expired or unknown token is infraModel.ErrEnrollmentDenied. The returned
+// when it is empty, for serverName, or the host of endpoint when it is empty. A used, expired or unknown token is infraModel.ErrEnrollmentDenied. The returned
 // certificate's CN is the tenant name.
-func Enroll(ctx context.Context, endpoint string, caPEM []byte, token, csrPEM, accessPublicKeyPEM, accessKeyID string) (string, error) {
+func Enroll(ctx context.Context, endpoint, serverName string, caPEM []byte, token, csrPEM, accessPublicKeyPEM, accessKeyID string) (string, error) {
 	var pool *x509.CertPool
 	if len(caPEM) > 0 {
 		pool = x509.NewCertPool()
@@ -35,7 +35,7 @@ func Enroll(ctx context.Context, endpoint string, caPEM []byte, token, csrPEM, a
 		}
 	}
 	conn, err := grpc.NewClient(endpoint,
-		grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12})),
+		grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{RootCAs: pool, ServerName: serverName, MinVersion: tls.VersionTLS12})),
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(labclient.MaxMessageSize), grpc.MaxCallSendMsgSize(labclient.MaxMessageSize)),
 	)
 	if err != nil {

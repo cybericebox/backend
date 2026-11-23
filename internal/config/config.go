@@ -149,8 +149,13 @@ type (
 	// fine (catalog, event setup, exercise authoring), but whatever needs to deploy a lab fails with
 	// ErrInfrastructureUnavailable.
 	AgentConfig struct {
-		// Endpoint is host:443 of the agent. Dial it by its certificate hostname.
+		// Endpoint is the host:port the agent is dialed at: its public name, or, inside the cluster, its
+		// Kubernetes Service (laboratory-agent.laboratory-agent.svc:5454).
 		Endpoint string `env:"ENDPOINT"`
+		// ServerName is the host name the agent's server certificate is verified against (and sent as SNI),
+		// e.g. ctl.<domain> while Endpoint is the Service address. Empty means the host of Endpoint. It applies to
+		// this agent only; agents added in the admin are verified against the host of their own endpoint.
+		ServerName string `env:"SERVER_NAME"`
 		// EnrollmentToken is the one-time enrollment token of the agent's tenant (from the cluster
 		// administrator's kit).
 		EnrollmentToken string `env:"ENROLLMENT_TOKEN"`
@@ -792,10 +797,18 @@ func (c BrainConfig) Validate() error {
 
 var instanceIDPattern = regexp.MustCompile(`^[A-Za-z0-9]([-A-Za-z0-9_.]{0,61}[A-Za-z0-9])?$`)
 
-// Validate checks the instance id is a valid Kubernetes label value: it is used as one.
+// serverNamePattern is a DNS host name (or an IPv4 address, which matches the same shape): dot-separated labels of
+// letters, digits and '-', no label starting or ending with '-'.
+var serverNamePattern = regexp.MustCompile(`^[A-Za-z0-9]([-A-Za-z0-9]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([-A-Za-z0-9]{0,61}[A-Za-z0-9])?)*$`)
+
+// Validate checks the instance id is a valid Kubernetes label value (it is used as one) and the server name, when
+// set, is a host name without a port.
 func (c AgentConfig) Validate() error {
 	if !instanceIDPattern.MatchString(c.InstanceID) {
 		return errors.New("infrastructure agent: AGENT_INSTANCE_ID must be a label value (1-63 characters of letters, digits, '-', '_' or '.', starting and ending with a letter or digit)")
+	}
+	if c.ServerName != "" && (len(c.ServerName) > 253 || !serverNamePattern.MatchString(c.ServerName)) {
+		return errors.New("infrastructure agent: AGENT_SERVER_NAME must be a host name without a port or scheme (the name in the agent's certificate, e.g. ctl.<domain>)")
 	}
 	return nil
 }

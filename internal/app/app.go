@@ -176,6 +176,7 @@ func Run(cfg *config.Config) {
 		Cipher:        cipherOrNil(cls.platformCipher),
 		Fleet:         fleet,
 		Enroll:        labagent.Enroll,
+		EnvAgent:      agentfleet.EnvAgent{Endpoint: cfg.Infrastructure.Agent.Endpoint, ServerName: cfg.Infrastructure.Agent.ServerName},
 		Monitor: func(ctx context.Context, member *labagent.Member) error {
 			runner := labMonitoring.NewRunner(repo.Pool(), func(ctx context.Context, request *labpb.MonitoringRequest) (labMonitoring.Stream, error) {
 				return member.Client.Monitoring(ctx, request)
