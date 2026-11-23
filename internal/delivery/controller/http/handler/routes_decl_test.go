@@ -218,8 +218,14 @@ func legacyMismatch(s routeSummary) string {
 		return "the route has no real gate today, but declares " + d.String()
 	}
 
-	// Every real gate is explained by a declared key, and every declared key by the gate or a layer.
+	// Every real gate is explained by a declared key, and every declared key by the gate or a layer. Behind a bare self
+	// gate in an area whose check sits in the use case (selfWithoutLayerPrefixes: the exercise policy, the participant
+	// use cases), a key maps when a named legacy check decides it: that check is the one the use case runs.
 	layers := authzLayers(s)
+	inUseCase := len(real) == 1 && real[0] == rbac.PermSelf && len(layers) == 0 && hasPrefix(s.path, selfWithoutLayerPrefixes)
+	if inUseCase {
+		layers = useCaseChecks
+	}
 	for _, g := range real {
 		explained := false
 		for _, k := range d.Keys() {
@@ -243,6 +249,17 @@ func legacyMismatch(s routeSummary) string {
 	return ""
 }
 
+// useCaseChecks stand for the checks a use case runs behind a bare self gate (every named legacy check but "new").
+var useCaseChecks = func() []string {
+	var out []string
+	for _, c := range authz.LegacyChecks() {
+		if c != authz.CheckNew {
+			out = append(out, string(c))
+		}
+	}
+	return out
+}()
+
 func mapsToGate(k authz.Key, gates []rbac.Permission, layers []string) bool {
 	l, ok := authz.LegacyOf(k)
 	if !ok {
@@ -264,14 +281,22 @@ func mapsToGate(k authz.Key, gates []rbac.Permission, layers []string) bool {
 	return false
 }
 
-// layerChecks names the legacy check of a layer whose name does not end in it (spec §2.5): the analytics levels of
-// model/eventAnalytics.ResolveAccess, and manage checks under another name.
-var layerChecks = map[string]authz.LegacyCheck{
-	"eventAnalytics.requireSections":    authz.CheckAnalyticsSections,
-	"eventAnalytics.requireSensitive":   authz.CheckAnalyticsSensitive,
-	"eventAnalytics.requirePeople":      authz.CheckAnalyticsPeople,
-	"event.requirePreviewCleanup":       authz.CheckRequireManage,
-	"imageRegistry.requireManageAccess": authz.CheckRequireManage,
+// layerChecks names the legacy checks of layers whose name does not end in their check (spec §2.5): the analytics
+// levels of model/eventAnalytics.ResolveAccess, manage and read checks under another name, the authoring checks, and
+// the exercise policy closure, which runs AuthorizeExercise with the action of its route.
+var layerChecks = map[string][]authz.LegacyCheck{
+	"eventAnalytics.requireSections":                     {authz.CheckAnalyticsSections},
+	"eventAnalytics.requireSensitive":                    {authz.CheckAnalyticsSensitive},
+	"eventAnalytics.requirePeople":                       {authz.CheckAnalyticsPeople},
+	"event.requirePreviewCleanup":                        {authz.CheckRequireManage},
+	"imageRegistry.requireManageAccess":                  {authz.CheckRequireManage},
+	"eventself.(*EventRenderHandler).resolveGrantTenant": {authz.CheckRequireRead},
+	"assistant.author":                                   {authz.CheckRequireAuthor},
+	"exercise.requireAuthor":                             {authz.CheckRequireAuthor},
+	"resourceCalendar.requireTestLabAuthor":              {authz.CheckRequireTestLabAuthor},
+	"exercise.authorize.func": {
+		authz.CheckAuthorizeExerciseRead, authz.CheckAuthorizeExerciseManage, authz.CheckAuthorizeExerciseFlags,
+	},
 }
 
 // mapsToLayer: the named legacy check of k is one of the route's layers (event.requireManage → requireManage).
@@ -281,7 +306,7 @@ func mapsToLayer(k authz.Key, layers []string) bool {
 		return false
 	}
 	for _, layer := range layers {
-		if layerChecks[layer] == l.Check || strings.HasSuffix(layer, "."+string(l.Check)) || layer == string(l.Check) {
+		if slices.Contains(layerChecks[layer], l.Check) || strings.HasSuffix(layer, "."+string(l.Check)) || layer == string(l.Check) {
 			return true
 		}
 	}
@@ -308,6 +333,9 @@ func TestLegacyMismatchCatchesDisagreement(t *testing.T) {
 		{"event key carried by the platform key", routeSummary{gates: []rbac.Permission{rbac.PermEventsWrite}, decl: decl(authz.AnyOf(authz.SourceEventParam("id"), authz.EventsArchive, authz.EventArchive))}, true},
 		{"service route without a gate", routeSummary{decl: decl(authz.ServiceRoute(authz.ServiceRender))}, true},
 		{"service route behind a permission", routeSummary{gates: []rbac.Permission{rbac.PermSelf}, decl: decl(authz.ServiceRoute(authz.ServiceRender))}, false},
+		{"exercise policy in the use case", routeSummary{path: "/api/exercises/:id", gates: []rbac.Permission{rbac.PermSelf}, decl: decl(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesUpdate))}, true},
+		{"no use-case check outside its areas", routeSummary{path: "/api/users/:userID", gates: []rbac.Permission{rbac.PermSelf}, decl: decl(authz.AnyOf(authz.SourcePlatform, authz.UsersRead))}, false},
+		{"exercise policy closure as a layer", routeSummary{gates: []rbac.Permission{rbac.PermSelf}, layers: []string{"exercise.authorize.func"}, decl: decl(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesRead))}, true},
 		{"relation behind self", routeSummary{gates: []rbac.Permission{rbac.PermSelf}, decl: decl(authz.Related(authz.SourceTenant, authz.RelParticipant))}, true},
 	}
 	for _, c := range cases {
