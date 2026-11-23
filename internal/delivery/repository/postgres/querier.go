@@ -1841,6 +1841,9 @@ type Querier interface {
 	// the runs are inserted as one step (two requests at once cannot both pass the cap).
 	LockAssistantRunsOfActor(ctx context.Context, actorID uuid.UUID) error
 	LockErrorNotification(ctx context.Context, id uuid.UUID) (ErrorNotificationDelivery, error)
+	// Serializes one person's uploads to one event for the rest of the transaction,
+	// so the upload caps are checked against every earlier upload (CreateWithinCaps).
+	LockEventAnswerFileUploads(ctx context.Context, arg LockEventAnswerFileUploadsParams) error
 	// Configured maxima cannot change while an admission validates immutable group sizes.
 	LockEventConfigForLabSizing(ctx context.Context, eventID uuid.UUID) (uuid.UUID, error)
 	// Serializes the variant pick of one event exercise: concurrent preparations

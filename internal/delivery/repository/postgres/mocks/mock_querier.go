@@ -12460,6 +12460,20 @@ func (mr *MockQuerierMockRecorder) LockErrorNotification(ctx, id any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockErrorNotification", reflect.TypeOf((*MockQuerier)(nil).LockErrorNotification), ctx, id)
 }
 
+// LockEventAnswerFileUploads mocks base method.
+func (m *MockQuerier) LockEventAnswerFileUploads(ctx context.Context, arg postgres.LockEventAnswerFileUploadsParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LockEventAnswerFileUploads", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// LockEventAnswerFileUploads indicates an expected call of LockEventAnswerFileUploads.
+func (mr *MockQuerierMockRecorder) LockEventAnswerFileUploads(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockEventAnswerFileUploads", reflect.TypeOf((*MockQuerier)(nil).LockEventAnswerFileUploads), ctx, arg)
+}
+
 // LockEventConfigForLabSizing mocks base method.
 func (m *MockQuerier) LockEventConfigForLabSizing(ctx context.Context, eventID uuid.UUID) (uuid.UUID, error) {
 	m.ctrl.T.Helper()

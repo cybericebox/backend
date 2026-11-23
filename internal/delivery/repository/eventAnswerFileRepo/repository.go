@@ -19,6 +19,7 @@ type Queries interface {
 	ListEventAnswerFiles(ctx context.Context, fileIds []uuid.UUID) ([]postgres.EventAnswerFile, error)
 	AttachEventAnswerFiles(ctx context.Context, arg postgres.AttachEventAnswerFilesParams) (int64, error)
 	GetEventAnswerFileUsage(ctx context.Context, arg postgres.GetEventAnswerFileUsageParams) (postgres.GetEventAnswerFileUsageRow, error)
+	LockEventAnswerFileUploads(ctx context.Context, arg postgres.LockEventAnswerFileUploadsParams) error
 }
 
 type Repository struct{ q Queries }
@@ -81,6 +82,22 @@ func (r *Repository) Usage(ctx context.Context, eventID, uploadedBy uuid.UUID, s
 		return Usage{}, err
 	}
 	return Usage{PendingInField: row.PendingInField, TotalBytes: row.TotalBytes}, nil
+}
+
+// CreateWithinCaps stores f unless its uploader already has pendingCap uploads of its question waiting for an
+// answer or the file would take their answer files of the event past bytesCap; the bool says whether it was stored,
+// and the usage is what it was checked against. It must run inside one transaction: the per-person advisory lock it
+// takes lasts until that transaction ends, so concurrent uploads of one person are serialized and each sees the
+// rows of the earlier ones.
+func (r *Repository) CreateWithinCaps(ctx context.Context, f eventFormModel.AnswerFile, pendingCap, bytesCap int64) (Usage, bool, error) {
+	if err := r.q.LockEventAnswerFileUploads(ctx, postgres.LockEventAnswerFileUploadsParams{EventID: f.EventID, UploadedBy: f.UploadedBy}); err != nil {
+		return Usage{}, false, err
+	}
+	usage, err := r.Usage(ctx, f.EventID, f.UploadedBy, f.Scope, f.FieldKey)
+	if err != nil || usage.PendingInField >= pendingCap || usage.TotalBytes+f.SizeBytes > bytesCap {
+		return usage, false, err
+	}
+	return usage, true, r.Create(ctx, f)
 }
 
 func toDomain(row postgres.EventAnswerFile) eventFormModel.AnswerFile {

@@ -2,6 +2,7 @@ package postgres_test
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -105,5 +106,76 @@ func TestEventAnswerFilesLifecycle(t *testing.T) {
 	}
 	if n := count(`SELECT count(*) FROM event_answer_files WHERE file_id = $1`, second); n != 1 {
 		t.Fatal("the attached file of a running event must stay")
+	}
+}
+
+// The upload caps hold under concurrency: CreateWithinCaps takes the person's lock in its transaction and re-reads
+// their usage, so parallel uploads never store more than the caps allow, whatever the checks before saw.
+func TestEventAnswerFilesCapsHoldUnderConcurrentUploads(t *testing.T) {
+	db := testhelpers.SetupTestDB(t)
+	ctx := context.Background()
+	now := time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC)
+	user, err := userRepo.New(db.Queries).Create(ctx, userModel.NewIncompleteUser(uuid.Must(uuid.NewV7()), "answer-caps@test.test", now))
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := mustCreateEvent(t, eventRepo.New(db.Queries), "answercaps", "Answer caps", now, now.Add(30*24*time.Hour), user.ID, now)
+	if _, err = db.Pool.Exec(ctx, `INSERT INTO file_blobs (content_hash, size_bytes, ref_count, created_at) VALUES ('caps', 10, 40, $1)`, now); err != nil {
+		t.Fatal(err)
+	}
+	race := func(field string, n int, pendingCap, bytesCap int64) int {
+		t.Helper()
+		var (
+			wg     sync.WaitGroup
+			mu     sync.Mutex
+			stored int
+		)
+		start := make(chan struct{})
+		for range n {
+			id := uuid.Must(uuid.NewV7())
+			if _, err := db.Pool.Exec(ctx, `INSERT INTO files (id, name, content_type, size_bytes, content_hash, created_at) VALUES ($1, 'cv.pdf', 'application/pdf', 10, 'caps', $2)`, id, now); err != nil {
+				t.Fatal(err)
+			}
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				<-start
+				tx, txErr := db.Pool.Begin(ctx)
+				if txErr != nil {
+					t.Error(txErr)
+					return
+				}
+				defer func() { _ = tx.Rollback(ctx) }()
+				repo := eventAnswerFileRepo.New(db.Queries.WithTx(tx))
+				_, ok, createErr := repo.CreateWithinCaps(ctx, eventFormModel.NewAnswerFile(id, e.ID, eventFormModel.AnswerScopeParticipant, field, "cv.pdf", 10, "application/pdf", user.ID, now), pendingCap, bytesCap)
+				if createErr != nil {
+					t.Error(createErr)
+					return
+				}
+				if commitErr := tx.Commit(ctx); commitErr != nil {
+					t.Error(commitErr)
+					return
+				}
+				if ok {
+					mu.Lock()
+					stored++
+					mu.Unlock()
+				}
+			}()
+		}
+		close(start)
+		wg.Wait()
+		return stored
+	}
+	if stored := race("cv", 12, 3, 1000); stored != 3 {
+		t.Fatalf("pending cap 3: %d uploads stored", stored)
+	}
+	// 30 bytes are used by the three uploads of "cv"; a budget of 80 leaves room for five more files of 10 bytes.
+	if stored := race("photo", 12, 100, 80); stored != 5 {
+		t.Fatalf("byte budget: %d uploads stored", stored)
+	}
+	var rows int
+	if err = db.Pool.QueryRow(ctx, `SELECT count(*) FROM event_answer_files WHERE event_id = $1`, e.ID).Scan(&rows); err != nil || rows != 8 {
+		t.Fatalf("rows = %d, %v", rows, err)
 	}
 }

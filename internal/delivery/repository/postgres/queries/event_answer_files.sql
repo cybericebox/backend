@@ -45,3 +45,8 @@ SELECT count(*) FILTER (WHERE attached_at IS NULL AND scope = sqlc.arg(scope) AN
 FROM event_answer_files
 WHERE event_id = sqlc.arg(event_id)
   AND uploaded_by = sqlc.arg(uploaded_by);
+
+-- name: LockEventAnswerFileUploads :exec
+-- Serializes one person's uploads to one event for the rest of the transaction,
+-- so the upload caps are checked against every earlier upload (CreateWithinCaps).
+SELECT pg_advisory_xact_lock(hashtextextended('event-answer-files:' || sqlc.arg(event_id)::uuid::text || ':' || sqlc.arg(uploaded_by)::uuid::text, 0));

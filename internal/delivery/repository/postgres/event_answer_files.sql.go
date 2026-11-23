@@ -188,3 +188,19 @@ func (q *Queries) ListEventAnswerFiles(ctx context.Context, fileIds []uuid.UUID)
 	}
 	return items, nil
 }
+
+const lockEventAnswerFileUploads = `-- name: LockEventAnswerFileUploads :exec
+SELECT pg_advisory_xact_lock(hashtextextended('event-answer-files:' || $1::uuid::text || ':' || $2::uuid::text, 0))
+`
+
+type LockEventAnswerFileUploadsParams struct {
+	EventID    uuid.UUID `json:"event_id"`
+	UploadedBy uuid.UUID `json:"uploaded_by"`
+}
+
+// Serializes one person's uploads to one event for the rest of the transaction,
+// so the upload caps are checked against every earlier upload (CreateWithinCaps).
+func (q *Queries) LockEventAnswerFileUploads(ctx context.Context, arg LockEventAnswerFileUploadsParams) error {
+	_, err := q.db.Exec(ctx, lockEventAnswerFileUploads, arg.EventID, arg.UploadedBy)
+	return err
+}

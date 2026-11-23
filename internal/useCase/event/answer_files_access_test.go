@@ -56,7 +56,7 @@ func TestUploadOwnAnswerFileRequiresTheCallersParticipation(t *testing.T) {
 // Someone who has not applied yet uploads the file of a participant form question: the form is part of applying.
 func TestUploadOwnAnswerFileAcceptsAnApplicantsParticipantFormFile(t *testing.T) {
 	f := newAnswerFileFixture(t)
-	f.q.EXPECT().GetEventAnswerFileUsage(gomock.Any(), gomock.Any()).Return(postgres.GetEventAnswerFileUsageRow{}, nil)
+	f.q.EXPECT().GetEventAnswerFileUsage(gomock.Any(), gomock.Any()).Return(postgres.GetEventAnswerFileUsageRow{}, nil).Times(2) // checked, then rechecked under the lock
 	f.q.EXPECT().CreateEventAnswerFile(gomock.Any(), gomock.Any()).Return(nil)
 	if _, err := f.uc.UploadOwnAnswerFile(context.Background(), f.eventID, f.userID, eventFormModel.AnswerScopeParticipant, "cv", "cv.pdf", strings.NewReader("%PDF-1.7\n")); err != nil {
 		t.Fatalf("upload: %v", err)
@@ -137,13 +137,48 @@ func TestUploadOwnAnswerFileCapsWhatOnePersonStores(t *testing.T) {
 					t.Fatalf("usage of %+v", arg)
 				}
 				return postgres.GetEventAnswerFileUsageRow{PendingInField: tc.pending, TotalBytes: tc.bytes}, nil
-			})
+			}).MinTimes(1).MaxTimes(2) // checked before the upload, then under the lock when it is written
 			if tc.want == nil {
 				f.q.EXPECT().CreateEventAnswerFile(gomock.Any(), gomock.Any()).Return(nil)
 			}
 			_, err := f.uc.UploadOwnAnswerFile(context.Background(), f.eventID, f.userID, eventFormModel.AnswerScopeParticipant, "cv", "cv.pdf", strings.NewReader("%PDF-1.7\n"))
 			if tc.want == nil && err != nil || tc.want != nil && !errors.Is(err, tc.want) {
 				t.Fatalf("err = %v, want %v", err, tc.want)
+			}
+		})
+	}
+}
+
+// The caps are enforced again when the row is written, under the person's lock: an upload that a parallel one
+// pushed over a cap is refused there and its stored file is discarded at once.
+func TestUploadOwnAnswerFileDiscardsAFileRefusedAtWriteTime(t *testing.T) {
+	event.ConfigureAnswerFileLimits(event.AnswerFileLimits{PendingPerField: 5, BytesPerEvent: 100})
+	t.Cleanup(func() { event.ConfigureAnswerFileLimits(event.DefaultAnswerFileLimits()) })
+	for _, tc := range []struct {
+		name           string
+		pending, bytes int64
+		want           error
+	}{
+		{name: "a parallel upload filled the question", pending: 5, want: eventModel.ErrAnswerFilePendingLimit.Err()},
+		{name: "a parallel upload used the budget", pending: 1, bytes: 95, want: eventModel.ErrAnswerFileQuotaExceeded.Err()},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newAnswerFileFixture(t)
+			unit := &testUoW{}
+			f.uc = event.NewEventUseCase(event.Dependencies{Repo: f.q, BrandMedia: f.media, UoW: testUnitOfWorker{repo: f.q, unit: unit}})
+			gomock.InOrder(
+				f.q.EXPECT().GetEventAnswerFileUsage(gomock.Any(), gomock.Any()).Return(postgres.GetEventAnswerFileUsageRow{}, nil),
+				f.q.EXPECT().GetEventAnswerFileUsage(gomock.Any(), gomock.Any()).Return(postgres.GetEventAnswerFileUsageRow{PendingInField: tc.pending, TotalBytes: tc.bytes}, nil),
+			)
+			_, err := f.uc.UploadOwnAnswerFile(context.Background(), f.eventID, f.userID, eventFormModel.AnswerScopeParticipant, "cv", "cv.pdf", strings.NewReader("%PDF-1.7\n"))
+			if !errors.Is(err, tc.want) {
+				t.Fatalf("err = %v, want %v", err, tc.want)
+			}
+			if len(f.media.discarded) != 1 || f.media.discarded[0] != f.media.file.ID {
+				t.Fatalf("discarded = %v, want the stored file %s", f.media.discarded, f.media.file.ID)
+			}
+			if unit.saved {
+				t.Fatal("a refused upload must not commit")
 			}
 		})
 	}

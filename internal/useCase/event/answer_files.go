@@ -144,10 +144,47 @@ func (u *EventUseCase) uploadAnswerFile(ctx context.Context, eventID, actorID uu
 		return AnswerFileView{}, err
 	}
 	answerFile := eventFormModel.NewAnswerFile(file.ID, eventID, scope, fieldKey, name, file.SizeBytes, contentType, actorID, time.Now().UTC())
+	if capped {
+		return u.createCappedAnswerFile(ctx, answerFile)
+	}
 	if err = u.answerFiles.Create(ctx, answerFile); err != nil {
 		return AnswerFileView{}, model.ErrPlatform.WithError(err).WithMessage("Failed to record answer file").Err()
 	}
 	return toAnswerFileView(answerFile), nil
+}
+
+// createCappedAnswerFile records a participant upload only if it still fits the caps when it is written: the
+// check before the upload can race with a parallel upload of the same person, so the row is written under their
+// lock against their usage read again. A refused upload's stored file is discarded at once.
+func (u *EventUseCase) createCappedAnswerFile(ctx context.Context, f eventFormModel.AnswerFile) (AnswerFileView, error) {
+	refuse := func(err error) (AnswerFileView, error) {
+		if discardErr := u.brandMedia.DiscardFile(ctx, f.FileID, f.UploadedBy); discardErr != nil {
+			return AnswerFileView{}, discardErr
+		}
+		return AnswerFileView{}, err
+	}
+	if u.uow == nil {
+		return refuse(model.ErrPlatform.WithMessage("Event transaction is not configured").Err())
+	}
+	txCtx, txRepo, unit, err := u.uow.UnitOfWork(ctx)
+	if err != nil {
+		return refuse(err)
+	}
+	defer func() { _ = unit.Restore() }()
+	limits := answerFileLimits
+	usage, stored, err := eventAnswerFileRepo.New(txRepo).CreateWithinCaps(txCtx, f, limits.PendingPerField, limits.BytesPerEvent)
+	switch {
+	case err != nil:
+		return refuse(model.ErrPlatform.WithError(err).WithMessage("Failed to record answer file").Err())
+	case !stored && usage.PendingInField >= limits.PendingPerField:
+		return refuse(eventModel.ErrAnswerFilePendingLimit.Err())
+	case !stored:
+		return refuse(eventModel.ErrAnswerFileQuotaExceeded.Err())
+	}
+	if err = unit.Save(); err != nil {
+		return refuse(model.ErrPlatform.WithError(err).WithMessage("Failed to record answer file").Err())
+	}
+	return toAnswerFileView(f), nil
 }
 
 // UploadOwnAnswerFile is UploadAnswerFile for a participant (the event site), under the rules of saving the
