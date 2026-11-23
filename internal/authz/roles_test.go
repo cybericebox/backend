@@ -8,7 +8,7 @@ import (
 // wantRoleKeys is every built-in role of spec §4.4 / Appendix A.2 expanded to its catalogue keys (with the owner's
 // decisions of 2026-11-23: catalog_manager manages the whole catalog; admin_viewer and admin hold at platform scope
 // exactly the platform-grantable event keys today's events.read / events.write / exercises.read /
-// events.solution-attempts.read reach; admin archives only through events.archive).
+// events.solution-attempts.read reach, so nobody loses access at the switch; admin archives only through events.archive).
 var wantRoleKeys = map[RoleName][]Key{
 	// super_admin holds "*": every catalogue key (checked separately).
 	"admin": {
@@ -62,8 +62,6 @@ var wantRoleKeys = map[RoleName][]Key{
 		"event.stats.sensitive.read",
 		"event.stats.people.read",
 		"event.archived.read",
-		// Reached today through events.read (RequireRead, the analytics sections) and events.write /
-		// events.solution-attempts.write (the admin event routes, requireExport, the integrity reviews).
 		"event.settings.read",
 		"event.pages.read",
 		"event.teams.read",
@@ -102,7 +100,6 @@ var wantRoleKeys = map[RoleName][]Key{
 		"event.scoreboard.read",
 		"event.stats.people.read",
 		"event.archived.read",
-		// Reached today through events.read (RequireRead, the analytics sections).
 		"event.settings.read",
 		"event.pages.read",
 		"event.teams.read",
@@ -496,6 +493,10 @@ func TestRoleEffectiveAt(t *testing.T) {
 	viewer, _ := BuiltinRole(AdminViewer)
 	owner, _ := BuiltinRole(EventOwner)
 	super, _ := BuiltinRole(SuperAdmin)
+	// A custom platform role holding event.*: only the platform-grantable keys act in an event (§5.2 rule 2), both as
+	// a literal and built by NewRole.
+	custom := Role{Name: "custom", Scope: ScopePlatform, Keys: []Key{"event.*"}}
+	built := NewRole("custom", "test", ScopePlatform, []Key{"event.*"})
 	cases := []struct {
 		role  Role
 		key   Key
@@ -519,7 +520,12 @@ func TestRoleEffectiveAt(t *testing.T) {
 		{super, EventPagesUpdate, ScopePlatform, false},
 		{super, UsersDelete, ScopePlatform, true},
 		{super, Self, ScopeImplicit, true},
-		{super, "events.write", ScopePlatform, false}, // not a key
+		{super, "events.write", ScopePlatform, false},
+		{custom, EventPagesUpdate, ScopeEvent, false},
+		{custom, EventFlagsRead, ScopeEvent, true},
+		{custom, EventFlagsRead, ScopePlatform, false},
+		{built, EventPagesUpdate, ScopeEvent, false},
+		{built, EventFlagsRead, ScopeEvent, true}, // not a key
 	}
 	for _, c := range cases {
 		if got := c.role.EffectiveAt(c.key, c.scope); got != c.want {
@@ -540,5 +546,24 @@ func TestBuiltinRoleReturnsACopy(t *testing.T) {
 	}
 	if _, ok := BuiltinRole("event_participant"); ok {
 		t.Fatal("participation has no roles (§4.4, round 3)")
+	}
+}
+
+func TestEffectiveMatchesRoles(t *testing.T) {
+	for _, role := range BuiltinRoles() {
+		for _, spec := range Catalogue() {
+			for _, s := range []ScopeType{ScopePlatform, ScopeEvent, ScopeImplicit, ScopePublic} {
+				if got, want := Effective(role.Keys, role.Scope, spec.Key, s), role.EffectiveAt(spec.Key, s); got != want {
+					t.Errorf("%s: %s at %s: Effective %v, EffectiveAt %v", role.Name, spec.Key, s, got, want)
+				}
+			}
+		}
+	}
+	// A personal key grant: the key itself at a scope type.
+	if !Effective([]Key{EventFlagsRead}, ScopePlatform, EventFlagsRead, ScopeEvent) {
+		t.Error("a platform grant of a platform-grantable key acts in every event")
+	}
+	if Effective([]Key{EventPagesUpdate}, ScopePlatform, EventPagesUpdate, ScopeEvent) {
+		t.Error("a platform grant of a non-platform-grantable event key does nothing")
 	}
 }

@@ -42,11 +42,33 @@ type Role struct {
 	Description string
 	Scope       ScopeType
 	Keys        []Key
+	// covered is the set of catalogue keys Keys cover, precomputed by NewRole. A Role written as a literal has none
+	// and matches its patterns on each call. Keys of a role built by NewRole are not to be changed: build a new role.
+	covered map[Key]struct{}
+}
+
+// NewRole builds a role with the set of catalogue keys it covers precomputed.
+func NewRole(name RoleName, description string, scope ScopeType, keys []Key) Role {
+	r := Role{Name: name, Description: description, Scope: scope, Keys: slices.Clone(keys), covered: map[Key]struct{}{}}
+	for _, s := range catalogue {
+		if coversAny(keys, s.Key) {
+			r.covered[s.Key] = struct{}{}
+		}
+	}
+	return r
+}
+
+func coversAny(held []Key, k Key) bool {
+	return slices.ContainsFunc(held, func(h Key) bool { return h.Covers(k) })
 }
 
 // Covers reports whether the role holds a key or pattern covering k.
 func (r Role) Covers(k Key) bool {
-	return slices.ContainsFunc(r.Keys, func(held Key) bool { return held.Covers(k) })
+	if r.covered != nil && !IsPattern(k) {
+		_, ok := r.covered[k]
+		return ok
+	}
+	return coversAny(r.Keys, k)
 }
 
 // Expanded returns the catalogue keys the role covers, in catalogue order.
@@ -60,23 +82,33 @@ func (r Role) Expanded() []Key {
 	return out
 }
 
-// EffectiveAt reports whether a grant of the role at its own scope type makes k effective at scope type t (spec §5.2,
-// before the time, event-end and second-factor rules): at exactly that scope type when the key allows it, or, for a
-// platform grant acting in an event, when the key is platform-grantable or the role holds "*".
+// EffectiveAt reports whether a grant of the role at its own scope type makes k effective at scope type t (Effective).
 func (r Role) EffectiveAt(k Key, t ScopeType) bool {
+	return r.Covers(k) && scopeRule(r.Scope, k, t, slices.Contains(r.Keys, All))
+}
+
+// Effective reports whether a grant at scope type grant that holds the keys or patterns held makes k effective at
+// scope type target (spec §5.2, before the time, event-end and second-factor rules): at exactly the grant's scope type
+// when the key allows it, or, for a platform grant acting in an event, when the key is platform-grantable or the grant
+// holds "*". The same rule serves a role grant and a personal key grant (held = the one key).
+func Effective(held []Key, grant ScopeType, k Key, target ScopeType) bool {
+	return coversAny(held, k) && scopeRule(grant, k, target, slices.Contains(held, All))
+}
+
+func scopeRule(grant ScopeType, k Key, target ScopeType, holdsAll bool) bool {
 	spec, ok := Lookup(k)
-	if !ok || !r.Covers(k) || !spec.Allows(t) {
+	if !ok || !spec.Allows(target) {
 		return false
 	}
-	if t == r.Scope {
+	if target == grant {
 		return true
 	}
-	if t == ScopeImplicit || t == ScopePublic {
+	if target == ScopeImplicit || target == ScopePublic {
 		// Every grantable role belongs to a signed-in user, who also holds the implicit keys; the public keys are
 		// everyone's. Only "*" covers them outside user and public.
-		return r.Scope == ScopePlatform || r.Scope == ScopeEvent
+		return grant == ScopePlatform || grant == ScopeEvent
 	}
-	return t == ScopeEvent && r.Scope == ScopePlatform && (spec.PlatformGrantable || slices.Contains(r.Keys, All))
+	return target == ScopeEvent && grant == ScopePlatform && (spec.PlatformGrantable || holdsAll)
 }
 
 // eventKeysExcept is every in-event key ("event.*" in §4.4) except the listed ones; there is no deny, so a role that
@@ -136,7 +168,23 @@ var adminEventKeys = append(slices.Clone(adminViewerEventKeys),
 
 func concat(parts ...[]Key) []Key { return slices.Concat(parts...) }
 
-var builtinRoles = []Role{
+// roleDef is a built-in role as written: name, description, scope type, keys.
+type roleDef struct {
+	name        RoleName
+	description string
+	scope       ScopeType
+	keys        []Key
+}
+
+var builtinRoles = func() []Role {
+	out := make([]Role, len(builtinRoleDefs))
+	for i, d := range builtinRoleDefs {
+		out[i] = NewRole(d.name, d.description, d.scope, d.keys)
+	}
+	return out
+}()
+
+var builtinRoleDefs = []roleDef{
 	{SuperAdmin, "Every key at every scope", ScopePlatform, []Key{All}},
 	{Admin, "Today's admin: users, grants, every event from the platform side, the whole catalog, the audit log, and the platform-grantable event keys in every event", ScopePlatform, concat(
 		[]Key{"users.*", "access.grants.*", AccessAuditRead, "events.*"},
@@ -200,7 +248,7 @@ var builtinRoles = []Role{
 	}},
 }
 
-// BuiltinRoles returns the built-in roles (copies).
+// BuiltinRoles returns the built-in roles (copies of Keys; the precomputed key sets are shared and never written).
 func BuiltinRoles() []Role {
 	out := make([]Role, len(builtinRoles))
 	for i, r := range builtinRoles {

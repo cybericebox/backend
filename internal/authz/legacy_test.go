@@ -47,6 +47,13 @@ var platformMigration = map[rbac.Role]RoleName{
 var intendedPlatformChanges = map[RoleName]map[Key]string{
 	Admin: {
 		EventsStatsSourceUpdate: "gained: the per-event statistics checkbox (§7.2, Q14)",
+		CyberbrainChatUse:       "lost: Cyber Brain is explicit only, nobody but * at the switch (§7.2, Q1)",
+		CyberbrainSessionsRead:  "lost: Cyber Brain is explicit only, nobody but * at the switch (§7.2, Q1)",
+		CyberbrainRunsStart:     "lost: grader and opponent runs need cyberbrain.runs.* besides task write (§7.2, Q12)",
+		CyberbrainRunsRead:      "lost: grader and opponent runs need cyberbrain.runs.* besides task write (§7.2, Q12)",
+	},
+	AdminViewer: {
+		ExercisesPublish: "lost: the proposal queue is read with exercises.publish (§7.2, round 3)",
 	},
 }
 
