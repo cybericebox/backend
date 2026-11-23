@@ -252,7 +252,8 @@ type Dossier struct {
 
 // ForbiddenFor is the forbidden list of a dossier, the one rule for the human and the bot (confirmed with the brain session):
 // off_limits when the block names any (an override), else the complement of what the defender operates: every node of the
-// topology with a console port that it does not operate. self, the defender's own device, is never in it.
+// topology with a console port that it does not operate. The dossiers pass as operates the union of the opponent's operates
+// (or the human's) and the devices cabled to the reader's own device (withCabled), so a cabled device is never forbidden. self, the defender's own device, is never in it.
 func ForbiddenFor(t Topology, offLimits, operates []string, self string) []string {
 	if len(offLimits) > 0 {
 		return slices.Clone(offLimits)
@@ -261,6 +262,18 @@ func ForbiddenFor(t Topology, offLimits, operates []string, self string) []strin
 	for _, d := range t.Devices {
 		if d.Type.IsNode() && len(d.ConsolePorts) > 0 && d.Name != self && !slices.Contains(operates, d.Name) {
 			out = append(out, d.Name)
+		}
+	}
+	return out
+}
+
+// withCabled is operates with every device the reader's own device is cabled to: a device on the other end of one of its
+// console lines is never forbidden by default (the reader holds its console).
+func withCabled(operates []string, links []ConsoleLink) []string {
+	out := slices.Clone(operates)
+	for _, l := range links {
+		if !slices.Contains(out, l.Device) {
+			out = append(out, l.Device)
 		}
 	}
 	return out
@@ -307,8 +320,9 @@ func HumanDossier(v Variant, credentials []DefenderCredential) Dossier {
 	if v.Defender != nil {
 		offLimits, seat = v.Defender.OffLimits, v.Defender.Seat
 	}
+	links := humanLinks(v)
 	return Dossier{
-		Links: humanLinks(v), Forbidden: ForbiddenFor(v.Topology, offLimits, operates, seat), Credentials: nonNil(credentials),
+		Links: links, Forbidden: ForbiddenFor(v.Topology, offLimits, withCabled(operates, links), seat), Credentials: nonNil(credentials),
 		Operates: operates, Topology: v.Defender.TopologyMode(),
 	}
 }
@@ -321,8 +335,9 @@ func BotDossier(run Topology, tools Device, operates []string, defender *Defende
 	if defender != nil {
 		offLimits = defender.OffLimits
 	}
+	links := nonNil(run.ConsoleLinksOf(tools))
 	return Dossier{
-		Links: nonNil(run.ConsoleLinksOf(tools)), Forbidden: ForbiddenFor(run, offLimits, operates, tools.Name), Credentials: nonNil(credentials),
+		Links: links, Forbidden: ForbiddenFor(run, offLimits, withCabled(operates, links), tools.Name), Credentials: nonNil(credentials),
 		Operates: nonNil(slices.Clone(operates)), Topology: defender.TopologyMode(),
 	}
 }

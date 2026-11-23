@@ -115,9 +115,19 @@ func TestHumanAndBotDossiersAgreeForASeatRun(t *testing.T) {
 	if len(human.Forbidden) != 0 || human.Topology != DefenderTopologyFull {
 		t.Fatalf("everything with a console is operated, full is the default: %+v", human)
 	}
-	if got := BotDossier(run, tools[0], []string{"r1"}, v.Defender, creds).Forbidden; !reflect.DeepEqual(got, []string{"core", "db"}) {
-		t.Fatalf("the complement of operates: %+v", got)
+	if got := BotDossier(run, tools[0], []string{}, v.Defender, creds).Forbidden; !reflect.DeepEqual(got, []string{"db"}) {
+		t.Fatalf("the complement of operates and the cabled devices: %+v", got)
 	}
+	// A device cabled to the reader's own device is never forbidden by default, even when the opponent does not operate it:
+	// core is cabled to the seat (and so to the tools device that takes it).
+	if got := BotDossier(run, tools[0], []string{"r1"}, v.Defender, creds).Forbidden; !reflect.DeepEqual(got, []string{"db"}) {
+		t.Fatalf("cabled devices are operated for the default: %+v", got)
+	}
+	v.Opponents[0].Operates = []string{"r1"}
+	if got := HumanDossier(v, nil).Forbidden; !reflect.DeepEqual(got, []string{"db"}) {
+		t.Fatalf("the human too: %+v", got)
+	}
+	v.Opponents[0].Operates = operates
 	v.Defender.OffLimits = []string{"web"}
 	if got := HumanDossier(v, nil).Forbidden; !reflect.DeepEqual(got, []string{"web"}) {
 		t.Fatalf("off_limits overrides: %+v", got)
