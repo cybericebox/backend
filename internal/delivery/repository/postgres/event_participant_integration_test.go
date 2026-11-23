@@ -238,7 +238,7 @@ func TestParticipantList_StatusFilterAndCount(t *testing.T) {
 		t.Fatalf("Update B: %v", err)
 	}
 
-	pendingOnly, err := repo.List(ctx, event.ID, int32(participantModel.StatusPending), participantRepo.KindAll, "", nil, epCursorSentinelTime, epMaxUUID, 10)
+	pendingOnly, err := repo.List(ctx, event.ID, int32(participantModel.StatusPending), participantRepo.KindAll, "", nil, epCursorSentinelTime, epMaxUUID, 10, false)
 	if err != nil {
 		t.Fatalf("List (pending only): %v", err)
 	}
@@ -246,7 +246,7 @@ func TestParticipantList_StatusFilterAndCount(t *testing.T) {
 		t.Fatalf("List (pending only) = %+v, want exactly [userA]", pendingOnly)
 	}
 
-	all, err := repo.List(ctx, event.ID, -1, participantRepo.KindAll, "", nil, epCursorSentinelTime, epMaxUUID, 10)
+	all, err := repo.List(ctx, event.ID, -1, participantRepo.KindAll, "", nil, epCursorSentinelTime, epMaxUUID, 10, false)
 	if err != nil {
 		t.Fatalf("List (all): %v", err)
 	}
@@ -264,18 +264,18 @@ func TestParticipantList_StatusFilterAndCount(t *testing.T) {
 		t.Fatalf("Count (all): count=%d err=%v", allCount, err)
 	}
 
-	searched, err := repo.List(ctx, event.ID, -1, participantRepo.KindAll, "PLIST-B@", nil, epCursorSentinelTime, epMaxUUID, 10)
+	searched, err := repo.List(ctx, event.ID, -1, participantRepo.KindAll, "PLIST-B@", nil, epCursorSentinelTime, epMaxUUID, 10, false)
 	if err != nil {
 		t.Fatalf("List (search): %v", err)
 	}
 	if len(searched) != 1 || searched[0].Participant.UserID != userB {
 		t.Fatalf("List (search) = %+v, want exactly [userB]", searched)
 	}
-	searchCount, err := repo.CountMatching(ctx, event.ID, -1, participantRepo.KindAll, "PLIST-B@", nil)
+	searchCount, err := repo.CountMatching(ctx, event.ID, -1, participantRepo.KindAll, "PLIST-B@", nil, false)
 	if err != nil || searchCount != 1 {
 		t.Fatalf("CountMatching (search): count=%d err=%v", searchCount, err)
 	}
-	missCount, err := repo.CountMatching(ctx, event.ID, -1, participantRepo.KindAll, "nobody-here", nil)
+	missCount, err := repo.CountMatching(ctx, event.ID, -1, participantRepo.KindAll, "nobody-here", nil, false)
 	if err != nil || missCount != 0 {
 		t.Fatalf("CountMatching (miss): count=%d err=%v", missCount, err)
 	}

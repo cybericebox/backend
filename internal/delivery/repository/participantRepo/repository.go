@@ -237,7 +237,8 @@ func (r *Repository) AssignTeam(ctx context.Context, p participantModel.Particip
 // statusFilter < 0 means "any status"; kind narrows to one moderation tab;
 // a non-empty search matches name, email or pseudonym; fieldFilters is a JSON
 // array of registration answer filters.
-func (r *Repository) List(ctx context.Context, eventID uuid.UUID, statusFilter int32, kind Kind, search string, fieldFilters []byte, cursorCreatedAt time.Time, cursorID uuid.UUID, limit int32) ([]Listed, error) {
+// List is a keyset page of the moderation list; hideEmails keeps the addresses out of the search (an observer).
+func (r *Repository) List(ctx context.Context, eventID uuid.UUID, statusFilter int32, kind Kind, search string, fieldFilters []byte, cursorCreatedAt time.Time, cursorID uuid.UUID, limit int32, hideEmails bool) ([]Listed, error) {
 	rows, err := r.q.ListEventParticipantsDetailed(ctx, postgres.ListEventParticipantsDetailedParams{
 		EventID:         eventID,
 		StatusFilter:    statusFilter,
@@ -247,6 +248,7 @@ func (r *Repository) List(ctx context.Context, eventID uuid.UUID, statusFilter i
 		CursorCreatedAt: cursorCreatedAt,
 		CursorID:        cursorID,
 		LimitVal:        limit,
+		HideEmails:      hideEmails,
 	})
 	if err != nil {
 		return nil, err
@@ -287,7 +289,7 @@ func listedFromRow(row postgres.ListEventParticipantsDetailedRow) Listed {
 
 // Count mirrors List's statusFilter and kind semantics.
 func (r *Repository) Count(ctx context.Context, eventID uuid.UUID, statusFilter int32, kind Kind) (int64, error) {
-	return r.CountMatching(ctx, eventID, statusFilter, kind, "", nil)
+	return r.CountMatching(ctx, eventID, statusFilter, kind, "", nil, false)
 }
 
 // jsonArray defaults a missing filter list to an empty JSON array.
@@ -299,13 +301,14 @@ func jsonArray(raw []byte) []byte {
 }
 
 // CountMatching mirrors List's statusFilter, kind, search and field filters.
-func (r *Repository) CountMatching(ctx context.Context, eventID uuid.UUID, statusFilter int32, kind Kind, search string, fieldFilters []byte) (int64, error) {
+func (r *Repository) CountMatching(ctx context.Context, eventID uuid.UUID, statusFilter int32, kind Kind, search string, fieldFilters []byte, hideEmails bool) (int64, error) {
 	return r.q.CountEventParticipants(ctx, postgres.CountEventParticipantsParams{
 		EventID:      eventID,
 		StatusFilter: statusFilter,
 		Kind:         string(kind),
 		Search:       search,
 		FieldFilters: jsonArray(fieldFilters),
+		HideEmails:   hideEmails,
 	})
 }
 
@@ -486,6 +489,9 @@ type TableQuery struct {
 	SortDesc     bool
 	Limit        int32
 	Offset       int32
+	// HideEmails: the caller does not see the addresses in full (an observer); the search skips them and the
+	// columns that hold one carry it masked.
+	HideEmails bool
 }
 
 func sortDir(desc bool) string {
@@ -499,7 +505,7 @@ func (r *Repository) ListTable(ctx context.Context, q TableQuery) ([]Listed, err
 	rows, err := r.q.ListEventParticipantsTable(ctx, postgres.ListEventParticipantsTableParams{
 		WithAnswers: q.WithAnswers, EventID: q.EventID, StatusFilter: q.StatusFilter, Kind: string(q.Kind),
 		Search: q.Search, Filters: jsonArray(q.Filters), SortDir: sortDir(q.SortDesc), SortKey: q.SortKey,
-		OffsetVal: q.Offset, LimitVal: q.Limit,
+		OffsetVal: q.Offset, LimitVal: q.Limit, HideEmails: q.HideEmails,
 	})
 	if err != nil {
 		return nil, err
@@ -515,7 +521,7 @@ func (r *Repository) ListTable(ctx context.Context, q TableQuery) ([]Listed, err
 func (r *Repository) CountTable(ctx context.Context, q TableQuery) (int64, error) {
 	return r.q.CountEventParticipantsTable(ctx, postgres.CountEventParticipantsTableParams{
 		WithAnswers: q.WithAnswers, EventID: q.EventID, StatusFilter: q.StatusFilter, Kind: string(q.Kind),
-		Search: q.Search, Filters: jsonArray(q.Filters),
+		Search: q.Search, Filters: jsonArray(q.Filters), HideEmails: q.HideEmails,
 	})
 }
 

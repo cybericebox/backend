@@ -363,6 +363,9 @@ type BrandMedia interface {
 	GetReferences(context.Context, string, uuid.UUID) ([]uuid.UUID, error)
 	AddReference(context.Context, string, uuid.UUID, uuid.UUID) error
 	ReplaceReferences(context.Context, string, uuid.UUID, []uuid.UUID) error
+	// DiscardFile removes at once a file its owner stored and nothing references (an answer upload refused when
+	// its row is written).
+	DiscardFile(ctx context.Context, id, owner uuid.UUID) error
 }
 
 type Infrastructure interface {

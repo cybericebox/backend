@@ -118,6 +118,44 @@ func (q *Queries) GetEventAnswerFile(ctx context.Context, fileID uuid.UUID) (Eve
 	return i, err
 }
 
+const getEventAnswerFileUsage = `-- name: GetEventAnswerFileUsage :one
+SELECT count(*) FILTER (WHERE event_id = $1 AND attached_at IS NULL
+                          AND scope = $2 AND field_key = $3)::bigint            AS pending_in_field,
+       COALESCE(sum(size_bytes) FILTER (WHERE event_id = $1 AND attached_at IS NULL), 0)::bigint AS event_pending_bytes,
+       COALESCE(sum(size_bytes) FILTER (WHERE attached_at IS NULL), 0)::bigint                              AS user_pending_bytes
+FROM event_answer_files
+WHERE uploaded_by = $4
+`
+
+type GetEventAnswerFileUsageParams struct {
+	EventID    uuid.UUID `json:"event_id"`
+	Scope      string    `json:"scope"`
+	FieldKey   string    `json:"field_key"`
+	UploadedBy uuid.UUID `json:"uploaded_by"`
+}
+
+type GetEventAnswerFileUsageRow struct {
+	PendingInField    int64 `json:"pending_in_field"`
+	EventPendingBytes int64 `json:"event_pending_bytes"`
+	UserPendingBytes  int64 `json:"user_pending_bytes"`
+}
+
+// What one person's uploads still wait for an answer, for the upload caps: the
+// uploads of one question, their bytes in the event and their bytes in every
+// event. Attached files are not counted: the form bounds them, and an answer
+// that replaces a file releases the old one.
+func (q *Queries) GetEventAnswerFileUsage(ctx context.Context, arg GetEventAnswerFileUsageParams) (GetEventAnswerFileUsageRow, error) {
+	row := q.db.QueryRow(ctx, getEventAnswerFileUsage,
+		arg.EventID,
+		arg.Scope,
+		arg.FieldKey,
+		arg.UploadedBy,
+	)
+	var i GetEventAnswerFileUsageRow
+	err := row.Scan(&i.PendingInField, &i.EventPendingBytes, &i.UserPendingBytes)
+	return i, err
+}
+
 const listEventAnswerFiles = `-- name: ListEventAnswerFiles :many
 SELECT file_id, event_id, scope, field_key, name, size_bytes, content_type, uploaded_by, owner_id, attached_at, created_at FROM event_answer_files WHERE file_id = ANY($1::uuid[])
 `
@@ -152,4 +190,16 @@ func (q *Queries) ListEventAnswerFiles(ctx context.Context, fileIds []uuid.UUID)
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockEventAnswerFileUploads = `-- name: LockEventAnswerFileUploads :exec
+SELECT pg_advisory_xact_lock(hashtextextended('event-answer-files:' || $1::uuid::text, 0))
+`
+
+// Serializes one person's uploads (to every event: the caps span events) for
+// the rest of the transaction, so the caps are checked against every earlier
+// upload (CreateWithinCaps).
+func (q *Queries) LockEventAnswerFileUploads(ctx context.Context, uploadedBy uuid.UUID) error {
+	_, err := q.db.Exec(ctx, lockEventAnswerFileUploads, uploadedBy)
+	return err
 }

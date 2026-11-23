@@ -336,7 +336,7 @@ func (u *EventUseCase) ListParticipants(ctx context.Context, f ListParticipantsF
 			curTs, curID = row.CreatedAt, row.UserID
 		}
 	}
-	rows, err := u.participants.List(ctx, f.EventID, statusFilter, f.Kind, f.Search, answerFiltersJSON(f.Fields), curTs, curID, int32(limit+1))
+	rows, err := u.participants.List(ctx, f.EventID, statusFilter, f.Kind, f.Search, answerFiltersJSON(f.Fields), curTs, curID, int32(limit+1), f.HideEmails)
 	if err != nil {
 		return ParticipantsListResult{}, model.ErrPlatform.WithError(err).WithMessage("Failed to list participants").Err()
 	}
@@ -353,7 +353,7 @@ func (u *EventUseCase) ListParticipants(ctx context.Context, f ListParticipantsF
 	if hasMore && len(rows) > 0 {
 		next = rows[len(rows)-1].Participant.UserID
 	}
-	total, err := u.participants.CountMatching(ctx, f.EventID, statusFilter, f.Kind, f.Search, answerFiltersJSON(f.Fields))
+	total, err := u.participants.CountMatching(ctx, f.EventID, statusFilter, f.Kind, f.Search, answerFiltersJSON(f.Fields), f.HideEmails)
 	if err != nil {
 		return ParticipantsListResult{}, model.ErrPlatform.WithError(err).WithMessage("Failed to count participants").Err()
 	}

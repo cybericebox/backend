@@ -85,7 +85,7 @@ func TestPendingInvitationIsNotSearchableByName(t *testing.T) {
 		t.Fatal(err)
 	}
 	count := func(search string) int64 {
-		n, err := repo.CountMatching(ctx, event.ID, -1, participantRepo.Kind(""), search, nil)
+		n, err := repo.CountMatching(ctx, event.ID, -1, participantRepo.Kind(""), search, nil, false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -97,7 +97,7 @@ func TestPendingInvitationIsNotSearchableByName(t *testing.T) {
 	if count("secret.person@") != 1 {
 		t.Fatal("the address the organizer typed must find it")
 	}
-	rows, err := repo.List(ctx, event.ID, -1, participantRepo.Kind(""), "Zlatan", nil, time.Now().AddDate(1, 0, 0), uuid.Must(uuid.FromString("ffffffff-ffff-ffff-ffff-ffffffffffff")), 10)
+	rows, err := repo.List(ctx, event.ID, -1, participantRepo.Kind(""), "Zlatan", nil, time.Now().AddDate(1, 0, 0), uuid.Must(uuid.FromString("ffffffff-ffff-ffff-ffff-ffffffffffff")), 10, false)
 	if err != nil || len(rows) != 0 {
 		t.Fatalf("list by name: %d rows, %v", len(rows), err)
 	}

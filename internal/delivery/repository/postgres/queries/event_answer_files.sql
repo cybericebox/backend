@@ -35,3 +35,21 @@ SET owner_id    = sqlc.arg(owner_id),
 WHERE f.event_id = sqlc.arg(event_id)
   AND f.scope = sqlc.arg(scope)
   AND f.file_id = ANY(sqlc.arg(file_ids)::uuid[]);
+
+-- name: GetEventAnswerFileUsage :one
+-- What one person's uploads still wait for an answer, for the upload caps: the
+-- uploads of one question, their bytes in the event and their bytes in every
+-- event. Attached files are not counted: the form bounds them, and an answer
+-- that replaces a file releases the old one.
+SELECT count(*) FILTER (WHERE event_id = sqlc.arg(event_id) AND attached_at IS NULL
+                          AND scope = sqlc.arg(scope) AND field_key = sqlc.arg(field_key))::bigint            AS pending_in_field,
+       COALESCE(sum(size_bytes) FILTER (WHERE event_id = sqlc.arg(event_id) AND attached_at IS NULL), 0)::bigint AS event_pending_bytes,
+       COALESCE(sum(size_bytes) FILTER (WHERE attached_at IS NULL), 0)::bigint                              AS user_pending_bytes
+FROM event_answer_files
+WHERE uploaded_by = sqlc.arg(uploaded_by);
+
+-- name: LockEventAnswerFileUploads :exec
+-- Serializes one person's uploads (to every event: the caps span events) for
+-- the rest of the transaction, so the caps are checked against every earlier
+-- upload (CreateWithinCaps).
+SELECT pg_advisory_xact_lock(hashtextextended('event-answer-files:' || sqlc.arg(uploaded_by)::uuid::text, 0));

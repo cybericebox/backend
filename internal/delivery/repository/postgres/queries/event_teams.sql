@@ -156,7 +156,11 @@ SELECT sqlc.embed(event_teams),
 FROM event_teams
          CROSS JOIN LATERAL (SELECT event_teams.extra_fields || jsonb_build_object(
                                         '@name', event_teams.name,
-                                        '@captain', (SELECT btrim(captain.first_name || ' ' || captain.last_name || ' ' || captain.email)
+                                        -- An observer (hide_emails) filters and sorts by the address masked, as it is shown.
+                                        '@captain', (SELECT btrim(captain.first_name || ' ' || captain.last_name || ' ' ||
+                                                                  CASE WHEN sqlc.arg(hide_emails)::boolean
+                                                                           THEN event_mask_email(captain.email)
+                                                                       ELSE captain.email END)
                                                      FROM users captain
                                                      WHERE captain.id = event_teams.captain_id),
                                         '@captainPending', EXISTS (SELECT 1
@@ -195,7 +199,11 @@ SELECT count(*)
 FROM event_teams
          CROSS JOIN LATERAL (SELECT event_teams.extra_fields || jsonb_build_object(
                                         '@name', event_teams.name,
-                                        '@captain', (SELECT btrim(captain.first_name || ' ' || captain.last_name || ' ' || captain.email)
+                                        -- An observer (hide_emails) filters and sorts by the address masked, as it is shown.
+                                        '@captain', (SELECT btrim(captain.first_name || ' ' || captain.last_name || ' ' ||
+                                                                  CASE WHEN sqlc.arg(hide_emails)::boolean
+                                                                           THEN event_mask_email(captain.email)
+                                                                       ELSE captain.email END)
                                                      FROM users captain
                                                      WHERE captain.id = event_teams.captain_id),
                                         '@captainPending', EXISTS (SELECT 1

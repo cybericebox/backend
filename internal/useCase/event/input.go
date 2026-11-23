@@ -206,6 +206,9 @@ type ListParticipantsFilter struct {
 	Fields   []AnswerFilter
 	Cursor   uuid.UUID
 	PageSize int
+	// HideEmails: the caller does not see the participants' addresses in full (a read-only moderator), so the
+	// search does not match them and the columns that hold one filter and sort by it masked.
+	HideEmails bool
 }
 
 // ListTeamsFilter pages an event's teams, optionally narrowed by a team name

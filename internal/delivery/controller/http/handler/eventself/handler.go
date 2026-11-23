@@ -133,7 +133,7 @@ func (h *Handler) Init(router *gin.RouterGroup, resolveTenant gin.HandlerFunc) {
 		self.POST("participant-form", h.submitParticipantForm)
 		self.GET("participant-answers", h.participantAnswers)
 		self.PUT("participant-answers", h.updateParticipantAnswers)
-		self.POST("answer-files", h.uploadAnswerFile)
+		self.POST("answer-files", middleware.RateLimitPerUser(answerFileUploadsPerMinute, time.Minute), h.uploadAnswerFile)
 		self.GET("answer-files/:fileID", h.downloadAnswerFile)
 	}
 

@@ -417,7 +417,7 @@ PUT    /api/events/:id/theme | gate: events.write | layers: event.requireWritabl
 POST   /api/events/bulk/archive | gate: events.write | layers: -
 GET    /api/events/facets | gate: events.read | layers: -
 GET    /api/events/organizers | gate: events.read | layers: -
-POST   /api/events/self/answer-files | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence
+POST   /api/events/self/answer-files | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence,middleware.RateLimitPerUser.func
 GET    /api/events/self/answer-files/:fileID | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence
 GET    /api/events/self/info | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence
 POST   /api/events/self/invitation/accept | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence

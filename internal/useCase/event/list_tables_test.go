@@ -105,3 +105,65 @@ func TestListTeamsTable_DefaultsToNewestFirst(t *testing.T) {
 		t.Fatalf("ListTeamsTable = %+v, %v", res, err)
 	}
 }
+
+// HideEmails reaches the queries: an observer's search, filters and sorting never read the addresses.
+func TestManageTablesPassHideEmailsToTheQueries(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	q := newFormGateMock(ctrl)
+	q.EXPECT().GetEventByID(gomock.Any(), gomock.Any()).Return(postgres.Event{}, nil).AnyTimes()
+	uc := newUC(q)
+	eventID := uuid.Must(uuid.NewV7())
+	q.EXPECT().ListEventParticipantsTable(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, arg postgres.ListEventParticipantsTableParams) ([]postgres.ListEventParticipantsTableRow, error) {
+			if !arg.HideEmails {
+				t.Fatalf("participants table: HideEmails not passed: %+v", arg)
+			}
+			return nil, nil
+		})
+	q.EXPECT().ListLatestRegistrationAnswersForUsers(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	q.EXPECT().CountEventParticipantsTable(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, arg postgres.CountEventParticipantsTableParams) (int64, error) {
+			if !arg.HideEmails {
+				t.Fatalf("participants count: HideEmails not passed: %+v", arg)
+			}
+			return 0, nil
+		})
+	q.EXPECT().CountEventParticipantKinds(gomock.Any(), gomock.Any()).Return(postgres.CountEventParticipantKindsRow{}, nil).AnyTimes()
+	if _, err := uc.ListParticipantsTable(context.Background(), event.ParticipantsTableQuery{EventID: eventID, Kind: participantRepo.KindAll, Search: "olena", HideEmails: true}); err != nil {
+		t.Fatalf("ListParticipantsTable: %v", err)
+	}
+	q.EXPECT().ListEventParticipantsDetailed(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, arg postgres.ListEventParticipantsDetailedParams) ([]postgres.ListEventParticipantsDetailedRow, error) {
+			if !arg.HideEmails {
+				t.Fatalf("participants list: HideEmails not passed: %+v", arg)
+			}
+			return nil, nil
+		})
+	q.EXPECT().CountEventParticipants(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, arg postgres.CountEventParticipantsParams) (int64, error) {
+			if !arg.HideEmails {
+				t.Fatalf("participants list count: HideEmails not passed: %+v", arg)
+			}
+			return 0, nil
+		})
+	if _, err := uc.ListParticipants(context.Background(), event.ListParticipantsFilter{EventID: eventID, Kind: participantRepo.KindAll, Search: "olena", HideEmails: true}); err != nil {
+		t.Fatalf("ListParticipants: %v", err)
+	}
+	q.EXPECT().ListEventTeamsTable(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, arg postgres.ListEventTeamsTableParams) ([]postgres.ListEventTeamsTableRow, error) {
+			if !arg.HideEmails {
+				t.Fatalf("teams table: HideEmails not passed: %+v", arg)
+			}
+			return nil, nil
+		})
+	q.EXPECT().CountEventTeamsTable(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, arg postgres.CountEventTeamsTableParams) (int64, error) {
+			if !arg.HideEmails {
+				t.Fatalf("teams count: HideEmails not passed: %+v", arg)
+			}
+			return 0, nil
+		})
+	if _, err := uc.ListTeamsTable(context.Background(), event.TeamsTableQuery{EventID: eventID, HideEmails: true}); err != nil {
+		t.Fatalf("ListTeamsTable: %v", err)
+	}
+}

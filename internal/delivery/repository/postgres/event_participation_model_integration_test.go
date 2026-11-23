@@ -112,7 +112,7 @@ func TestParticipationModel_NamesAdmissionAndTabs(t *testing.T) {
 	if err != nil || counts.Participants != 2 || counts.Applications != 0 || counts.Invitations != 1 {
 		t.Fatalf("tab counts = %+v, %v", counts, err)
 	}
-	invitations, err := participants.List(ctx, event.ID, -1, participantRepo.KindInvitations, "", nil, epCursorSentinelTime, epMaxUUID, 10)
+	invitations, err := participants.List(ctx, event.ID, -1, participantRepo.KindInvitations, "", nil, epCursorSentinelTime, epMaxUUID, 10, false)
 	if err != nil || len(invitations) != 1 || invitations[0].Participant.UserID != invitedID || invitations[0].Participant.InvitationSentAt != nil {
 		t.Fatalf("invitations tab = %+v, %v", invitations, err)
 	}

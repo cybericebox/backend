@@ -80,7 +80,11 @@ SELECT count(*)
 FROM event_teams
          CROSS JOIN LATERAL (SELECT event_teams.extra_fields || jsonb_build_object(
                                         '@name', event_teams.name,
-                                        '@captain', (SELECT btrim(captain.first_name || ' ' || captain.last_name || ' ' || captain.email)
+                                        -- An observer (hide_emails) filters and sorts by the address masked, as it is shown.
+                                        '@captain', (SELECT btrim(captain.first_name || ' ' || captain.last_name || ' ' ||
+                                                                  CASE WHEN $1::boolean
+                                                                           THEN event_mask_email(captain.email)
+                                                                       ELSE captain.email END)
                                                      FROM users captain
                                                      WHERE captain.id = event_teams.captain_id),
                                         '@captainPending', EXISTS (SELECT 1
@@ -104,21 +108,27 @@ FROM event_teams
                                                               AND invitee.invited
                                                               AND invitee.status = 1
                                                               AND invitee.invited_team_id = event_teams.id)) AS doc) listed
-WHERE event_teams.event_id = $1
+WHERE event_teams.event_id = $2
   AND NOT event_teams.moderators
-  AND ($2::text = '' OR event_teams.name ILIKE '%' || $2::text || '%')
-  AND event_answers_match_all(listed.doc, $3::jsonb)
+  AND ($3::text = '' OR event_teams.name ILIKE '%' || $3::text || '%')
+  AND event_answers_match_all(listed.doc, $4::jsonb)
 `
 
 type CountEventTeamsTableParams struct {
-	EventID uuid.UUID `json:"event_id"`
-	Search  string    `json:"search"`
-	Filters []byte    `json:"filters"`
+	HideEmails bool      `json:"hide_emails"`
+	EventID    uuid.UUID `json:"event_id"`
+	Search     string    `json:"search"`
+	Filters    []byte    `json:"filters"`
 }
 
 // Mirrors ListEventTeamsTable's filters.
 func (q *Queries) CountEventTeamsTable(ctx context.Context, arg CountEventTeamsTableParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countEventTeamsTable, arg.EventID, arg.Search, arg.Filters)
+	row := q.db.QueryRow(ctx, countEventTeamsTable,
+		arg.HideEmails,
+		arg.EventID,
+		arg.Search,
+		arg.Filters,
+	)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -600,7 +610,11 @@ SELECT event_teams.id, event_teams.event_id, event_teams.name, event_teams.join_
 FROM event_teams
          CROSS JOIN LATERAL (SELECT event_teams.extra_fields || jsonb_build_object(
                                         '@name', event_teams.name,
-                                        '@captain', (SELECT btrim(captain.first_name || ' ' || captain.last_name || ' ' || captain.email)
+                                        -- An observer (hide_emails) filters and sorts by the address masked, as it is shown.
+                                        '@captain', (SELECT btrim(captain.first_name || ' ' || captain.last_name || ' ' ||
+                                                                  CASE WHEN $1::boolean
+                                                                           THEN event_mask_email(captain.email)
+                                                                       ELSE captain.email END)
                                                      FROM users captain
                                                      WHERE captain.id = event_teams.captain_id),
                                         '@captainPending', EXISTS (SELECT 1
@@ -624,24 +638,25 @@ FROM event_teams
                                                               AND invitee.invited
                                                               AND invitee.status = 1
                                                               AND invitee.invited_team_id = event_teams.id)) AS doc) listed
-WHERE event_teams.event_id = $1
+WHERE event_teams.event_id = $2
   AND NOT event_teams.moderators
-  AND ($2::text = '' OR event_teams.name ILIKE '%' || $2::text || '%')
-  AND event_answers_match_all(listed.doc, $3::jsonb)
-ORDER BY CASE WHEN $4::text = 'asc' THEN event_list_sort_value(listed.doc, $5::text) END ASC NULLS LAST,
-         CASE WHEN $4::text = 'desc' THEN event_list_sort_value(listed.doc, $5::text) END DESC NULLS LAST,
+  AND ($3::text = '' OR event_teams.name ILIKE '%' || $3::text || '%')
+  AND event_answers_match_all(listed.doc, $4::jsonb)
+ORDER BY CASE WHEN $5::text = 'asc' THEN event_list_sort_value(listed.doc, $6::text) END ASC NULLS LAST,
+         CASE WHEN $5::text = 'desc' THEN event_list_sort_value(listed.doc, $6::text) END DESC NULLS LAST,
          event_teams.created_at DESC, event_teams.id DESC
-LIMIT $7 OFFSET $6
+LIMIT $8 OFFSET $7
 `
 
 type ListEventTeamsTableParams struct {
-	EventID   uuid.UUID `json:"event_id"`
-	Search    string    `json:"search"`
-	Filters   []byte    `json:"filters"`
-	SortDir   string    `json:"sort_dir"`
-	SortKey   string    `json:"sort_key"`
-	OffsetVal int32     `json:"offset_val"`
-	LimitVal  int32     `json:"limit_val"`
+	HideEmails bool      `json:"hide_emails"`
+	EventID    uuid.UUID `json:"event_id"`
+	Search     string    `json:"search"`
+	Filters    []byte    `json:"filters"`
+	SortDir    string    `json:"sort_dir"`
+	SortKey    string    `json:"sort_key"`
+	OffsetVal  int32     `json:"offset_val"`
+	LimitVal   int32     `json:"limit_val"`
 }
 
 type ListEventTeamsTableRow struct {
@@ -654,6 +669,7 @@ type ListEventTeamsTableRow struct {
 // "@members", "@status", …) over its extra field answers.
 func (q *Queries) ListEventTeamsTable(ctx context.Context, arg ListEventTeamsTableParams) ([]ListEventTeamsTableRow, error) {
 	rows, err := q.db.Query(ctx, listEventTeamsTable,
+		arg.HideEmails,
 		arg.EventID,
 		arg.Search,
 		arg.Filters,

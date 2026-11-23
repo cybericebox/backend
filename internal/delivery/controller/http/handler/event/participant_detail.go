@@ -57,9 +57,8 @@ func (h *Handler) getParticipantDetail(ctx *gin.Context) {
 		return
 	}
 	out := toParticipantDetailResponse(v)
-	private, err := middleware.SeesEventPersonalData(ctx, eventID, h.useCase.RequireManageEvent)
-	if err != nil {
-		response.AbortWithError(ctx, err)
+	private, ok := h.seesPersonalData(ctx, eventID)
+	if !ok {
 		return
 	}
 	if !private {
@@ -68,18 +67,38 @@ func (h *Handler) getParticipantDetail(ctx *gin.Context) {
 	response.AbortWithData(ctx, out)
 }
 
-// maskParticipantEmails masks the participants' addresses for a caller who does not see the event's personal data
-// in full (a read-only moderator; owner decision 2026-10-19, as in mail and broadcasts). false: the error is sent.
-func (h *Handler) maskParticipantEmails(ctx *gin.Context, eventID uuid.UUID, items []participantResponse) bool {
+// seesPersonalData tells whether the caller sees the participants' addresses in full (owner decision 2026-10-19,
+// as in mail and broadcasts): a read-only moderator gets them masked. ok false: the error is sent.
+func (h *Handler) seesPersonalData(ctx *gin.Context, eventID uuid.UUID) (private, ok bool) {
 	private, err := middleware.SeesEventPersonalData(ctx, eventID, h.useCase.RequireManageEvent)
 	if err != nil {
 		response.AbortWithError(ctx, err)
-		return false
+		return false, false
 	}
-	if !private {
-		for i := range items {
-			items[i].Email = dispatchModel.MaskEmail(items[i].Email)
+	return private, true
+}
+
+// maskParticipantEmails masks the participants' addresses for a caller who does not see them in full.
+func maskParticipantEmails(private bool, items []participantResponse) {
+	if private {
+		return
+	}
+	for i := range items {
+		items[i].Email = dispatchModel.MaskEmail(items[i].Email)
+	}
+}
+
+// maskTeamEmails masks the members' and invitees' addresses of the teams for a caller who does not see them in full.
+func maskTeamEmails(private bool, teams []teamResponse) {
+	if private {
+		return
+	}
+	for i := range teams {
+		for j := range teams[i].Members {
+			teams[i].Members[j].Email = dispatchModel.MaskEmail(teams[i].Members[j].Email)
+		}
+		for j := range teams[i].PendingInvitations {
+			teams[i].PendingInvitations[j].Email = dispatchModel.MaskEmail(teams[i].PendingInvitations[j].Email)
 		}
 	}
-	return true
 }

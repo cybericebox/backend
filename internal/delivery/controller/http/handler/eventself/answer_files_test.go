@@ -1,8 +1,10 @@
 package eventself
 
 import (
+	"bytes"
 	"errors"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -58,5 +60,32 @@ func TestDownloadAnswerFileHidesForeignFiles(t *testing.T) {
 	got, ok := ctx.Get(response.ErrorCtxKey)
 	if !ok || !errors.Is(got.(error), eventModel.ErrAnswerFileNotFound.Err()) || w.Body.Len() != 0 {
 		t.Fatalf("a file of someone else must look missing: %v %q", got, w.Body.String())
+	}
+}
+
+// Uploads are rate limited per user, as the email preview is: each one is stored before an answer uses it.
+func TestUploadAnswerFileIsRateLimitedPerUser(t *testing.T) {
+	router := participantPagesRouter(NewEventSelfAPIHandler(fakeUseCase{}, allowAllProtection{}), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()))
+	upload := func() int {
+		var body bytes.Buffer
+		form := multipart.NewWriter(&body)
+		part, _ := form.CreateFormFile("file", "cv.pdf")
+		_, _ = part.Write([]byte("%PDF-1.7\n"))
+		_ = form.WriteField("scope", "participant")
+		_ = form.WriteField("field", "cv")
+		_ = form.Close()
+		request := httptest.NewRequest(http.MethodPost, "/api/events/self/answer-files", &body)
+		request.Header.Set("Content-Type", form.FormDataContentType())
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, request)
+		return w.Code
+	}
+	for i := range answerFileUploadsPerMinute {
+		if code := upload(); code != http.StatusOK {
+			t.Fatalf("upload %d: status=%d", i+1, code)
+		}
+	}
+	if code := upload(); code != http.StatusTooManyRequests {
+		t.Fatalf("over the limit: status=%d want 429", code)
 	}
 }

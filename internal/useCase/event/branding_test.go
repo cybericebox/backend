@@ -35,6 +35,13 @@ type brandMediaFake struct {
 	contentRefs map[uuid.UUID][]uuid.UUID
 	mime        string
 	blob        []byte
+	discarded   []uuid.UUID
+	discardErr  error
+}
+
+func (m *brandMediaFake) DiscardFile(_ context.Context, id, _ uuid.UUID) error {
+	m.discarded = append(m.discarded, id)
+	return m.discardErr
 }
 
 func (m *brandMediaFake) UploadPublicImage(ctx context.Context, _, name, contentType string, r io.Reader, by uuid.UUID) (mediaModel.File, error) {

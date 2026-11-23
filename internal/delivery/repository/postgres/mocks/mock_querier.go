@@ -4789,6 +4789,21 @@ func (mr *MockQuerierMockRecorder) GetEventAnswerFile(ctx, fileID any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEventAnswerFile", reflect.TypeOf((*MockQuerier)(nil).GetEventAnswerFile), ctx, fileID)
 }
 
+// GetEventAnswerFileUsage mocks base method.
+func (m *MockQuerier) GetEventAnswerFileUsage(ctx context.Context, arg postgres.GetEventAnswerFileUsageParams) (postgres.GetEventAnswerFileUsageRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetEventAnswerFileUsage", ctx, arg)
+	ret0, _ := ret[0].(postgres.GetEventAnswerFileUsageRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetEventAnswerFileUsage indicates an expected call of GetEventAnswerFileUsage.
+func (mr *MockQuerierMockRecorder) GetEventAnswerFileUsage(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEventAnswerFileUsage", reflect.TypeOf((*MockQuerier)(nil).GetEventAnswerFileUsage), ctx, arg)
+}
+
 // GetEventAssistantStatsMode mocks base method.
 func (m *MockQuerier) GetEventAssistantStatsMode(ctx context.Context, eventID uuid.UUID) (int16, error) {
 	m.ctrl.T.Helper()
@@ -12443,6 +12458,20 @@ func (m *MockQuerier) LockErrorNotification(ctx context.Context, id uuid.UUID) (
 func (mr *MockQuerierMockRecorder) LockErrorNotification(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockErrorNotification", reflect.TypeOf((*MockQuerier)(nil).LockErrorNotification), ctx, id)
+}
+
+// LockEventAnswerFileUploads mocks base method.
+func (m *MockQuerier) LockEventAnswerFileUploads(ctx context.Context, uploadedBy uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LockEventAnswerFileUploads", ctx, uploadedBy)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// LockEventAnswerFileUploads indicates an expected call of LockEventAnswerFileUploads.
+func (mr *MockQuerierMockRecorder) LockEventAnswerFileUploads(ctx, uploadedBy any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockEventAnswerFileUploads", reflect.TypeOf((*MockQuerier)(nil).LockEventAnswerFileUploads), ctx, uploadedBy)
 }
 
 // LockEventConfigForLabSizing mocks base method.

@@ -27,6 +27,7 @@ import (
 	eventStandModel "github.com/cybericebox/backend/internal/model/eventStand"
 	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 	mediaModel "github.com/cybericebox/backend/internal/model/media"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
 	emailModel "github.com/cybericebox/backend/internal/model/notification/email"
 	inAppModel "github.com/cybericebox/backend/internal/model/notification/inapp"
 	participantModel "github.com/cybericebox/backend/internal/model/participant"
@@ -1129,8 +1130,12 @@ func (h *Handler) listTeams(ctx *gin.Context) {
 		response.AbortWithBadRequest(ctx, err)
 		return
 	}
+	private, ok := h.seesPersonalData(ctx, id)
+	if !ok {
+		return
+	}
 	if ctx.Query("page") != "" {
-		h.listTeamsTable(ctx, id, search, fields)
+		h.listTeamsTable(ctx, id, search, fields, private)
 		return
 	}
 	res, err := h.useCase.ListTeams(ctx, eventUseCase.ListTeamsFilter{EventID: id, Search: search, Admitted: admitted, Fields: fields, Cursor: page.Cursor, PageSize: page.PageSize})
@@ -1142,6 +1147,7 @@ func (h *Handler) listTeams(ctx *gin.Context) {
 	for _, team := range res.Teams {
 		items = append(items, toTeamResponse(team))
 	}
+	maskTeamEmails(private, items)
 	response.AbortWithData(ctx, pagination.NewCursorPage(items, res.HasMore, res.NextCursor, res.Total))
 }
 
@@ -1243,9 +1249,17 @@ func (h *Handler) listParticipantFormAnswers(ctx *gin.Context) {
 		response.AbortWithError(ctx, err)
 		return
 	}
+	private, ok := h.seesPersonalData(ctx, id)
+	if !ok {
+		return
+	}
 	out := make([]participantFormAnswerResponse, 0, len(values))
 	for _, value := range values {
-		out = append(out, toParticipantFormAnswerResponse(value))
+		item := toParticipantFormAnswerResponse(value)
+		if !private {
+			item.Email = dispatchModel.MaskEmail(item.Email)
+		}
+		out = append(out, item)
 	}
 	response.AbortWithData(ctx, out)
 }
@@ -1378,6 +1392,15 @@ func (h *Handler) listFormAnswers(ctx *gin.Context) {
 	if err != nil {
 		response.AbortWithError(ctx, err)
 		return
+	}
+	private, ok := h.seesPersonalData(ctx, id)
+	if !ok {
+		return
+	}
+	if !private {
+		for i := range values {
+			values[i].Email = dispatchModel.MaskEmail(values[i].Email)
+		}
 	}
 	response.AbortWithData(ctx, values)
 }
@@ -2010,18 +2033,23 @@ func (h *Handler) listParticipants(ctx *gin.Context) {
 		response.AbortWithBadRequest(ctx, err)
 		return
 	}
+	private, ok := h.seesPersonalData(ctx, id)
+	if !ok {
+		return
+	}
 	if ctx.Query("page") != "" {
-		h.listParticipantsTable(ctx, id, status, kind, search, fields)
+		h.listParticipantsTable(ctx, id, status, kind, search, fields, private)
 		return
 	}
 	res, err := h.useCase.ListParticipants(ctx, eventUseCase.ListParticipantsFilter{
-		EventID:  id,
-		Status:   status,
-		Kind:     kind,
-		Search:   search,
-		Fields:   fields,
-		Cursor:   page.Cursor,
-		PageSize: page.PageSize,
+		EventID:    id,
+		Status:     status,
+		Kind:       kind,
+		Search:     search,
+		Fields:     fields,
+		Cursor:     page.Cursor,
+		PageSize:   page.PageSize,
+		HideEmails: !private,
 	})
 	if err != nil {
 		response.AbortWithError(ctx, err)
@@ -2031,9 +2059,7 @@ func (h *Handler) listParticipants(ctx *gin.Context) {
 	for _, p := range res.Participants {
 		items = append(items, toParticipantResponse(p))
 	}
-	if !h.maskParticipantEmails(ctx, id, items) {
-		return
-	}
+	maskParticipantEmails(private, items)
 	response.AbortWithData(ctx, participantsPageResponse{
 		CursorPage: pagination.NewCursorPage(items, res.HasMore, res.NextCursor, res.Total),
 		Counts:     participantCountsResponse{Participants: res.Counts.Participants, Applications: res.Counts.Applications, Invitations: res.Counts.Invitations},

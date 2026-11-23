@@ -117,12 +117,13 @@ WHERE participant.event_id = $1::uuid
     OR ($3::text = 'applications' AND NOT participant.invited AND participant.status IN (1, 3))
     OR ($3::text = 'invitations' AND participant.invited AND participant.status = 1))
   AND ($4::text = ''
-    OR person.email ILIKE '%' || $4::text || '%'
+    -- An observer (hide_emails) does not see the addresses in full, so does not find people by them.
+    OR (NOT $5::boolean AND person.email ILIKE '%' || $4::text || '%')
     OR (NOT (participant.invited AND participant.status = 1)
         AND (person.first_name || ' ' || person.last_name) ILIKE '%' || $4::text || '%')
     OR COALESCE(participant.pseudonym, '') ILIKE '%' || $4::text || '%')
-  AND (jsonb_array_length($5::jsonb) = 0
-    OR event_answers_match_all(event_registration_answers(participant.event_id, participant.user_id), $5::jsonb))
+  AND (jsonb_array_length($6::jsonb) = 0
+    OR event_answers_match_all(event_registration_answers(participant.event_id, participant.user_id), $6::jsonb))
 `
 
 type CountEventParticipantsParams struct {
@@ -130,6 +131,7 @@ type CountEventParticipantsParams struct {
 	StatusFilter int32     `json:"status_filter"`
 	Kind         string    `json:"kind"`
 	Search       string    `json:"search"`
+	HideEmails   bool      `json:"hide_emails"`
 	FieldFilters []byte    `json:"field_filters"`
 }
 
@@ -140,6 +142,7 @@ func (q *Queries) CountEventParticipants(ctx context.Context, arg CountEventPart
 		arg.StatusFilter,
 		arg.Kind,
 		arg.Search,
+		arg.HideEmails,
 		arg.FieldFilters,
 	)
 	var count int64
@@ -155,18 +158,24 @@ FROM event_participants participant
          LEFT JOIN event_teams invited_team ON invited_team.id = participant.invited_team_id
          LEFT JOIN event_participant_presence presence ON presence.event_id = participant.event_id AND presence.user_id = participant.user_id
          CROSS JOIN LATERAL (SELECT event_user_last_lab_at(participant.event_id, participant.user_id) AS at) lab
+         -- The address as the caller sees it: masked like dispatch.MaskEmail for an observer (hide_emails), so the
+         -- columns that hold it filter and sort by what the screen shows.
          CROSS JOIN LATERAL (SELECT CASE
                                         WHEN $1::boolean
+                                            THEN event_mask_email(person.email)
+                                        ELSE person.email END AS value) listed_email
+         CROSS JOIN LATERAL (SELECT CASE
+                                        WHEN $2::boolean
                                             THEN COALESCE(event_registration_answers(participant.event_id, participant.user_id), '{}'::jsonb)
                                         ELSE '{}'::jsonb END
                                     || jsonb_build_object(
                                         -- A pending invitation is known by the address the organizer typed only:
                                         -- the profile name of an invited account is not theirs to search or sort by.
-                                        '@name', CASE WHEN participant.invited AND participant.status = 1 THEN person.email
+                                        '@name', CASE WHEN participant.invited AND participant.status = 1 THEN listed_email.value
                                                       ELSE COALESCE(NULLIF(btrim(person.first_name || ' ' || person.last_name), ''),
                                                                     NULLIF(event_participant_public_name(participant.event_id, participant.user_id), ''),
-                                                                    person.email) END,
-                                        '@email', person.email,
+                                                                    listed_email.value) END,
+                                        '@email', listed_email.value,
                                         '@pseudonym', participant.pseudonym,
                                         '@status', participant.status::text,
                                         '@invitation', CASE WHEN participant.invitation_sent_at IS NULL THEN 'notSent' ELSE 'sent' END,
@@ -181,21 +190,23 @@ FROM event_participants participant
                                         '@date', participant.created_at,
                                         '@lastSeen', presence.last_seen_at,
                                         '@lastLab', lab.at) AS doc) listed
-WHERE participant.event_id = $2::uuid
-  AND ($3::int < 0 OR participant.status = $3::int)
-  AND ($4::text = ''
-    OR ($4::text = 'participants' AND participant.status = 2)
-    OR ($4::text = 'applications' AND NOT participant.invited AND participant.status IN (1, 3))
-    OR ($4::text = 'invitations' AND participant.invited AND participant.status = 1))
+WHERE participant.event_id = $3::uuid
+  AND ($4::int < 0 OR participant.status = $4::int)
   AND ($5::text = ''
-    OR person.email ILIKE '%' || $5::text || '%'
+    OR ($5::text = 'participants' AND participant.status = 2)
+    OR ($5::text = 'applications' AND NOT participant.invited AND participant.status IN (1, 3))
+    OR ($5::text = 'invitations' AND participant.invited AND participant.status = 1))
+  AND ($6::text = ''
+    -- An observer (hide_emails) does not see the addresses in full, so does not find people by them.
+    OR (NOT $1::boolean AND person.email ILIKE '%' || $6::text || '%')
     OR (NOT (participant.invited AND participant.status = 1)
-        AND (person.first_name || ' ' || person.last_name) ILIKE '%' || $5::text || '%')
-    OR COALESCE(participant.pseudonym, '') ILIKE '%' || $5::text || '%')
-  AND event_answers_match_all(listed.doc, $6::jsonb)
+        AND (person.first_name || ' ' || person.last_name) ILIKE '%' || $6::text || '%')
+    OR COALESCE(participant.pseudonym, '') ILIKE '%' || $6::text || '%')
+  AND event_answers_match_all(listed.doc, $7::jsonb)
 `
 
 type CountEventParticipantsTableParams struct {
+	HideEmails   bool      `json:"hide_emails"`
 	WithAnswers  bool      `json:"with_answers"`
 	EventID      uuid.UUID `json:"event_id"`
 	StatusFilter int32     `json:"status_filter"`
@@ -207,6 +218,7 @@ type CountEventParticipantsTableParams struct {
 // Mirrors ListEventParticipantsTable's filters.
 func (q *Queries) CountEventParticipantsTable(ctx context.Context, arg CountEventParticipantsTableParams) (int64, error) {
 	row := q.db.QueryRow(ctx, countEventParticipantsTable,
+		arg.HideEmails,
 		arg.WithAnswers,
 		arg.EventID,
 		arg.StatusFilter,
@@ -404,16 +416,17 @@ WHERE participant.event_id = $1::uuid
     OR ($3::text = 'applications' AND NOT participant.invited AND participant.status IN (1, 3))
     OR ($3::text = 'invitations' AND participant.invited AND participant.status = 1))
   AND ($4::text = ''
-    OR person.email ILIKE '%' || $4::text || '%'
+    -- An observer (hide_emails) does not see the addresses in full, so does not find people by them.
+    OR (NOT $5::boolean AND person.email ILIKE '%' || $4::text || '%')
     OR (NOT (participant.invited AND participant.status = 1)
         AND (person.first_name || ' ' || person.last_name) ILIKE '%' || $4::text || '%')
     OR COALESCE(participant.pseudonym, '') ILIKE '%' || $4::text || '%')
-  AND (jsonb_array_length($5::jsonb) = 0
-    OR event_answers_match_all(event_registration_answers(participant.event_id, participant.user_id), $5::jsonb))
+  AND (jsonb_array_length($6::jsonb) = 0
+    OR event_answers_match_all(event_registration_answers(participant.event_id, participant.user_id), $6::jsonb))
   AND (participant.created_at, participant.user_id) <
-      ($6::timestamptz, $7::uuid)
+      ($7::timestamptz, $8::uuid)
 ORDER BY participant.created_at DESC, participant.user_id DESC
-LIMIT $8
+LIMIT $9
 `
 
 type ListEventParticipantsDetailedParams struct {
@@ -421,6 +434,7 @@ type ListEventParticipantsDetailedParams struct {
 	StatusFilter    int32     `json:"status_filter"`
 	Kind            string    `json:"kind"`
 	Search          string    `json:"search"`
+	HideEmails      bool      `json:"hide_emails"`
 	FieldFilters    []byte    `json:"field_filters"`
 	CursorCreatedAt time.Time `json:"cursor_created_at"`
 	CursorID        uuid.UUID `json:"cursor_id"`
@@ -466,6 +480,7 @@ func (q *Queries) ListEventParticipantsDetailed(ctx context.Context, arg ListEve
 		arg.StatusFilter,
 		arg.Kind,
 		arg.Search,
+		arg.HideEmails,
 		arg.FieldFilters,
 		arg.CursorCreatedAt,
 		arg.CursorID,
@@ -532,18 +547,24 @@ FROM event_participants participant
          LEFT JOIN event_teams invited_team ON invited_team.id = participant.invited_team_id
          LEFT JOIN event_participant_presence presence ON presence.event_id = participant.event_id AND presence.user_id = participant.user_id
          CROSS JOIN LATERAL (SELECT event_user_last_lab_at(participant.event_id, participant.user_id) AS at) lab
+         -- The address as the caller sees it: masked like dispatch.MaskEmail for an observer (hide_emails), so the
+         -- columns that hold it filter and sort by what the screen shows.
          CROSS JOIN LATERAL (SELECT CASE
                                         WHEN $1::boolean
+                                            THEN event_mask_email(person.email)
+                                        ELSE person.email END AS value) listed_email
+         CROSS JOIN LATERAL (SELECT CASE
+                                        WHEN $2::boolean
                                             THEN COALESCE(event_registration_answers(participant.event_id, participant.user_id), '{}'::jsonb)
                                         ELSE '{}'::jsonb END
                                     || jsonb_build_object(
                                         -- A pending invitation is known by the address the organizer typed only:
                                         -- the profile name of an invited account is not theirs to search or sort by.
-                                        '@name', CASE WHEN participant.invited AND participant.status = 1 THEN person.email
+                                        '@name', CASE WHEN participant.invited AND participant.status = 1 THEN listed_email.value
                                                       ELSE COALESCE(NULLIF(btrim(person.first_name || ' ' || person.last_name), ''),
                                                                     NULLIF(event_participant_public_name(participant.event_id, participant.user_id), ''),
-                                                                    person.email) END,
-                                        '@email', person.email,
+                                                                    listed_email.value) END,
+                                        '@email', listed_email.value,
                                         '@pseudonym', participant.pseudonym,
                                         '@status', participant.status::text,
                                         '@invitation', CASE WHEN participant.invitation_sent_at IS NULL THEN 'notSent' ELSE 'sent' END,
@@ -558,25 +579,27 @@ FROM event_participants participant
                                         '@date', participant.created_at,
                                         '@lastSeen', presence.last_seen_at,
                                         '@lastLab', lab.at) AS doc) listed
-WHERE participant.event_id = $2::uuid
-  AND ($3::int < 0 OR participant.status = $3::int)
-  AND ($4::text = ''
-    OR ($4::text = 'participants' AND participant.status = 2)
-    OR ($4::text = 'applications' AND NOT participant.invited AND participant.status IN (1, 3))
-    OR ($4::text = 'invitations' AND participant.invited AND participant.status = 1))
+WHERE participant.event_id = $3::uuid
+  AND ($4::int < 0 OR participant.status = $4::int)
   AND ($5::text = ''
-    OR person.email ILIKE '%' || $5::text || '%'
+    OR ($5::text = 'participants' AND participant.status = 2)
+    OR ($5::text = 'applications' AND NOT participant.invited AND participant.status IN (1, 3))
+    OR ($5::text = 'invitations' AND participant.invited AND participant.status = 1))
+  AND ($6::text = ''
+    -- An observer (hide_emails) does not see the addresses in full, so does not find people by them.
+    OR (NOT $1::boolean AND person.email ILIKE '%' || $6::text || '%')
     OR (NOT (participant.invited AND participant.status = 1)
-        AND (person.first_name || ' ' || person.last_name) ILIKE '%' || $5::text || '%')
-    OR COALESCE(participant.pseudonym, '') ILIKE '%' || $5::text || '%')
-  AND event_answers_match_all(listed.doc, $6::jsonb)
-ORDER BY CASE WHEN $7::text = 'asc' THEN event_list_sort_value(listed.doc, $8::text) END ASC NULLS LAST,
-         CASE WHEN $7::text = 'desc' THEN event_list_sort_value(listed.doc, $8::text) END DESC NULLS LAST,
+        AND (person.first_name || ' ' || person.last_name) ILIKE '%' || $6::text || '%')
+    OR COALESCE(participant.pseudonym, '') ILIKE '%' || $6::text || '%')
+  AND event_answers_match_all(listed.doc, $7::jsonb)
+ORDER BY CASE WHEN $8::text = 'asc' THEN event_list_sort_value(listed.doc, $9::text) END ASC NULLS LAST,
+         CASE WHEN $8::text = 'desc' THEN event_list_sort_value(listed.doc, $9::text) END DESC NULLS LAST,
          participant.created_at DESC, participant.user_id DESC
-LIMIT $10 OFFSET $9
+LIMIT $11 OFFSET $10
 `
 
 type ListEventParticipantsTableParams struct {
+	HideEmails   bool      `json:"hide_emails"`
 	WithAnswers  bool      `json:"with_answers"`
 	EventID      uuid.UUID `json:"event_id"`
 	StatusFilter int32     `json:"status_filter"`
@@ -624,6 +647,7 @@ type ListEventParticipantsTableRow struct {
 // document key sorted by event_list_sort_value.
 func (q *Queries) ListEventParticipantsTable(ctx context.Context, arg ListEventParticipantsTableParams) ([]ListEventParticipantsTableRow, error) {
 	rows, err := q.db.Query(ctx, listEventParticipantsTable,
+		arg.HideEmails,
 		arg.WithAnswers,
 		arg.EventID,
 		arg.StatusFilter,
