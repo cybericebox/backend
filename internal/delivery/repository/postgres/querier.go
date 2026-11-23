@@ -2299,6 +2299,9 @@ type Querier interface {
 	SetInfrastructureAgentCapacity(ctx context.Context, arg SetInfrastructureAgentCapacityParams) (int64, error)
 	// A renewed client certificate with its new key (the tenant is the certificate CN and stays).
 	SetInfrastructureAgentCertificate(ctx context.Context, arg SetInfrastructureAgentCertificateParams) (int64, error)
+	// The same agent (and certificate) reached at a new address: the deployment config dials its Kubernetes
+	// Service instead of its public name, which stays the name its certificate is verified against.
+	SetInfrastructureAgentEndpoint(ctx context.Context, arg SetInfrastructureAgentEndpointParams) (int64, error)
 	// The last laboratory features the agent reported (JSON) and when they were read.
 	SetInfrastructureAgentFeatures(ctx context.Context, arg SetInfrastructureAgentFeaturesParams) (int64, error)
 	// The maintenance windows the agent last reported (JSON).

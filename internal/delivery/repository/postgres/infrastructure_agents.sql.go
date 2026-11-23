@@ -480,6 +480,30 @@ func (q *Queries) SetInfrastructureAgentCertificate(ctx context.Context, arg Set
 	return result.RowsAffected(), nil
 }
 
+const setInfrastructureAgentEndpoint = `-- name: SetInfrastructureAgentEndpoint :execrows
+UPDATE infrastructure_agents
+SET endpoint   = $1,
+    updated_at = $2
+WHERE id = $3
+  AND archived_at IS NULL
+`
+
+type SetInfrastructureAgentEndpointParams struct {
+	Endpoint  string    `json:"endpoint"`
+	UpdatedAt time.Time `json:"updated_at"`
+	ID        uuid.UUID `json:"id"`
+}
+
+// The same agent (and certificate) reached at a new address: the deployment config dials its Kubernetes
+// Service instead of its public name, which stays the name its certificate is verified against.
+func (q *Queries) SetInfrastructureAgentEndpoint(ctx context.Context, arg SetInfrastructureAgentEndpointParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setInfrastructureAgentEndpoint, arg.Endpoint, arg.UpdatedAt, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const setInfrastructureAgentFeatures = `-- name: SetInfrastructureAgentFeatures :execrows
 UPDATE infrastructure_agents
 SET features    = $1,

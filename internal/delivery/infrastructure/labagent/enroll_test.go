@@ -12,6 +12,7 @@ import (
 	"errors"
 	"math/big"
 	"net"
+	"sync"
 	"testing"
 	"time"
 
@@ -44,6 +45,14 @@ func (s *enrollServer) Enroll(_ context.Context, in *labpb.EnrollRequest) (*labp
 // startAgent serves with a certificate for 127.0.0.1 signed by a fresh CA; it returns the endpoint and the CA PEM.
 func startAgent(t *testing.T, srv labpb.LabManagerServer) (endpoint string, caPEM []byte) {
 	t.Helper()
+	endpoint, caPEM, _ = startAgentFor(t, srv, nil, []net.IP{net.ParseIP("127.0.0.1")})
+	return endpoint, caPEM
+}
+
+// startAgentFor serves on 127.0.0.1 with a certificate for exactly the given names and addresses, signed by a fresh
+// CA; it returns the endpoint, the CA PEM and a reader of the server name (SNI) of the last ClientHello.
+func startAgentFor(t *testing.T, srv labpb.LabManagerServer, dnsNames []string, ips []net.IP) (endpoint string, caPEM []byte, lastSNI func() string) {
+	t.Helper()
 	caKey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	caTpl := &x509.Certificate{SerialNumber: big.NewInt(1), Subject: pkix.Name{CommonName: "test-ca"}, NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(time.Hour), IsCA: true, BasicConstraintsValid: true, KeyUsage: x509.KeyUsageCertSign}
 	caDER, err := x509.CreateCertificate(rand.Reader, caTpl, caTpl, &caKey.PublicKey, caKey)
@@ -52,7 +61,7 @@ func startAgent(t *testing.T, srv labpb.LabManagerServer) (endpoint string, caPE
 	}
 	caCert, _ := x509.ParseCertificate(caDER)
 	leafKey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	leafTpl := &x509.Certificate{SerialNumber: big.NewInt(2), Subject: pkix.Name{CommonName: "agent"}, NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(time.Hour), IPAddresses: []net.IP{net.ParseIP("127.0.0.1")}, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}}
+	leafTpl := &x509.Certificate{SerialNumber: big.NewInt(2), Subject: pkix.Name{CommonName: "agent"}, NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(time.Hour), DNSNames: dnsNames, IPAddresses: ips, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}}
 	leafDER, err := x509.CreateCertificate(rand.Reader, leafTpl, caCert, &leafKey.PublicKey, caKey)
 	if err != nil {
 		t.Fatal(err)
@@ -61,17 +70,32 @@ func startAgent(t *testing.T, srv labpb.LabManagerServer) (endpoint string, caPE
 	if err != nil {
 		t.Fatal(err)
 	}
-	server := grpc.NewServer(grpc.Creds(credentials.NewTLS(&tls.Config{Certificates: []tls.Certificate{{Certificate: [][]byte{leafDER}, PrivateKey: leafKey}}, MinVersion: tls.VersionTLS12})))
+	var mu sync.Mutex
+	var sni string
+	server := grpc.NewServer(grpc.Creds(credentials.NewTLS(&tls.Config{
+		Certificates: []tls.Certificate{{Certificate: [][]byte{leafDER}, PrivateKey: leafKey}},
+		MinVersion:   tls.VersionTLS12,
+		GetConfigForClient: func(hello *tls.ClientHelloInfo) (*tls.Config, error) {
+			mu.Lock()
+			sni = hello.ServerName
+			mu.Unlock()
+			return nil, nil
+		},
+	})))
 	labpb.RegisterLabManagerServer(server, srv)
 	go func() { _ = server.Serve(listener) }()
 	t.Cleanup(server.Stop)
-	return listener.Addr().String(), pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: caDER})
+	return listener.Addr().String(), pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: caDER}), func() string {
+		mu.Lock()
+		defer mu.Unlock()
+		return sni
+	}
 }
 
 func TestEnrollSendsOnlyTheRequestAndThePublicKeyOverServerAuthTLS(t *testing.T) {
 	agent := &enrollServer{}
 	endpoint, ca := startAgent(t, agent)
-	cert, err := Enroll(context.Background(), endpoint, ca, "good-token", "CSR", "PUBKEY", "k-1")
+	cert, err := Enroll(context.Background(), endpoint, "", ca, "good-token", "CSR", "PUBKEY", "k-1")
 	if err != nil || cert == "" {
 		t.Fatalf("enroll = %q, %v", cert, err)
 	}
@@ -82,16 +106,16 @@ func TestEnrollSendsOnlyTheRequestAndThePublicKeyOverServerAuthTLS(t *testing.T)
 
 func TestEnrollMapsADeniedTokenAndRefusesAnUntrustedServer(t *testing.T) {
 	endpoint, ca := startAgent(t, &enrollServer{})
-	if _, err := Enroll(context.Background(), endpoint, ca, "used-token", "CSR", "PUB", "k"); !errors.Is(err, infraModel.ErrEnrollmentDenied) {
+	if _, err := Enroll(context.Background(), endpoint, "", ca, "used-token", "CSR", "PUB", "k"); !errors.Is(err, infraModel.ErrEnrollmentDenied) {
 		t.Fatalf("a refused token = %v, want ErrEnrollmentDenied", err)
 	}
 	// Without the CA the server certificate is not trusted: that is a failure, not a denied token.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if _, err := Enroll(ctx, endpoint, nil, "good-token", "CSR", "PUB", "k"); err == nil || errors.Is(err, infraModel.ErrEnrollmentDenied) {
+	if _, err := Enroll(ctx, endpoint, "", nil, "good-token", "CSR", "PUB", "k"); err == nil || errors.Is(err, infraModel.ErrEnrollmentDenied) {
 		t.Fatalf("an untrusted server certificate = %v", err)
 	}
-	if _, err := Enroll(context.Background(), endpoint, []byte("junk"), "t", "CSR", "PUB", "k"); err == nil {
+	if _, err := Enroll(context.Background(), endpoint, "", []byte("junk"), "t", "CSR", "PUB", "k"); err == nil {
 		t.Fatal("a junk CA must be refused")
 	}
 }

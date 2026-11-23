@@ -13,7 +13,7 @@ import (
 
 // agentBootstrapper is the part of the agents use case the startup needs.
 type agentBootstrapper interface {
-	BootstrapAgent(ctx context.Context, in infraModel.AgentEnrollment) (bool, error)
+	BootstrapAgent(ctx context.Context, in infraModel.AgentEnrollment) (infraModel.AgentBootstrapResult, error)
 }
 
 // bootstrapAgent enrolls the agent named by AGENT_ENDPOINT with AGENT_ENROLLMENT_TOKEN when no live agent
@@ -34,13 +34,15 @@ func bootstrapAgent(ctx context.Context, cfg config.AgentConfig, agents agentBoo
 		ca = string(raw)
 	}
 	enrolled, err := agents.BootstrapAgent(ctx, infraModel.AgentEnrollment{
-		Name: cfg.Name, Endpoint: cfg.Endpoint, Token: cfg.EnrollmentToken, CAPEM: ca, Enabled: true, Priority: 100,
+		Name: cfg.Name, Endpoint: cfg.Endpoint, ServerName: cfg.ServerName, Token: cfg.EnrollmentToken, CAPEM: ca, Enabled: true, Priority: 100,
 	})
 	switch {
 	case err != nil:
 		log.Error().Err(err).Str("endpoint", cfg.Endpoint).Msg("Agent bootstrap failed: check AGENT_ENROLLMENT_TOKEN (one-time, expires) and the endpoint; the daemon starts without this agent, add it in the admin")
-	case enrolled:
+	case enrolled == infraModel.AgentBootstrapEnrolled:
 		log.Info().Str("endpoint", cfg.Endpoint).Msg("Infrastructure agent enrolled from the configuration")
+	case enrolled == infraModel.AgentBootstrapAdopted:
+		log.Info().Str("endpoint", cfg.Endpoint).Str("server_name", cfg.ServerName).Msg("Infrastructure agent moved to the configured endpoint (adopted at AGENT_SERVER_NAME, no enrollment)")
 	case strings.TrimSpace(cfg.EnrollmentToken) != "":
 		log.Warn().Str("endpoint", cfg.Endpoint).Msg("AGENT_ENROLLMENT_TOKEN is ignored: the agent is already enrolled; remove the token from the configuration")
 	}

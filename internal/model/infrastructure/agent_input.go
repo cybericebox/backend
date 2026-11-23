@@ -24,7 +24,24 @@ type AgentEnrollment struct {
 	CAPEM    string
 	Enabled  bool
 	Priority int
+	// ServerName is the name the agent's certificate is verified against (AGENT_SERVER_NAME), for the agent of
+	// the deployment config only; empty means the host of Endpoint.
+	ServerName string
 }
+
+// AgentBootstrapResult is what BootstrapAgent did with the agent of the deployment config.
+type AgentBootstrapResult string
+
+const (
+	// AgentBootstrapNone: no agent is configured, or the enrollment failed.
+	AgentBootstrapNone AgentBootstrapResult = ""
+	// AgentBootstrapPresent: an agent with the configured endpoint is stored already.
+	AgentBootstrapPresent AgentBootstrapResult = "present"
+	// AgentBootstrapEnrolled: the agent was enrolled with the one-time token.
+	AgentBootstrapEnrolled AgentBootstrapResult = "enrolled"
+	// AgentBootstrapAdopted: the stored agent at the server name was moved to the configured endpoint.
+	AgentBootstrapAdopted AgentBootstrapResult = "adopted"
+)
 
 // Normalize trims and validates the form.
 func (in AgentEnrollment) Normalize() (AgentEnrollment, error) {
@@ -32,6 +49,7 @@ func (in AgentEnrollment) Normalize() (AgentEnrollment, error) {
 	in.Endpoint = strings.TrimSpace(in.Endpoint)
 	in.Token = strings.TrimSpace(in.Token)
 	in.CAPEM = strings.TrimSpace(in.CAPEM)
+	in.ServerName = strings.ToLower(strings.TrimSpace(in.ServerName))
 	bad := func(msg string) (AgentEnrollment, error) { return in, ErrAgentInvalid.WithMessage(msg).Err() }
 	switch {
 	case in.Name == "" || len([]rune(in.Name)) > maxAgentNameLength:

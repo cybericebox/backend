@@ -33,6 +33,9 @@ func (q *queryStub) UpdateInfrastructureAgent(context.Context, postgres.UpdateIn
 func (q *queryStub) DeleteInfrastructureAgent(context.Context, uuid.UUID) (int64, error) {
 	return 1, nil
 }
+func (q *queryStub) SetInfrastructureAgentEndpoint(context.Context, postgres.SetInfrastructureAgentEndpointParams) (int64, error) {
+	return 1, nil
+}
 func (q *queryStub) SetInfrastructureAgentCertificate(context.Context, postgres.SetInfrastructureAgentCertificateParams) (int64, error) {
 	return 1, nil
 }

@@ -123,6 +123,15 @@ func (m *memAgents) Update(_ context.Context, a infraModel.AgentRecord) (bool, e
 	m.records[a.ID] = old
 	return true, nil
 }
+func (m *memAgents) SetEndpoint(_ context.Context, id uuid.UUID, endpoint string, now time.Time) (bool, error) {
+	r, ok := m.records[id]
+	if !ok || r.ArchivedAt != nil {
+		return false, nil
+	}
+	r.Endpoint, r.UpdatedAt = endpoint, now
+	m.records[id] = r
+	return true, nil
+}
 func (m *memAgents) SetCertificate(_ context.Context, id uuid.UUID, certPEM, keyCT, tenant string, notAfter, now time.Time) (bool, error) {
 	r, ok := m.records[id]
 	if !ok {
@@ -489,7 +498,7 @@ func TestListAgentsOrdersByPriorityAndShowsHowEachWasAdded(t *testing.T) {
 		t.Fatal(err)
 	}
 	bootstrapped, err := f.uc.BootstrapAgent(ctx, enrollForm("a", 10))
-	if err != nil || !bootstrapped {
+	if err != nil || bootstrapped != infraModel.AgentBootstrapEnrolled {
 		t.Fatalf("bootstrap = %v, %v", bootstrapped, err)
 	}
 	var first, second uuid.UUID
@@ -518,11 +527,11 @@ func TestBootstrapAgentEnrollsOnceAndThenIgnoresTheToken(t *testing.T) {
 	ctx := context.Background()
 	f := newAgentsFixture(t, boundSealer{})
 	in := enrollForm("default", 100)
-	if enrolled, err := f.uc.BootstrapAgent(ctx, infraModel.AgentEnrollment{}); err != nil || enrolled {
+	if enrolled, err := f.uc.BootstrapAgent(ctx, infraModel.AgentEnrollment{}); err != nil || enrolled != infraModel.AgentBootstrapNone {
 		t.Fatalf("no endpoint is nothing to do: %v %v", enrolled, err)
 	}
 	enrolled, err := f.uc.BootstrapAgent(ctx, in)
-	if err != nil || !enrolled || len(f.store.records) != 1 || f.fleet.reloads != 1 {
+	if err != nil || enrolled != infraModel.AgentBootstrapEnrolled || len(f.store.records) != 1 || f.fleet.reloads != 1 {
 		t.Fatalf("first start: %v %v records=%d reloads=%d", enrolled, err, len(f.store.records), f.fleet.reloads)
 	}
 	var stored infraModel.AgentRecord
@@ -535,7 +544,7 @@ func TestBootstrapAgentEnrollsOnceAndThenIgnoresTheToken(t *testing.T) {
 	// The next start: the agent exists, the (spent) token is not used again.
 	f.remote.denyToken = true
 	enrolled, err = f.uc.BootstrapAgent(ctx, in)
-	if err != nil || enrolled || len(f.store.records) != 1 {
+	if err != nil || enrolled != infraModel.AgentBootstrapPresent || len(f.store.records) != 1 {
 		t.Fatalf("second start: %v %v records=%d", enrolled, err, len(f.store.records))
 	}
 	// A deleted (archived) agent is gone: the endpoint is enrolled again when the config still names it.
@@ -543,7 +552,7 @@ func TestBootstrapAgentEnrollsOnceAndThenIgnoresTheToken(t *testing.T) {
 	if err = f.uc.DeleteAgent(ctx, stored.ID, false); err != nil {
 		t.Fatal(err)
 	}
-	if enrolled, err = f.uc.BootstrapAgent(ctx, in); err != nil || !enrolled || len(f.store.records) != 2 {
+	if enrolled, err = f.uc.BootstrapAgent(ctx, in); err != nil || enrolled != infraModel.AgentBootstrapEnrolled || len(f.store.records) != 2 {
 		t.Fatalf("after a delete: %v %v records=%d", enrolled, err, len(f.store.records))
 	}
 }
@@ -552,13 +561,99 @@ func TestBootstrapAgentFailureIsReportedNotFatal(t *testing.T) {
 	ctx := context.Background()
 	f := newAgentsFixture(t, boundSealer{})
 	f.remote.denyToken = true
-	if enrolled, err := f.uc.BootstrapAgent(ctx, enrollForm("default", 100)); enrolled || !errors.Is(err, infraModel.ErrAgentEnrollmentRejected.Err()) || len(f.store.records) != 0 {
+	if enrolled, err := f.uc.BootstrapAgent(ctx, enrollForm("default", 100)); enrolled != infraModel.AgentBootstrapNone || !errors.Is(err, infraModel.ErrAgentEnrollmentRejected.Err()) || len(f.store.records) != 0 {
 		t.Fatalf("a used token: %v %v", enrolled, err)
 	}
 	noToken := enrollForm("default", 100)
 	noToken.Token = ""
 	if _, err := f.uc.BootstrapAgent(ctx, noToken); !errors.Is(err, infraModel.ErrAgentInvalid.Err()) {
 		t.Fatalf("no token: %v", err)
+	}
+}
+
+// The agent was enrolled at its public name; the deployment now dials its Service and verifies the public name
+// (AGENT_SERVER_NAME). The stored agent is moved to the new address in place: no enrollment, no token.
+func TestBootstrapAgentAdoptsTheStoredAgentAtItsServerName(t *testing.T) {
+	ctx := context.Background()
+	service := "laboratory-agent.laboratory-agent.svc:5454"
+	for name, tc := range map[string]struct{ source string }{
+		"the env agent":                     {infraModel.AgentSourceEnv},
+		"an admin agent at the server name": {infraModel.AgentSourceAdmin},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newAgentsFixture(t, boundSealer{})
+			public := infraModel.AgentEnrollment{Name: "default", Endpoint: "ctl.example.com:5454", Token: "one-time-token", Enabled: true, Priority: 100}
+			var err error
+			if tc.source == infraModel.AgentSourceEnv {
+				_, err = f.uc.BootstrapAgent(ctx, public)
+			} else {
+				_, err = f.uc.EnrollAgent(ctx, public)
+			}
+			if err != nil || len(f.store.records) != 1 {
+				t.Fatalf("setup: %v records=%d", err, len(f.store.records))
+			}
+			var before infraModel.AgentRecord
+			for _, r := range f.store.records {
+				before = r
+			}
+			reloads := f.fleet.reloads
+			f.remote.denyToken = true // any enrollment would fail
+			got, err := f.uc.BootstrapAgent(ctx, infraModel.AgentEnrollment{Name: "default", Endpoint: service, ServerName: "CTL.Example.com", Enabled: true, Priority: 100})
+			if err != nil || got != infraModel.AgentBootstrapAdopted {
+				t.Fatalf("bootstrap = %v, %v", got, err)
+			}
+			after := f.store.records[before.ID]
+			if len(f.store.records) != 1 || after.Endpoint != service || after.Tenant != before.Tenant || after.CertPEM != before.CertPEM || after.Source != before.Source {
+				t.Fatalf("adopted = %+v", after.AgentRegistration)
+			}
+			if f.fleet.reloads != reloads+1 {
+				t.Fatalf("reloads = %d, want %d", f.fleet.reloads, reloads+1)
+			}
+			// The next start finds the agent at its new address.
+			if got, err = f.uc.BootstrapAgent(ctx, infraModel.AgentEnrollment{Name: "default", Endpoint: service, ServerName: "ctl.example.com"}); err != nil || got != infraModel.AgentBootstrapPresent {
+				t.Fatalf("next start = %v, %v", got, err)
+			}
+		})
+	}
+}
+
+func TestBootstrapAgentAdoptsNothingThatDoesNotMatchTheServerName(t *testing.T) {
+	ctx := context.Background()
+	service := "laboratory-agent.laboratory-agent.svc:5454"
+	for name, tc := range map[string]struct {
+		stored     infraModel.AgentEnrollment
+		admin      bool
+		serverName string
+	}{
+		"the host differs":       {stored: infraModel.AgentEnrollment{Name: "default", Endpoint: "ctl.example.com:5454"}, serverName: "ctl.other.com"},
+		"the port differs":       {stored: infraModel.AgentEnrollment{Name: "default", Endpoint: "ctl.example.com:443"}, serverName: "ctl.example.com"},
+		"no server name":         {stored: infraModel.AgentEnrollment{Name: "default", Endpoint: "ctl.example.com:5454"}},
+		"an admin agent by name": {stored: infraModel.AgentEnrollment{Name: "default", Endpoint: "eu.example.com:5454"}, admin: true, serverName: "ctl.example.com"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newAgentsFixture(t, boundSealer{})
+			in := tc.stored
+			in.Token, in.Enabled, in.Priority = "one-time-token", true, 100
+			var err error
+			if tc.admin {
+				_, err = f.uc.EnrollAgent(ctx, in)
+			} else {
+				_, err = f.uc.BootstrapAgent(ctx, in)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			f.remote.denyToken = true
+			got, err := f.uc.BootstrapAgent(ctx, infraModel.AgentEnrollment{Name: "default", Endpoint: service, ServerName: tc.serverName, Token: "spent-token", Enabled: true, Priority: 100})
+			if got == infraModel.AgentBootstrapAdopted || !errors.Is(err, infraModel.ErrAgentEnrollmentRejected.Err()) {
+				t.Fatalf("bootstrap = %v, %v: nothing to adopt, so it enrolls (and the spent token fails)", got, err)
+			}
+			for _, r := range f.store.records {
+				if r.Endpoint != tc.stored.Endpoint {
+					t.Fatalf("the stored agent moved to %q", r.Endpoint)
+				}
+			}
+		})
 	}
 }
 

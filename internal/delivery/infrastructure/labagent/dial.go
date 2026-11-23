@@ -15,8 +15,12 @@ import (
 // Connection describes an agent whose mutual-TLS material is held in memory (the admin-configured
 // agents keep it encrypted in the database), unlike the files of the environment-configured one.
 type Connection struct {
-	// Endpoint is host:443 of the agent. Dial it by its certificate hostname.
+	// Endpoint is the host:port the agent is dialed at.
 	Endpoint string
+	// ServerName is the name the agent's server certificate is verified against (and sent as SNI); empty means the
+	// host of Endpoint. It differs from that host when the agent is dialed at an internal address (its Kubernetes
+	// Service) but keeps the certificate of its public name.
+	ServerName string
 	// CertPEM and KeyPEM are the client certificate and its key.
 	CertPEM, KeyPEM []byte
 	// CAPEM verifies the agent's server certificate; empty means the system roots (a publicly
@@ -45,7 +49,7 @@ func (c Connection) transport() (credentials.TransportCredentials, error) {
 			return nil, errors.New("server CA: no certificate found")
 		}
 	}
-	return credentials.NewTLS(&tls.Config{Certificates: []tls.Certificate{pair}, RootCAs: pool, MinVersion: tls.VersionTLS12}), nil
+	return credentials.NewTLS(&tls.Config{Certificates: []tls.Certificate{pair}, RootCAs: pool, ServerName: c.ServerName, MinVersion: tls.VersionTLS12}), nil
 }
 
 type pemClient struct {
