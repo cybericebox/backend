@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	"github.com/cybericebox/backend/internal/model/rbac"
 	"github.com/cybericebox/backend/internal/model/usertext"
@@ -26,12 +27,12 @@ type ProgressUseCase interface {
 
 func (h *Handler) initProgress(router *gin.RouterGroup) {
 	analytics := router.Group("events/:id/manage/analytics", h.prot.RequirePermission(rbac.PermSelf))
-	analytics.GET("progress/scores", h.requireSections, h.progressScores)
-	analytics.GET("progress/matrix", h.requireSections, h.progressMatrix)
-	analytics.GET("progress/matrix/export.csv", h.requireExport, h.exportProgressMatrix)
-	analytics.GET("progress/heatmap", h.requireSections, h.progressHeatmap)
-	analytics.GET("progress/inactive", h.requireSections, h.progressInactive)
-	analytics.GET("progress/inactive/export.csv", h.requireExport, h.exportProgressInactive)
+	analytics.GET("progress/scores", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventStatsRead), nil), h.requireSections, h.progressScores)
+	analytics.GET("progress/matrix", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventStatsRead), nil), h.requireSections, h.progressMatrix)
+	analytics.GET("progress/matrix/export.csv", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventExport).WithData(authz.EventStatsPeopleRead), nil), h.requireExport, h.exportProgressMatrix)
+	analytics.GET("progress/heatmap", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventStatsRead), nil), h.requireSections, h.progressHeatmap)
+	analytics.GET("progress/inactive", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventStatsRead), nil), h.requireSections, h.progressInactive)
+	analytics.GET("progress/inactive/export.csv", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventExport).WithData(authz.EventStatsPeopleRead), nil), h.requireExport, h.exportProgressInactive)
 }
 
 type (

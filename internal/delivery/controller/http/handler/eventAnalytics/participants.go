@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
 	"github.com/cybericebox/backend/internal/model/rbac"
@@ -29,12 +30,12 @@ type ParticipantsUseCase interface {
 // written in the registering function.
 func (h *Handler) initParticipants(router *gin.RouterGroup) {
 	analytics := router.Group("events/:id/manage/analytics", h.prot.RequirePermission(rbac.PermSelf))
-	analytics.GET("participants", h.requireSections, h.participants)
-	analytics.GET("participants/export.csv", h.requireExport, h.exportParticipants)
-	analytics.GET("submissions", h.requireSections, h.submissions)
-	analytics.GET("submissions/export.csv", h.requireExport, h.exportSubmissions)
-	analytics.GET("communications", h.requireSections, h.communications)
-	analytics.GET("communications/export.csv", h.requireExport, h.exportCommunications)
+	analytics.GET("participants", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventStatsRead).WithData(authz.EventStatsPeopleRead), nil), h.requireSections, h.participants)
+	analytics.GET("participants/export.csv", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventExport).WithData(authz.EventStatsPeopleRead), nil), h.requireExport, h.exportParticipants)
+	analytics.GET("submissions", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventStatsRead).WithData(authz.EventStatsPeopleRead), nil), h.requireSections, h.submissions)
+	analytics.GET("submissions/export.csv", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventExport).WithData(authz.EventStatsPeopleRead), nil), h.requireExport, h.exportSubmissions)
+	analytics.GET("communications", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventStatsRead), nil), h.requireSections, h.communications)
+	analytics.GET("communications/export.csv", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventExport).WithData(authz.EventStatsPeopleRead), nil), h.requireExport, h.exportCommunications)
 }
 
 type (

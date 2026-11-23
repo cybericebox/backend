@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	eventAnalyticsModel "github.com/cybericebox/backend/internal/model/eventAnalytics"
 	"github.com/cybericebox/backend/internal/model/rbac"
@@ -23,8 +24,8 @@ type UsageUseCase interface {
 // initUsage registers the Usage routes on the analytics group.
 func (h *Handler) initUsage(router *gin.RouterGroup) {
 	analytics := router.Group("events/:id/manage/analytics", h.prot.RequirePermission(rbac.PermSelf))
-	analytics.GET("usage", h.requireSections, h.usage)
-	analytics.GET("usage/export.csv", h.requireExport, h.exportUsage)
+	analytics.GET("usage", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventStatsRead).WithData(authz.EventStatsPeopleRead), nil), h.requireSections, h.usage)
+	analytics.GET("usage/export.csv", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventExport).WithData(authz.EventStatsPeopleRead), nil), h.requireExport, h.exportUsage)
 }
 
 type (

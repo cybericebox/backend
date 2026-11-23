@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	"github.com/cybericebox/backend/internal/model/rbac"
@@ -43,11 +44,11 @@ func (r eventSecretRequest) input() imageRegistryUseCase.EventSecretInput {
 
 func (h *Handler) initEventSecrets(router *gin.RouterGroup) {
 	manage := router.Group("events/:id/manage/registry-secrets", h.prot.RequirePermission(rbac.PermSelf))
-	manage.GET("", h.requireManageAccess, h.listEventSecrets)
-	manage.POST("", h.requireManage, h.createEventSecret)
-	manage.PUT(":secretId", h.requireManage, h.updateEventSecret)
-	manage.DELETE(":secretId", h.requireManage, h.deleteEventSecret)
-	manage.POST(":secretId/check", h.requireManage, h.checkEventSecret)
+	manage.GET("", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventRegistryRead), nil), h.requireManageAccess, h.listEventSecrets)
+	manage.POST("", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventRegistryUpdate), nil), h.requireManage, h.createEventSecret)
+	manage.PUT(":secretId", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventRegistryUpdate), nil), h.requireManage, h.updateEventSecret)
+	manage.DELETE(":secretId", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventRegistryDelete), nil), h.requireManage, h.deleteEventSecret)
+	manage.POST(":secretId/check", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventRegistryUpdate), nil), h.requireManage, h.checkEventSecret)
 }
 
 // listEventSecrets godoc
