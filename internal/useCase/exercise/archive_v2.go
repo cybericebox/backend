@@ -198,7 +198,7 @@ type (
 		DHCPRanges         []exerciseModel.DHCPRange `json:"dhcp_ranges,omitempty"`
 		DNS                string                    `json:"dns,omitempty"`
 		ReverseConnections bool                      `json:"reverse_connections,omitempty"`
-		// The console ports of a node (1.1).
+		// The console and serial ports of a node.
 		ConsolePorts []exerciseModel.ConsolePort `json:"console_ports,omitempty"`
 		SerialPorts  []exerciseModel.SerialPort  `json:"serial_ports,omitempty"`
 	}
@@ -235,7 +235,7 @@ type (
 	}
 
 	archiveConnectionV2 struct {
-		// Kind (1.1) is empty for a network connection and console for a console cable.
+		// Kind is empty for a network connection and console for a console cable.
 		Kind      exerciseModel.ConnectionKind `json:"kind,omitempty"`
 		Endpoints []archiveEndpointV2          `json:"endpoints"`
 	}

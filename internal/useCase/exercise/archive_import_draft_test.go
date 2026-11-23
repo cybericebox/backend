@@ -130,10 +130,8 @@ func TestImportExerciseArchive_SchemaString(t *testing.T) {
 	rows, err := importAsWritten(t, archiveWith("cib-exercise/1.0"))
 	require.NoError(t, err)
 	requireOneDraft(t, rows, "")
-	// retired is the 1.1 string an earlier draft of version 1 used (built here so the retired literal stays out of the tree): it is
-	// refused like any other.
-	retired := "cib-exercise/1." + "1"
-	for _, other := range []string{"cib-exercise/1", retired, "cib-exercise/2", "cib-exercise/1.2"} {
+	// 1.1, the string an earlier draft of version 1 used, is refused like any other.
+	for _, other := range []string{"cib-exercise/1", "cib-exercise/1.1", "cib-exercise/2", "cib-exercise/1.2"} {
 		_, err := importAsWritten(t, archiveWith(other))
 		require.ErrorIs(t, err, exerciseModel.ErrArchiveSchemaUnsupported.Err(), other)
 		require.Equal(t, "cib-exercise/1.0", publicContext(t, err)["expected"])

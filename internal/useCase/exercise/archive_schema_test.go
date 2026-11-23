@@ -82,7 +82,7 @@ func TestArchiveSchemaAcceptsTheSamples(t *testing.T) {
 	})
 }
 
-// A document with console ports, a console cable and a seat satisfies the 1.0 schema; the schema key stays a const, so
+// A document with console ports, serial ports, a console cable, a seat and a defender block satisfies the 1.0 schema; the schema key stays a const, so
 // another 1.x string does not, and neither does an unknown native console kind.
 func TestArchiveSchemaAcceptsTheConsoleKeys(t *testing.T) {
 	schema := compileArchiveSchema(t)
@@ -90,7 +90,8 @@ func TestArchiveSchemaAcceptsTheConsoleKeys(t *testing.T) {
  {"name":"r1","type":"node","console_ports":[{"name":"console0","command":["/usr/bin/vtysh"],"user":"frr"},{"name":"aux0","native":{"kind":"tcp","port":2001}}]},
  {"name":"pc1","type":"node","serial_ports":[{"name":"serial0","path":"/dev/ttyCON0"}]}],
  "connections":[{"kind":"console","endpoints":[{"kind":"device","device":"pc1","interface":"serial0"},{"kind":"device","device":"r1","interface":"console0"}]}]},
- "opponents":[{"role":"defense","band":1,"goal":["k"],"operates":["r1"],"seat":"pc1"}]}]}]}`
+ "opponents":[{"role":"defense","band":1,"goal":["k"],"operates":["r1"],"seat":"pc1"}],
+ "defender":{"seat":"pc1","topology":"none","off_limits":["r1"],"credentials":[{"device":"r1","port":"console0","user":"admin","value":"cisco"}]}}]}]}`
 	require.NoError(t, validateDocument(t, schema, []byte(`{"schema":"cib-exercise/1.0",`+body)))
 	require.Error(t, validateDocument(t, schema, []byte(`{"schema":"cib-exercise/1.2",`+body)))
 	require.Error(t, validateDocument(t, schema, []byte(strings.Replace(`{"schema":"cib-exercise/1.0",`+body, `"tcp"`, `"vm-serial"`, 1))))
