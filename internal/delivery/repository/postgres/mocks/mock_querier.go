@@ -14106,21 +14106,6 @@ func (mr *MockQuerierMockRecorder) RecordEventTeamLabObservation(ctx, arg any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecordEventTeamLabObservation", reflect.TypeOf((*MockQuerier)(nil).RecordEventTeamLabObservation), ctx, arg)
 }
 
-// RecordUserTOTPFailure mocks base method.
-func (m *MockQuerier) RecordUserTOTPFailure(ctx context.Context, arg postgres.RecordUserTOTPFailureParams) (int32, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RecordUserTOTPFailure", ctx, arg)
-	ret0, _ := ret[0].(int32)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// RecordUserTOTPFailure indicates an expected call of RecordUserTOTPFailure.
-func (mr *MockQuerierMockRecorder) RecordUserTOTPFailure(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecordUserTOTPFailure", reflect.TypeOf((*MockQuerier)(nil).RecordUserTOTPFailure), ctx, arg)
-}
-
 // RecreateLabBinding mocks base method.
 func (m *MockQuerier) RecreateLabBinding(ctx context.Context, arg postgres.RecreateLabBindingParams) (int64, error) {
 	m.ctrl.T.Helper()
@@ -14176,6 +14161,20 @@ func (m *MockQuerier) RefreshEventLabProtectedUntil(ctx context.Context, eventID
 func (mr *MockQuerierMockRecorder) RefreshEventLabProtectedUntil(ctx, eventID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RefreshEventLabProtectedUntil", reflect.TypeOf((*MockQuerier)(nil).RefreshEventLabProtectedUntil), ctx, eventID)
+}
+
+// RefundUserTOTPAttempt mocks base method.
+func (m *MockQuerier) RefundUserTOTPAttempt(ctx context.Context, arg postgres.RefundUserTOTPAttemptParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RefundUserTOTPAttempt", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RefundUserTOTPAttempt indicates an expected call of RefundUserTOTPAttempt.
+func (mr *MockQuerierMockRecorder) RefundUserTOTPAttempt(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RefundUserTOTPAttempt", reflect.TypeOf((*MockQuerier)(nil).RefundUserTOTPAttempt), ctx, arg)
 }
 
 // RegistrationsByDaySince mocks base method.
@@ -14480,6 +14479,21 @@ func (m *MockQuerier) ReserveRequestIdempotency(ctx context.Context, arg postgre
 func (mr *MockQuerierMockRecorder) ReserveRequestIdempotency(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReserveRequestIdempotency", reflect.TypeOf((*MockQuerier)(nil).ReserveRequestIdempotency), ctx, arg)
+}
+
+// ReserveUserTOTPAttempt mocks base method.
+func (m *MockQuerier) ReserveUserTOTPAttempt(ctx context.Context, arg postgres.ReserveUserTOTPAttemptParams) (int32, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReserveUserTOTPAttempt", ctx, arg)
+	ret0, _ := ret[0].(int32)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReserveUserTOTPAttempt indicates an expected call of ReserveUserTOTPAttempt.
+func (mr *MockQuerierMockRecorder) ReserveUserTOTPAttempt(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReserveUserTOTPAttempt", reflect.TypeOf((*MockQuerier)(nil).ReserveUserTOTPAttempt), ctx, arg)
 }
 
 // ResetEventLabTelemetry mocks base method.

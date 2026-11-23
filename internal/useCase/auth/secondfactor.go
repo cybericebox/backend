@@ -318,21 +318,29 @@ func (u *AuthUseCase) openTOTP(userID uuid.UUID, t secondFactorRepo.TOTP) (strin
 	return string(raw), nil
 }
 
-// totpLocked answers the lockout of the authenticator codes (kept in the row: it holds on every replica).
-func totpLocked(t secondFactorRepo.TOTP) error {
-	if t.LockedUntil != nil {
-		if wait := time.Until(*t.LockedUntil); wait > 0 {
-			return tooManyRequests(wait)
-		}
+// reserveTOTPAttempt counts one code check in the user_totp row before the code is compared (one conditional UPDATE),
+// so parallel guesses cannot all slip past the lockout: at most the configured number of checks are evaluated before
+// the checks lock, on every replica. While they are locked it answers 429 with the wait. A right code resets the count.
+func (u *AuthUseCase) reserveTOTPAttempt(ctx context.Context, userID uuid.UUID) error {
+	reserved, err := u.factors.ReserveTOTPAttempt(ctx, userID, totpLockout(), time.Now())
+	if err != nil {
+		return model.ErrPlatform.WithError(err).WithMessage("Failed to count the authenticator check").Err()
 	}
-	return nil
+	if reserved {
+		return nil
+	}
+	wait := totpLockout().LockBase
+	if t, found, gErr := u.factors.GetTOTP(ctx, userID); gErr == nil && found && t.LockedUntil != nil {
+		wait = time.Until(*t.LockedUntil)
+	}
+	return tooManyRequests(wait)
 }
 
-func (u *AuthUseCase) countTOTPFailure(ctx context.Context, userID uuid.UUID) error {
-	if _, err := u.factors.RecordTOTPFailure(ctx, userID, totpLockout(), time.Now()); err != nil {
-		return model.ErrPlatform.WithError(err).WithMessage("Failed to count the authenticator failure").Err()
+// refundTOTPAttempt gives the reserved check back: a right code of a step already used is no guess.
+func (u *AuthUseCase) refundTOTPAttempt(ctx context.Context, userID uuid.UUID) {
+	if err := u.factors.RefundTOTPAttempt(ctx, userID, totpLockout()); err != nil {
+		log.Warn().Err(err).Str("user_id", userID.String()).Msg("Failed to give an authenticator check back")
 	}
-	return nil
 }
 
 // FinishTOTPEnrolment confirms the setup with the first code of the app. When the app is the first factor of the
@@ -367,19 +375,16 @@ func (u *AuthUseCase) FinishTOTPEnrolment(ctx context.Context, userID uuid.UUID,
 	case time.Since(t.CreatedAt) > secondFactorModel.TOTPEnrolmentTTL:
 		return nil, secondFactorModel.ErrTOTPEnrolmentExpired.WithError(errors.New("totp setup is too old")).Err()
 	}
-	if err = totpLocked(t); err != nil {
-		return nil, err
-	}
 	secretB32, err := u.openTOTP(userID, t)
 	if err != nil {
+		return nil, err
+	}
+	if err = u.reserveTOTPAttempt(ctx, userID); err != nil {
 		return nil, err
 	}
 	now := time.Now()
 	step, ok := totp.Default.Match(secretB32, code, now, secondFactorModel.TOTPSkew, 0)
 	if !ok {
-		if err = u.countTOTPFailure(ctx, userID); err != nil {
-			return nil, err
-		}
 		return nil, secondFactorModel.ErrTOTPInvalidCode.Err()
 	}
 	var codes []string
@@ -443,8 +448,9 @@ func (u *AuthUseCase) RemoveTOTP(ctx context.Context, userID uuid.UUID) error {
 }
 
 // verifyTOTP checks a code of the confirmed authenticator app and takes its step, so the same code (or an older one)
-// never works again. A wrong code counts in the row (the lockout holds across replicas); a right code of a step already
-// used is ErrTOTPCodeUsed and counts nothing (a double submit). A secret sealed under an older platform key is sealed
+// never works again. Every check is reserved in the row before the comparison (the lockout holds across replicas and
+// under parallel guesses); a right code of a step already used is ErrTOTPCodeUsed and gives its check back (a double
+// submit). A secret sealed under an older platform key is sealed
 // again under the current one.
 func (u *AuthUseCase) verifyTOTP(ctx context.Context, userID uuid.UUID, code string) error {
 	if err := u.requireFactorCipher(); err != nil {
@@ -457,21 +463,19 @@ func (u *AuthUseCase) verifyTOTP(ctx context.Context, userID uuid.UUID, code str
 	if !found || t.ConfirmedAt == nil {
 		return secondFactorModel.ErrStepUpMethodNotAllowed.WithError(errors.New("no confirmed authenticator")).Err()
 	}
-	if err = totpLocked(t); err != nil {
-		return err
-	}
 	secretB32, err := u.openTOTP(userID, t)
 	if err != nil {
+		return err
+	}
+	if err = u.reserveTOTPAttempt(ctx, userID); err != nil {
 		return err
 	}
 	now := time.Now()
 	step, ok := totp.Default.Match(secretB32, code, now, secondFactorModel.TOTPSkew, t.LastStep)
 	if !ok {
 		if used, ok := totp.Default.Match(secretB32, code, now, secondFactorModel.TOTPSkew, 0); ok && used <= t.LastStep {
+			u.refundTOTPAttempt(ctx, userID)
 			return secondFactorModel.ErrTOTPCodeUsed.Err()
-		}
-		if err = u.countTOTPFailure(ctx, userID); err != nil {
-			return err
 		}
 		return secondFactorModel.ErrStepUpFailed.WithError(errors.New("step-up: wrong authenticator code")).Err()
 	}
@@ -480,6 +484,7 @@ func (u *AuthUseCase) verifyTOTP(ctx context.Context, userID uuid.UUID, code str
 		return model.ErrPlatform.WithError(err).WithMessage("Failed to record the authenticator code").Err()
 	}
 	if !taken {
+		u.refundTOTPAttempt(ctx, userID)
 		return secondFactorModel.ErrTOTPCodeUsed.WithError(errors.New("the step was taken by a concurrent request")).Err()
 	}
 	u.resealTOTP(ctx, userID, t.SealedSecret, []byte(secretB32))

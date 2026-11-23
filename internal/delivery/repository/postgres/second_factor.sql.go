@@ -180,39 +180,22 @@ func (q *Queries) LockUserForFactorChange(ctx context.Context, id uuid.UUID) (uu
 	return id_2, err
 }
 
-const recordUserTOTPFailure = `-- name: RecordUserTOTPFailure :one
+const refundUserTOTPAttempt = `-- name: RefundUserTOTPAttempt :exec
 UPDATE user_totp
-SET failures     = failures + 1,
-    locked_until = CASE
-                       WHEN failures + 1 >= $1::integer THEN
-                           $2::timestamptz + make_interval(secs => LEAST($3::float8,
-                               $4::float8 * power(2, failures + 1 - $1::integer)))
-                       ELSE locked_until END
-WHERE user_id = $5
-RETURNING failures
+SET failures     = GREATEST(failures - 1, 0),
+    locked_until = CASE WHEN failures - 1 < $1::integer THEN NULL ELSE locked_until END
+WHERE user_id = $2
 `
 
-type RecordUserTOTPFailureParams struct {
-	MaxFailures  int32     `json:"max_failures"`
-	Now          time.Time `json:"now"`
-	LockMaxSecs  float64   `json:"lock_max_secs"`
-	LockBaseSecs float64   `json:"lock_base_secs"`
-	UserID       uuid.UUID `json:"user_id"`
+type RefundUserTOTPAttemptParams struct {
+	MaxFailures int32     `json:"max_failures"`
+	UserID      uuid.UUID `json:"user_id"`
 }
 
-// Counts a wrong code; from the max_failures-th on the checks lock, for lock_base_secs doubling with every further
-// failure up to lock_max_secs.
-func (q *Queries) RecordUserTOTPFailure(ctx context.Context, arg RecordUserTOTPFailureParams) (int32, error) {
-	row := q.db.QueryRow(ctx, recordUserTOTPFailure,
-		arg.MaxFailures,
-		arg.Now,
-		arg.LockMaxSecs,
-		arg.LockBaseSecs,
-		arg.UserID,
-	)
-	var failures int32
-	err := row.Scan(&failures)
-	return failures, err
+// Gives a reserved attempt back (a right code of a step already used is no guess); a lock that attempt set goes too.
+func (q *Queries) RefundUserTOTPAttempt(ctx context.Context, arg RefundUserTOTPAttemptParams) error {
+	_, err := q.db.Exec(ctx, refundUserTOTPAttempt, arg.MaxFailures, arg.UserID)
+	return err
 }
 
 const replaceUserRecoveryCodes = `-- name: ReplaceUserRecoveryCodes :execrows
@@ -258,6 +241,44 @@ func (q *Queries) ResealUserTOTP(ctx context.Context, arg ResealUserTOTPParams) 
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const reserveUserTOTPAttempt = `-- name: ReserveUserTOTPAttempt :one
+UPDATE user_totp
+SET failures     = failures + 1,
+    locked_until = CASE
+                       WHEN failures + 1 >= $1::integer THEN
+                           $2::timestamptz + make_interval(secs => LEAST($3::float8,
+                               $4::float8 * power(2, failures + 1 - $1::integer)))
+                       ELSE locked_until END
+WHERE user_id = $5
+  AND (locked_until IS NULL OR locked_until <= $2::timestamptz)
+RETURNING failures
+`
+
+type ReserveUserTOTPAttemptParams struct {
+	MaxFailures  int32     `json:"max_failures"`
+	Now          time.Time `json:"now"`
+	LockMaxSecs  float64   `json:"lock_max_secs"`
+	LockBaseSecs float64   `json:"lock_base_secs"`
+	UserID       uuid.UUID `json:"user_id"`
+}
+
+// Reserves one code check before the code is compared: counted up front, in one statement, so parallel guesses cannot
+// all pass a lockout that is read first and counted later. No row while the checks are locked. The max_failures-th
+// attempt locks the checks for lock_base_secs, doubling with every further attempt up to lock_max_secs; a right code
+// resets both (UseUserTOTPStep, ConfirmUserTOTP).
+func (q *Queries) ReserveUserTOTPAttempt(ctx context.Context, arg ReserveUserTOTPAttemptParams) (int32, error) {
+	row := q.db.QueryRow(ctx, reserveUserTOTPAttempt,
+		arg.MaxFailures,
+		arg.Now,
+		arg.LockMaxSecs,
+		arg.LockBaseSecs,
+		arg.UserID,
+	)
+	var failures int32
+	err := row.Scan(&failures)
+	return failures, err
 }
 
 const setSessionStepUp = `-- name: SetSessionStepUp :execrows

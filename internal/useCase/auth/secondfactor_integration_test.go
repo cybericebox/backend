@@ -2,6 +2,7 @@ package auth_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"sync"
 	"testing"
@@ -548,4 +549,40 @@ func TestTwoConcurrentRemovalsKeepTheLastFactor(t *testing.T) {
 	has, err := e.uc.HasSecondFactor(context.Background(), e.userID)
 	require.NoError(t, err)
 	require.True(t, has, "the key holder keeps a factor")
+}
+
+// Parallel wrong codes cannot slip past the lockout: each check is reserved in the row before the comparison, so no more
+// than the configured five are evaluated; the others are refused as locked.
+func TestParallelWrongCodesAreBoundedByTheLockout(t *testing.T) {
+	e := newFactorEnv(t, true)
+	enrolment, _ := e.enrol(e.ctx(), factorPass)
+
+	const guesses = 20
+	errs := make([]error, guesses)
+	var wg sync.WaitGroup
+	wg.Add(guesses)
+	for i := range guesses {
+		go func() {
+			defer wg.Done()
+			errs[i] = e.totpStepUp(enrolment, 4) // never a valid step
+		}()
+	}
+	wg.Wait()
+
+	evaluated, locked := 0, 0
+	for _, err := range errs {
+		switch {
+		case errors.Is(err, secondFactorModel.ErrStepUpFailed.Err()):
+			evaluated++
+		case errors.Is(err, authModel.ErrAuthTooManyRequests.Err()):
+			locked++
+		default:
+			t.Fatalf("unexpected answer: %v", err)
+		}
+	}
+	require.LessOrEqual(t, evaluated, 5, "at most the threshold of checks is evaluated")
+	require.Equal(t, guesses, evaluated+locked)
+	require.Equal(t, evaluated, e.count(`SELECT failures FROM user_totp WHERE user_id = $1`))
+	// Even the right code is refused while the checks are locked.
+	wantErr(t, e.totpStepUp(enrolment, 1), authModel.ErrAuthTooManyRequests)
 }

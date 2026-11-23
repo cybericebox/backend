@@ -38,9 +38,11 @@ WHERE user_id = sqlc.arg(user_id)
   AND confirmed_at IS NOT NULL
   AND (last_step IS NULL OR last_step < sqlc.arg(step)::bigint);
 
--- name: RecordUserTOTPFailure :one
--- Counts a wrong code; from the max_failures-th on the checks lock, for lock_base_secs doubling with every further
--- failure up to lock_max_secs.
+-- name: ReserveUserTOTPAttempt :one
+-- Reserves one code check before the code is compared: counted up front, in one statement, so parallel guesses cannot
+-- all pass a lockout that is read first and counted later. No row while the checks are locked. The max_failures-th
+-- attempt locks the checks for lock_base_secs, doubling with every further attempt up to lock_max_secs; a right code
+-- resets both (UseUserTOTPStep, ConfirmUserTOTP).
 UPDATE user_totp
 SET failures     = failures + 1,
     locked_until = CASE
@@ -49,7 +51,15 @@ SET failures     = failures + 1,
                                sqlc.arg(lock_base_secs)::float8 * power(2, failures + 1 - sqlc.arg(max_failures)::integer)))
                        ELSE locked_until END
 WHERE user_id = sqlc.arg(user_id)
+  AND (locked_until IS NULL OR locked_until <= sqlc.arg(now)::timestamptz)
 RETURNING failures;
+
+-- name: RefundUserTOTPAttempt :exec
+-- Gives a reserved attempt back (a right code of a step already used is no guess); a lock that attempt set goes too.
+UPDATE user_totp
+SET failures     = GREATEST(failures - 1, 0),
+    locked_until = CASE WHEN failures - 1 < sqlc.arg(max_failures)::integer THEN NULL ELSE locked_until END
+WHERE user_id = sqlc.arg(user_id);
 
 -- name: ResealUserTOTP :execrows
 -- The same secret sealed under the current platform key; nothing when the row changed meanwhile.

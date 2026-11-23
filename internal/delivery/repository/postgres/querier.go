@@ -2103,9 +2103,6 @@ type Querier interface {
 	RecordEventTeamLabInitialReadiness(ctx context.Context, arg RecordEventTeamLabInitialReadinessParams) (int64, error)
 	// Deliberate narrow write: only physical observation fields, exactly fenced.
 	RecordEventTeamLabObservation(ctx context.Context, arg RecordEventTeamLabObservationParams) (int64, error)
-	// Counts a wrong code; from the max_failures-th on the checks lock, for lock_base_secs doubling with every further
-	// failure up to lock_max_secs.
-	RecordUserTOTPFailure(ctx context.Context, arg RecordUserTOTPFailureParams) (int32, error)
 	// A recreated Lab moves to the next generation under a new name, so the
 	// asynchronously deleted previous Lab never collides, and deploys again. Every
 	// binding of the exercise is moved to the same name and generation.
@@ -2117,6 +2114,8 @@ type Querier interface {
 	RefreshEventActivityBuckets(ctx context.Context, eventID uuid.UUID) error
 	RefreshEventGroupProtectedUntil(ctx context.Context, eventID uuid.UUID) error
 	RefreshEventLabProtectedUntil(ctx context.Context, eventID uuid.UUID) error
+	// Gives a reserved attempt back (a right code of a step already used is no guess); a lock that attempt set goes too.
+	RefundUserTOTPAttempt(ctx context.Context, arg RefundUserTOTPAttemptParams) error
 	RegistrationsByDaySince(ctx context.Context, createdAt time.Time) ([]RegistrationsByDaySinceRow, error)
 	ReleaseClusterReservationUnit(ctx context.Context, arg ReleaseClusterReservationUnitParams) error
 	// A claimed message that was not sent: gives the slot back and keeps the
@@ -2156,6 +2155,11 @@ type Querier interface {
 	// the daily limit is used up. The counter restarts when the day changes.
 	ReservePlatformSMTPSend(ctx context.Context, arg ReservePlatformSMTPSendParams) (int32, error)
 	ReserveRequestIdempotency(ctx context.Context, arg ReserveRequestIdempotencyParams) ([]RequestIdempotency, error)
+	// Reserves one code check before the code is compared: counted up front, in one statement, so parallel guesses cannot
+	// all pass a lockout that is read first and counted later. No row while the checks are locked. The max_failures-th
+	// attempt locks the checks for lock_base_secs, doubling with every further attempt up to lock_max_secs; a right code
+	// resets both (UseUserTOTPStep, ConfirmUserTOTP).
+	ReserveUserTOTPAttempt(ctx context.Context, arg ReserveUserTOTPAttemptParams) (int32, error)
 	// Deletes everything the lab usage rollup and the transitions journal derived
 	// for the event and rewinds their cursors; the VPN sessions, the archive and
 	// its cursor stay.

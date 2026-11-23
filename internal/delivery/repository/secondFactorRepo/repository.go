@@ -20,7 +20,8 @@ type Queries interface {
 	ConfirmUserTOTP(ctx context.Context, arg postgres.ConfirmUserTOTPParams) (int64, error)
 	UseUserTOTPStep(ctx context.Context, arg postgres.UseUserTOTPStepParams) (int64, error)
 	ResealUserTOTP(ctx context.Context, arg postgres.ResealUserTOTPParams) (int64, error)
-	RecordUserTOTPFailure(ctx context.Context, arg postgres.RecordUserTOTPFailureParams) (int32, error)
+	ReserveUserTOTPAttempt(ctx context.Context, arg postgres.ReserveUserTOTPAttemptParams) (int32, error)
+	RefundUserTOTPAttempt(ctx context.Context, arg postgres.RefundUserTOTPAttemptParams) error
 	ClearUserStepUps(ctx context.Context, userID uuid.UUID) (int64, error)
 	LockUserForFactorChange(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	UserTOTPExists(ctx context.Context) (bool, error)
@@ -130,13 +131,21 @@ type Lockout struct {
 	LockBase, LockMax time.Duration
 }
 
-// RecordTOTPFailure counts a wrong code and returns the failures so far.
-func (r *Repository) RecordTOTPFailure(ctx context.Context, userID uuid.UUID, l Lockout, now time.Time) (int, error) {
-	n, err := r.q.RecordUserTOTPFailure(ctx, postgres.RecordUserTOTPFailureParams{
+// ReserveTOTPAttempt counts one code check before the code is compared; reserved is false while the checks are locked.
+func (r *Repository) ReserveTOTPAttempt(ctx context.Context, userID uuid.UUID, l Lockout, now time.Time) (reserved bool, err error) {
+	_, err = r.q.ReserveUserTOTPAttempt(ctx, postgres.ReserveUserTOTPAttemptParams{
 		UserID: userID, MaxFailures: int32(l.MaxFailures), Now: now, //nolint:gosec // a small configured count
 		LockBaseSecs: l.LockBase.Seconds(), LockMaxSecs: l.LockMax.Seconds(),
 	})
-	return int(n), err
+	if repositoryTools.IsObjectNotFoundError(err) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+// RefundTOTPAttempt gives a reserved attempt back.
+func (r *Repository) RefundTOTPAttempt(ctx context.Context, userID uuid.UUID, l Lockout) error {
+	return r.q.RefundUserTOTPAttempt(ctx, postgres.RefundUserTOTPAttemptParams{UserID: userID, MaxFailures: int32(l.MaxFailures)}) //nolint:gosec // see above
 }
 
 // ClearStepUps forgets the step-ups of every session of the person.
