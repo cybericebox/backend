@@ -39,6 +39,7 @@ func TestDeclarationViolations(t *testing.T) {
 		"DELETE /api/users/:userID | gate: users.delete | layers: - | keys: users.delete @ platform",
 		"DELETE /api/auth/sessions/:id | gate: self | layers: - | keys: self @ self",
 		"DELETE /api/auth/last-email | gate: - | layers: - | keys: - @ public",
+		"GET    /api/admin/assistant/statistics/events/:eventID | gate: platform.settings.read | layers: - | keys: cyberbrain.stats.read @ event(:eventID)",
 	}, "\n")
 	if got := declarationViolations(golden, nil); len(got) != 0 {
 		t.Fatalf("want no violations, got %v", got)
@@ -54,6 +55,7 @@ func TestDeclarationViolations(t *testing.T) {
 		"bare self assistant": "GET    /api/assistant/sessions | gate: self | layers: - | keys: self @ self",
 		"unreadable":          "GET    /api/users | gate: users.read | layers: - | keys: users.list",
 		"no keys column":      "GET    /api/users | gate: users.read | layers: -",
+		"event param missing": "POST   /api/events/bulk/archive | gate: events.write | layers: - | keys: events.archive @ event(:id)",
 	}
 	for name, line := range bad {
 		if got := declarationViolations(line, nil); len(got) == 0 {

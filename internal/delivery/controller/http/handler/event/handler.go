@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/repository/participantRepo"
 	"io"
 	"strconv"
@@ -47,6 +48,7 @@ type (
 
 	IProtection interface {
 		RequirePermission(required rbac.Permission) gin.HandlerFunc
+		Route(decl authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc
 	}
 
 	IUseCase interface {
@@ -283,35 +285,37 @@ func NewEventAPIHandler(useCase IUseCase, prot IProtection) *Handler {
 
 func (h *Handler) Init(router *gin.RouterGroup) {
 	h.initPreviewAPI(router)
+	// The platform side of events declares its keys from Appendix A.3.6 of the access spec; the event media are
+	// public routes that read the visibility of the event pages (§4.5).
 	ev := router.Group("events")
 	{
-		ev.GET("", h.prot.RequirePermission(rbac.PermEventsRead), h.list)
-		ev.GET(":id/logo/:fileID", h.prot.RequirePermission(rbac.PermEventContentRead), middleware.PublicMedia, h.serveEventMedia(logoMedia))
-		ev.GET(":id/favicon/:fileID", h.prot.RequirePermission(rbac.PermEventContentRead), middleware.PublicMedia, h.serveEventMedia(faviconMedia))
-		ev.GET(":id/preview-picture/:fileID", h.prot.RequirePermission(rbac.PermEventContentRead), middleware.PublicMedia, h.serveEventMedia(previewMedia))
-		ev.GET(":id/content-images/:fileID", h.prot.RequirePermission(rbac.PermEventContentRead), middleware.PublicMedia, h.serveEventMedia(contentMedia))
-		ev.POST("", h.prot.RequirePermission(rbac.PermEventsWrite), h.create)
-		ev.POST("bulk/archive", h.prot.RequirePermission(rbac.PermEventsWrite), h.bulkArchive)
-		ev.GET("facets", h.prot.RequirePermission(rbac.PermEventsRead), h.facets)
-		ev.GET("organizers", h.prot.RequirePermission(rbac.PermEventsRead), h.organizers)
+		ev.GET("", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.EventsList), h.prot.RequirePermission(rbac.PermEventsRead)), h.list)
+		ev.GET(":id/logo/:fileID", h.prot.Route(authz.PublicRoute(authz.PublicPages), h.prot.RequirePermission(rbac.PermEventContentRead)), middleware.PublicMedia, h.serveEventMedia(logoMedia))
+		ev.GET(":id/favicon/:fileID", h.prot.Route(authz.PublicRoute(authz.PublicPages), h.prot.RequirePermission(rbac.PermEventContentRead)), middleware.PublicMedia, h.serveEventMedia(faviconMedia))
+		ev.GET(":id/preview-picture/:fileID", h.prot.Route(authz.PublicRoute(authz.PublicPages), h.prot.RequirePermission(rbac.PermEventContentRead)), middleware.PublicMedia, h.serveEventMedia(previewMedia))
+		ev.GET(":id/content-images/:fileID", h.prot.Route(authz.PublicRoute(authz.PublicPages), h.prot.RequirePermission(rbac.PermEventContentRead)), middleware.PublicMedia, h.serveEventMedia(contentMedia))
+		ev.POST("", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.EventsCreate), h.prot.RequirePermission(rbac.PermEventsWrite)), h.create)
+		ev.POST("bulk/archive", h.prot.Route(authz.AnyOf(authz.SourceObject("event"), authz.EventsArchive), h.prot.RequirePermission(rbac.PermEventsWrite)), h.bulkArchive)
+		ev.GET("facets", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.EventsList), h.prot.RequirePermission(rbac.PermEventsRead)), h.facets)
+		ev.GET("organizers", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.EventsList), h.prot.RequirePermission(rbac.PermEventsRead)), h.organizers)
 
-		ev.GET(":id", h.prot.RequirePermission(rbac.PermEventsRead), h.get)
-		ev.PUT(":id", h.prot.RequirePermission(rbac.PermEventsWrite), h.update)
-		ev.POST(":id/archive", h.prot.RequirePermission(rbac.PermEventsWrite), h.archive)
-		ev.DELETE(":id", h.prot.RequirePermission(rbac.PermEventsWrite), h.delete)
+		ev.GET(":id", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventsRead), h.prot.RequirePermission(rbac.PermEventsRead)), h.get)
+		ev.PUT(":id", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventsSettingsUpdate), h.prot.RequirePermission(rbac.PermEventsWrite)), h.update)
+		ev.POST(":id/archive", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventsArchive), h.prot.RequirePermission(rbac.PermEventsWrite)), h.archive)
+		ev.DELETE(":id", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventsDelete), h.prot.RequirePermission(rbac.PermEventsWrite)), h.delete)
 
-		ev.GET(":id/config", h.prot.RequirePermission(rbac.PermEventsRead), h.getConfig)
-		ev.PUT(":id/config", h.prot.RequirePermission(rbac.PermEventsWrite), h.requireWritableEvent, h.updateConfig)
-		ev.PUT(":id/infrastructure", h.prot.RequirePermission(rbac.PermEventsWrite), h.requireWritableEvent, h.setInfrastructure)
-		ev.PUT(":id/theme", h.prot.RequirePermission(rbac.PermEventsWrite), h.requireWritableEvent, h.updateTheme)
+		ev.GET(":id/config", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventsRead, authz.EventSettingsRead), h.prot.RequirePermission(rbac.PermEventsRead)), h.getConfig)
+		ev.PUT(":id/config", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventsSettingsUpdate), h.prot.RequirePermission(rbac.PermEventsWrite)), h.requireWritableEvent, h.updateConfig)
+		ev.PUT(":id/infrastructure", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventsSettingsUpdate), h.prot.RequirePermission(rbac.PermEventsWrite)), h.requireWritableEvent, h.setInfrastructure)
+		ev.PUT(":id/theme", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventsSettingsUpdate), h.prot.RequirePermission(rbac.PermEventsWrite)), h.requireWritableEvent, h.updateTheme)
 		ev.GET(":id/managers", h.prot.RequirePermission(rbac.PermEventsRead), h.listManagers)
 		ev.PUT(":id/managers/:userID", h.prot.RequirePermission(rbac.PermEventsWrite), h.setManager)
 		ev.DELETE(":id/managers/:userID", h.prot.RequirePermission(rbac.PermEventsWrite), h.removeManager)
-		ev.GET(":id/participants", h.prot.RequirePermission(rbac.PermEventsRead), h.listParticipants)
-		ev.GET(":id/solution-attempts", h.prot.RequirePermission(rbac.PermEventsSolutionAttemptsRead), h.listSolutionAttempts)
-		ev.PATCH(":id/solution-attempts/:attemptID/decision", h.prot.RequirePermission(rbac.PermEventsSolutionAttemptsWrite), h.decideSolutionAttempt)
-		ev.POST(":id/participants/:userID/approve", h.prot.RequirePermission(rbac.PermEventsWrite), h.requireWritableEvent, h.approveParticipant)
-		ev.POST(":id/participants/:userID/reject", h.prot.RequirePermission(rbac.PermEventsWrite), h.rejectParticipant)
+		ev.GET(":id/participants", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventParticipantsList), h.prot.RequirePermission(rbac.PermEventsRead)), h.listParticipants)
+		ev.GET(":id/solution-attempts", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventAttemptsRead), h.prot.RequirePermission(rbac.PermEventsSolutionAttemptsRead)), h.listSolutionAttempts)
+		ev.PATCH(":id/solution-attempts/:attemptID/decision", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventAttemptsUpdate), h.prot.RequirePermission(rbac.PermEventsSolutionAttemptsWrite)), h.decideSolutionAttempt)
+		ev.POST(":id/participants/:userID/approve", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventParticipantsUpdate), h.prot.RequirePermission(rbac.PermEventsWrite)), h.requireWritableEvent, h.approveParticipant)
+		ev.POST(":id/participants/:userID/reject", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventParticipantsDelete), h.prot.RequirePermission(rbac.PermEventsWrite)), h.rejectParticipant)
 
 		manage := ev.Group(":id/manage", h.prot.RequirePermission(rbac.PermSelf))
 		manage.GET("access", h.requireRead, h.getManagementAccess)

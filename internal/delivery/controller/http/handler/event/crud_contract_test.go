@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	eventHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/event"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	eventModel "github.com/cybericebox/backend/internal/model/event"
@@ -194,5 +195,14 @@ func TestCreateEventPassesInfrastructureChoice(t *testing.T) {
 	eventRequest(t, router, http.MethodPost, "/api/events", `{"Tag":"ctf","Name":"CTF","AvailableFrom":"2026-10-01T00:00:00Z"}`)
 	if u.createInput.InfrastructureAllowed != nil {
 		t.Fatal("an omitted choice must stay nil so the use case applies the default")
+	}
+}
+
+// Route mirrors protection.Route: the declaration decides nothing, the legacy gate runs unchanged.
+func (allowEventCRUD) Route(_ authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if legacy != nil {
+			legacy(c)
+		}
 	}
 }

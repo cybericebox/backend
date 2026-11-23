@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/handler/eventself"
 	"github.com/cybericebox/backend/internal/delivery/repository/eventConfigRepo"
 	"github.com/cybericebox/backend/internal/delivery/repository/eventLabRepo"
@@ -29,6 +30,13 @@ type waveProtection struct{}
 
 func (waveProtection) RequirePermission(rbac.Permission) gin.HandlerFunc {
 	return func(c *gin.Context) {}
+}
+func (waveProtection) Route(_ authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if legacy != nil {
+			legacy(c)
+		}
+	}
 }
 func waveProgressive(t *testing.T, f *standFixture) {
 	t.Helper()

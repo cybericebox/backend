@@ -13,7 +13,8 @@ import (
 // The declaration rules of plan P1b, checked over the keys column of routes.golden (the mounted tree, which
 // TestRoutePolicy keeps equal to the router): every declared key is in the catalogue and can be checked at the
 // route's scope source (authz.Decl.Problems); a DELETE route and every reject, revoke, remove or detach action
-// declares its area's .delete key; the event manage area, the catalog and the assistant never stand on a bare self.
+// declares its area's .delete key; an event(:param) source names a parameter of the path; the event manage area, the
+// catalog and the assistant never stand on a bare self.
 // A route still marked "?" is not declared yet (TestEveryRouteDeclaresKeys holds that list).
 
 // deleteExceptions are the delete-shaped routes that keep an update key or a relation by Appendix A.3: resets to a
@@ -67,6 +68,9 @@ func declarationViolations(golden string, exceptions map[string]string) []string
 		}
 		for _, p := range decl.Problems() {
 			out = append(out, id+": "+p)
+		}
+		if param := decl.Scope.Param(); param != "" && !slices.Contains(strings.Split(route, "/"), ":"+param) {
+			out = append(out, fmt.Sprintf("%s: scope %s names a path parameter the route does not have", id, decl.Scope))
 		}
 		if isBareSelf(decl) {
 			for _, prefix := range bareSelfForbidden {

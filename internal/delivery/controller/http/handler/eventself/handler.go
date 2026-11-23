@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/handler/labview"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
@@ -45,6 +46,7 @@ type (
 
 	IProtection interface {
 		RequirePermission(required rbac.Permission) gin.HandlerFunc
+		Route(decl authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc
 	}
 
 	IUseCase interface {
@@ -171,13 +173,21 @@ func (h *Handler) Init(router *gin.RouterGroup, resolveTenant gin.HandlerFunc) {
 		teams.GET("labs/vpn/status", h.labVPNStatus)
 	}
 
-	results := router.Group("events/:id/results", h.prot.RequirePermission(rbac.PermEventResultsRead))
+	// Public standings: the scoreboard while the event runs, the results after it (Appendix A.3.6 #110-112, §4.5).
+	results := router.Group("events/:id/results", h.prot.Route(
+		authz.PublicRoute(authz.PublicScoreboard, authz.PublicResults),
+		h.prot.RequirePermission(rbac.PermEventResultsRead),
+	))
 	{
 		results.GET("", h.resultsSnapshot)
 		results.GET("live", h.liveResults)
 		results.GET("changes", h.resultsChanges)
 	}
-	content := router.Group("events/:id/content", h.prot.RequirePermission(rbac.PermEventContentRead))
+	// Public event pages (Appendix A.3.6 #101, #102, §4.5).
+	content := router.Group("events/:id/content", h.prot.Route(
+		authz.PublicRoute(authz.PublicPages),
+		h.prot.RequirePermission(rbac.PermEventContentRead),
+	))
 	{
 		content.GET("pages", h.visiblePages)
 		content.GET("pages/:slug", h.publicPage)

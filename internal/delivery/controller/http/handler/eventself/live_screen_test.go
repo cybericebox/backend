@@ -16,6 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/config"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
@@ -404,6 +405,15 @@ func TestLiveScreenAnswersAreNeverStored(t *testing.T) {
 		}
 		if got := w.Header().Get("Referrer-Policy"); got != "no-referrer" {
 			t.Fatalf("%s Referrer-Policy = %q", path, got)
+		}
+	}
+}
+
+// Route mirrors protection.Route: the declaration decides nothing, the legacy gate runs unchanged.
+func (sessionProtection) Route(_ authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if legacy != nil {
+			legacy(c)
 		}
 	}
 }

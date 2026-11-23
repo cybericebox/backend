@@ -85,23 +85,23 @@ POST   /api/auth/setup | gate: - | layers: - | keys: - @ public
 POST   /api/auth/sign-in | gate: - | layers: recaptcha | keys: - @ public
 POST   /api/auth/sign-out | gate: self | layers: auth.forgetDraftKey | keys: self @ self
 POST   /api/auth/sign-up | gate: - | layers: recaptcha | keys: - @ public
-GET    /api/events | gate: events.read | layers: - | keys: ?
-POST   /api/events | gate: events.write | layers: - | keys: ?
-DELETE /api/events/:id | gate: events.write | layers: - | keys: ?
-GET    /api/events/:id | gate: events.read | layers: - | keys: ?
-PUT    /api/events/:id | gate: events.write | layers: - | keys: ?
-POST   /api/events/:id/archive | gate: events.write | layers: - | keys: ?
-GET    /api/events/:id/config | gate: events.read | layers: - | keys: ?
-PUT    /api/events/:id/config | gate: events.write | layers: event.requireWritableEvent | keys: ?
-GET    /api/events/:id/content-images/:fileID | gate: events.content.read(public) | layers: middleware.PublicMedia | keys: ?
-GET    /api/events/:id/content/pages | gate: events.content.read(public) | layers: - | keys: ?
-GET    /api/events/:id/content/pages/:slug | gate: events.content.read(public) | layers: - | keys: ?
-GET    /api/events/:id/favicon/:fileID | gate: events.content.read(public) | layers: middleware.PublicMedia | keys: ?
+GET    /api/events | gate: events.read | layers: - | keys: events.list @ platform
+POST   /api/events | gate: events.write | layers: - | keys: events.create @ platform
+DELETE /api/events/:id | gate: events.write | layers: - | keys: events.delete @ event(:id)
+GET    /api/events/:id | gate: events.read | layers: - | keys: events.read @ event(:id)
+PUT    /api/events/:id | gate: events.write | layers: - | keys: events.settings.update @ event(:id)
+POST   /api/events/:id/archive | gate: events.write | layers: - | keys: events.archive @ event(:id)
+GET    /api/events/:id/config | gate: events.read | layers: - | keys: anyOf(events.read,event.settings.read) @ event(:id)
+PUT    /api/events/:id/config | gate: events.write | layers: event.requireWritableEvent | keys: events.settings.update @ event(:id)
+GET    /api/events/:id/content-images/:fileID | gate: events.content.read(public) | layers: middleware.PublicMedia | keys: - @ public(pages)
+GET    /api/events/:id/content/pages | gate: events.content.read(public) | layers: - | keys: - @ public(pages)
+GET    /api/events/:id/content/pages/:slug | gate: events.content.read(public) | layers: - | keys: - @ public(pages)
+GET    /api/events/:id/favicon/:fileID | gate: events.content.read(public) | layers: middleware.PublicMedia | keys: - @ public(pages)
 GET    /api/events/:id/forms/:formID | gate: self | layers: eventself.touchPresence | keys: ?
 POST   /api/events/:id/forms/:formID/response | gate: self | layers: eventself.touchPresence | keys: ?
 GET    /api/events/:id/forms/pending | gate: self | layers: eventself.touchPresence | keys: ?
-PUT    /api/events/:id/infrastructure | gate: events.write | layers: event.requireWritableEvent | keys: ?
-GET    /api/events/:id/logo/:fileID | gate: events.content.read(public) | layers: middleware.PublicMedia | keys: ?
+PUT    /api/events/:id/infrastructure | gate: events.write | layers: event.requireWritableEvent | keys: events.settings.update @ event(:id)
+GET    /api/events/:id/logo/:fileID | gate: events.content.read(public) | layers: middleware.PublicMedia | keys: - @ public(pages)
 GET    /api/events/:id/manage/access | gate: self | layers: event.requireRead | keys: ?
 GET    /api/events/:id/manage/analytics/access | gate: self | layers: eventAnalytics.requireSections | keys: ?
 GET    /api/events/:id/manage/analytics/communications | gate: self | layers: eventAnalytics.requireSections | keys: ?
@@ -375,17 +375,17 @@ PUT    /api/events/:id/manage/theme | gate: self | layers: event.requireManage |
 GET    /api/events/:id/managers | gate: events.read | layers: - | keys: ?
 DELETE /api/events/:id/managers/:userID | gate: events.write | layers: - | keys: ?
 PUT    /api/events/:id/managers/:userID | gate: events.write | layers: - | keys: ?
-GET    /api/events/:id/participants | gate: events.read | layers: - | keys: ?
-POST   /api/events/:id/participants/:userID/approve | gate: events.write | layers: event.requireWritableEvent | keys: ?
-POST   /api/events/:id/participants/:userID/reject | gate: events.write | layers: - | keys: ?
-GET    /api/events/:id/preview-picture/:fileID | gate: events.content.read(public) | layers: middleware.PublicMedia | keys: ?
-GET    /api/events/:id/results | gate: events.results.read(public) | layers: - | keys: ?
-GET    /api/events/:id/results/changes | gate: events.results.read(public) | layers: - | keys: ?
-GET    /api/events/:id/results/live | gate: events.results.read(public) | layers: - | keys: ?
+GET    /api/events/:id/participants | gate: events.read | layers: - | keys: event.participants.list @ event(:id)
+POST   /api/events/:id/participants/:userID/approve | gate: events.write | layers: event.requireWritableEvent | keys: event.participants.update @ event(:id)
+POST   /api/events/:id/participants/:userID/reject | gate: events.write | layers: - | keys: event.participants.delete @ event(:id)
+GET    /api/events/:id/preview-picture/:fileID | gate: events.content.read(public) | layers: middleware.PublicMedia | keys: - @ public(pages)
+GET    /api/events/:id/results | gate: events.results.read(public) | layers: - | keys: - @ public(scoreboard,results)
+GET    /api/events/:id/results/changes | gate: events.results.read(public) | layers: - | keys: - @ public(scoreboard,results)
+GET    /api/events/:id/results/live | gate: events.results.read(public) | layers: - | keys: - @ public(scoreboard,results)
 GET    /api/events/:id/results/participation | gate: self | layers: eventself.touchPresence | keys: ?
 GET    /api/events/:id/results/team | gate: self | layers: eventself.touchPresence | keys: ?
-GET    /api/events/:id/solution-attempts | gate: events.solution-attempts.read | layers: - | keys: ?
-PATCH  /api/events/:id/solution-attempts/:attemptID/decision | gate: events.solution-attempts.write | layers: - | keys: ?
+GET    /api/events/:id/solution-attempts | gate: events.solution-attempts.read | layers: - | keys: event.attempts.read @ event(:id)
+PATCH  /api/events/:id/solution-attempts/:attemptID/decision | gate: events.solution-attempts.write | layers: - | keys: event.attempts.update @ event(:id)
 POST   /api/events/:id/teams | gate: self | layers: eventself.touchPresence | keys: ?
 DELETE /api/events/:id/teams/:teamID | gate: self | layers: eventself.touchPresence | keys: ?
 PUT    /api/events/:id/teams/:teamID | gate: self | layers: eventself.touchPresence | keys: ?
@@ -413,10 +413,10 @@ GET    /api/events/:id/teams/mine | gate: self | layers: eventself.touchPresence
 POST   /api/events/:id/teams/mine/form | gate: self | layers: eventself.touchPresence | keys: ?
 POST   /api/events/:id/teams/mine/leave | gate: self | layers: eventself.touchPresence | keys: ?
 GET    /api/events/:id/teams/mine/members | gate: self | layers: eventself.touchPresence | keys: ?
-PUT    /api/events/:id/theme | gate: events.write | layers: event.requireWritableEvent | keys: ?
-POST   /api/events/bulk/archive | gate: events.write | layers: - | keys: ?
-GET    /api/events/facets | gate: events.read | layers: - | keys: ?
-GET    /api/events/organizers | gate: events.read | layers: - | keys: ?
+PUT    /api/events/:id/theme | gate: events.write | layers: event.requireWritableEvent | keys: events.settings.update @ event(:id)
+POST   /api/events/bulk/archive | gate: events.write | layers: - | keys: events.archive @ object(event)
+GET    /api/events/facets | gate: events.read | layers: - | keys: events.list @ platform
+GET    /api/events/organizers | gate: events.read | layers: - | keys: events.list @ platform
 POST   /api/events/self/answer-files | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence,middleware.RateLimitPerUser.func | keys: ?
 GET    /api/events/self/answer-files/:fileID | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence | keys: ?
 GET    /api/events/self/info | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence | keys: ?

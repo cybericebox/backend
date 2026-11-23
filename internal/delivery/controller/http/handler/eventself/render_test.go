@@ -3,6 +3,7 @@ package eventself
 import (
 	"context"
 	"encoding/json"
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/config"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	"github.com/cybericebox/backend/internal/eventrender"
@@ -234,4 +235,22 @@ func TestRenderGrantUnknownAndUnauthorizedStaffAreNeutral(t *testing.T) {
 		bodies = append(bodies, rec.Body.String())
 	}
 	require.Equal(t, bodies[0], bodies[1])
+}
+
+// Route mirrors protection.Route: the declaration decides nothing, the legacy gate runs unchanged.
+func (renderGate) Route(_ authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if legacy != nil {
+			legacy(c)
+		}
+	}
+}
+
+// Route mirrors protection.Route: the declaration decides nothing, the legacy gate runs unchanged.
+func (g renderIdentityGate) Route(_ authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if legacy != nil {
+			legacy(c)
+		}
+	}
 }
