@@ -398,7 +398,7 @@ func NeedsOf(t Topology, checks []LabCheck) LabNeeds {
 	}
 	slices.Sort(n.Registries)
 	n.ConsoleLines, n.ConsoleCables = t.UsesConsoleLines(), t.ConsoleCables()
-	n.KernelLog = slices.ContainsFunc(t.Devices, func(d Device) bool { return d.KernelLog })
+	n.KernelLog = slices.ContainsFunc(t.Devices, func(d Device) bool { return d.KernelLogPort() != "" })
 	n.Checks = len(checks) > 0
 	n.ChecksPerLab = len(checks)
 	kinds := map[string]struct{}{}

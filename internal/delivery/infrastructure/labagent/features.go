@@ -132,6 +132,8 @@ const kernelLogField protowire.Number = 4
 
 // kernelLogOf reads ConsoleCablesFeature.kernel_log. The laboratory SDK this build is pinned to may be older than the field: its
 // message then keeps the field among the unknown fields, which are read here; once the SDK has it, the declared field is read.
+// When the laboratory pin moves to an SDK that declares field 4 (laboratory#125), replace kernelLogOf with c.GetKernelLog() and
+// switch its test to ConsoleCablesFeature{KernelLog: true}.
 func kernelLogOf(c *labpb.ConsoleCablesFeature) bool {
 	m := c.ProtoReflect()
 	if fd := m.Descriptor().Fields().ByNumber(kernelLogField); fd != nil {
@@ -420,6 +422,7 @@ func labNeed(p resourcesModel.Policy, topo exerciseModel.Topology) infraModel.Pl
 		need.Device = need.Device.Max(d.Amount)
 	}
 	need.ConsoleLines = topo.UsesConsoleLines()
+	need.KernelLog = exerciseModel.NeedsOf(topo, nil).KernelLog
 	return need
 }
 
@@ -429,6 +432,7 @@ func withLab(need, lab infraModel.PlacementNeed) infraModel.PlacementNeed {
 	need.Device = need.Device.Max(lab.Device)
 	need.LabDevices = max(need.LabDevices, lab.LabDevices)
 	need.ConsoleLines = need.ConsoleLines || lab.ConsoleLines
+	need.KernelLog = need.KernelLog || lab.KernelLog
 	return need
 }
 

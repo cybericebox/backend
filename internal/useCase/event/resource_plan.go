@@ -61,6 +61,8 @@ type PlanTask struct {
 	profiles exerciseModel.NodeProfileSet
 	// consoleLines: a planned variant has console or serial ports or console cables.
 	consoleLines bool
+	// kernelLog: a planned variant puts the kernel log on a console port.
+	kernelLog bool
 }
 
 // GroupOverhead is a team's lab group's own pods, computed with the agents' formula for the plan.
@@ -113,12 +115,13 @@ type planInputs struct {
 	allowedRelations int
 	profiles         exerciseModel.NodeProfileSet
 	consoleLines     bool
+	kernelLog        bool
 }
 
 // placementNeed is what a team's group asks of an agent.
 func (p planInputs) placementNeed() infraModel.PlacementNeed {
 	return infraModel.PlacementNeed{
-		Device: p.maxDevice, LabDevices: p.maxLabSize, Profiles: p.profiles, ConsoleLines: p.consoleLines,
+		Device: p.maxDevice, LabDevices: p.maxLabSize, Profiles: p.profiles, ConsoleLines: p.consoleLines, KernelLog: p.kernelLog,
 		Plan: infraModel.GroupPlan{MaxUsers: p.maxUsers, InternetLabs: p.internetLab, MaxActiveLabs: p.activeLabs, AllowedRelations: p.allowedRelations},
 	}
 }
@@ -187,6 +190,7 @@ func (u *EventUseCase) resourcePlanInputs(ctx context.Context, eventID uuid.UUID
 		in.maxDevice = in.maxDevice.Max(task.deviceMax)
 		in.profiles = in.profiles.Union(task.profiles)
 		in.consoleLines = in.consoleLines || task.consoleLines
+		in.kernelLog = in.kernelLog || task.kernelLog
 		if task.hasLab {
 			in.activeLabs++
 		}
@@ -229,6 +233,7 @@ func planTask(policy resourcesModel.Policy, link eventExerciseModel.EventExercis
 			task.InternetLab = true
 		}
 		task.consoleLines = task.consoleLines || v.Topology.UsesConsoleLines()
+		task.kernelLog = task.kernelLog || exerciseModel.NeedsOf(v.Topology, nil).KernelLog
 		devices := policy.Devices(v.Topology)
 		task.labDevices = max(task.labDevices, len(devices))
 		for _, d := range devices {

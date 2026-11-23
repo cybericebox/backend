@@ -76,6 +76,9 @@ func TestKernelLog_NeedsAndJSON(t *testing.T) {
 	assert.True(t, needs.ConsoleLines)
 	plain := router("r2", exerciseModel.ConsolePort{Name: "console0"})
 	assert.False(t, exerciseModel.NeedsOf(exerciseModel.Topology{Devices: []exerciseModel.Device{plain}}, nil).KernelLog)
+	native := microVMRouter("r3", exerciseModel.ConsolePort{Name: "console0", Native: &exerciseModel.NativeSource{Kind: exerciseModel.NativeStdio}})
+	assert.False(t, exerciseModel.NeedsOf(exerciseModel.Topology{Devices: []exerciseModel.Device{native}}, nil).KernelLog,
+		"no port carries the log, so nothing is sent and nothing is needed")
 
 	raw, err := json.Marshal(d)
 	require.NoError(t, err)

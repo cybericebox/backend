@@ -24,3 +24,18 @@ func TestPlanTaskNotesConsoleLines(t *testing.T) {
 	assert.False(t, planInputs{}.placementNeed().ConsoleLines)
 	assert.True(t, planInputs{consoleLines: true}.placementNeed().ConsoleLines)
 }
+
+// A team's group goes to an agent that shows the kernel log when a planned variant asks for it.
+func TestPlanTaskNotesTheKernelLog(t *testing.T) {
+	policy := resourcesModel.DefaultPolicy()
+	link := eventExerciseModel.EventExercise{ExerciseID: uuid.Must(uuid.NewV7()), VariantMode: eventExerciseModel.VariantModePerTeam}
+	router := container("r1", "")
+	router.ConsolePorts = []exerciseModel.ConsolePort{{Name: "console0"}}
+	plain := planTask(policy, link, []exerciseModel.Variant{variant(false, router)}, nil)
+	router.Profile, router.KernelLog = exerciseModel.NodeProfileMicroVM, true
+	logged := planTask(policy, link, []exerciseModel.Variant{variant(false, container("web", "")), variant(false, router)}, nil)
+	assert.False(t, plain.kernelLog)
+	assert.True(t, logged.kernelLog)
+	assert.False(t, planInputs{consoleLines: true}.placementNeed().KernelLog)
+	assert.True(t, planInputs{consoleLines: true, kernelLog: true}.placementNeed().KernelLog)
+}

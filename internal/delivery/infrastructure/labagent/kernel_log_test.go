@@ -28,7 +28,8 @@ func kernelLogOffered() *infraModel.AgentFeatures {
 }
 
 // withKernelLogField is a console feature whose kernel_log (field 4, contract 3.2) arrives as the agent sends it on the wire:
-// an SDK older than the field keeps it among the unknown fields.
+// an SDK older than the field keeps it among the unknown fields. When the laboratory pin moves to an SDK that declares field 4,
+// replace this helper with the field itself (ConsoleCablesFeature{..., KernelLog: true}) and kernelLogOf with GetKernelLog().
 func withKernelLogField(c *labpb.ConsoleCablesFeature, on bool) *labpb.ConsoleCablesFeature {
 	v := uint64(0)
 	if on {
@@ -77,6 +78,34 @@ func TestKernelLogOfTheFleet(t *testing.T) {
 
 	require.ErrorIs(t, NewFleet(nil, nil, lines).DeployLab(t.Context(), "g", "l", infraModel.LabMeta{}, topo), exerciseModel.ErrKernelLogUnavailable.Err())
 	require.True(t, infraModel.IsPlanningError(exerciseModel.ErrKernelLogUnavailable.Err()), "never retried as it is")
+}
+
+// A new group whose lab asks for the kernel log goes to the agent that offers it, not to one that serves console lines only.
+func TestANewGroupWithTheKernelLogGoesToAnAgentThatOffersIt(t *testing.T) {
+	f := newFleetFixture(t)
+	f.am.Features = NewFeatureCell(consoleOffered(64))
+	f.bm.Features = NewFeatureCell(kernelLogOffered())
+	require.NoError(t, f.fleet.DeployLab(t.Context(), "e-1-t-9", "c-1", infraModel.LabMeta{}, kernelLogLab()))
+	require.Nil(t, f.a.createLabs, "the 3.1 agent gets nothing")
+	require.NotNil(t, f.b.createLabs)
+	require.True(t, labNeed(f.fleet.Policy(), kernelLogLab()).KernelLog)
+	require.True(t, withLab(infraModel.PlacementNeed{}, infraModel.PlacementNeed{KernelLog: true}).KernelLog)
+}
+
+// A cached report that serves console lines but says kernel_log=false is read again before a refusal stands: the feature can
+// be switched on after the agent reported.
+func TestTheKernelLogRefreshesAStaleReportBeforeRefusing(t *testing.T) {
+	f := newFleetFixture(t)
+	stale := kernelLogOffered()
+	stale.ConsoleCables.KernelLog = false
+	f.am.Features = NewFeatureCell(stale)
+	f.bm.Features = NewFeatureCell(allOptions())
+	f.a.features = &labpb.FeaturesResponse{
+		ContractVersion: "3.2", Checks: &labpb.ChecksFeature{Enabled: true}, Access: &labpb.AccessFeature{Http: true, Terminal: true},
+		Bootstrap: &labpb.BootstrapFeature{}, ConsoleCables: withKernelLogField(&labpb.ConsoleCablesFeature{Enabled: true, MaxCablesPerLab: 64}, true),
+	}
+	require.NoError(t, f.fleet.DeployLab(t.Context(), "e-1-t-1", "c-1", infraModel.LabMeta{}, kernelLogLab()))
+	require.NotNil(t, f.a.createLabs, "the agent switched on since its last report takes the lab")
 }
 
 func TestDeployLabSendsTheKernelLogToAnAgentThatOffersIt(t *testing.T) {

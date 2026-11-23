@@ -53,7 +53,8 @@ func (t *Topology) takeSeat(tools *Device, name string) error {
 
 // cableOperated gives the tools device a console line to each operated device that declares a console port (8.3): in the order
 // of operates, the next serial port of the tools device (serial0, serial1, ...; the default path /dev/ttyCON<n>) and a console
-// cable to the first free console port of that device, in the order the device declares them. A port already cabled (by the
+// cable to the first free console port of that device, in the order the device declares them, the port that carries the kernel
+// log (KernelLogPort) last: it is used only when no other is free, and the line then shows kernel messages too. A port already cabled (by the
 // author, or for another tools device) is never re-plugged; a device with no free console port, or none at all, is reached over
 // the lab network only. More than MaxSerialPorts lines is ErrToolsNoSerialPort.
 func (t *Topology) cableOperated(tools *Device, operates []string) error {
@@ -76,7 +77,14 @@ func (t *Topology) cableOperated(tools *Device, operates []string) error {
 			continue
 		}
 		device := t.Devices[at]
-		free := slices.IndexFunc(device.ConsolePorts, func(p ConsolePort) bool { return !used[portKey{device.ID.String(), p.Name}] })
+		// A port that carries the kernel log is taken last: the line would show kernel messages beside the program.
+		logPort := device.KernelLogPort()
+		free := slices.IndexFunc(device.ConsolePorts, func(p ConsolePort) bool {
+			return p.Name != logPort && !used[portKey{device.ID.String(), p.Name}]
+		})
+		if free < 0 {
+			free = slices.IndexFunc(device.ConsolePorts, func(p ConsolePort) bool { return !used[portKey{device.ID.String(), p.Name}] })
+		}
 		if free < 0 {
 			continue
 		}
