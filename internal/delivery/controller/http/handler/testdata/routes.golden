@@ -31,17 +31,17 @@ GET    /api/analytics/tasks/table | gate: analytics.read | layers: - | keys: ?
 GET    /api/analytics/users | gate: analytics.read | layers: - | keys: ?
 GET    /api/analytics/users/export.csv | gate: analytics.read | layers: - | keys: ?
 GET    /api/analytics/users/people | gate: analytics.users.read | layers: - | keys: ?
-GET    /api/assistant/ideas | gate: self | layers: assistant.author | keys: ?
-POST   /api/assistant/sessions | gate: self | layers: assistant.author | keys: ?
-DELETE /api/assistant/sessions/:id | gate: self | layers: assistant.author | keys: ?
-GET    /api/assistant/sessions/:id/archive | gate: self | layers: assistant.author | keys: ?
-POST   /api/assistant/sessions/:id/attachments | gate: self | layers: assistant.author | keys: ?
-DELETE /api/assistant/sessions/:id/attachments/:aid | gate: self | layers: assistant.author | keys: ?
-GET    /api/assistant/sessions/:id/events | gate: self | layers: assistant.author | keys: ?
-POST   /api/assistant/sessions/:id/messages | gate: self | layers: assistant.author | keys: ?
+GET    /api/assistant/ideas | gate: self | layers: assistant.author | keys: cyberbrain.chat.use @ platform
+POST   /api/assistant/sessions | gate: self | layers: assistant.author | keys: cyberbrain.chat.use @ platform
+DELETE /api/assistant/sessions/:id | gate: self | layers: assistant.author | keys: cyberbrain.chat.use @ platform
+GET    /api/assistant/sessions/:id/archive | gate: self | layers: assistant.author | keys: cyberbrain.sessions.read @ platform
+POST   /api/assistant/sessions/:id/attachments | gate: self | layers: assistant.author | keys: cyberbrain.chat.use @ platform
+DELETE /api/assistant/sessions/:id/attachments/:aid | gate: self | layers: assistant.author | keys: cyberbrain.chat.use @ platform
+GET    /api/assistant/sessions/:id/events | gate: self | layers: assistant.author | keys: cyberbrain.sessions.read @ platform
+POST   /api/assistant/sessions/:id/messages | gate: self | layers: assistant.author | keys: cyberbrain.chat.use @ platform
 POST   /api/assistant/sessions/:id/save | gate: self | layers: download.LongOperation.func,assistant.author | keys: ?
-POST   /api/assistant/sessions/:id/start | gate: self | layers: assistant.author | keys: ?
-POST   /api/assistant/sessions/:id/stop | gate: self | layers: assistant.author | keys: ?
+POST   /api/assistant/sessions/:id/start | gate: self | layers: assistant.author | keys: cyberbrain.chat.use @ platform
+POST   /api/assistant/sessions/:id/stop | gate: self | layers: assistant.author | keys: cyberbrain.chat.use @ platform
 DELETE /api/auth/account | gate: self | layers: - | keys: self @ self
 GET    /api/auth/account | gate: self | layers: - | keys: self @ self
 DELETE /api/auth/account/avatar | gate: self | layers: - | keys: self @ self
@@ -440,51 +440,51 @@ POST   /api/events/self/render-grant | gate: self | layers: eventself.(*EventRen
 GET    /api/events/self/team-fields | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence | keys: ?
 GET    /api/exercises | gate: self | layers: - | keys: ?
 POST   /api/exercises | gate: self | layers: - | keys: ?
-DELETE /api/exercises/:id | gate: self | layers: exercise.authorize.func | keys: ?
-GET    /api/exercises/:id | gate: self | layers: exercise.authorize.func | keys: ?
-PATCH  /api/exercises/:id | gate: self | layers: exercise.authorize.func | keys: ?
-PUT    /api/exercises/:id/access | gate: exercises.write | layers: - | keys: ?
-POST   /api/exercises/:id/archive | gate: self | layers: exercise.authorize.func | keys: ?
-POST   /api/exercises/:id/checkpoints | gate: self | layers: exercise.authorize.func | keys: ?
-DELETE /api/exercises/:id/draft | gate: self | layers: exercise.authorize.func | keys: ?
-GET    /api/exercises/:id/draft | gate: self | layers: exercise.authorize.func | keys: ?
-PUT    /api/exercises/:id/draft | gate: self | layers: exercise.authorize.func | keys: ?
-GET    /api/exercises/:id/draft/document | gate: self | layers: exercise.authorize.func | keys: ?
-GET    /api/exercises/:id/elevation | gate: self | layers: exercise.authorize.func | keys: ?
-POST   /api/exercises/:id/elevation | gate: self | layers: exercise.authorize.func | keys: ?
-POST   /api/exercises/:id/files/lookup | gate: self | layers: exercise.authorize.func | keys: ?
-POST   /api/exercises/:id/images | gate: self | layers: exercise.authorize.func | keys: ?
-POST   /api/exercises/:id/images/blobs | gate: self | layers: exercise.authorize.func | keys: ?
-GET    /api/exercises/:id/images/blobs/:digest | gate: self | layers: exercise.authorize.func | keys: ?
-POST   /api/exercises/:id/images/blobs/missing | gate: self | layers: exercise.authorize.func | keys: ?
-POST   /api/exercises/:id/images/check | gate: self | layers: exercise.authorize.func | keys: ?
-POST   /api/exercises/:id/images/service | gate: self | layers: exercise.authorize.func | keys: ?
-POST   /api/exercises/:id/proposals | gate: self | layers: exercise.authorize.func | keys: ?
-POST   /api/exercises/:id/publish | gate: self | layers: exercise.authorize.func | keys: ?
-POST   /api/exercises/:id/unarchive | gate: self | layers: exercise.authorize.func | keys: ?
-GET    /api/exercises/:id/usage | gate: self | layers: exercise.authorize.func | keys: ?
-GET    /api/exercises/:id/variant-stats | gate: self | layers: exercise.authorize.func | keys: ?
-GET    /api/exercises/:id/versions | gate: self | layers: exercise.authorize.func | keys: ?
-GET    /api/exercises/:id/versions/:versionID | gate: self | layers: exercise.authorize.func | keys: ?
-POST   /api/exercises/:id/versions/:versionID/restore | gate: self | layers: exercise.authorize.func | keys: ?
-POST   /api/exercises/:id/versions/:versionID/rollback | gate: self | layers: exercise.authorize.func | keys: ?
-POST   /api/exercises/:id/versions/:versionID/variants/:variantID/deploy | gate: self | layers: - | keys: ?
-GET    /api/exercises/:id/versions/:versionID/variants/:variantID/measure | gate: self | layers: - | keys: ?
-POST   /api/exercises/:id/versions/:versionID/variants/:variantID/measure | gate: self | layers: - | keys: ?
-GET    /api/exercises/:id/versions/:versionID/variants/:variantID/measure/:runID | gate: self | layers: - | keys: ?
-GET    /api/exercises/:id/versions/:versionID/variants/:variantID/measure/:runID/events | gate: self | layers: - | keys: ?
-POST   /api/exercises/:id/versions/:versionID/variants/:variantID/measure/:runID/stop | gate: self | layers: - | keys: ?
-GET    /api/exercises/:id/versions/:versionID/variants/:variantID/opponents/:index/try | gate: self | layers: - | keys: ?
-POST   /api/exercises/:id/versions/:versionID/variants/:variantID/opponents/:index/try | gate: self | layers: - | keys: ?
-GET    /api/exercises/:id/versions/:versionID/variants/:variantID/opponents/:index/try/:runID | gate: self | layers: - | keys: ?
-GET    /api/exercises/:id/versions/:versionID/variants/:variantID/opponents/:index/try/:runID/events | gate: self | layers: - | keys: ?
-POST   /api/exercises/:id/versions/:versionID/variants/:variantID/opponents/:index/try/:runID/stop | gate: self | layers: - | keys: ?
-POST   /api/exercises/:id/versions/:versionID/variants/:variantID/opponents/try | gate: self | layers: - | keys: ?
+DELETE /api/exercises/:id | gate: self | layers: exercise.authorize.func | keys: anyOf(exercises.delete,event.exercises.delete,(author)) @ object(exercise)
+GET    /api/exercises/:id | gate: self | layers: exercise.authorize.func | keys: anyOf(exercises.read,event.exercises.read,event.tasks.read,(author)) @ object(exercise)
+PATCH  /api/exercises/:id | gate: self | layers: exercise.authorize.func | keys: anyOf(exercises.update,event.exercises.update,(author)) @ object(exercise)
+PUT    /api/exercises/:id/access | gate: exercises.write | layers: - | keys: exercises.audiences.update @ object(exercise)
+POST   /api/exercises/:id/archive | gate: self | layers: exercise.authorize.func | keys: anyOf(exercises.update,event.exercises.update,(author)) @ object(exercise)
+POST   /api/exercises/:id/checkpoints | gate: self | layers: exercise.authorize.func | keys: anyOf(exercises.update,event.exercises.update,(author)) @ object(exercise)
+DELETE /api/exercises/:id/draft | gate: self | layers: exercise.authorize.func | keys: anyOf(exercises.update,event.exercises.update,(author)) @ object(exercise)
+GET    /api/exercises/:id/draft | gate: self | layers: exercise.authorize.func | keys: anyOf(exercises.read,event.exercises.read,(author)) @ object(exercise)
+PUT    /api/exercises/:id/draft | gate: self | layers: exercise.authorize.func | keys: anyOf(exercises.update,event.exercises.update,(author)) @ object(exercise)
+GET    /api/exercises/:id/draft/document | gate: self | layers: exercise.authorize.func | keys: anyOf(exercises.read,event.exercises.read,(author)) @ object(exercise)
+GET    /api/exercises/:id/elevation | gate: self | layers: exercise.authorize.func | keys: anyOf(exercises.read,event.exercises.read,(author)) @ object(exercise)
+POST   /api/exercises/:id/elevation | gate: self | layers: exercise.authorize.func | keys: anyOf(exercises.update,event.exercises.update,(author)) @ object(exercise)
+POST   /api/exercises/:id/files/lookup | gate: self | layers: exercise.authorize.func | keys: anyOf(exercises.update,event.exercises.update,(author)) @ object(exercise)
+POST   /api/exercises/:id/images | gate: self | layers: exercise.authorize.func | keys: anyOf(exercises.update,event.exercises.update,(author)) @ object(exercise)
+POST   /api/exercises/:id/images/blobs | gate: self | layers: exercise.authorize.func | keys: anyOf(exercises.update,event.exercises.update,(author)) @ object(exercise)
+GET    /api/exercises/:id/images/blobs/:digest | gate: self | layers: exercise.authorize.func | keys: anyOf(exercises.update,event.exercises.update,(author)) @ object(exercise)
+POST   /api/exercises/:id/images/blobs/missing | gate: self | layers: exercise.authorize.func | keys: anyOf(exercises.update,event.exercises.update,(author)) @ object(exercise)
+POST   /api/exercises/:id/images/check | gate: self | layers: exercise.authorize.func | keys: anyOf(exercises.update,event.exercises.update,(author)) @ object(exercise)
+POST   /api/exercises/:id/images/service | gate: self | layers: exercise.authorize.func | keys: anyOf(exercises.update,event.exercises.update,(author)) @ object(exercise)
+POST   /api/exercises/:id/proposals | gate: self | layers: exercise.authorize.func | keys: anyOf(exercises.publish,event.exercises.publish) @ object(exercise)
+POST   /api/exercises/:id/publish | gate: self | layers: exercise.authorize.func | keys: anyOf(exercises.publish,event.exercises.publish) @ object(exercise)
+POST   /api/exercises/:id/unarchive | gate: self | layers: exercise.authorize.func | keys: anyOf(exercises.update,event.exercises.update,(author)) @ object(exercise)
+GET    /api/exercises/:id/usage | gate: self | layers: exercise.authorize.func | keys: anyOf(exercises.read,event.exercises.read,(author)) @ object(exercise)
+GET    /api/exercises/:id/variant-stats | gate: self | layers: exercise.authorize.func | keys: anyOf(exercises.read,event.exercises.read,(author)) @ object(exercise)
+GET    /api/exercises/:id/versions | gate: self | layers: exercise.authorize.func | keys: anyOf(exercises.read,event.exercises.read,(author)) @ object(exercise)
+GET    /api/exercises/:id/versions/:versionID | gate: self | layers: exercise.authorize.func | keys: anyOf(exercises.read,event.exercises.read,event.tasks.read,(author)) @ object(exercise)
+POST   /api/exercises/:id/versions/:versionID/restore | gate: self | layers: exercise.authorize.func | keys: anyOf(exercises.update,event.exercises.update,(author)) @ object(exercise)
+POST   /api/exercises/:id/versions/:versionID/rollback | gate: self | layers: exercise.authorize.func | keys: anyOf(exercises.publish,event.exercises.publish) @ object(exercise)
+POST   /api/exercises/:id/versions/:versionID/variants/:variantID/deploy | gate: self | layers: - | keys: allOf(exercises.testlab.start) + anyOf(exercises.update,event.exercises.update,(author)) @ object(exercise)
+GET    /api/exercises/:id/versions/:versionID/variants/:variantID/measure | gate: self | layers: - | keys: allOf(cyberbrain.runs.read) + anyOf(exercises.update,event.exercises.update,(author)) @ object(exercise)
+POST   /api/exercises/:id/versions/:versionID/variants/:variantID/measure | gate: self | layers: - | keys: allOf(cyberbrain.runs.start) + anyOf(exercises.update,event.exercises.update,(author)) @ object(exercise)
+GET    /api/exercises/:id/versions/:versionID/variants/:variantID/measure/:runID | gate: self | layers: - | keys: allOf(cyberbrain.runs.read) + anyOf(exercises.update,event.exercises.update,(author)) @ object(exercise)
+GET    /api/exercises/:id/versions/:versionID/variants/:variantID/measure/:runID/events | gate: self | layers: - | keys: allOf(cyberbrain.runs.read) + anyOf(exercises.update,event.exercises.update,(author)) @ object(exercise)
+POST   /api/exercises/:id/versions/:versionID/variants/:variantID/measure/:runID/stop | gate: self | layers: - | keys: allOf(cyberbrain.runs.start) + anyOf(exercises.update,event.exercises.update,(author)) @ object(exercise)
+GET    /api/exercises/:id/versions/:versionID/variants/:variantID/opponents/:index/try | gate: self | layers: - | keys: allOf(cyberbrain.runs.read) + anyOf(exercises.update,event.exercises.update,(author)) @ object(exercise)
+POST   /api/exercises/:id/versions/:versionID/variants/:variantID/opponents/:index/try | gate: self | layers: - | keys: allOf(cyberbrain.runs.start) + anyOf(exercises.update,event.exercises.update,(author)) @ object(exercise)
+GET    /api/exercises/:id/versions/:versionID/variants/:variantID/opponents/:index/try/:runID | gate: self | layers: - | keys: allOf(cyberbrain.runs.read) + anyOf(exercises.update,event.exercises.update,(author)) @ object(exercise)
+GET    /api/exercises/:id/versions/:versionID/variants/:variantID/opponents/:index/try/:runID/events | gate: self | layers: - | keys: allOf(cyberbrain.runs.read) + anyOf(exercises.update,event.exercises.update,(author)) @ object(exercise)
+POST   /api/exercises/:id/versions/:versionID/variants/:variantID/opponents/:index/try/:runID/stop | gate: self | layers: - | keys: allOf(cyberbrain.runs.start) + anyOf(exercises.update,event.exercises.update,(author)) @ object(exercise)
+POST   /api/exercises/:id/versions/:versionID/variants/:variantID/opponents/try | gate: self | layers: - | keys: allOf(cyberbrain.runs.start) + anyOf(exercises.update,event.exercises.update,(author)) @ object(exercise)
 GET    /api/exercises/access | gate: self | layers: - | keys: ?
 GET    /api/exercises/authors | gate: self | layers: - | keys: ?
-PUT    /api/exercises/bulk/access | gate: exercises.write | layers: - | keys: ?
-POST   /api/exercises/bulk/archive | gate: self | layers: - | keys: ?
-POST   /api/exercises/bulk/unarchive | gate: self | layers: - | keys: ?
+PUT    /api/exercises/bulk/access | gate: exercises.write | layers: - | keys: exercises.audiences.update @ object(exercise)
+POST   /api/exercises/bulk/archive | gate: self | layers: - | keys: anyOf(exercises.update,event.exercises.update,(author)) @ object(exercise)
+POST   /api/exercises/bulk/unarchive | gate: self | layers: - | keys: anyOf(exercises.update,event.exercises.update,(author)) @ object(exercise)
 GET    /api/exercises/capabilities | gate: self | layers: exercise.requireAuthor | keys: ?
 GET    /api/exercises/deploys | gate: self | layers: - | keys: ?
 DELETE /api/exercises/deploys/:deployID | gate: self | layers: - | keys: ?
@@ -496,12 +496,12 @@ GET    /api/exercises/deploys/:deployID/dossier | gate: self | layers: - | keys:
 POST   /api/exercises/deploys/:deployID/extend | gate: self | layers: - | keys: ?
 POST   /api/exercises/deploys/:deployID/link | gate: self | layers: - | keys: ?
 POST   /api/exercises/deploys/:deployID/tasks/:taskID/run-checks | gate: self | layers: - | keys: ?
-GET    /api/exercises/elevations | gate: exercises.elevations.read | layers: - | keys: ?
-GET    /api/exercises/elevations/:elevationID | gate: exercises.elevations.read | layers: - | keys: ?
-POST   /api/exercises/elevations/:elevationID/approve | gate: exercises.elevations.write | layers: - | keys: ?
-POST   /api/exercises/elevations/:elevationID/reject | gate: exercises.elevations.write | layers: - | keys: ?
-GET    /api/exercises/elevations/pending-count | gate: exercises.elevations.read | layers: - | keys: ?
-POST   /api/exercises/export | gate: self | layers: - | keys: ?
+GET    /api/exercises/elevations | gate: exercises.elevations.read | layers: - | keys: exercises.elevations.read @ platform
+GET    /api/exercises/elevations/:elevationID | gate: exercises.elevations.read | layers: - | keys: exercises.elevations.read @ platform
+POST   /api/exercises/elevations/:elevationID/approve | gate: exercises.elevations.write | layers: - | keys: exercises.elevations.update @ platform
+POST   /api/exercises/elevations/:elevationID/reject | gate: exercises.elevations.write | layers: - | keys: exercises.elevations.update @ platform
+GET    /api/exercises/elevations/pending-count | gate: exercises.elevations.read | layers: - | keys: exercises.elevations.read @ platform
+POST   /api/exercises/export | gate: self | layers: - | keys: anyOf(exercises.export,event.tasks.export) @ object(exercise)
 GET    /api/exercises/export/jobs/:jobID | gate: self | layers: - | keys: ?
 POST   /api/exercises/files | gate: self | layers: - | keys: ?
 GET    /api/exercises/files/:fileID | gate: self | layers: - | keys: ?
@@ -520,9 +520,9 @@ POST   /api/exercises/import/upload | gate: self | layers: download.LongOperatio
 POST   /api/exercises/import/uploaded | gate: self | layers: download.LongOperation.func | keys: ?
 GET    /api/exercises/preferences/catalog-columns | gate: self | layers: - | keys: ?
 PUT    /api/exercises/preferences/catalog-columns | gate: self | layers: - | keys: ?
-GET    /api/exercises/proposals | gate: exercises.read | layers: - | keys: ?
-POST   /api/exercises/proposals/:proposalID/approve | gate: exercises.publish | layers: - | keys: ?
-POST   /api/exercises/proposals/:proposalID/reject | gate: exercises.publish | layers: - | keys: ?
+GET    /api/exercises/proposals | gate: exercises.read | layers: - | keys: exercises.publish @ platform
+POST   /api/exercises/proposals/:proposalID/approve | gate: exercises.publish | layers: - | keys: exercises.publish @ platform
+POST   /api/exercises/proposals/:proposalID/reject | gate: exercises.publish | layers: - | keys: exercises.publish @ platform
 GET    /api/exercises/tags | gate: self | layers: - | keys: ?
 GET    /api/exercises/test-labs/bookings | gate: self | layers: resourceCalendar.requireTestLabAuthor | keys: ?
 POST   /api/exercises/test-labs/bookings | gate: self | layers: resourceCalendar.requireTestLabAuthor | keys: ?

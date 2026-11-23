@@ -11,3 +11,8 @@ DELETE /api/auth/passkeys/:id | A.3 #30: own passkey (self)
 DELETE /api/auth/sessions | A.3 #39: own other sessions (self)
 DELETE /api/auth/sessions/:id | A.3 #41: own session (self)
 PATCH /api/users/:userID/role | A.3 #690: a role change revokes and grants, all-of access.grants.create and access.grants.delete
+DELETE /api/assistant/sessions/:id | A.3 #83: the caller's own brain session (sessions are the caller's own in the brain), cyberbrain.chat.use
+DELETE /api/assistant/sessions/:id/attachments/:aid | A.3 #86: an attachment of the caller's own brain session, cyberbrain.chat.use
+DELETE /api/exercises/:id/draft | A.3 #456: discards the task draft (undo), the update keys or authorship
+POST /api/exercises/elevations/:elevationID/reject | A.3 #509: deciding a request, exercises.elevations.update ("approve or reject them", A.2)
+POST /api/exercises/proposals/:proposalID/reject | A.3 #532: deciding a proposal, exercises.publish ("review catalog proposals", A.2; round 3)

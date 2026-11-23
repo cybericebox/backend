@@ -394,42 +394,17 @@ PUT /api/events/:id/teams/:teamID/fields | area 5, A.3 #404
 PUT /api/events/self/participant-answers | area 5, A.3 #440
 PUT /api/events/self/pseudonym | area 5, A.3 #444
 # area 6: exercises, runs, assistant
-DELETE /api/assistant/sessions/:id | area 6, A.3 #83
-DELETE /api/assistant/sessions/:id/attachments/:aid | area 6, A.3 #86
-DELETE /api/exercises/:id | area 6, A.3 #450
-DELETE /api/exercises/:id/draft | area 6, A.3 #456
 DELETE /api/exercises/deploys/:deployID | area 6, A.3 #497 open: scope "own deploy (owner = caller)" is not a scope source of the plan
 DELETE /api/exercises/import/jobs/:jobID | area 6, A.3 #522 open: scope "own job" is not a scope source of the plan
 DELETE /api/exercises/test-labs/bookings/:bookingID | area 6, A.3 #536 open: the row breaks the catalogue rules: key event.exercises.create (scopes [event]) cannot be checked at platform; key event.exercises.update (scopes [event]) cannot be checked at platform
 DELETE /api/exercises/uploads/:uploadID | area 6, A.3 #540 open: the row breaks the catalogue rules: key event.exercises.create (scopes [event]) cannot be checked at platform; key event.exercises.update (scopes [event]) cannot be checked at platform
-GET /api/assistant/ideas | area 6, A.3 #81
-GET /api/assistant/sessions/:id/archive | area 6, A.3 #84
-GET /api/assistant/sessions/:id/events | area 6, A.3 #87
 GET /api/exercises | area 6, A.3 #448 open: the row breaks the catalogue rules: relation "author" needs an object or an event, not platform
-GET /api/exercises/:id | area 6, A.3 #451
-GET /api/exercises/:id/draft | area 6, A.3 #457
-GET /api/exercises/:id/draft/document | area 6, A.3 #459
-GET /api/exercises/:id/elevation | area 6, A.3 #460
-GET /api/exercises/:id/images/blobs/:digest | area 6, A.3 #465
-GET /api/exercises/:id/usage | area 6, A.3 #472
-GET /api/exercises/:id/variant-stats | area 6, A.3 #473
-GET /api/exercises/:id/versions | area 6, A.3 #474
-GET /api/exercises/:id/versions/:versionID | area 6, A.3 #475
-GET /api/exercises/:id/versions/:versionID/variants/:variantID/measure | area 6, A.3 #479
-GET /api/exercises/:id/versions/:versionID/variants/:variantID/measure/:runID | area 6, A.3 #481
-GET /api/exercises/:id/versions/:versionID/variants/:variantID/measure/:runID/events | area 6, A.3 #482
-GET /api/exercises/:id/versions/:versionID/variants/:variantID/opponents/:index/try | area 6, A.3 #484
-GET /api/exercises/:id/versions/:versionID/variants/:variantID/opponents/:index/try/:runID | area 6, A.3 #486
-GET /api/exercises/:id/versions/:versionID/variants/:variantID/opponents/:index/try/:runID/events | area 6, A.3 #487
 GET /api/exercises/access | area 6, A.3 #490 open: the row breaks the catalogue rules: key self (scopes [implicit]) cannot be checked at platform
 GET /api/exercises/authors | area 6, A.3 #491 open: the row breaks the catalogue rules: relation "author" needs an object or an event, not platform
 GET /api/exercises/capabilities | area 6, A.3 #495 open: the row breaks the catalogue rules: key event.exercises.create (scopes [event]) cannot be checked at platform; key event.exercises.update (scopes [event]) cannot be checked at platform
 GET /api/exercises/deploys | area 6, A.3 #496 open: scope "own deploy (owner = caller)" is not a scope source of the plan
 GET /api/exercises/deploys/:deployID | area 6, A.3 #498 open: scope "own deploy (owner = caller)" is not a scope source of the plan
 GET /api/exercises/deploys/:deployID/dossier | area 6, A.3 #502 open: scope "own deploy (owner = caller)" is not a scope source of the plan
-GET /api/exercises/elevations | area 6, A.3 #506
-GET /api/exercises/elevations/:elevationID | area 6, A.3 #507
-GET /api/exercises/elevations/pending-count | area 6, A.3 #510
 GET /api/exercises/export/jobs/:jobID | area 6, A.3 #512 open: scope "own job" is not a scope source of the plan
 GET /api/exercises/files/:fileID | area 6, A.3 #514 open: scope "file → its exercises" is not a scope source of the plan
 GET /api/exercises/files/:fileID/chunks/:index | area 6, A.3 #515 open: scope "file → its exercises" is not a scope source of the plan
@@ -440,66 +415,29 @@ GET /api/exercises/import/example/document | area 6, A.3 #520 open: the row brea
 GET /api/exercises/import/jobs | area 6, A.3 #521 open: scope "own job" is not a scope source of the plan
 GET /api/exercises/import/jobs/:jobID | area 6, A.3 #523 open: scope "own job" is not a scope source of the plan
 GET /api/exercises/import/targets | area 6, A.3 #525 open: scope "body OwnerEventID / target exercise" is not a scope source of the plan
-GET /api/exercises/preferences/catalog-columns | area 6, A.3 #528
-GET /api/exercises/proposals | area 6, A.3 #530
+GET /api/exercises/preferences/catalog-columns | area 6, A.3 #528 open: A.3 gives self (own catalog columns), which the no-bare-self rule under /exercises forbids
 GET /api/exercises/tags | area 6, A.3 #533 open: the row breaks the catalogue rules: relation "author" needs an object or an event, not platform
 GET /api/exercises/test-labs/bookings | area 6, A.3 #534 open: the row breaks the catalogue rules: key event.exercises.create (scopes [event]) cannot be checked at platform; key event.exercises.update (scopes [event]) cannot be checked at platform
 GET /api/exercises/test-labs/room | area 6, A.3 #537 open: the row breaks the catalogue rules: key event.exercises.create (scopes [event]) cannot be checked at platform; key event.exercises.update (scopes [event]) cannot be checked at platform
 GET /api/exercises/test-runs/lengths | area 6, A.3 #538 open: the row breaks the catalogue rules: key event.exercises.create (scopes [event]) cannot be checked at platform; key event.exercises.update (scopes [event]) cannot be checked at platform
 GET /api/exercises/uploads/:uploadID | area 6, A.3 #541 open: the row breaks the catalogue rules: key event.exercises.create (scopes [event]) cannot be checked at platform; key event.exercises.update (scopes [event]) cannot be checked at platform
-PATCH /api/exercises/:id | area 6, A.3 #452
-POST /api/assistant/sessions | area 6, A.3 #82
-POST /api/assistant/sessions/:id/attachments | area 6, A.3 #85
-POST /api/assistant/sessions/:id/messages | area 6, A.3 #88
 POST /api/assistant/sessions/:id/save | area 6, A.3 #89 open: keys cell not in a declarable form
-POST /api/assistant/sessions/:id/start | area 6, A.3 #90
-POST /api/assistant/sessions/:id/stop | area 6, A.3 #91
 POST /api/exercises | area 6, A.3 #449 open: scope "body OwnerEventID → event (none: catalog)" is not a scope source of the plan
-POST /api/exercises/:id/archive | area 6, A.3 #454
-POST /api/exercises/:id/checkpoints | area 6, A.3 #455
-POST /api/exercises/:id/elevation | area 6, A.3 #461
-POST /api/exercises/:id/files/lookup | area 6, A.3 #462
-POST /api/exercises/:id/images | area 6, A.3 #463
-POST /api/exercises/:id/images/blobs | area 6, A.3 #464
-POST /api/exercises/:id/images/blobs/missing | area 6, A.3 #466
-POST /api/exercises/:id/images/check | area 6, A.3 #467
-POST /api/exercises/:id/images/service | area 6, A.3 #468
-POST /api/exercises/:id/proposals | area 6, A.3 #469
-POST /api/exercises/:id/publish | area 6, A.3 #470
-POST /api/exercises/:id/unarchive | area 6, A.3 #471
-POST /api/exercises/:id/versions/:versionID/restore | area 6, A.3 #476
-POST /api/exercises/:id/versions/:versionID/rollback | area 6, A.3 #477
-POST /api/exercises/:id/versions/:versionID/variants/:variantID/deploy | area 6, A.3 #478
-POST /api/exercises/:id/versions/:versionID/variants/:variantID/measure | area 6, A.3 #480
-POST /api/exercises/:id/versions/:versionID/variants/:variantID/measure/:runID/stop | area 6, A.3 #483
-POST /api/exercises/:id/versions/:versionID/variants/:variantID/opponents/:index/try | area 6, A.3 #485
-POST /api/exercises/:id/versions/:versionID/variants/:variantID/opponents/:index/try/:runID/stop | area 6, A.3 #488
-POST /api/exercises/:id/versions/:versionID/variants/:variantID/opponents/try | area 6, A.3 #489
-POST /api/exercises/bulk/archive | area 6, A.3 #493
-POST /api/exercises/bulk/unarchive | area 6, A.3 #494
 POST /api/exercises/deploys/:deployID/check | area 6, A.3 #499 open: scope "own deploy (owner = caller)" is not a scope source of the plan
 POST /api/exercises/deploys/:deployID/devices/:device/rescue | area 6, A.3 #500 open: scope "own deploy (owner = caller)" is not a scope source of the plan
 POST /api/exercises/deploys/:deployID/devices/:device/reset | area 6, A.3 #501 open: scope "own deploy (owner = caller)" is not a scope source of the plan
 POST /api/exercises/deploys/:deployID/extend | area 6, A.3 #503 open: scope "own deploy (owner = caller)" is not a scope source of the plan
 POST /api/exercises/deploys/:deployID/link | area 6, A.3 #504 open: scope "own deploy (owner = caller)" is not a scope source of the plan
 POST /api/exercises/deploys/:deployID/tasks/:taskID/run-checks | area 6, A.3 #505 open: scope "own deploy (owner = caller)" is not a scope source of the plan
-POST /api/exercises/elevations/:elevationID/approve | area 6, A.3 #508
-POST /api/exercises/elevations/:elevationID/reject | area 6, A.3 #509
-POST /api/exercises/export | area 6, A.3 #511
 POST /api/exercises/files | area 6, A.3 #513 open: the row breaks the catalogue rules: key event.exercises.create (scopes [event]) cannot be checked at platform; key event.exercises.update (scopes [event]) cannot be checked at platform
 POST /api/exercises/import | area 6, A.3 #518 open: scope "body OwnerEventID / target exercise" is not a scope source of the plan
 POST /api/exercises/import/preview | area 6, A.3 #524 open: scope "body OwnerEventID / target exercise" is not a scope source of the plan
 POST /api/exercises/import/upload | area 6, A.3 #526 open: scope "body OwnerEventID / target exercise" is not a scope source of the plan
 POST /api/exercises/import/uploaded | area 6, A.3 #527 open: scope "body OwnerEventID / target exercise" is not a scope source of the plan
-POST /api/exercises/proposals/:proposalID/approve | area 6, A.3 #531
-POST /api/exercises/proposals/:proposalID/reject | area 6, A.3 #532
 POST /api/exercises/test-labs/bookings | area 6, A.3 #535 open: the row breaks the catalogue rules: key event.exercises.create (scopes [event]) cannot be checked at platform; key event.exercises.update (scopes [event]) cannot be checked at platform
 POST /api/exercises/uploads | area 6, A.3 #539 open: the row breaks the catalogue rules: key event.exercises.create (scopes [event]) cannot be checked at platform; key event.exercises.update (scopes [event]) cannot be checked at platform
 POST /api/exercises/uploads/:uploadID/complete | area 6, A.3 #543 open: the row breaks the catalogue rules: key event.exercises.create (scopes [event]) cannot be checked at platform; key event.exercises.update (scopes [event]) cannot be checked at platform
-PUT /api/exercises/:id/access | area 6, A.3 #453
-PUT /api/exercises/:id/draft | area 6, A.3 #458
-PUT /api/exercises/bulk/access | area 6, A.3 #492
-PUT /api/exercises/preferences/catalog-columns | area 6, A.3 #529
+PUT /api/exercises/preferences/catalog-columns | area 6, A.3 #529 open: A.3 gives self (own catalog columns), which the no-bare-self rule under /exercises forbids
 PUT /api/exercises/uploads/:uploadID/chunks/:index | area 6, A.3 #542 open: the row breaks the catalogue rules: key event.exercises.create (scopes [event]) cannot be checked at platform; key event.exercises.update (scopes [event]) cannot be checked at platform
 # area 7: infrastructure, settings, mail, notifications
 DELETE /api/infrastructure/agents/:agentID | area 7, A.3 #546
