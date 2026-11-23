@@ -15,6 +15,9 @@
 // path, handlers...). A registration whose path is not a string literal is a
 // violation: the allowlist cannot vouch for a path it cannot read.
 //
+// It also checks the route declarations of plan P1b (decl.go): the keys @ scope column of
+// testdata/routes.golden against the authz key catalogue.
+//
 // Usage: go run ./tools/checkroutes [handlerDir]
 package main
 
@@ -96,9 +99,14 @@ func funcViolations(body *ast.BlockStmt) []string {
 	gateVars := map[string]bool{}
 	gatedGroups := map[string]bool{}
 
-	isGate := func(e ast.Expr) bool {
+	var isGate func(e ast.Expr) bool
+	isGate = func(e ast.Expr) bool {
 		if callTo(e, "RequirePermission") {
 			return true
+		}
+		// Route(decl, legacy) gates exactly when its legacy gate does; Route(decl, nil) only declares.
+		if call, ok := e.(*ast.CallExpr); ok && callTo(e, "Route") && len(call.Args) == 2 {
+			return isGate(call.Args[1])
 		}
 		id, ok := e.(*ast.Ident)
 		return ok && gateVars[id.Name]
@@ -115,7 +123,7 @@ func funcViolations(body *ast.BlockStmt) []string {
 				if !ok {
 					continue
 				}
-				gateVars[id.Name] = callTo(rhs, "RequirePermission")
+				gateVars[id.Name] = isGate(rhs)
 				call, ok := rhs.(*ast.CallExpr)
 				if !ok {
 					gatedGroups[id.Name] = false
@@ -138,6 +146,13 @@ func funcViolations(body *ast.BlockStmt) []string {
 				gatedGroups[id.Name] = gated
 			}
 		case *ast.CallExpr:
+			// Route(decl, legacy): legacy is the permission gate or nil (a route without one), never another check;
+			// another check is its own middleware, so it stays visible as a layer.
+			if callTo(n, "Route") && len(n.Args) == 2 {
+				if id, ok := n.Args[1].(*ast.Ident); !(ok && id.Name == "nil") && !isGate(n.Args[1]) {
+					out = append(out, "Route with a second argument that is neither a RequirePermission gate nor nil")
+				}
+			}
 			sel, ok := n.Fun.(*ast.SelectorExpr)
 			if !ok {
 				return true
@@ -244,11 +259,33 @@ func main() {
 		os.Exit(2)
 	}
 
+	golden, err := readTestdata(root, "routes.golden")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "checkroutes:", err)
+		os.Exit(2)
+	}
+	exceptionsText, err := readTestdata(root, "routes.delete-exceptions")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "checkroutes:", err)
+		os.Exit(2)
+	}
+	exceptions, declared := parseExceptions(exceptionsText)
+	declared = append(declared, declarationViolations(golden, exceptions)...)
+	if len(declared) > 0 {
+		fmt.Fprintln(os.Stderr, "route declarations (keys @ scope in routes.golden) that break the access rules:")
+		for _, v := range declared {
+			fmt.Fprintln(os.Stderr, "  "+v)
+		}
+	}
+
 	if len(violations) > 0 {
 		fmt.Fprintln(os.Stderr, "ungated routes (use cases no longer re-check permissions — the route is the only gate):")
 		for _, v := range violations {
 			fmt.Fprintln(os.Stderr, "  "+v)
 		}
+		os.Exit(1)
+	}
+	if len(declared) > 0 {
 		os.Exit(1)
 	}
 }

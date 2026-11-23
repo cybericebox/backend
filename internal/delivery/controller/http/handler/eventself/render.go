@@ -11,6 +11,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/gofrs/uuid"
+
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/config"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
@@ -20,8 +24,6 @@ import (
 	eventManagerModel "github.com/cybericebox/backend/internal/model/eventManager"
 	"github.com/cybericebox/backend/internal/model/rbac"
 	eventUC "github.com/cybericebox/backend/internal/useCase/event"
-	"github.com/gin-gonic/gin"
-	"github.com/gofrs/uuid"
 )
 
 type EventRenderUseCase interface {
@@ -92,6 +94,7 @@ func (h *EventRenderHandler) requireSecret(ctx *gin.Context) {
 		response.AbortWithTooManyRequests(ctx, time.Second)
 		return
 	}
+	middleware.MarkCredentialChecked(ctx, string(authz.SourceService(authz.ServiceRender)))
 	ctx.Next()
 }
 

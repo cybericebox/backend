@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/audit"
 	userHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/user"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
@@ -124,6 +125,15 @@ type fakeProt struct{}
 
 func (fakeProt) RequirePermission(_ rbac.Permission) gin.HandlerFunc {
 	return func(c *gin.Context) { c.Next() }
+}
+
+// Route mirrors protection.Route: the declaration decides nothing, the legacy gate (if any) runs unchanged.
+func (fakeProt) Route(_ authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if legacy != nil {
+			legacy(c)
+		}
+	}
 }
 
 // injectIdentity simulates RequireAuthentication for secured routes.

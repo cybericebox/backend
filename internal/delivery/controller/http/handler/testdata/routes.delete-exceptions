@@ -1,0 +1,14 @@
+# Delete-shaped routes without a .delete key, and .delete keys on routes that are not delete-shaped (tools/checkroutes).
+# Each by Appendix A.3: resets to a default, undo routes, the caller's own data, relations and public flows.
+# METHOD /api/path | A.3 row and reason
+DELETE /api/auth/account | A.3 #4: own account (self)
+DELETE /api/auth/account/avatar | A.3 #6: own avatar (self)
+DELETE /api/auth/account/table-prefs/:tableKey | A.3 #12: own table settings back to the default (self)
+DELETE /api/auth/google/link | A.3 #18: own Google link (self)
+DELETE /api/auth/google/pending | A.3 #20: public flow; gives up the browser's own pending link (ticket cookie)
+DELETE /api/auth/last-email | A.3 #26: public flow; clears the browser's own cookie
+DELETE /api/auth/passkeys/:id | A.3 #30: own passkey (self)
+DELETE /api/auth/sessions | A.3 #39: own other sessions (self)
+DELETE /api/auth/sessions/:id | A.3 #41: own session (self)
+DELETE /api/auth/totp | A.3 #N27: own TOTP factor (self)
+PATCH /api/users/:userID/role | A.3 #690: a role change revokes and grants, all-of access.grants.create and access.grants.delete

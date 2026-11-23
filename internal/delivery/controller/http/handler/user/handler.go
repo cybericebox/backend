@@ -4,12 +4,13 @@ import (
 	"context"
 	"time"
 
-	utils "github.com/cybericebox/backend/internal/delivery/controller/http/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/audit"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	utils "github.com/cybericebox/backend/internal/delivery/controller/http/utils"
 	"github.com/cybericebox/backend/internal/model/rbac"
 	userModel "github.com/cybericebox/backend/internal/model/user"
 	adminAuditUseCase "github.com/cybericebox/backend/internal/useCase/adminAudit"
@@ -56,6 +57,7 @@ type (
 
 	IProtection interface {
 		RequirePermission(required rbac.Permission) gin.HandlerFunc
+		Route(decl authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc
 	}
 
 	Handler struct {
@@ -147,51 +149,53 @@ func NewUserAPIHandler(useCase IUseCase, prot IProtection) *Handler {
 	return &Handler{useCase: useCase, prot: prot}
 }
 
+// Init mounts the user administration routes. Each declares its keys at platform scope (Appendix A.3.13 of the
+// access spec); the targets of status changes and deletion must rank lower (§6.4), which the use case checks.
 func (h *Handler) Init(router *gin.RouterGroup) {
 	usersAPI := router.Group("users")
-	usersAPI.GET("", h.prot.RequirePermission(rbac.PermUsersRead), h.listUsers)
-	usersAPI.GET("facets", h.prot.RequirePermission(rbac.PermUsersRead), h.facets)
-	usersAPI.GET("stats", h.prot.RequirePermission(rbac.PermUsersRead), h.getUserStats)
-	usersAPI.GET(":userID", h.prot.RequirePermission(rbac.PermUsersRead), h.getUser)
-	usersAPI.PATCH(":userID/role", h.prot.RequirePermission(rbac.PermUsersRoleWrite), h.updateRole)
+	usersAPI.GET("", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.UsersList), h.prot.RequirePermission(rbac.PermUsersRead)), h.listUsers)
+	usersAPI.GET("facets", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.UsersList), h.prot.RequirePermission(rbac.PermUsersRead)), h.facets)
+	usersAPI.GET("stats", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.UsersList), h.prot.RequirePermission(rbac.PermUsersRead)), h.getUserStats)
+	usersAPI.GET(":userID", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.UsersRead), h.prot.RequirePermission(rbac.PermUsersRead)), h.getUser)
+	usersAPI.PATCH(":userID/role", h.prot.Route(authz.AllOf(authz.SourcePlatform, authz.AccessGrantsCreate, authz.AccessGrantsDelete), h.prot.RequirePermission(rbac.PermUsersRoleWrite)), h.updateRole)
 	usersAPI.PATCH(
 		":userID/status",
-		h.prot.RequirePermission(rbac.PermUsersStatusWrite),
+		h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.UsersStatusUpdate), h.prot.RequirePermission(rbac.PermUsersStatusWrite)),
 		h.updateStatus,
 	)
-	usersAPI.DELETE(":userID", h.prot.RequirePermission(rbac.PermUsersDelete), h.deleteUser)
+	usersAPI.DELETE(":userID", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.UsersDelete), h.prot.RequirePermission(rbac.PermUsersDelete)), h.deleteUser)
 	// Each request can mail up to 200 addresses: bound the requests per admin.
-	usersAPI.POST("invite", h.prot.RequirePermission(rbac.PermUsersInvite), h.invite)
+	usersAPI.POST("invite", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.UsersInvite), h.prot.RequirePermission(rbac.PermUsersInvite)), h.invite)
 	usersAPI.GET(
 		":userID/participations",
-		h.prot.RequirePermission(rbac.PermUsersRead),
+		h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.UsersRead), h.prot.RequirePermission(rbac.PermUsersRead)),
 		h.listParticipations,
 	)
 	usersAPI.POST(
 		":userID/sessions/end",
-		h.prot.RequirePermission(rbac.PermUsersStatusWrite),
+		h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.UsersStatusUpdate), h.prot.RequirePermission(rbac.PermUsersStatusWrite)),
 		h.endSessions,
 	)
 	usersAPI.POST(
 		":userID/invitation/resend",
-		h.prot.RequirePermission(rbac.PermUsersInvite),
+		h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.UsersInvite), h.prot.RequirePermission(rbac.PermUsersInvite)),
 		h.resendInvitation,
 	)
 	// One route per action: each is gated by the permission of its single counterpart.
 	usersAPI.POST(
 		"bulk/resend-invitation",
-		h.prot.RequirePermission(rbac.PermUsersInvite),
+		h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.UsersInvite), h.prot.RequirePermission(rbac.PermUsersInvite)),
 		h.bulkResend,
 	)
-	usersAPI.POST("bulk/block", h.prot.RequirePermission(rbac.PermUsersStatusWrite), h.bulkBlock)
+	usersAPI.POST("bulk/block", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.UsersStatusUpdate), h.prot.RequirePermission(rbac.PermUsersStatusWrite)), h.bulkBlock)
 	usersAPI.POST(
 		"bulk/unblock",
-		h.prot.RequirePermission(rbac.PermUsersStatusWrite),
+		h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.UsersStatusUpdate), h.prot.RequirePermission(rbac.PermUsersStatusWrite)),
 		h.bulkUnblock,
 	)
 	usersAPI.POST(
 		"bulk/end-sessions",
-		h.prot.RequirePermission(rbac.PermUsersStatusWrite),
+		h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.UsersStatusUpdate), h.prot.RequirePermission(rbac.PermUsersStatusWrite)),
 		h.bulkEndSessions,
 	)
 }

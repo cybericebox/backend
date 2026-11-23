@@ -4,14 +4,15 @@ import (
 	"context"
 	"time"
 
-	adminAuditHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/adminAudit"
-	assistantHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/assistant"
-	dashboardHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/dashboard"
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/config"
+	adminAuditHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/adminAudit"
+	assistantHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/assistant"
 	authHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/auth"
+	dashboardHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/dashboard"
 	errorJournalHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/errorJournal"
 	eventHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/event"
 	eventAnalyticsHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/eventAnalytics"
@@ -84,6 +85,8 @@ type (
 		DeAuthenticate(ctx *gin.Context)
 		RequireCaptcha(action string) gin.HandlerFunc
 		RequirePermission(required rbac.Permission) gin.HandlerFunc
+		// Route records a route's access declaration in front of its legacy gate (plan P1b).
+		Route(decl authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc
 	}
 )
 
