@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/config"
 
 	"github.com/gin-gonic/gin"
@@ -154,6 +155,7 @@ type (
 		DeAuthenticate(ctx *gin.Context)
 		RequireCaptcha(action string) gin.HandlerFunc
 		RequirePermission(required rbac.Permission) gin.HandlerFunc
+		Route(decl authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc
 	}
 )
 
@@ -174,74 +176,79 @@ func (h *Handler) Init(public, secured *gin.RouterGroup) {
 	lim := limits.Get()
 	selfCheck := middleware.RateLimitPerUser(lim.AccountActions, lim.AccountActionsWindow)
 
+	// Access declarations (Appendix A.3.2 of the access spec): the public flows read no visibility setting, the
+	// signed-in routes act on the caller's own account only.
+	open := h.prot.Route(authz.PublicRoute(""), nil)
+
 	pub := public.Group("auth")
-	pub.POST("sign-in", h.prot.RequireCaptcha("signIn"), h.signIn)
-	pub.POST("sign-up", h.prot.RequireCaptcha("signUp"), h.signUp)
-	pub.GET("last-email", h.getLastEmail)
-	pub.DELETE("last-email", h.forgetLastEmail)
-	pub.GET("setup", h.getSetup)
-	pub.POST("setup", h.completeSetup)
+	pub.POST("sign-in", open, h.prot.RequireCaptcha("signIn"), h.signIn)
+	pub.POST("sign-up", open, h.prot.RequireCaptcha("signUp"), h.signUp)
+	pub.GET("last-email", open, h.getLastEmail)
+	pub.DELETE("last-email", open, h.forgetLastEmail)
+	pub.GET("setup", open, h.getSetup)
+	pub.POST("setup", open, h.completeSetup)
 
 	// Passkey sign-in: the ceremony start is behind the captcha like the other sign-in forms; the finish is
 	// bound to a one-time server challenge and verified by signature.
 	passkeys := pub.Group("passkeys/sign-in")
-	passkeys.POST("begin", h.prot.RequireCaptcha("passkeySignIn"), h.passkeySignInBegin)
-	passkeys.POST("finish", h.passkeySignInFinish)
+	passkeys.POST("begin", open, h.prot.RequireCaptcha("passkeySignIn"), h.passkeySignInBegin)
+	passkeys.POST("finish", open, h.passkeySignInFinish)
 
 	password := pub.Group("password")
-	password.GET("policy", h.passwordPolicy)
-	password.POST("reset-request", h.prot.RequireCaptcha("forgotPassword"), h.requestPasswordReset)
-	password.POST("reset", h.resetPassword)
-	password.POST("change", h.prot.RequirePermission(rbac.PermSelf), selfCheck, h.changePassword)
+	password.GET("policy", open, h.passwordPolicy)
+	password.POST("reset-request", open, h.prot.RequireCaptcha("forgotPassword"), h.requestPasswordReset)
+	password.POST("reset", open, h.resetPassword)
+	password.POST("change", h.prot.Route(authz.OwnData(), h.prot.RequirePermission(rbac.PermSelf)), selfCheck, h.changePassword)
 
 	google := pub.Group("google")
-	google.GET("", h.googleRedirect)
-	google.GET("register", h.googleRegisterRedirect)
-	google.GET("setup", h.googleSetupRedirect)
-	google.GET("callback", h.googleCallback)
+	google.GET("", open, h.googleRedirect)
+	google.GET("register", open, h.googleRegisterRedirect)
+	google.GET("setup", open, h.googleSetupRedirect)
+	google.GET("callback", open, h.googleCallback)
 	// The pending link of a Google sign-in whose owner is not confirmed yet (the ticket is in a cookie).
 	pending := google.Group("pending")
-	pending.GET("", h.googleLinkPending)
-	pending.POST("code", h.prot.RequireCaptcha("googleLinkCode"), h.googleLinkSendCode)
-	pending.POST("confirm", h.googleLinkConfirm)
-	pending.DELETE("", h.googleLinkCancel)
+	pending.GET("", open, h.googleLinkPending)
+	pending.POST("code", open, h.prot.RequireCaptcha("googleLinkCode"), h.googleLinkSendCode)
+	pending.POST("confirm", open, h.googleLinkConfirm)
+	pending.DELETE("", open, h.googleLinkCancel)
 
 	sec := secured.Group("auth")
 	self := h.prot.RequirePermission(rbac.PermSelf)
-	sec.POST("sign-out", self, h.forgetDraftKey, h.prot.DeAuthenticate)
-	sec.GET("sessions", self, h.listSessions)
-	sec.DELETE("sessions/:id", self, h.revokeSession)
-	sec.DELETE("sessions", self, h.revokeOtherSessions)
+	own := h.prot.Route(authz.OwnData(), self)
+	sec.POST("sign-out", own, h.forgetDraftKey, h.prot.DeAuthenticate)
+	sec.GET("sessions", own, h.listSessions)
+	sec.DELETE("sessions/:id", own, h.revokeSession)
+	sec.DELETE("sessions", own, h.revokeOtherSessions)
 
 	// slice 4a — account self-management
-	sec.GET("account", self, h.getAccount)
-	sec.GET("me", self, h.getSelfProfile)
-	sec.GET("account/export", self, h.exportMyData)
-	sec.GET("account/table-prefs/:tableKey", self, h.getTablePrefs)
-	sec.PUT("account/table-prefs/:tableKey", self, h.saveTablePrefs)
-	sec.DELETE("account/table-prefs/:tableKey", self, h.resetTablePrefs)
-	sec.PATCH("account/profile", self, h.updateProfile)
+	sec.GET("account", own, h.getAccount)
+	sec.GET("me", own, h.getSelfProfile)
+	sec.GET("account/export", own, h.exportMyData)
+	sec.GET("account/table-prefs/:tableKey", own, h.getTablePrefs)
+	sec.PUT("account/table-prefs/:tableKey", own, h.saveTablePrefs)
+	sec.DELETE("account/table-prefs/:tableKey", own, h.resetTablePrefs)
+	sec.PATCH("account/profile", own, h.updateProfile)
 	sec.POST(
 		"account/email",
-		self,
+		own,
 		selfCheck,
 		h.prot.RequireCaptcha("emailChange"),
 		h.requestEmailChange,
 	)
-	sec.DELETE("account", self, h.deleteAccount)
-	sec.POST("account/avatar", self, h.uploadAvatar)
-	sec.DELETE("account/avatar", self, h.removeAvatar)
-	sec.GET("passkeys", self, h.listPasskeys)
-	sec.POST("passkeys/registration/begin", self, selfCheck, h.passkeyRegistrationBegin)
-	sec.POST("passkeys/registration/finish", self, h.passkeyRegistrationFinish)
-	sec.DELETE("passkeys/:id", self, h.removePasskey)
-	sec.POST("google/link", self, h.googleLink)
-	sec.DELETE("google/link", self, h.unlinkGoogle)
+	sec.DELETE("account", own, h.deleteAccount)
+	sec.POST("account/avatar", own, h.uploadAvatar)
+	sec.DELETE("account/avatar", own, h.removeAvatar)
+	sec.GET("passkeys", own, h.listPasskeys)
+	sec.POST("passkeys/registration/begin", own, selfCheck, h.passkeyRegistrationBegin)
+	sec.POST("passkeys/registration/finish", own, h.passkeyRegistrationFinish)
+	sec.DELETE("passkeys/:id", own, h.removePasskey)
+	sec.POST("google/link", own, h.googleLink)
+	sec.DELETE("google/link", own, h.unlinkGoogle)
 
 	// The key the catalog editor seals its local drafts with: one per person and browser.
 	secured.Group("me").POST("draft-key", self, h.requireEditorOrigin, h.draftKey)
 
-	pub.POST("account/email/confirm", h.confirmEmailChange)
+	pub.POST("account/email/confirm", open, h.confirmEmailChange)
 	// Public avatar proxy: streams the stored image so the bucket stays private.
-	pub.GET("avatar/:id", middleware.PublicMedia, h.getAvatar)
+	pub.GET("avatar/:id", open, middleware.PublicMedia, h.getAvatar)
 }

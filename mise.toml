@@ -73,7 +73,7 @@ description = "Fail when internal/model imports application or delivery packages
 run = "go run ./tools/checklayers internal/model"
 
 [tasks."lint:routes"]
-description = "Fail on handler routes lacking a RequirePermission gate"
+description = "Fail on handler routes lacking a RequirePermission gate, and on route declarations (keys @ scope) that break the access rules"
 run = "go run ./tools/checkroutes"
 
 [tasks."lint:secretctx"]

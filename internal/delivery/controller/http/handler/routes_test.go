@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/config"
 	"github.com/cybericebox/backend/internal/model/rbac"
 )
@@ -15,6 +16,7 @@ func (noopProtector) Authenticate(*gin.Context, string)                 {}
 func (noopProtector) DeAuthenticate(*gin.Context)                       {}
 func (noopProtector) RequireCaptcha(string) gin.HandlerFunc             { return func(*gin.Context) {} }
 func (noopProtector) RequirePermission(rbac.Permission) gin.HandlerFunc { return func(*gin.Context) {} }
+func (noopProtector) Route(authz.Decl, gin.HandlerFunc) gin.HandlerFunc { return func(*gin.Context) {} }
 
 // Every handler mounts into one router at startup; a path registered twice
 // panics there (gin), so the daemon would not start. Build the whole tree.

@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/config"
 	authHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/auth"
 	errorJournalHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/errorJournal"
@@ -84,6 +85,8 @@ type (
 		DeAuthenticate(ctx *gin.Context)
 		RequireCaptcha(action string) gin.HandlerFunc
 		RequirePermission(required rbac.Permission) gin.HandlerFunc
+		// Route records a route's access declaration in front of its legacy gate (plan P1b).
+		Route(decl authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc
 	}
 )
 

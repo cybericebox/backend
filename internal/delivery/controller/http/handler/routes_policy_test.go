@@ -15,6 +15,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/config"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
 	"github.com/cybericebox/backend/internal/model/rbac"
@@ -23,9 +24,10 @@ import (
 // This test is the authorization map of the HTTP API. It builds the REAL route
 // tree (every handler's Init, with a recording protector), reads each route's
 // middleware chain back out of gin and compares the result with
-// testdata/routes.golden: for every route, the permissions that gate it and the
+// testdata/routes.golden: for every route, the permissions that gate it, the
 // other layers (tenant resolution, per-resource policy, rate limits) in front
-// of the handler.
+// of the handler, and the keys @ scope it declares for the access model
+// (plan P1b; "?" while the route declares nothing yet).
 //
 // Adding or re-gating a route therefore shows up as a diff of the golden file
 // that a reviewer has to read. Run `go test ./internal/delivery/controller/http/handler -run
@@ -36,6 +38,7 @@ var updateGolden = flag.Bool("update", false, "rewrite testdata/routes.golden")
 const (
 	probeGateKey      = "probe.gate"
 	probeRecaptchaKey = "probe.recaptcha"
+	probeDeclKey      = "probe.decl"
 	goldenPath        = "testdata/routes.golden"
 )
 
@@ -51,10 +54,19 @@ func (probeProtector) RequireCaptcha(action string) gin.HandlerFunc {
 func (probeProtector) RequirePermission(required rbac.Permission) gin.HandlerFunc {
 	return func(c *gin.Context) { c.Set(probeGateKey, required); c.Abort() }
 }
+func (probeProtector) Route(decl authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Set(probeDeclKey, decl)
+		if legacy != nil {
+			legacy(c)
+		}
+	}
+}
 
 type routeSummary struct {
 	method, path string
 	gates        []rbac.Permission
+	decl         *authz.Decl // nil: the route declares no keys yet
 	recaptcha    bool
 	layers       []string // named middlewares between the gate(s) and the handler
 }
@@ -110,19 +122,23 @@ func layerName(fn gin.HandlerFunc) string {
 }
 
 // probe runs one middleware on an empty context and reports what it did.
-func probe(fn gin.HandlerFunc) (gate *rbac.Permission, recaptcha bool) {
+func probe(fn gin.HandlerFunc) (gate *rbac.Permission, decl *authz.Decl, recaptcha bool) {
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Request = httptest.NewRequest("GET", "/", nil)
 	func() {
 		defer func() { _ = recover() }() // a middleware that needs its use case panics on the nil one: it is a layer
 		fn(c)
 	}()
+	if v, ok := c.Get(probeDeclKey); ok {
+		d := v.(authz.Decl)
+		decl = &d
+	}
 	if v, ok := c.Get(probeGateKey); ok {
 		p := v.(rbac.Permission)
-		return &p, false
+		return &p, decl, false
 	}
 	_, recaptcha = c.Get(probeRecaptchaKey)
-	return nil, recaptcha
+	return nil, decl, recaptcha
 }
 
 func buildRoutePolicy(t *testing.T) []routeSummary {
@@ -140,8 +156,16 @@ func buildRoutePolicy(t *testing.T) []routeSummary {
 			if i == len(chain)-1 {
 				break // the handler itself
 			}
-			gate, recaptcha := probe(fn)
+			gate, decl, recaptcha := probe(fn)
+			if decl != nil {
+				if s.decl != nil {
+					t.Errorf("%s: declared twice (%s, %s)", key, s.decl, decl)
+				}
+				s.decl = decl
+			}
 			switch {
+			case decl != nil && gate == nil:
+				// a declaration without a legacy gate (a public flow) is not a layer
 			case gate != nil:
 				s.gates = append(s.gates, *gate)
 			case recaptcha:
@@ -181,7 +205,11 @@ func (s routeSummary) line() string {
 	if len(extra) > 0 {
 		layers = strings.Join(extra, ",")
 	}
-	return fmt.Sprintf("%-6s %s | gate: %s | layers: %s", s.method, s.path, gate, layers)
+	keys := "?"
+	if s.decl != nil {
+		keys = s.decl.String()
+	}
+	return fmt.Sprintf("%-6s %s | gate: %s | layers: %s | keys: %s", s.method, s.path, gate, layers, keys)
 }
 
 func TestRoutePolicy(t *testing.T) {

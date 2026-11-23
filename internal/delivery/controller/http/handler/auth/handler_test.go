@@ -15,6 +15,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/cybericebox/backend/internal/authz"
 	authHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/auth"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	authModel "github.com/cybericebox/backend/internal/model/auth"
@@ -337,6 +338,15 @@ func (fakeProt) RequirePermission(required rbac.Permission) gin.HandlerFunc {
 			return
 		}
 		c.Next()
+	}
+}
+
+// Route mirrors protection.Route: the declaration decides nothing, the legacy gate (if any) runs unchanged.
+func (fakeProt) Route(_ authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if legacy != nil {
+			legacy(c)
+		}
 	}
 }
 
