@@ -3,6 +3,7 @@ package event_test
 import (
 	"context"
 	"errors"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -118,16 +119,17 @@ func TestUploadOwnAnswerFileFollowsTheEventSchedule(t *testing.T) {
 // A person keeps at most MaxPendingAnswerFiles uploads of one question waiting for an answer, and all their files of
 // an event together stay under the byte budget; past either cap nothing is stored.
 func TestUploadOwnAnswerFileCapsWhatOnePersonStores(t *testing.T) {
-	limits := event.AnswerFileLimits{PendingPerField: 5, BytesPerEvent: 100}
+	limits := event.AnswerFileLimits{PendingPerField: 5, PendingBytesPerEvent: 100, PendingBytesPerUser: 200}
 	event.ConfigureAnswerFileLimits(limits)
 	t.Cleanup(func() { event.ConfigureAnswerFileLimits(event.DefaultAnswerFileLimits()) })
 	for _, tc := range []struct {
-		name           string
-		pending, bytes int64
-		want           error
+		name                      string
+		pending, bytes, elsewhere int64
+		want                      error
 	}{
 		{name: "five uploads already wait in the question", pending: 5, want: eventModel.ErrAnswerFilePendingLimit.Err()},
-		{name: "the file does not fit the budget", pending: 1, bytes: 95, want: eventModel.ErrAnswerFileQuotaExceeded.Err()},
+		{name: "the file does not fit the event budget", pending: 1, bytes: 95, want: eventModel.ErrAnswerFileQuotaExceeded.Err()},
+		{name: "the file does not fit the budget of all events", pending: 1, bytes: 10, elsewhere: 185, want: eventModel.ErrAnswerFileQuotaExceeded.Err()},
 		{name: "under both caps", pending: 4, bytes: 80},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -136,7 +138,7 @@ func TestUploadOwnAnswerFileCapsWhatOnePersonStores(t *testing.T) {
 				if arg.EventID != f.eventID || arg.UploadedBy != f.userID || arg.Scope != "participant" || arg.FieldKey != "cv" {
 					t.Fatalf("usage of %+v", arg)
 				}
-				return postgres.GetEventAnswerFileUsageRow{PendingInField: tc.pending, TotalBytes: tc.bytes}, nil
+				return postgres.GetEventAnswerFileUsageRow{PendingInField: tc.pending, EventPendingBytes: tc.bytes, UserPendingBytes: tc.bytes + tc.elsewhere}, nil
 			}).MinTimes(1).MaxTimes(2) // checked before the upload, then under the lock when it is written
 			if tc.want == nil {
 				f.q.EXPECT().CreateEventAnswerFile(gomock.Any(), gomock.Any()).Return(nil)
@@ -152,12 +154,12 @@ func TestUploadOwnAnswerFileCapsWhatOnePersonStores(t *testing.T) {
 // The caps are enforced again when the row is written, under the person's lock: an upload that a parallel one
 // pushed over a cap is refused there and its stored file is discarded at once.
 func TestUploadOwnAnswerFileDiscardsAFileRefusedAtWriteTime(t *testing.T) {
-	event.ConfigureAnswerFileLimits(event.AnswerFileLimits{PendingPerField: 5, BytesPerEvent: 100})
+	event.ConfigureAnswerFileLimits(event.AnswerFileLimits{PendingPerField: 5, PendingBytesPerEvent: 100, PendingBytesPerUser: 200})
 	t.Cleanup(func() { event.ConfigureAnswerFileLimits(event.DefaultAnswerFileLimits()) })
 	for _, tc := range []struct {
-		name           string
-		pending, bytes int64
-		want           error
+		name                      string
+		pending, bytes, elsewhere int64
+		want                      error
 	}{
 		{name: "a parallel upload filled the question", pending: 5, want: eventModel.ErrAnswerFilePendingLimit.Err()},
 		{name: "a parallel upload used the budget", pending: 1, bytes: 95, want: eventModel.ErrAnswerFileQuotaExceeded.Err()},
@@ -168,7 +170,7 @@ func TestUploadOwnAnswerFileDiscardsAFileRefusedAtWriteTime(t *testing.T) {
 			f.uc = event.NewEventUseCase(event.Dependencies{Repo: f.q, BrandMedia: f.media, UoW: testUnitOfWorker{repo: f.q, unit: unit}})
 			gomock.InOrder(
 				f.q.EXPECT().GetEventAnswerFileUsage(gomock.Any(), gomock.Any()).Return(postgres.GetEventAnswerFileUsageRow{}, nil),
-				f.q.EXPECT().GetEventAnswerFileUsage(gomock.Any(), gomock.Any()).Return(postgres.GetEventAnswerFileUsageRow{PendingInField: tc.pending, TotalBytes: tc.bytes}, nil),
+				f.q.EXPECT().GetEventAnswerFileUsage(gomock.Any(), gomock.Any()).Return(postgres.GetEventAnswerFileUsageRow{PendingInField: tc.pending, EventPendingBytes: tc.bytes, UserPendingBytes: tc.bytes + tc.elsewhere}, nil),
 			)
 			_, err := f.uc.UploadOwnAnswerFile(context.Background(), f.eventID, f.userID, eventFormModel.AnswerScopeParticipant, "cv", "cv.pdf", strings.NewReader("%PDF-1.7\n"))
 			if !errors.Is(err, tc.want) {
@@ -181,5 +183,33 @@ func TestUploadOwnAnswerFileDiscardsAFileRefusedAtWriteTime(t *testing.T) {
 				t.Fatal("a refused upload must not commit")
 			}
 		})
+	}
+}
+
+// countingReader counts what the use case reads of an upload.
+type countingReader struct {
+	r    io.Reader
+	read int64
+}
+
+func (c *countingReader) Read(p []byte) (int, error) {
+	n, err := c.r.Read(p)
+	c.read += int64(n)
+	return n, err
+}
+
+// An upload past the remaining budget is refused after reading one byte past it, not the whole body.
+func TestUploadOwnAnswerFileReadsNoMoreThanTheBudget(t *testing.T) {
+	event.ConfigureAnswerFileLimits(event.AnswerFileLimits{PendingPerField: 5, PendingBytesPerEvent: 100, PendingBytesPerUser: 200})
+	t.Cleanup(func() { event.ConfigureAnswerFileLimits(event.DefaultAnswerFileLimits()) })
+	f := newAnswerFileFixture(t)
+	f.q.EXPECT().GetEventAnswerFileUsage(gomock.Any(), gomock.Any()).Return(postgres.GetEventAnswerFileUsageRow{PendingInField: 1, EventPendingBytes: 90, UserPendingBytes: 90}, nil)
+	body := &countingReader{r: strings.NewReader("%PDF-1.7\n" + strings.Repeat("x", 500<<10))}
+	_, err := f.uc.UploadOwnAnswerFile(context.Background(), f.eventID, f.userID, eventFormModel.AnswerScopeParticipant, "cv", "cv.pdf", body)
+	if !errors.Is(err, eventModel.ErrAnswerFileQuotaExceeded.Err()) {
+		t.Fatalf("err = %v", err)
+	}
+	if body.read > 11 {
+		t.Fatalf("read %d bytes of the body, the budget left 10", body.read)
 	}
 }

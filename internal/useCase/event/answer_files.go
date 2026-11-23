@@ -23,22 +23,29 @@ import (
 
 const maxAnswerFileNameLength = 200
 
-// AnswerFileLimits cap what one person stores through participant uploads (ANSWER_FILE_PENDING_PER_FIELD,
-// ANSWER_FILE_MAX_BYTES_PER_EVENT): the uploads of one question still waiting for an answer, and the bytes of all
-// their answer files of one event. Unused uploads expire under retention (UnusedAnswerFile, 24 h).
+// AnswerFileLimits cap what one person's participant uploads keep waiting for an answer (ANSWER_FILE_PENDING_PER_FIELD,
+// ANSWER_FILE_MAX_PENDING_BYTES_PER_EVENT, ANSWER_FILE_MAX_PENDING_BYTES_PER_USER): the uploads of one question, their
+// bytes in one event and in every event together (so events open for registration do not multiply the budget).
+// Attached files are not counted: the form bounds them, and an answer that replaces a file releases the old one.
+// Unused uploads expire under retention (UnusedAnswerFile, 24 h).
 type AnswerFileLimits struct {
-	PendingPerField int64
-	BytesPerEvent   int64
+	PendingPerField      int64
+	PendingBytesPerEvent int64
+	PendingBytesPerUser  int64
 }
 
-// DefaultAnswerFileLimits are the env defaults: 5 waiting uploads per question, 256 MiB per person and event.
+// DefaultAnswerFileLimits are the env defaults: 5 waiting uploads per question, 256 MiB waiting per person and event,
+// 512 MiB waiting per person in all events.
 func DefaultAnswerFileLimits() AnswerFileLimits {
-	return AnswerFileLimits{PendingPerField: 5, BytesPerEvent: 256 << 20}
+	return AnswerFileLimits{PendingPerField: 5, PendingBytesPerEvent: 256 << 20, PendingBytesPerUser: 512 << 20}
 }
 
 var answerFileLimits = DefaultAnswerFileLimits()
 
-// ConfigureAnswerFileLimits sets the participant upload caps once at start.
+func (l AnswerFileLimits) caps() eventAnswerFileRepo.Caps {
+	return eventAnswerFileRepo.Caps{PendingPerField: l.PendingPerField, EventPendingBytes: l.PendingBytesPerEvent, UserPendingBytes: l.PendingBytesPerUser}
+}
+
 func ConfigureAnswerFileLimits(l AnswerFileLimits) { answerFileLimits = l }
 
 // AnswerFileView is an uploaded answer file as the client stores it in the
@@ -117,21 +124,26 @@ func (u *EventUseCase) uploadAnswerFile(ctx context.Context, eventID, actorID uu
 		if usageErr != nil {
 			return AnswerFileView{}, model.ErrPlatform.WithError(usageErr).WithMessage("Failed to count answer files").Err()
 		}
-		limits := answerFileLimits
-		if usage.PendingInField >= limits.PendingPerField {
+		var refused bool
+		if budget, refused = answerFileLimits.caps().Budget(usage); refused {
 			return AnswerFileView{}, eventModel.ErrAnswerFilePendingLimit.Err()
 		}
-		budget = max(limits.BytesPerEvent-usage.TotalBytes, 0)
 	}
+	// Never read more than the question allows or, for a capped upload, than the budget leaves (a byte more tells
+	// which one it went past).
 	limit := eventFormModel.FileLimitBytes(field)
-	data, err := io.ReadAll(io.LimitReader(r, limit+1))
+	readLimit := limit
+	if budget >= 0 && budget < limit {
+		readLimit = budget
+	}
+	data, err := io.ReadAll(io.LimitReader(r, readLimit+1))
 	if err != nil {
 		return AnswerFileView{}, model.ErrPlatform.WithError(err).WithMessage("Failed to read answer file").Err()
 	}
-	if int64(len(data)) > limit {
+	switch size := int64(len(data)); {
+	case size > limit:
 		return AnswerFileView{}, eventModel.ErrAnswerFileTooLarge.Err()
-	}
-	if budget >= 0 && int64(len(data)) > budget {
+	case size > readLimit:
 		return AnswerFileView{}, eventModel.ErrAnswerFileQuotaExceeded.Err()
 	}
 	name = answerFileName(name)
@@ -171,14 +183,15 @@ func (u *EventUseCase) createCappedAnswerFile(ctx context.Context, f eventFormMo
 		return refuse(err)
 	}
 	defer func() { _ = unit.Restore() }()
-	limits := answerFileLimits
-	usage, stored, err := eventAnswerFileRepo.New(txRepo).CreateWithinCaps(txCtx, f, limits.PendingPerField, limits.BytesPerEvent)
-	switch {
-	case err != nil:
+	caps := answerFileLimits.caps()
+	usage, stored, err := eventAnswerFileRepo.New(txRepo).CreateWithinCaps(txCtx, f, caps)
+	if err != nil {
 		return refuse(model.ErrPlatform.WithError(err).WithMessage("Failed to record answer file").Err())
-	case !stored && usage.PendingInField >= limits.PendingPerField:
-		return refuse(eventModel.ErrAnswerFilePendingLimit.Err())
-	case !stored:
+	}
+	if !stored {
+		if _, refused := caps.Budget(usage); refused {
+			return refuse(eventModel.ErrAnswerFilePendingLimit.Err())
+		}
 		return refuse(eventModel.ErrAnswerFileQuotaExceeded.Err())
 	}
 	if err = unit.Save(); err != nil {

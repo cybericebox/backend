@@ -566,9 +566,10 @@ type Querier interface {
 	GetEventAnalyticsOverview(ctx context.Context, arg GetEventAnalyticsOverviewParams) (GetEventAnalyticsOverviewRow, error)
 	GetEventAnalyticsRollupState(ctx context.Context, eventID uuid.UUID) (GetEventAnalyticsRollupStateRow, error)
 	GetEventAnswerFile(ctx context.Context, fileID uuid.UUID) (EventAnswerFile, error)
-	// What one person has uploaded to an event: the uploads of one question still
-	// waiting for an answer, and the bytes of every file they uploaded there
-	// (attached or not), for the upload caps.
+	// What one person's uploads still wait for an answer, for the upload caps: the
+	// uploads of one question, their bytes in the event and their bytes in every
+	// event. Attached files are not counted: the form bounds them, and an answer
+	// that replaces a file releases the old one.
 	GetEventAnswerFileUsage(ctx context.Context, arg GetEventAnswerFileUsageParams) (GetEventAnswerFileUsageRow, error)
 	// The event's own mode; no row: it follows the platform default.
 	GetEventAssistantStatsMode(ctx context.Context, eventID uuid.UUID) (int16, error)
@@ -1841,9 +1842,10 @@ type Querier interface {
 	// the runs are inserted as one step (two requests at once cannot both pass the cap).
 	LockAssistantRunsOfActor(ctx context.Context, actorID uuid.UUID) error
 	LockErrorNotification(ctx context.Context, id uuid.UUID) (ErrorNotificationDelivery, error)
-	// Serializes one person's uploads to one event for the rest of the transaction,
-	// so the upload caps are checked against every earlier upload (CreateWithinCaps).
-	LockEventAnswerFileUploads(ctx context.Context, arg LockEventAnswerFileUploadsParams) error
+	// Serializes one person's uploads (to every event: the caps span events) for
+	// the rest of the transaction, so the caps are checked against every earlier
+	// upload (CreateWithinCaps).
+	LockEventAnswerFileUploads(ctx context.Context, uploadedBy uuid.UUID) error
 	// Configured maxima cannot change while an admission validates immutable group sizes.
 	LockEventConfigForLabSizing(ctx context.Context, eventID uuid.UUID) (uuid.UUID, error)
 	// Serializes the variant pick of one event exercise: concurrent preparations

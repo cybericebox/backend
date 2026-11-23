@@ -74,13 +74,13 @@ func TestEventAnswerFilesLifecycle(t *testing.T) {
 	if n := count(`SELECT count(*) FROM file_references WHERE ref_id = $1`, first); n != 0 {
 		t.Fatal("the replaced file must lose its reference")
 	}
-	// The upload caps: the attached file counts in the bytes only, the waiting upload in both; another question
-	// or person has nothing waiting.
+	// The upload caps count only what waits for an answer: the attached file is not counted, the waiting upload
+	// is; another question has none of its own waiting, another person nothing at all.
 	usage, err := repo.Usage(ctx, e.ID, user.ID, eventFormModel.AnswerScopeParticipant, "cv")
-	if err != nil || usage != (eventAnswerFileRepo.Usage{PendingInField: 1, TotalBytes: 8}) {
+	if err != nil || usage != (eventAnswerFileRepo.Usage{PendingInField: 1, EventPendingBytes: 4, UserPendingBytes: 4}) {
 		t.Fatalf("usage = %+v, %v", usage, err)
 	}
-	if usage, err = repo.Usage(ctx, e.ID, user.ID, eventFormModel.AnswerScopeParticipant, "photo"); err != nil || usage.PendingInField != 0 || usage.TotalBytes != 8 {
+	if usage, err = repo.Usage(ctx, e.ID, user.ID, eventFormModel.AnswerScopeParticipant, "photo"); err != nil || usage != (eventAnswerFileRepo.Usage{EventPendingBytes: 4, UserPendingBytes: 4}) {
 		t.Fatalf("usage of another question = %+v, %v", usage, err)
 	}
 	if usage, err = repo.Usage(ctx, e.ID, uuid.Must(uuid.NewV7()), eventFormModel.AnswerScopeParticipant, "cv"); err != nil || usage != (eventAnswerFileRepo.Usage{}) {
@@ -120,10 +120,11 @@ func TestEventAnswerFilesCapsHoldUnderConcurrentUploads(t *testing.T) {
 		t.Fatal(err)
 	}
 	e := mustCreateEvent(t, eventRepo.New(db.Queries), "answercaps", "Answer caps", now, now.Add(30*24*time.Hour), user.ID, now)
-	if _, err = db.Pool.Exec(ctx, `INSERT INTO file_blobs (content_hash, size_bytes, ref_count, created_at) VALUES ('caps', 10, 40, $1)`, now); err != nil {
+	if _, err = db.Pool.Exec(ctx, `INSERT INTO file_blobs (content_hash, size_bytes, ref_count, created_at) VALUES ('caps', 10, 60, $1)`, now); err != nil {
 		t.Fatal(err)
 	}
-	race := func(field string, n int, pendingCap, bytesCap int64) int {
+	other := mustCreateEvent(t, eventRepo.New(db.Queries), "answercaps2", "Answer caps 2", now, now.Add(30*24*time.Hour), user.ID, now)
+	race := func(eventID uuid.UUID, field string, n int, caps eventAnswerFileRepo.Caps) int {
 		t.Helper()
 		var (
 			wg     sync.WaitGroup
@@ -147,7 +148,7 @@ func TestEventAnswerFilesCapsHoldUnderConcurrentUploads(t *testing.T) {
 				}
 				defer func() { _ = tx.Rollback(ctx) }()
 				repo := eventAnswerFileRepo.New(db.Queries.WithTx(tx))
-				_, ok, createErr := repo.CreateWithinCaps(ctx, eventFormModel.NewAnswerFile(id, e.ID, eventFormModel.AnswerScopeParticipant, field, "cv.pdf", 10, "application/pdf", user.ID, now), pendingCap, bytesCap)
+				_, ok, createErr := repo.CreateWithinCaps(ctx, eventFormModel.NewAnswerFile(id, eventID, eventFormModel.AnswerScopeParticipant, field, "cv.pdf", 10, "application/pdf", user.ID, now), caps)
 				if createErr != nil {
 					t.Error(createErr)
 					return
@@ -167,15 +168,19 @@ func TestEventAnswerFilesCapsHoldUnderConcurrentUploads(t *testing.T) {
 		wg.Wait()
 		return stored
 	}
-	if stored := race("cv", 12, 3, 1000); stored != 3 {
+	if stored := race(e.ID, "cv", 12, eventAnswerFileRepo.Caps{PendingPerField: 3, EventPendingBytes: 1000, UserPendingBytes: 1000}); stored != 3 {
 		t.Fatalf("pending cap 3: %d uploads stored", stored)
 	}
-	// 30 bytes are used by the three uploads of "cv"; a budget of 80 leaves room for five more files of 10 bytes.
-	if stored := race("photo", 12, 100, 80); stored != 5 {
-		t.Fatalf("byte budget: %d uploads stored", stored)
+	// 30 bytes wait in the three uploads of "cv"; an event budget of 80 leaves room for five more files of 10 bytes.
+	if stored := race(e.ID, "photo", 12, eventAnswerFileRepo.Caps{PendingPerField: 100, EventPendingBytes: 80, UserPendingBytes: 1000}); stored != 5 {
+		t.Fatalf("event byte budget: %d uploads stored", stored)
+	}
+	// 80 bytes wait in the first event; a budget of 120 for all events leaves room for four in another event.
+	if stored := race(other.ID, "cv", 12, eventAnswerFileRepo.Caps{PendingPerField: 100, EventPendingBytes: 1000, UserPendingBytes: 120}); stored != 4 {
+		t.Fatalf("budget of all events: %d uploads stored", stored)
 	}
 	var rows int
-	if err = db.Pool.QueryRow(ctx, `SELECT count(*) FROM event_answer_files WHERE event_id = $1`, e.ID).Scan(&rows); err != nil || rows != 8 {
+	if err = db.Pool.QueryRow(ctx, `SELECT count(*) FROM event_answer_files WHERE uploaded_by = $1`, user.ID).Scan(&rows); err != nil || rows != 12 {
 		t.Fatalf("rows = %d, %v", rows, err)
 	}
 }

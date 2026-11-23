@@ -19,7 +19,7 @@ type Queries interface {
 	ListEventAnswerFiles(ctx context.Context, fileIds []uuid.UUID) ([]postgres.EventAnswerFile, error)
 	AttachEventAnswerFiles(ctx context.Context, arg postgres.AttachEventAnswerFilesParams) (int64, error)
 	GetEventAnswerFileUsage(ctx context.Context, arg postgres.GetEventAnswerFileUsageParams) (postgres.GetEventAnswerFileUsageRow, error)
-	LockEventAnswerFileUploads(ctx context.Context, arg postgres.LockEventAnswerFileUploadsParams) error
+	LockEventAnswerFileUploads(ctx context.Context, uploadedBy uuid.UUID) error
 }
 
 type Repository struct{ q Queries }
@@ -70,10 +70,24 @@ func (r *Repository) Attach(ctx context.Context, eventID uuid.UUID, scope eventF
 	return err
 }
 
-// Usage is what one person has uploaded to an event: their uploads of one question still waiting for an
-// answer, and the bytes of all their files there.
+// Usage is what one person's uploads still waiting for an answer take: their uploads of one question, and their
+// bytes in one event and in every event. Attached files are not counted (the form bounds them).
 type Usage struct {
-	PendingInField, TotalBytes int64
+	PendingInField, EventPendingBytes, UserPendingBytes int64
+}
+
+// Caps bound Usage: PendingPerField uploads of one question, and the bytes waiting in one event and in every event.
+type Caps struct {
+	PendingPerField, EventPendingBytes, UserPendingBytes int64
+}
+
+// Budget is how many bytes the person may still upload under the caps (0 when none); refused is set when the
+// question has no room for another upload.
+func (c Caps) Budget(u Usage) (budget int64, refused bool) {
+	if u.PendingInField >= c.PendingPerField {
+		return 0, true
+	}
+	return max(min(c.EventPendingBytes-u.EventPendingBytes, c.UserPendingBytes-u.UserPendingBytes), 0), false
 }
 
 func (r *Repository) Usage(ctx context.Context, eventID, uploadedBy uuid.UUID, scope eventFormModel.AnswerScope, fieldKey string) (Usage, error) {
@@ -81,21 +95,23 @@ func (r *Repository) Usage(ctx context.Context, eventID, uploadedBy uuid.UUID, s
 	if err != nil {
 		return Usage{}, err
 	}
-	return Usage{PendingInField: row.PendingInField, TotalBytes: row.TotalBytes}, nil
+	return Usage{PendingInField: row.PendingInField, EventPendingBytes: row.EventPendingBytes, UserPendingBytes: row.UserPendingBytes}, nil
 }
 
-// CreateWithinCaps stores f unless its uploader already has pendingCap uploads of its question waiting for an
-// answer or the file would take their answer files of the event past bytesCap; the bool says whether it was stored,
-// and the usage is what it was checked against. It must run inside one transaction: the per-person advisory lock it
-// takes lasts until that transaction ends, so concurrent uploads of one person are serialized and each sees the
-// rows of the earlier ones.
-func (r *Repository) CreateWithinCaps(ctx context.Context, f eventFormModel.AnswerFile, pendingCap, bytesCap int64) (Usage, bool, error) {
-	if err := r.q.LockEventAnswerFileUploads(ctx, postgres.LockEventAnswerFileUploadsParams{EventID: f.EventID, UploadedBy: f.UploadedBy}); err != nil {
+// CreateWithinCaps stores f unless the caps leave no room for it; the bool says whether it was stored, and the
+// usage is what it was checked against. It must run inside one transaction: the per-person advisory lock it takes
+// (one per person, since the caps span events) lasts until that transaction ends, so concurrent uploads of one
+// person are serialized and each sees the rows of the earlier ones.
+func (r *Repository) CreateWithinCaps(ctx context.Context, f eventFormModel.AnswerFile, caps Caps) (Usage, bool, error) {
+	if err := r.q.LockEventAnswerFileUploads(ctx, f.UploadedBy); err != nil {
 		return Usage{}, false, err
 	}
 	usage, err := r.Usage(ctx, f.EventID, f.UploadedBy, f.Scope, f.FieldKey)
-	if err != nil || usage.PendingInField >= pendingCap || usage.TotalBytes+f.SizeBytes > bytesCap {
+	if err != nil {
 		return usage, false, err
+	}
+	if budget, refused := caps.Budget(usage); refused || f.SizeBytes > budget {
+		return usage, false, nil
 	}
 	return usage, true, r.Create(ctx, f)
 }

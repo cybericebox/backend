@@ -37,16 +37,19 @@ WHERE f.event_id = sqlc.arg(event_id)
   AND f.file_id = ANY(sqlc.arg(file_ids)::uuid[]);
 
 -- name: GetEventAnswerFileUsage :one
--- What one person has uploaded to an event: the uploads of one question still
--- waiting for an answer, and the bytes of every file they uploaded there
--- (attached or not), for the upload caps.
-SELECT count(*) FILTER (WHERE attached_at IS NULL AND scope = sqlc.arg(scope) AND field_key = sqlc.arg(field_key))::bigint AS pending_in_field,
-       COALESCE(sum(size_bytes), 0)::bigint                                                                              AS total_bytes
+-- What one person's uploads still wait for an answer, for the upload caps: the
+-- uploads of one question, their bytes in the event and their bytes in every
+-- event. Attached files are not counted: the form bounds them, and an answer
+-- that replaces a file releases the old one.
+SELECT count(*) FILTER (WHERE event_id = sqlc.arg(event_id) AND attached_at IS NULL
+                          AND scope = sqlc.arg(scope) AND field_key = sqlc.arg(field_key))::bigint            AS pending_in_field,
+       COALESCE(sum(size_bytes) FILTER (WHERE event_id = sqlc.arg(event_id) AND attached_at IS NULL), 0)::bigint AS event_pending_bytes,
+       COALESCE(sum(size_bytes) FILTER (WHERE attached_at IS NULL), 0)::bigint                              AS user_pending_bytes
 FROM event_answer_files
-WHERE event_id = sqlc.arg(event_id)
-  AND uploaded_by = sqlc.arg(uploaded_by);
+WHERE uploaded_by = sqlc.arg(uploaded_by);
 
 -- name: LockEventAnswerFileUploads :exec
--- Serializes one person's uploads to one event for the rest of the transaction,
--- so the upload caps are checked against every earlier upload (CreateWithinCaps).
-SELECT pg_advisory_xact_lock(hashtextextended('event-answer-files:' || sqlc.arg(event_id)::uuid::text || ':' || sqlc.arg(uploaded_by)::uuid::text, 0));
+-- Serializes one person's uploads (to every event: the caps span events) for
+-- the rest of the transaction, so the caps are checked against every earlier
+-- upload (CreateWithinCaps).
+SELECT pg_advisory_xact_lock(hashtextextended('event-answer-files:' || sqlc.arg(uploaded_by)::uuid::text, 0));
