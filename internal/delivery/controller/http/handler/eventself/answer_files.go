@@ -65,7 +65,7 @@ func (h *Handler) uploadAnswerFile(ctx *gin.Context) {
 		return
 	}
 	defer func() { _ = file.Close() }()
-	uploaded, err := h.useCase.UploadAnswerFile(ctx.Request.Context(), tenant.EventID, claims.UserID, eventFormModel.AnswerScope(ctx.PostForm("scope")), ctx.PostForm("field"), header.Filename, file)
+	uploaded, err := h.useCase.UploadOwnAnswerFile(ctx.Request.Context(), tenant.EventID, claims.UserID, eventFormModel.AnswerScope(ctx.PostForm("scope")), ctx.PostForm("field"), header.Filename, file)
 	if err != nil {
 		response.AbortWithError(ctx, err)
 		return
