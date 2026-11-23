@@ -409,6 +409,7 @@ func (u *ExerciseUseCase) deployVariantTest(ctx context.Context, eventID *uuid.U
 	// All the tools devices are added at once, each with a control gateway of its own; the device of position i has the index i.
 	var (
 		toolsNames  []string
+		toolsIDs    []uuid.UUID
 		brainImages map[uuid.UUID]string
 	)
 	if len(tools) > 0 {
@@ -431,7 +432,7 @@ func (u *ExerciseUseCase) deployVariantTest(ctx context.Context, eventID *uuid.U
 		// it is: it is hidden from the check (a device without an image is not checked) and put back after it.
 		brainImages = map[uuid.UUID]string{}
 		for i, d := range devices {
-			toolsNames = append(toolsNames, d.Name)
+			toolsNames, toolsIDs = append(toolsNames, d.Name), append(toolsIDs, d.ID)
 			if fromBrain[i] {
 				brainImages[d.ID] = d.Image
 			}
@@ -449,6 +450,9 @@ func (u *ExerciseUseCase) deployVariantTest(ctx context.Context, eventID *uuid.U
 		if pullCredentials, err = withToolsPull(pullCredentials, p.Pull); err != nil {
 			return exerciseModel.DeployHandle{}, err
 		}
+	}
+	if topo, err = u.withToolsServices(ctx, topo, toolsIDs, tools); err != nil {
+		return exerciseModel.DeployHandle{}, err
 	}
 	// The conditions of the state tasks become the checks of the lab, with this deploy's values in their expectations.
 	checks, err := variant.BuildLabChecks(topo, resolved.Conditions)

@@ -242,3 +242,40 @@ func (u *ImageRegistryUseCase) resolveAndStore(ctx context.Context, scope Scope,
 	info.Known, info.Service = true, service
 	return ""
 }
+
+// ToolsImageService reads the start configuration of the image of a tools device: a platform image from the stored
+// configurations, any other from its registry (manifest and config blob, no layer), with the pull credential the brain gave
+// for it when there is one. Nothing is stored and the credential goes nowhere else: it is the run's. known is false when the
+// configuration cannot be read.
+func (u *ImageRegistryUseCase) ToolsImageService(ctx context.Context, image string, pull *exerciseModel.ToolsPull) (exerciseModel.ImageService, bool) {
+	if strings.HasPrefix(image, "platform:") {
+		infos := u.ImageServices(ctx, []string{image})
+		if len(infos) == 1 && infos[0].Known {
+			return infos[0].Service, true
+		}
+		return exerciseModel.ImageService{}, false
+	}
+	ref, err := imageRegistryModel.ParseImageRef(image)
+	if err != nil {
+		return exerciseModel.ImageService{}, false
+	}
+	reference := ref.Digest
+	if reference == "" {
+		reference = ref.Tag
+	}
+	username, password := "", ""
+	if pull != nil {
+		username, password = pull.Username, pull.Password
+	}
+	ctx, cancel := context.WithTimeout(ctx, u.callTimeout)
+	defer cancel()
+	hctx, stop := context.WithTimeout(ctx, u.headTimeout)
+	defer stop()
+	configs, err := u.external(ref.Host, ref.Repository, username, password).ImageConfigs(hctx, reference)
+	if err != nil {
+		log.Warn().Str("reason", reasonOfRegistryError(err)).Msg("image config: the start configuration of a tools image cannot be read")
+		return exerciseModel.ImageService{}, false
+	}
+	service, reason := serviceOfConfigs(configs)
+	return service, reason == ""
+}
