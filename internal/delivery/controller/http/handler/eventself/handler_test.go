@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	"github.com/cybericebox/backend/internal/delivery/repository/eventResultRepo"
@@ -713,4 +714,13 @@ func (f fakeUseCase) GetOwnChallengeRuntime(ctx context.Context, eventID, userID
 }
 func (f fakeUseCase) GetOwnLabLifecycle(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (eventUseCase.ParticipantLabView, error) {
 	return eventUseCase.ParticipantLabView{}, nil
+}
+
+// Route mirrors protection.Route: the declaration decides nothing, the legacy gate runs unchanged.
+func (allowAllProtection) Route(_ authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if legacy != nil {
+			legacy(c)
+		}
+	}
 }

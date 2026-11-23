@@ -1,3 +1,5 @@
 # Declared routes checked at an event that also address another object (TestEventScopedObjectRoutes).
 # P2: each use case must check that the object belongs to the event. METHOD path | scope | objects
-
+POST   /api/events/:id/participants/:userID/approve | event(:id) | :userID
+POST   /api/events/:id/participants/:userID/reject | event(:id) | :userID
+PATCH  /api/events/:id/solution-attempts/:attemptID/decision | event(:id) | :attemptID
