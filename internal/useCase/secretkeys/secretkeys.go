@@ -38,6 +38,7 @@ type Store interface {
 	ExerciseVersions(ctx context.Context, visit func(versionID uuid.UUID, variants []byte) error) error
 	FileBlobKeys(ctx context.Context, visit func(contentHash, ciphertext string) error) error
 	UploadKeys(ctx context.Context, visit func(id uuid.UUID, ciphertext string) error) error
+	TOTPSecrets(ctx context.Context, visit func(userID uuid.UUID, ciphertext string) error) error
 }
 
 // ShortLivedStore is a Store that can also count the sealed values in places that expire or finish by themselves. Check
@@ -308,6 +309,12 @@ func (u *UseCase) Check(ctx context.Context, open bool) (Report, error) {
 		return nil
 	}); err != nil {
 		return Report{}, fmt.Errorf("read the wrapped upload keys: %w", err)
+	}
+	if err := u.store.TOTPSecrets(ctx, func(userID uuid.UUID, ct string) error {
+		record(FamilyPlatform, "user_totp.secret_ciphertext", userID.String(), ct, secretctx.TOTPSecret(userID))
+		return nil
+	}); err != nil {
+		return Report{}, fmt.Errorf("read the authenticator secrets: %w", err)
 	}
 
 	if sl, ok := u.store.(ShortLivedStore); ok {

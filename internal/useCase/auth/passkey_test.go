@@ -19,6 +19,7 @@ import (
 	"github.com/cybericebox/backend/internal/model/errorJournal"
 	passkeyModel "github.com/cybericebox/backend/internal/model/passkey"
 	"github.com/cybericebox/backend/internal/model/rbac"
+	secondFactorModel "github.com/cybericebox/backend/internal/model/secondFactor"
 	userModel "github.com/cybericebox/backend/internal/model/user"
 	"github.com/cybericebox/backend/internal/useCase/auth"
 	liberr "github.com/cybericebox/backend/pkg/err"
@@ -42,6 +43,8 @@ type passkeyEnv struct {
 	keys    map[uuid.UUID]postgres.UserPasskey
 	session uuid.UUID
 	signIns int
+	// stepUp is the step-up of the session (sessions.step_up_at); a factor change clears it.
+	stepUp postgres.GetSessionStepUpRow
 }
 
 type journalSpy struct{ events []errorJournal.Event }
@@ -220,6 +223,39 @@ func (e *passkeyEnv) stubPasskeys(repo *postgresMocks.MockQuerier) {
 			return 1, nil
 		})
 	e.stubPasskeyChanges(repo)
+	e.stubFactors(repo)
+}
+
+// stubFactors backs the second-factor reads of a passkey account: no authenticator app, the passkeys that count, the
+// step-up of the session.
+func (e *passkeyEnv) stubFactors(repo *postgresMocks.MockQuerier) {
+	repo.EXPECT().CountUserFactorPasskeys(gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
+		func(_ context.Context, userID uuid.UUID) (int64, error) {
+			n := int64(0)
+			for _, k := range e.keys {
+				if k.UserID == userID && k.UserVerified && !k.CompromisedAt.Valid {
+					n++
+				}
+			}
+			return n, nil
+		})
+	repo.EXPECT().GetUserTOTP(gomock.Any(), gomock.Any()).AnyTimes().Return(postgres.UserTotp{}, pgx.ErrNoRows)
+	repo.EXPECT().GetSessionStepUp(gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
+		func(context.Context, uuid.UUID) (postgres.GetSessionStepUpRow, error) { return e.stepUp, nil })
+	repo.EXPECT().ClearUserStepUps(gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
+		func(context.Context, uuid.UUID) (int64, error) {
+			e.stepUp = postgres.GetSessionStepUpRow{}
+			return 1, nil
+		})
+	repo.EXPECT().DeleteUserRecoveryCodes(gomock.Any(), gomock.Any()).AnyTimes().Return(int64(0), nil)
+}
+
+// steppedUp records a passkey step-up of the session made ago.
+func (e *passkeyEnv) steppedUp(ago time.Duration) {
+	e.stepUp = postgres.GetSessionStepUpRow{
+		StepUpAt:     pgtype.Timestamptz{Time: time.Now().Add(-ago), Valid: true},
+		StepUpMethod: pgtype.Text{String: "passkey", Valid: true},
+	}
 }
 
 // stubPasskeyChanges backs the counter, compromise and delete statements.
@@ -266,6 +302,9 @@ func (e *passkeyEnv) authenticator() *softAuthenticator {
 // register runs a whole registration ceremony and returns the stored passkey.
 func (e *passkeyEnv) register(a *softAuthenticator, name string) passkeyModel.Passkey {
 	e.t.Helper()
+	if len(e.keys) > 0 {
+		e.steppedUp(0) // a further passkey is added with a step-up made with the first
+	}
 	ceremony, err := e.uc.BeginPasskeyRegistration(e.signedIn(0), e.user.ID, passkeyPass)
 	if err != nil {
 		e.t.Fatalf("BeginPasskeyRegistration: %v", err)
@@ -535,6 +574,7 @@ func TestPasskey_RegisterDuplicateKeyRefused(t *testing.T) {
 	a := e.authenticator()
 	e.register(a, "Laptop")
 
+	e.steppedUp(0) // a second key is added with a step-up made with the first
 	ceremony, err := e.uc.BeginPasskeyRegistration(e.signedIn(0), e.user.ID, passkeyPass)
 	if err != nil {
 		t.Fatal(err)
@@ -587,8 +627,21 @@ func TestPasskey_Limit(t *testing.T) {
 	for range passkeyModel.MaxPerUser {
 		e.register(e.authenticator(), "Key")
 	}
+	e.steppedUp(0)
 	_, err := e.uc.BeginPasskeyRegistration(e.signedIn(0), e.user.ID, passkeyPass)
 	wantErr(t, err, passkeyModel.ErrPasskeyLimit)
+}
+
+// With a key the password no longer adds another: a step-up made with the key does.
+func TestPasskey_ASecondKeyNeedsAStepUpWithTheFirst(t *testing.T) {
+	e := newPasskeyEnv(t, true)
+	e.register(e.authenticator(), "One")
+	_, err := e.uc.BeginPasskeyRegistration(e.signedIn(0), e.user.ID, passkeyPass)
+	wantErr(t, err, secondFactorModel.ErrStepUpRequired)
+	e.steppedUp(time.Minute)
+	if _, err = e.uc.BeginPasskeyRegistration(e.signedIn(0), e.user.ID, ""); err != nil {
+		t.Fatalf("with a passkey step-up: %v", err)
+	}
 }
 
 func TestPasskey_CounterRegressionRefused(t *testing.T) {
@@ -695,15 +748,12 @@ func TestPasskey_Remove(t *testing.T) {
 	e := newPasskeyEnv(t, true)
 	first := e.register(e.authenticator(), "One")
 
-	// The owner is confirmed first: a wrong password removes nothing.
-	wantErr(
-		t,
-		e.uc.RemovePasskey(e.signedIn(0), e.user.ID, first.ID, "wrong"),
-		authModel.ErrAuthInvalidOldPassword,
-	)
+	// The key is a second factor: the password does not confirm its removal, a step-up made with a factor does.
+	wantErr(t, e.uc.RemovePasskey(e.signedIn(0), e.user.ID, first.ID, passkeyPass), secondFactorModel.ErrStepUpRequired)
 	if len(e.keys) != 1 {
-		t.Fatal("a wrong password must not remove the key")
+		t.Fatal("without a step-up the key stays")
 	}
+	e.steppedUp(time.Minute)
 	// Another person's id looks the same as an unknown one.
 	foreign := uuid.Must(uuid.NewV7())
 	e.keys[foreign] = postgres.UserPasskey{
@@ -713,16 +763,25 @@ func TestPasskey_Remove(t *testing.T) {
 	}
 	wantErr(
 		t,
-		e.uc.RemovePasskey(e.signedIn(0), e.user.ID, foreign, passkeyPass),
+		e.uc.RemovePasskey(e.signedIn(0), e.user.ID, foreign, ""),
 		passkeyModel.ErrPasskeyNotFound,
 	)
 	delete(e.keys, foreign)
-	if err := e.uc.RemovePasskey(e.signedIn(0), e.user.ID, first.ID, passkeyPass); err != nil {
+	if err := e.uc.RemovePasskey(e.signedIn(0), e.user.ID, first.ID, ""); err != nil {
 		t.Fatalf("RemovePasskey: %v", err)
 	}
 	if len(e.keys) != 0 {
 		t.Fatal("the passkey must be gone")
 	}
+	if e.stepUp.StepUpAt.Valid {
+		t.Fatal("removing a factor clears the step-ups")
+	}
+	// With no factor left the password confirms again.
+	wantErr(
+		t,
+		e.uc.RemovePasskey(e.signedIn(0), e.user.ID, first.ID, "wrong"),
+		authModel.ErrAuthInvalidOldPassword,
+	)
 	wantErr(
 		t,
 		e.uc.RemovePasskey(e.signedIn(0), e.user.ID, first.ID, passkeyPass),
@@ -730,21 +789,21 @@ func TestPasskey_Remove(t *testing.T) {
 	)
 }
 
-func TestPasskey_RemoveWithoutPasswordNeedsAFreshSignIn(t *testing.T) {
+func TestPasskey_RemoveNeedsAFreshFactorStepUp(t *testing.T) {
 	e := newPasskeyEnv(t, false)
 	e.register(e.authenticator(), "One")
 	second := e.register(e.authenticator(), "Two")
 
-	wantErr(
-		t,
-		e.uc.RemovePasskey(e.signedIn(time.Hour), e.user.ID, second.ID, ""),
-		authModel.ErrAuthReauthRequired,
-	)
+	// A fresh sign-in is no confirmation once the account has a factor.
+	wantErr(t, e.uc.RemovePasskey(e.signedIn(time.Minute), e.user.ID, second.ID, ""), secondFactorModel.ErrStepUpRequired)
+	e.steppedUp(6 * time.Minute)
+	wantErr(t, e.uc.RemovePasskey(e.signedIn(0), e.user.ID, second.ID, ""), secondFactorModel.ErrStepUpRequired)
 	if len(e.keys) != 2 {
-		t.Fatal("a stale sign-in must not remove the key")
+		t.Fatal("a stale step-up must not remove the key")
 	}
-	if err := e.uc.RemovePasskey(e.signedIn(time.Minute), e.user.ID, second.ID, ""); err != nil {
-		t.Fatalf("fresh sign-in: %v", err)
+	e.steppedUp(time.Minute)
+	if err := e.uc.RemovePasskey(e.signedIn(time.Hour), e.user.ID, second.ID, ""); err != nil {
+		t.Fatalf("fresh step-up: %v", err)
 	}
 }
 
@@ -752,6 +811,7 @@ func TestPasskey_RemoveLastLoginMethodRefused(t *testing.T) {
 	e := newPasskeyEnv(t, false) // no password
 	e.user.EmailConfirmed = true
 	only := e.register(e.authenticator(), "Only")
+	e.steppedUp(0)
 	wantErr(
 		t,
 		e.uc.RemovePasskey(e.signedIn(0), e.user.ID, only.ID, ""),
@@ -759,6 +819,7 @@ func TestPasskey_RemoveLastLoginMethodRefused(t *testing.T) {
 	)
 
 	second := e.register(e.authenticator(), "Second")
+	e.steppedUp(0)
 	if err := e.uc.RemovePasskey(e.signedIn(0), e.user.ID, second.ID, ""); err != nil {
 		t.Fatalf("with a second key the first may go: %v", err)
 	}
@@ -768,7 +829,8 @@ func TestPasskey_RemovedKeyCannotSignIn(t *testing.T) {
 	e := newPasskeyEnv(t, true)
 	a := e.authenticator()
 	created := e.register(a, "Laptop")
-	if err := e.uc.RemovePasskey(e.signedIn(0), e.user.ID, created.ID, passkeyPass); err != nil {
+	e.steppedUp(0)
+	if err := e.uc.RemovePasskey(e.signedIn(0), e.user.ID, created.ID, ""); err != nil {
 		t.Fatal(err)
 	}
 	a.counter = 1

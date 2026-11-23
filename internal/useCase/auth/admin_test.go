@@ -345,6 +345,8 @@ func TestAdminDeleteUser_Success(t *testing.T) {
 	repo.EXPECT().DeleteAllUserTablePrefs(gomock.Any(), uid).Return(int64(0), nil)
 	repo.EXPECT().DeleteAllUserDraftKeys(gomock.Any(), uid).Return(int64(0), nil)
 	repo.EXPECT().DeleteUserPasskeys(gomock.Any(), uid).Return(int64(0), nil)
+	repo.EXPECT().DeleteUserTOTP(gomock.Any(), postgres.DeleteUserTOTPParams{UserID: uid}).Return(int64(0), nil)
+	repo.EXPECT().DeleteUserRecoveryCodes(gomock.Any(), uid).Return(int64(0), nil)
 
 	if err := uc.DeleteUser(ctx, uid); err != nil {
 		t.Fatalf("DeleteUser: %v", err)

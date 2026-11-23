@@ -24,6 +24,8 @@ const (
 	NotificationTypeEmailChanged NotificationType = "email_changed"
 	// NotificationTypeGoogleLinkCode carries the one-time code that confirms linking a Google account to this one.
 	NotificationTypeGoogleLinkCode NotificationType = "google_link_code"
+	// NotificationTypeRecoveryCodeUsed is the security notice that a recovery code signed in to the account.
+	NotificationTypeRecoveryCodeUsed NotificationType = "recovery_code_used"
 	// NotificationTypeAccountInactivityWarning warns an inactive account's
 	// owner before the retention job deletes the account.
 	NotificationTypeAccountInactivityWarning NotificationType = "account_inactivity_warning"

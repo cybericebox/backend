@@ -42,4 +42,5 @@ const (
 	ExerciseDocumentObjectCode
 	AssistantObjectCode
 	ConsoleObjectCode
+	SecondFactorObjectCode
 )

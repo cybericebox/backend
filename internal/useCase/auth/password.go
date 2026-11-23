@@ -103,7 +103,10 @@ func (u *AuthUseCase) ResetPassword(ctx context.Context, bsCode, newPassword str
 	}
 	// Whoever held a session when the password was lost (a stolen cookie is the
 	// usual reason to reset) must not keep it.
-	return u.revokeSessions(ctx, data.UserID, uuid.Nil)
+	if err = u.revokeSessions(ctx, data.UserID, uuid.Nil); err != nil {
+		return err
+	}
+	return u.clearStepUps(ctx, data.UserID)
 }
 
 // SetAccountPassword sets the authenticated user's password. With an existing
@@ -134,7 +137,19 @@ func (u *AuthUseCase) SetAccountPassword(ctx context.Context, userID uuid.UUID, 
 	if claims, ok := rbac.CurrentUserSessionFromContext(ctx); ok && claims.UserID == userID {
 		keep = claims.SessionID
 	}
-	return u.revokeSessions(ctx, userID, keep)
+	if err = u.revokeSessions(ctx, userID, keep); err != nil {
+		return err
+	}
+	return u.clearStepUps(ctx, userID)
+}
+
+// clearStepUps forgets the step-ups after a password change: one made before (the kept session's included) confirms
+// nothing after it.
+func (u *AuthUseCase) clearStepUps(ctx context.Context, userID uuid.UUID) error {
+	if err := u.factors.ClearStepUps(ctx, userID); err != nil {
+		return model.ErrPlatform.WithError(err).WithMessage("Failed to clear the step-ups").Err()
+	}
+	return nil
 }
 
 // revokeCodes deletes every pending code of the given types issued to the user.

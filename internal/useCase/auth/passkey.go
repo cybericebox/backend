@@ -22,6 +22,7 @@ import (
 	"github.com/cybericebox/backend/internal/model/errorJournal"
 	passkeyModel "github.com/cybericebox/backend/internal/model/passkey"
 	"github.com/cybericebox/backend/internal/model/rbac"
+	secondFactorModel "github.com/cybericebox/backend/internal/model/secondFactor"
 	temporalCodeModel "github.com/cybericebox/backend/internal/model/temporalCode"
 	userModel "github.com/cybericebox/backend/internal/model/user"
 	"github.com/cybericebox/backend/pkg/tools"
@@ -193,7 +194,9 @@ func (u *AuthUseCase) BeginPasskeyRegistration(
 	if !ok || claims.SessionID == uuid.Nil {
 		return PasskeyCeremony{}, authModel.ErrAuthReauthRequired.Err()
 	}
-	if err := u.reauthenticate(ctx, userID, currentPassword); err != nil {
+	// An account that has a second factor adds another one only with a step-up made with it; the first factor is
+	// confirmed with the password (a recent sign-in without one).
+	if err := u.confirmNewFactor(ctx, userID, currentPassword); err != nil {
 		return PasskeyCeremony{}, err
 	}
 	user, err := u.users.GetByID(ctx, userID)
@@ -351,6 +354,11 @@ func (u *AuthUseCase) FinishPasskeyRegistration(
 	if !within {
 		return passkeyModel.Passkey{}, passkeyModel.ErrPasskeyLimit.Err()
 	}
+	// A new factor: the step-ups made before it confirm nothing after it.
+	if err = u.factors.ClearStepUps(ctx, userID); err != nil {
+		return passkeyModel.Passkey{}, model.ErrPlatform.WithError(err).WithMessage("Failed to clear the step-ups").Err()
+	}
+	u.journal(ctx, secondFactorModel.ActionPasskeyAdded, userID, stored.ID.String())
 	return stored, nil
 }
 
@@ -551,28 +559,39 @@ func (u *AuthUseCase) ListPasskeys(
 	return items, nil
 }
 
-// RemovePasskey deletes the account's passkey, refusing when it is the last way to sign in (lockout guard). The
-// owner is re-confirmed first (the password, or a sign-in from the last minutes for an account without one).
+// RemovePasskey deletes the account's passkey, refusing when it is the last way to sign in (lockout guard) or the last
+// second factor of a holder of a second-factor key. An account with a second factor confirms with a step-up made with
+// a factor (or a recovery code); one without (only compromised keys) with the password, or a sign-in from the last
+// minutes for an account without one. With the last factor the recovery codes go.
 func (u *AuthUseCase) RemovePasskey(
 	ctx context.Context,
 	userID, passkeyID uuid.UUID,
 	currentPassword string,
 ) error {
-	if err := u.reauthenticate(ctx, userID, currentPassword); err != nil {
+	has, err := u.HasSecondFactor(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if has {
+		err = u.requireFactorChangeStepUp(ctx, userID)
+	} else {
+		err = u.reauthenticate(ctx, userID, currentPassword)
+	}
+	if err != nil {
 		return err
 	}
 	owned, err := u.passkeys.ListByUser(ctx, userID)
 	if err != nil {
 		return model.ErrPlatform.WithError(err).WithMessage("Failed to list passkeys").Err()
 	}
-	mine := false
-	for _, p := range owned {
-		if p.ID == passkeyID {
-			mine = true
+	var target *passkeyModel.Passkey
+	for i := range owned {
+		if owned[i].ID == passkeyID {
+			target = &owned[i]
 			break
 		}
 	}
-	if !mine {
+	if target == nil {
 		return passkeyModel.ErrPasskeyNotFound.Err()
 	}
 	methods, err := u.users.CountLoginMethods(ctx, userID)
@@ -583,12 +602,23 @@ func (u *AuthUseCase) RemovePasskey(
 		return authModel.ErrNoLoginMethod.WithError(errors.New("passkey-remove: would leave account without any login method")).
 			Err()
 	}
-	found, err := u.passkeys.Delete(ctx, userID, passkeyID)
+	isFactor := target.UserVerified && target.CompromisedAt == nil
+	err = u.inFactorChange(ctx, userID, func(ctx context.Context, tx factorTx) error {
+		if gErr := u.guardLastFactor(ctx, tx, userID, isFactor, "passkey-remove: the last second factor of a holder of a second-factor key"); gErr != nil {
+			return gErr
+		}
+		found, dErr := tx.passkeys.Delete(ctx, userID, passkeyID)
+		if dErr != nil {
+			return model.ErrPlatform.WithError(dErr).WithMessage("Failed to remove passkey").Err()
+		}
+		if !found {
+			return passkeyModel.ErrPasskeyNotFound.Err()
+		}
+		return afterFactorChange(ctx, tx, userID)
+	})
 	if err != nil {
-		return model.ErrPlatform.WithError(err).WithMessage("Failed to remove passkey").Err()
+		return err
 	}
-	if !found {
-		return passkeyModel.ErrPasskeyNotFound.Err()
-	}
+	u.journal(ctx, secondFactorModel.ActionPasskeyRemoved, userID, passkeyID.String())
 	return nil
 }
