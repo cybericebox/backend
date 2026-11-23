@@ -59,7 +59,7 @@ type stepUpResponse struct {
 
 type recoverySignInRequest struct {
 	Email string `json:"Email"`
-	// Password is required when the account has one: the code stands in for the second factor only.
+	// Password is always required: the code stands in for the second factor only, never for the password.
 	Password       string `json:"Password"`
 	Code           string `json:"Code"`
 	Redirect       string `json:"Redirect"`
@@ -98,7 +98,7 @@ func (h *Handler) secondFactorStatus(ctx *gin.Context) {
 // @Tags     auth
 // @Accept   json
 // @Produce  json
-// @Description  The owner is confirmed first: a step-up of this session in the last 5 minutes, or the current password (a recent sign-in for an account without one).
+// @Description  An account with a second factor confirms with a step-up made with it in the last 5 minutes. For the first factor: a fresh step-up, or the current password (a sign-in of the last 5 minutes for an account without one).
 // @Param    body  body      reauthRequest  false  "current password"
 // @Success  200  {object}  response.Response{data=totpBeginResponse}
 // @Failure  400  {object}  response.Response
@@ -121,7 +121,7 @@ func (h *Handler) totpBegin(ctx *gin.Context) {
 }
 
 // totpFinish godoc
-// @Summary  Confirm the authenticator app with its first code; issues the 10 recovery codes, shown once (N26)
+// @Summary  Confirm the authenticator app with its first code (N26); as the first factor it issues the 10 recovery codes, shown once (a further factor returns none and needs a step-up with an existing one)
 // @Tags     auth
 // @Accept   json
 // @Produce  json
@@ -141,6 +141,9 @@ func (h *Handler) totpFinish(ctx *gin.Context) {
 	if err != nil {
 		response.AbortWithError(ctx, err)
 		return
+	}
+	if codes == nil {
+		codes = []string{} // a further factor: the recovery codes stay as they are
 	}
 	audit.SetTarget(ctx, "totp:"+claims.UserID.String())
 	noStore(ctx)
@@ -237,7 +240,7 @@ func (h *Handler) stepUp(ctx *gin.Context) {
 // @Tags     auth
 // @Accept   json
 // @Produce  json
-// @Description  The password is still needed when the account has one. The session may then enrol a new factor and get new codes; the use is journaled and mailed to the owner.
+// @Description  Only for an account with a password and a second factor: the password is always checked, the code stands in for the lost factor. The session may then replace the factor and get new codes; the use is journaled and mailed to the owner.
 // @Param    body  body      recoverySignInRequest  true  "credentials and code"
 // @Success  200  {object}  response.Response{data=object}
 // @Failure  401  {object}  response.Response

@@ -3250,7 +3250,7 @@ const docTemplate = `{
         },
         "/auth/sign-in/recovery": {
             "post": {
-                "description": "The password is still needed when the account has one. The session may then enrol a new factor and get new codes; the use is journaled and mailed to the owner.",
+                "description": "Only for an account with a password and a second factor: the password is always checked, the code stands in for the lost factor. The session may then replace the factor and get new codes; the use is journaled and mailed to the owner.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3482,7 +3482,7 @@ const docTemplate = `{
         },
         "/auth/totp/begin": {
             "post": {
-                "description": "The owner is confirmed first: a step-up of this session in the last 5 minutes, or the current password (a recent sign-in for an account without one).",
+                "description": "An account with a second factor confirms with a step-up made with it in the last 5 minutes. For the first factor: a fresh step-up, or the current password (a sign-in of the last 5 minutes for an account without one).",
                 "consumes": [
                     "application/json"
                 ],
@@ -3554,7 +3554,7 @@ const docTemplate = `{
                 "tags": [
                     "auth"
                 ],
-                "summary": "Confirm the authenticator app with its first code; issues the 10 recovery codes, shown once (N26)",
+                "summary": "Confirm the authenticator app with its first code (N26); as the first factor it issues the 10 recovery codes, shown once (a further factor returns none and needs a step-up with an existing one)",
                 "parameters": [
                     {
                         "description": "the first code of the app",
@@ -30773,7 +30773,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "Password": {
-                    "description": "Password is required when the account has one: the code stands in for the second factor only.",
+                    "description": "Password is always required: the code stands in for the second factor only, never for the password.",
                     "type": "string"
                 },
                 "RecaptchaToken": {

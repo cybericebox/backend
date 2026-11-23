@@ -8,7 +8,7 @@ import (
 
 // Error-code convention: see internal/model/auth/errors.go. Enforced by `mise run lint:errors`.
 //
-// SecondFactorObjectCode — next free detail code: 11.
+// SecondFactorObjectCode — next free detail code: 12.
 //
 //nolint:gochecknoglobals,mnd // the error registry: one var per code, parsed by tools/errorcatalog
 var (
@@ -47,4 +47,8 @@ var (
 	// ErrNoSecondFactor: recovery codes back up a second factor, so the account needs one first.
 	ErrNoSecondFactor = err.ErrInvalidData.WithObjectCode(model.SecondFactorObjectCode).
 				WithMessage("Set up a passkey or an authenticator app first").WithDetailCode(10)
+	// ErrTOTPCodeUsed: the code is right but its time step was used already (a double submit, or a copied code). It
+	// does not count as a failure; the person waits for the next code.
+	ErrTOTPCodeUsed = err.ErrInvalidData.WithObjectCode(model.SecondFactorObjectCode).
+			WithMessage("This code was already used, wait for the next one").WithDetailCode(11)
 )

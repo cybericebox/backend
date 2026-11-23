@@ -1403,6 +1403,8 @@ type UserTotp struct {
 	CreatedAt        time.Time          `json:"created_at"`
 	ConfirmedAt      pgtype.Timestamptz `json:"confirmed_at"`
 	LastStep         pgtype.Int8        `json:"last_step"`
+	Failures         int32              `json:"failures"`
+	LockedUntil      pgtype.Timestamptz `json:"locked_until"`
 }
 
 type UserVpnConfig struct {

@@ -83,6 +83,8 @@ type Querier interface {
 	// A warned user who signed in again is active: forget the warning so the
 	// deletion never fires and a later inactivity period warns afresh.
 	ClearReturnedInactivityWarnings(ctx context.Context) (int64, error)
+	// Forgets the step-ups of every session of the person (a factor or the password changed).
+	ClearUserStepUps(ctx context.Context, userID uuid.UUID) (int64, error)
 	// Decides how the run ends; the teardown follows and then FinishAssistantRun. Only the first decision counts.
 	CloseAssistantRun(ctx context.Context, arg CloseAssistantRunParams) (int64, error)
 	// When, in which lab group, the live telemetry (raw rows and current state) of the events gave which IP to the client
@@ -1896,6 +1898,8 @@ type Querier interface {
 	// Serializes everything that decides on the calendar (reservations, placement, test lab admission) until the
 	// transaction ends: no two admissions see the same free room.
 	LockResourceCalendar(ctx context.Context) error
+	// Serializes the factor changes of one person (the last-factor guard and its write are one decision).
+	LockUserForFactorChange(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	// Open requests become read but stay open: only their decision closes them.
 	MarkAllInAppReadByUser(ctx context.Context, arg MarkAllInAppReadByUserParams) error
 	// The agent's answer for a revision: a confirmation never lowers synced_rev and clears the failure; a failure keeps
@@ -2099,6 +2103,9 @@ type Querier interface {
 	RecordEventTeamLabInitialReadiness(ctx context.Context, arg RecordEventTeamLabInitialReadinessParams) (int64, error)
 	// Deliberate narrow write: only physical observation fields, exactly fenced.
 	RecordEventTeamLabObservation(ctx context.Context, arg RecordEventTeamLabObservationParams) (int64, error)
+	// Counts a wrong code; from the max_failures-th on the checks lock, for lock_base_secs doubling with every further
+	// failure up to lock_max_secs.
+	RecordUserTOTPFailure(ctx context.Context, arg RecordUserTOTPFailureParams) (int32, error)
 	// A recreated Lab moves to the next generation under a new name, so the
 	// asynchronously deleted previous Lab never collides, and deploys again. Every
 	// binding of the exercise is moved to the same name and generation.
@@ -2525,10 +2532,12 @@ type Querier interface {
 	// Records a sign-in. The counter must move forward (or stay at zero for authenticators that have none): a
 	// replayed or cloned assertion matches no row, so two parallel uses of one counter value cannot both win.
 	UseUserPasskey(ctx context.Context, arg UseUserPasskeyParams) (int64, error)
-	// Takes an unused code once: no row for an unknown or used code.
+	// Takes an unused code once: no row for an unknown or used code. The hashes are the code under every key of the
+	// platform keyring (a rotation keeps the codes working).
 	UseUserRecoveryCode(ctx context.Context, arg UseUserRecoveryCodeParams) (int64, error)
 	// Takes the step of an accepted code. No row when that step or a later one was already used: the code is refused.
 	UseUserTOTPStep(ctx context.Context, arg UseUserTOTPStepParams) (int64, error)
+	UserTOTPExists(ctx context.Context) (bool, error)
 	VacateEventChallengeGroupOrders(ctx context.Context, eventID uuid.UUID) error
 	VacateEventChallengeOrders(ctx context.Context, eventExerciseID uuid.UUID) error
 }

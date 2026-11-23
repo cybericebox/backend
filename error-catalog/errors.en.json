@@ -319,6 +319,7 @@
   "23808": "Confirmation failed",
   "23809": "Confirm with your passkey or authenticator app",
   "23810": "Set up a passkey or an authenticator app first",
+  "23811": "This code was already used, wait for the next one",
   "30101": "Setting not found",
   "30201": "Notification dispatch not found",
   "30202": "Notification template not found",

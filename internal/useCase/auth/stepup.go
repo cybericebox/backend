@@ -87,18 +87,10 @@ func (u *AuthUseCase) StepUp(ctx context.Context, userID uuid.UUID, req StepUpRe
 	if err != nil {
 		return secondFactorModel.StepUp{}, err
 	}
-	key := userID.String()
-	if wait := u.limits.secondFactor.Locked(key); wait > 0 {
-		return secondFactorModel.StepUp{}, tooManyRequests(wait)
-	}
 	method, err := u.confirmStepUp(ctx, userID, sessionID, req)
 	if err != nil {
-		if errors.Is(err, secondFactorModel.ErrStepUpFailed.Err()) {
-			u.limits.secondFactor.Fail(key)
-		}
 		return secondFactorModel.StepUp{}, err
 	}
-	u.limits.secondFactor.Reset(key)
 	s := secondFactorModel.StepUp{At: time.Now(), Method: method}
 	found, err := u.factors.SetStepUp(ctx, sessionID, userID, s)
 	if err != nil {
@@ -107,6 +99,7 @@ func (u *AuthUseCase) StepUp(ctx context.Context, userID uuid.UUID, req StepUpRe
 	if !found {
 		return secondFactorModel.StepUp{}, secondFactorModel.ErrStepUpFailed.WithError(errors.New("step-up: the session is gone")).Err()
 	}
+	u.journal(ctx, secondFactorModel.ActionStepUp, userID, string(method))
 	return s, nil
 }
 
@@ -117,18 +110,24 @@ func (u *AuthUseCase) confirmStepUp(
 ) (secondFactorModel.Method, error) {
 	switch req.Method {
 	case secondFactorModel.MethodTOTP:
-		ok, err := u.verifyTOTP(ctx, userID, req.Code)
-		if err != nil {
+		// Its own lockout, kept in the user_totp row.
+		if err := u.verifyTOTP(ctx, userID, req.Code); err != nil {
 			return "", err
-		}
-		if !ok {
-			return "", secondFactorModel.ErrStepUpFailed.WithError(errors.New("step-up: wrong or reused authenticator code")).Err()
 		}
 		return secondFactorModel.MethodTOTP, nil
 	case secondFactorModel.MethodPasskey:
+		// A lockout of its own: failed passkey answers do not lock the authenticator or the password, nor the reverse.
+		key := "passkey:" + userID.String()
+		if wait := u.limits.secondFactor.Locked(key); wait > 0 {
+			return "", tooManyRequests(wait)
+		}
 		if err := u.verifyPasskeyStepUp(ctx, userID, sessionID, req); err != nil {
+			if errors.Is(err, secondFactorModel.ErrStepUpFailed.Err()) {
+				u.limits.secondFactor.Fail(key)
+			}
 			return "", err
 		}
+		u.limits.secondFactor.Reset(key)
 		return secondFactorModel.MethodPasskey, nil
 	case secondFactorModel.MethodPassword:
 		has, err := u.HasSecondFactor(ctx, userID)
@@ -142,8 +141,9 @@ func (u *AuthUseCase) confirmStepUp(
 		if err != nil {
 			return "", model.ErrPlatform.WithError(err).WithMessage("Failed to get user").Err()
 		}
-		// The password (its own lockout), or a sign-in of the last minutes for an account without one.
-		if err = u.reauthenticate(ctx, userID, req.Password); err != nil {
+		// The password (the lockout of the password checks), or for an account without one a sign-in of the last
+		// RecentSignInWindow.
+		if err = u.reauthenticateWithin(ctx, userID, req.Password, secondFactorModel.RecentSignInWindow); err != nil {
 			return "", err
 		}
 		if user.HasPassword() {

@@ -8,6 +8,10 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
+	"github.com/cybericebox/backend/internal/delivery/repository/passkeyRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/delivery/repository/secondFactorRepo"
+	"github.com/cybericebox/backend/internal/limits"
 	"github.com/cybericebox/backend/internal/model"
 	authModel "github.com/cybericebox/backend/internal/model/auth"
 	"github.com/cybericebox/backend/internal/model/rbac"
@@ -45,8 +49,8 @@ func (logFactorJournal) RecordFactorEvent(_ context.Context, e secondFactorModel
 	return nil
 }
 
-// SetSecondFactorCipher sets the key the authenticator secrets are sealed with at rest (PLATFORM_SECRETS_KEY). Without
-// it no authenticator app can be set up or used.
+// SetSecondFactorCipher sets the platform key (PLATFORM_SECRETS_KEY): it seals the authenticator secrets at rest and
+// keys the recovery-code HMAC. Without it no authenticator app or recovery code works.
 func (u *AuthUseCase) SetSecondFactorCipher(cipher *secret.Cipher) { u.factorCipher = cipher }
 
 // SetSecondFactorKeys plugs in the check of the second-factor keys (plan P2); nil keeps the stub.
@@ -65,6 +69,12 @@ func (u *AuthUseCase) SetFactorJournal(j IFactorJournal) {
 	u.factorJournal = j
 }
 
+// SetFactorUnitOfWork gives the factor changes their transaction: the user row is locked, so the last-factor guard and
+// the removal are one decision. Without it (isolated tests) the changes run without one.
+func (u *AuthUseCase) SetFactorUnitOfWork(unit postgres.IUnitOfWorker[IRepository]) {
+	u.factorUnit = unit
+}
+
 // TOTPEnrolment is what the person needs to add the account to an authenticator app: the URI the QR code carries and
 // the same secret in base32 for typing in.
 type TOTPEnrolment struct {
@@ -74,9 +84,15 @@ type TOTPEnrolment struct {
 
 func (u *AuthUseCase) requireFactorCipher() error {
 	if u.factorCipher == nil {
-		return model.ErrPlatform.WithMessage("Authenticator apps are not configured (PLATFORM_SECRETS_KEY)").Err()
+		return model.ErrPlatform.WithMessage("The second factor is not configured (PLATFORM_SECRETS_KEY)").Err()
 	}
 	return nil
+}
+
+// totpLockout is the persistent lockout of the authenticator codes: the sign-in failure limits (LIMIT_SIGN_IN_*).
+func totpLockout() secondFactorRepo.Lockout {
+	c := limits.Get()
+	return secondFactorRepo.Lockout{MaxFailures: c.SignInMaxFailures, LockBase: c.SignInLockBase, LockMax: c.SignInLockMax}
 }
 
 // currentSession is the session of the request; a request without one cannot confirm anything.
@@ -88,21 +104,59 @@ func currentSession(ctx context.Context) (uuid.UUID, error) {
 	return claims.SessionID, nil
 }
 
+func (u *AuthUseCase) journal(ctx context.Context, action secondFactorModel.JournalAction, userID uuid.UUID, reason string) {
+	if err := u.factorJournal.RecordFactorEvent(ctx, secondFactorModel.JournalEvent{
+		Action: action, UserID: userID, At: time.Now(), Reason: reason,
+	}); err != nil {
+		log.Error().Err(err).Str("action", string(action)).Str("user_id", userID.String()).Msg("Failed to journal a second-factor event")
+	}
+}
+
+// factorTx is the data a factor change works on: in the transaction of inFactorChange when there is one.
+type factorTx struct {
+	factors  *secondFactorRepo.Repository
+	passkeys *passkeyRepo.Repository
+}
+
+// inFactorChange runs a change of the factors of the person in one transaction with their user row locked (SELECT ...
+// FOR UPDATE): two concurrent removals cannot both pass the last-factor guard.
+func (u *AuthUseCase) inFactorChange(ctx context.Context, userID uuid.UUID, change func(context.Context, factorTx) error) error {
+	if u.factorUnit == nil {
+		return change(ctx, factorTx{factors: u.factors, passkeys: u.passkeys})
+	}
+	txCtx, repo, unit, err := u.factorUnit.UnitOfWork(ctx)
+	if err != nil {
+		return model.ErrPlatform.WithError(err).WithMessage("Failed to begin the factor change").Err()
+	}
+	defer unit.Restore()
+	tx := factorTx{factors: secondFactorRepo.New(repo), passkeys: passkeyRepo.New(repo)}
+	if err = tx.factors.LockUser(txCtx, userID); err != nil {
+		return model.ErrPlatform.WithError(err).WithMessage("Failed to lock the account").Err()
+	}
+	if err = change(txCtx, tx); err != nil {
+		return err
+	}
+	if err = unit.Save(); err != nil {
+		return model.ErrPlatform.WithError(err).WithMessage("Failed to save the factor change").Err()
+	}
+	return nil
+}
+
 // HasSecondFactor reports a confirmed authenticator app or a passkey that counts (user verification, not compromised).
 // Google sign-in, email codes and SMS never count. The access evaluator asks it for keys with the second_factor flag.
 func (u *AuthUseCase) HasSecondFactor(ctx context.Context, userID uuid.UUID) (bool, error) {
-	n, err := u.countFactors(ctx, userID)
+	n, err := countFactors(ctx, u.factors, userID)
 	return n > 0, err
 }
 
 // countFactors counts the second factors of the person: every passkey that counts, plus one for a confirmed
 // authenticator app.
-func (u *AuthUseCase) countFactors(ctx context.Context, userID uuid.UUID) (int, error) {
-	passkeys, err := u.factors.FactorPasskeys(ctx, userID)
+func countFactors(ctx context.Context, f *secondFactorRepo.Repository, userID uuid.UUID) (int, error) {
+	passkeys, err := f.FactorPasskeys(ctx, userID)
 	if err != nil {
 		return 0, model.ErrPlatform.WithError(err).WithMessage("Failed to count passkeys").Err()
 	}
-	t, found, err := u.factors.GetTOTP(ctx, userID)
+	t, found, err := f.GetTOTP(ctx, userID)
 	if err != nil {
 		return 0, model.ErrPlatform.WithError(err).WithMessage("Failed to read the authenticator").Err()
 	}
@@ -112,8 +166,12 @@ func (u *AuthUseCase) countFactors(ctx context.Context, userID uuid.UUID) (int, 
 	return passkeys, nil
 }
 
-// guardLastFactor refuses a removal that would leave a holder of a second-factor key with no factor at all.
-func (u *AuthUseCase) guardLastFactor(ctx context.Context, userID uuid.UUID, why string) error {
+// guardLastFactor refuses removing a factor that is the last one of a holder of a second-factor key. Removing
+// something that is no factor (a compromised passkey) is never refused here.
+func (u *AuthUseCase) guardLastFactor(ctx context.Context, tx factorTx, userID uuid.UUID, removingFactor bool, why string) error {
+	if !removingFactor {
+		return nil
+	}
 	holds, err := u.factorKeys.HoldsSecondFactorKey(ctx, userID)
 	if err != nil {
 		return model.ErrPlatform.WithError(err).WithMessage("Failed to check the keys of the account").Err()
@@ -121,7 +179,7 @@ func (u *AuthUseCase) guardLastFactor(ctx context.Context, userID uuid.UUID, why
 	if !holds {
 		return nil
 	}
-	n, err := u.countFactors(ctx, userID)
+	n, err := countFactors(ctx, tx.factors, userID)
 	if err != nil {
 		return err
 	}
@@ -131,7 +189,26 @@ func (u *AuthUseCase) guardLastFactor(ctx context.Context, userID uuid.UUID, why
 	return nil
 }
 
-// stepUpOf is the last step-up of the current session.
+// afterFactorChange runs in the transaction of every factor change: the recovery codes go with the last factor (they
+// back up a factor, they are no credential of their own), and every step-up of the person is forgotten, so a
+// confirmation made before the change (with the password, or with the factor that went) confirms nothing after it.
+func afterFactorChange(ctx context.Context, tx factorTx, userID uuid.UUID) error {
+	n, err := countFactors(ctx, tx.factors, userID)
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		if err = tx.factors.DeleteRecoveryCodes(ctx, userID); err != nil {
+			return model.ErrPlatform.WithError(err).WithMessage("Failed to delete the recovery codes").Err()
+		}
+	}
+	if err = tx.factors.ClearStepUps(ctx, userID); err != nil {
+		return model.ErrPlatform.WithError(err).WithMessage("Failed to clear the step-ups").Err()
+	}
+	return nil
+}
+
+// stepUpOf is the last step-up of a session.
 func (u *AuthUseCase) stepUpOf(ctx context.Context, sessionID uuid.UUID) (secondFactorModel.StepUp, error) {
 	s, err := u.factors.StepUp(ctx, sessionID)
 	if err != nil {
@@ -145,8 +222,8 @@ func (u *AuthUseCase) StepUpState(ctx context.Context, sessionID uuid.UUID) (sec
 	return u.stepUpOf(ctx, sessionID)
 }
 
-// requireFactorChangeStepUp is the confirmation a change of the factors needs: a step-up on this session in the last
-// StepUpWindow, made with a second factor or a recovery code when the account has a second factor.
+// requireFactorChangeStepUp is the confirmation a change of the factors of an account that has one needs: a step-up on
+// this session in the last StepUpWindow, made with an existing factor (or a recovery code standing in for a lost one).
 func (u *AuthUseCase) requireFactorChangeStepUp(ctx context.Context, userID uuid.UUID) error {
 	sessionID, err := currentSession(ctx)
 	if err != nil {
@@ -169,10 +246,17 @@ func (u *AuthUseCase) requireFactorChangeStepUp(ctx context.Context, userID uuid
 	return nil
 }
 
-// confirmOwnerForEnrolment lets a person start a new factor: a fresh step-up of this session (any method; a recovery-code
-// sign-in counts, so a lost factor can be replaced) or, as for adding a passkey, the password (a recent sign-in for an
-// account without one).
-func (u *AuthUseCase) confirmOwnerForEnrolment(ctx context.Context, userID uuid.UUID, currentPassword string) error {
+// confirmNewFactor is the confirmation that adds a factor. An account that has one confirms with it
+// (requireFactorChangeStepUp); only the first factor may be confirmed with a fresh step-up of any kind, the password,
+// or for an account without a password a sign-in of the last RecentSignInWindow.
+func (u *AuthUseCase) confirmNewFactor(ctx context.Context, userID uuid.UUID, currentPassword string) error {
+	has, err := u.HasSecondFactor(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if has {
+		return u.requireFactorChangeStepUp(ctx, userID)
+	}
 	sessionID, err := currentSession(ctx)
 	if err != nil {
 		return err
@@ -184,7 +268,7 @@ func (u *AuthUseCase) confirmOwnerForEnrolment(ctx context.Context, userID uuid.
 	if s.Fresh(time.Now(), secondFactorModel.StepUpWindow) {
 		return nil
 	}
-	return u.reauthenticate(ctx, userID, currentPassword)
+	return u.reauthenticateWithin(ctx, userID, currentPassword, secondFactorModel.RecentSignInWindow)
 }
 
 // BeginTOTPEnrolment starts adding an authenticator app: a new secret is sealed and stored unconfirmed, and its URI is
@@ -193,18 +277,25 @@ func (u *AuthUseCase) BeginTOTPEnrolment(ctx context.Context, userID uuid.UUID, 
 	if err := u.requireFactorCipher(); err != nil {
 		return TOTPEnrolment{}, err
 	}
-	if err := u.confirmOwnerForEnrolment(ctx, userID, currentPassword); err != nil {
+	t, found, err := u.factors.GetTOTP(ctx, userID)
+	if err != nil {
+		return TOTPEnrolment{}, model.ErrPlatform.WithError(err).WithMessage("Failed to read the authenticator").Err()
+	}
+	if found && t.ConfirmedAt != nil {
+		return TOTPEnrolment{}, secondFactorModel.ErrTOTPAlreadyEnabled.Err()
+	}
+	if err = u.confirmNewFactor(ctx, userID, currentPassword); err != nil {
 		return TOTPEnrolment{}, err
 	}
 	user, err := u.users.GetByID(ctx, userID)
 	if err != nil {
 		return TOTPEnrolment{}, model.ErrPlatform.WithError(err).WithMessage("Failed to get user").Err()
 	}
-	raw, err := totp.NewSecret()
+	key, err := totp.Default.New(relyingPartyName, user.Email)
 	if err != nil {
 		return TOTPEnrolment{}, model.ErrPlatform.WithError(err).WithMessage("Failed to create the authenticator secret").Err()
 	}
-	sealed, err := u.factorCipher.EncryptWithContext(raw, secretctx.TOTPSecret(userID))
+	sealed, err := u.factorCipher.EncryptWithContext([]byte(key.Secret), secretctx.TOTPSecret(userID))
 	if err != nil {
 		return TOTPEnrolment{}, model.ErrPlatform.WithError(err).WithMessage("Failed to seal the authenticator secret").Err()
 	}
@@ -215,14 +306,39 @@ func (u *AuthUseCase) BeginTOTPEnrolment(ctx context.Context, userID uuid.UUID, 
 	if !started {
 		return TOTPEnrolment{}, secondFactorModel.ErrTOTPAlreadyEnabled.Err()
 	}
-	return TOTPEnrolment{
-		Secret: totp.EncodeSecret(raw),
-		URI:    totp.URI(relyingPartyName, user.Email, raw, totp.Default),
-	}, nil
+	return TOTPEnrolment{Secret: key.Secret, URI: key.URI}, nil
 }
 
-// FinishTOTPEnrolment confirms the setup with the first code of the app and issues a new set of recovery codes (shown
-// once; they replace any older set).
+// openTOTP opens the sealed secret of a stored authenticator.
+func (u *AuthUseCase) openTOTP(userID uuid.UUID, t secondFactorRepo.TOTP) (string, error) {
+	raw, err := u.factorCipher.DecryptWithContext(t.SealedSecret, secretctx.TOTPSecret(userID))
+	if err != nil {
+		return "", model.ErrPlatform.WithError(err).WithMessage("Failed to open the authenticator secret").Err()
+	}
+	return string(raw), nil
+}
+
+// totpLocked answers the lockout of the authenticator codes (kept in the row: it holds on every replica).
+func totpLocked(t secondFactorRepo.TOTP) error {
+	if t.LockedUntil != nil {
+		if wait := time.Until(*t.LockedUntil); wait > 0 {
+			return tooManyRequests(wait)
+		}
+	}
+	return nil
+}
+
+func (u *AuthUseCase) countTOTPFailure(ctx context.Context, userID uuid.UUID) error {
+	if _, err := u.factors.RecordTOTPFailure(ctx, userID, totpLockout(), time.Now()); err != nil {
+		return model.ErrPlatform.WithError(err).WithMessage("Failed to count the authenticator failure").Err()
+	}
+	return nil
+}
+
+// FinishTOTPEnrolment confirms the setup with the first code of the app. When the app is the first factor of the
+// account it also issues the recovery codes (shown once, replacing any older set); a further factor leaves the codes
+// as they are (POST /auth/recovery-codes makes new ones) and returns none. An account that already has a factor needs
+// a step-up made with it here too, not only at the start.
 func (u *AuthUseCase) FinishTOTPEnrolment(ctx context.Context, userID uuid.UUID, code string) ([]string, error) {
 	if err := u.requireFactorCipher(); err != nil {
 		return nil, err
@@ -230,9 +346,14 @@ func (u *AuthUseCase) FinishTOTPEnrolment(ctx context.Context, userID uuid.UUID,
 	if _, err := currentSession(ctx); err != nil {
 		return nil, err
 	}
-	key := userID.String()
-	if wait := u.limits.secondFactor.Locked(key); wait > 0 {
-		return nil, tooManyRequests(wait)
+	has, err := u.HasSecondFactor(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if has {
+		if err = u.requireFactorChangeStepUp(ctx, userID); err != nil {
+			return nil, err
+		}
 	}
 	t, found, err := u.factors.GetTOTP(ctx, userID)
 	if err != nil {
@@ -246,29 +367,50 @@ func (u *AuthUseCase) FinishTOTPEnrolment(ctx context.Context, userID uuid.UUID,
 	case time.Since(t.CreatedAt) > secondFactorModel.TOTPEnrolmentTTL:
 		return nil, secondFactorModel.ErrTOTPEnrolmentExpired.WithError(errors.New("totp setup is too old")).Err()
 	}
-	raw, err := u.factorCipher.DecryptWithContext(t.SealedSecret, secretctx.TOTPSecret(userID))
+	if err = totpLocked(t); err != nil {
+		return nil, err
+	}
+	secretB32, err := u.openTOTP(userID, t)
 	if err != nil {
-		return nil, model.ErrPlatform.WithError(err).WithMessage("Failed to open the authenticator secret").Err()
+		return nil, err
 	}
 	now := time.Now()
-	step, ok := totp.Default.Match(raw, code, now, secondFactorModel.TOTPSkew, 0)
+	step, ok := totp.Default.Match(secretB32, code, now, secondFactorModel.TOTPSkew, 0)
 	if !ok {
-		u.limits.secondFactor.Fail(key)
+		if err = u.countTOTPFailure(ctx, userID); err != nil {
+			return nil, err
+		}
 		return nil, secondFactorModel.ErrTOTPInvalidCode.Err()
 	}
-	confirmed, err := u.factors.Confirm(ctx, userID, t.SealedSecret, step, now)
+	var codes []string
+	err = u.inFactorChange(ctx, userID, func(ctx context.Context, tx factorTx) error {
+		n, cErr := countFactors(ctx, tx.factors, userID)
+		if cErr != nil {
+			return cErr
+		}
+		confirmed, cErr := tx.factors.Confirm(ctx, userID, t.SealedSecret, step, now)
+		if cErr != nil {
+			return model.ErrPlatform.WithError(cErr).WithMessage("Failed to confirm the authenticator").Err()
+		}
+		if !confirmed {
+			return secondFactorModel.ErrTOTPEnrolmentExpired.WithError(errors.New("totp setup changed meanwhile")).Err()
+		}
+		if n == 0 {
+			if codes, cErr = u.issueRecoveryCodes(ctx, tx.factors, userID); cErr != nil {
+				return cErr
+			}
+		}
+		return afterFactorChange(ctx, tx, userID)
+	})
 	if err != nil {
-		return nil, model.ErrPlatform.WithError(err).WithMessage("Failed to confirm the authenticator").Err()
+		return nil, err
 	}
-	if !confirmed {
-		return nil, secondFactorModel.ErrTOTPEnrolmentExpired.WithError(errors.New("totp setup changed meanwhile")).Err()
-	}
-	u.limits.secondFactor.Reset(key)
-	return u.issueRecoveryCodes(ctx, userID)
+	u.journal(ctx, secondFactorModel.ActionTOTPEnrolled, userID, "")
+	return codes, nil
 }
 
-// RemoveTOTP removes the authenticator app. It needs a fresh step-up (with a second factor or a recovery code) and is
-// refused when it is the last factor of a holder of a second-factor key.
+// RemoveTOTP removes the authenticator app. It needs a fresh step-up made with a factor (or a recovery code) and is
+// refused when it is the last factor of a holder of a second-factor key; with the last factor the recovery codes go.
 func (u *AuthUseCase) RemoveTOTP(ctx context.Context, userID uuid.UUID) error {
 	t, found, err := u.factors.GetTOTP(ctx, userID)
 	if err != nil {
@@ -280,48 +422,68 @@ func (u *AuthUseCase) RemoveTOTP(ctx context.Context, userID uuid.UUID) error {
 	if err = u.requireFactorChangeStepUp(ctx, userID); err != nil {
 		return err
 	}
-	if err = u.guardLastFactor(ctx, userID, "totp-remove: the last second factor of a holder of a second-factor key"); err != nil {
+	err = u.inFactorChange(ctx, userID, func(ctx context.Context, tx factorTx) error {
+		if gErr := u.guardLastFactor(ctx, tx, userID, true, "totp-remove: the last second factor of a holder of a second-factor key"); gErr != nil {
+			return gErr
+		}
+		removed, dErr := tx.factors.DeleteTOTP(ctx, userID, true)
+		if dErr != nil {
+			return model.ErrPlatform.WithError(dErr).WithMessage("Failed to remove the authenticator").Err()
+		}
+		if !removed {
+			return secondFactorModel.ErrTOTPNotEnabled.Err()
+		}
+		return afterFactorChange(ctx, tx, userID)
+	})
+	if err != nil {
 		return err
 	}
-	removed, err := u.factors.DeleteTOTP(ctx, userID, true)
-	if err != nil {
-		return model.ErrPlatform.WithError(err).WithMessage("Failed to remove the authenticator").Err()
-	}
-	if !removed {
-		return secondFactorModel.ErrTOTPNotEnabled.Err()
-	}
+	u.journal(ctx, secondFactorModel.ActionTOTPRemoved, userID, "")
 	return nil
 }
 
 // verifyTOTP checks a code of the confirmed authenticator app and takes its step, so the same code (or an older one)
-// never works again. A secret sealed under an older platform key is sealed again under the current one.
-func (u *AuthUseCase) verifyTOTP(ctx context.Context, userID uuid.UUID, code string) (bool, error) {
+// never works again. A wrong code counts in the row (the lockout holds across replicas); a right code of a step already
+// used is ErrTOTPCodeUsed and counts nothing (a double submit). A secret sealed under an older platform key is sealed
+// again under the current one.
+func (u *AuthUseCase) verifyTOTP(ctx context.Context, userID uuid.UUID, code string) error {
 	if err := u.requireFactorCipher(); err != nil {
-		return false, err
+		return err
 	}
 	t, found, err := u.factors.GetTOTP(ctx, userID)
 	if err != nil {
-		return false, model.ErrPlatform.WithError(err).WithMessage("Failed to read the authenticator").Err()
+		return model.ErrPlatform.WithError(err).WithMessage("Failed to read the authenticator").Err()
 	}
 	if !found || t.ConfirmedAt == nil {
-		return false, secondFactorModel.ErrStepUpMethodNotAllowed.WithError(errors.New("no confirmed authenticator")).Err()
+		return secondFactorModel.ErrStepUpMethodNotAllowed.WithError(errors.New("no confirmed authenticator")).Err()
 	}
-	raw, err := u.factorCipher.DecryptWithContext(t.SealedSecret, secretctx.TOTPSecret(userID))
+	if err = totpLocked(t); err != nil {
+		return err
+	}
+	secretB32, err := u.openTOTP(userID, t)
 	if err != nil {
-		return false, model.ErrPlatform.WithError(err).WithMessage("Failed to open the authenticator secret").Err()
+		return err
 	}
-	step, ok := totp.Default.Match(raw, code, time.Now(), secondFactorModel.TOTPSkew, t.LastStep)
+	now := time.Now()
+	step, ok := totp.Default.Match(secretB32, code, now, secondFactorModel.TOTPSkew, t.LastStep)
 	if !ok {
-		return false, nil
+		if used, ok := totp.Default.Match(secretB32, code, now, secondFactorModel.TOTPSkew, 0); ok && used <= t.LastStep {
+			return secondFactorModel.ErrTOTPCodeUsed.Err()
+		}
+		if err = u.countTOTPFailure(ctx, userID); err != nil {
+			return err
+		}
+		return secondFactorModel.ErrStepUpFailed.WithError(errors.New("step-up: wrong authenticator code")).Err()
 	}
 	taken, err := u.factors.UseStep(ctx, userID, step)
 	if err != nil {
-		return false, model.ErrPlatform.WithError(err).WithMessage("Failed to record the authenticator code").Err()
+		return model.ErrPlatform.WithError(err).WithMessage("Failed to record the authenticator code").Err()
 	}
-	if taken {
-		u.resealTOTP(ctx, userID, t.SealedSecret, raw)
+	if !taken {
+		return secondFactorModel.ErrTOTPCodeUsed.WithError(errors.New("the step was taken by a concurrent request")).Err()
 	}
-	return taken, nil
+	u.resealTOTP(ctx, userID, t.SealedSecret, []byte(secretB32))
+	return nil
 }
 
 // resealTOTP moves a secret sealed by an older platform key to the current one (keys check counts it). A failure is

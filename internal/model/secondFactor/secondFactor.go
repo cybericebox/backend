@@ -4,6 +4,7 @@
 package secondFactorModel
 
 import (
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"fmt"
@@ -22,6 +23,12 @@ const (
 	TOTPEnrolmentTTL = 10 * time.Minute
 	// TOTPSkew is how many 30-second steps either side of now a code may be from (RFC 6238 §5.2: one).
 	TOTPSkew = 1
+	// RecentSignInWindow is how recent a sign-in must be to stand in for the password of an account without one, when
+	// it confirms a step-up or the first factor.
+	RecentSignInWindow = 5 * time.Minute
+	// RecoveryCodeKeyPurpose names the HMAC key of the recovery codes, derived from every key of the platform keyring
+	// (secret.Cipher.DeriveKeys): versioned, a change is a data migration.
+	RecoveryCodeKeyPurpose = "cybericebox/recovery-code-hmac/v1"
 )
 
 // Method is how a step-up (or the session behind it) was confirmed.
@@ -76,8 +83,18 @@ type Status struct {
 // JournalAction is an account-security event the grant journal records (access_grant_log.action).
 type JournalAction string
 
-// ActionRecoveryCodeUsed is written when a recovery code signed someone in.
-const ActionRecoveryCodeUsed JournalAction = "factor.recovery-used"
+// The journal actions of the second factor. Only factor.recovery-used is in the access_grant_log sketch of the design;
+// the grant journal (plan P2) adds the others to its action list.
+const (
+	// ActionRecoveryCodeUsed is written when a recovery code signed someone in.
+	ActionRecoveryCodeUsed JournalAction = "factor.recovery-used"
+	ActionTOTPEnrolled     JournalAction = "factor.totp-enrolled"
+	ActionTOTPRemoved      JournalAction = "factor.totp-removed"
+	ActionPasskeyAdded     JournalAction = "factor.passkey-added"
+	ActionPasskeyRemoved   JournalAction = "factor.passkey-removed"
+	// ActionStepUp is a confirmation of a session; the reason names the method.
+	ActionStepUp JournalAction = "factor.step-up"
+)
 
 // JournalEvent is one row of the grant journal about a factor: the person is both the actor and the subject, at
 // platform scope.
@@ -127,11 +144,12 @@ func normalizeRecoveryCode(code string) string {
 	return strings.NewReplacer("O", "0", "I", "1", "L", "1").Replace(code)
 }
 
-// HashRecoveryCode is the stored form of a code: SHA-256 over the person's id and the normalized code. A code has 60
-// random bits, so a fast hash is enough, and the id makes the same code of two people two different hashes.
-func HashRecoveryCode(userID uuid.UUID, code string) []byte {
-	h := sha256.New()
-	h.Write(userID.Bytes())
-	h.Write([]byte(normalizeRecoveryCode(code)))
-	return h.Sum(nil)
+// HashRecoveryCode is the stored form of a code: HMAC-SHA-256, keyed with a key derived from the platform key, over the
+// person's id and the normalized code. Without the platform key a copy of the table gives nothing to brute-force, and
+// the id makes the same code of two people two different hashes.
+func HashRecoveryCode(key [32]byte, userID uuid.UUID, code string) []byte {
+	mac := hmac.New(sha256.New, key[:])
+	mac.Write(userID.Bytes())
+	mac.Write([]byte(normalizeRecoveryCode(code)))
+	return mac.Sum(nil)
 }

@@ -3,12 +3,14 @@ package app
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/cybericebox/backend/internal/config"
 	"github.com/cybericebox/backend/internal/useCase/secretkeys"
+	"github.com/cybericebox/backend/pkg/secret"
 )
 
 type fakeChecker struct {
@@ -58,4 +60,22 @@ func TestGuardWhenTheScanFails(t *testing.T) {
 	boom := errors.New("database down")
 	require.NoError(t, guardSecrets(context.Background(), config.SecretsGuardWarn, &fakeChecker{err: boom}))
 	require.ErrorIs(t, guardSecrets(context.Background(), config.SecretsGuardRefuse, &fakeChecker{err: boom}), boom)
+}
+
+type totpFlag struct {
+	stored bool
+	err    error
+}
+
+func (f totpFlag) AnyTOTP(context.Context) (bool, error) { return f.stored, f.err }
+
+// Stored authenticator secrets and no platform key: the daemon does not start. Nothing stored, or the key set: it does.
+func TestGuardTOTPKey(t *testing.T) {
+	ctx := context.Background()
+	require.Error(t, guardTOTPKey(ctx, totpFlag{stored: true}, nil))
+	require.NoError(t, guardTOTPKey(ctx, totpFlag{}, nil))
+	require.Error(t, guardTOTPKey(ctx, totpFlag{err: errors.New("db down")}, nil))
+	key, err := secret.New("k1:" + strings.Repeat("a1", 32))
+	require.NoError(t, err)
+	require.NoError(t, guardTOTPKey(ctx, totpFlag{stored: true}, key))
 }

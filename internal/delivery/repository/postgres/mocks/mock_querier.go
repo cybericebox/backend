@@ -487,6 +487,21 @@ func (mr *MockQuerierMockRecorder) ClearReturnedInactivityWarnings(ctx any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearReturnedInactivityWarnings", reflect.TypeOf((*MockQuerier)(nil).ClearReturnedInactivityWarnings), ctx)
 }
 
+// ClearUserStepUps mocks base method.
+func (m *MockQuerier) ClearUserStepUps(ctx context.Context, userID uuid.UUID) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClearUserStepUps", ctx, userID)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ClearUserStepUps indicates an expected call of ClearUserStepUps.
+func (mr *MockQuerierMockRecorder) ClearUserStepUps(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearUserStepUps", reflect.TypeOf((*MockQuerier)(nil).ClearUserStepUps), ctx, userID)
+}
+
 // CloseAssistantRun mocks base method.
 func (m *MockQuerier) CloseAssistantRun(ctx context.Context, arg postgres.CloseAssistantRunParams) (int64, error) {
 	m.ctrl.T.Helper()
@@ -12875,6 +12890,21 @@ func (mr *MockQuerierMockRecorder) LockResourceCalendar(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockResourceCalendar", reflect.TypeOf((*MockQuerier)(nil).LockResourceCalendar), ctx)
 }
 
+// LockUserForFactorChange mocks base method.
+func (m *MockQuerier) LockUserForFactorChange(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LockUserForFactorChange", ctx, id)
+	ret0, _ := ret[0].(uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// LockUserForFactorChange indicates an expected call of LockUserForFactorChange.
+func (mr *MockQuerierMockRecorder) LockUserForFactorChange(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockUserForFactorChange", reflect.TypeOf((*MockQuerier)(nil).LockUserForFactorChange), ctx, id)
+}
+
 // MarkAllInAppReadByUser mocks base method.
 func (m *MockQuerier) MarkAllInAppReadByUser(ctx context.Context, arg postgres.MarkAllInAppReadByUserParams) error {
 	m.ctrl.T.Helper()
@@ -14074,6 +14104,21 @@ func (m *MockQuerier) RecordEventTeamLabObservation(ctx context.Context, arg pos
 func (mr *MockQuerierMockRecorder) RecordEventTeamLabObservation(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecordEventTeamLabObservation", reflect.TypeOf((*MockQuerier)(nil).RecordEventTeamLabObservation), ctx, arg)
+}
+
+// RecordUserTOTPFailure mocks base method.
+func (m *MockQuerier) RecordUserTOTPFailure(ctx context.Context, arg postgres.RecordUserTOTPFailureParams) (int32, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RecordUserTOTPFailure", ctx, arg)
+	ret0, _ := ret[0].(int32)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RecordUserTOTPFailure indicates an expected call of RecordUserTOTPFailure.
+func (mr *MockQuerierMockRecorder) RecordUserTOTPFailure(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecordUserTOTPFailure", reflect.TypeOf((*MockQuerier)(nil).RecordUserTOTPFailure), ctx, arg)
 }
 
 // RecreateLabBinding mocks base method.
@@ -17094,6 +17139,21 @@ func (m *MockQuerier) UseUserTOTPStep(ctx context.Context, arg postgres.UseUserT
 func (mr *MockQuerierMockRecorder) UseUserTOTPStep(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UseUserTOTPStep", reflect.TypeOf((*MockQuerier)(nil).UseUserTOTPStep), ctx, arg)
+}
+
+// UserTOTPExists mocks base method.
+func (m *MockQuerier) UserTOTPExists(ctx context.Context) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UserTOTPExists", ctx)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UserTOTPExists indicates an expected call of UserTOTPExists.
+func (mr *MockQuerierMockRecorder) UserTOTPExists(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UserTOTPExists", reflect.TypeOf((*MockQuerier)(nil).UserTOTPExists), ctx)
 }
 
 // VacateEventChallengeGroupOrders mocks base method.

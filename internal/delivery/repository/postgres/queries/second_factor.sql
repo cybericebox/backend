@@ -12,14 +12,18 @@ ON CONFLICT (user_id) DO UPDATE
     SET secret_ciphertext = EXCLUDED.secret_ciphertext,
         created_at        = EXCLUDED.created_at,
         confirmed_at      = NULL,
-        last_step         = NULL
+        last_step         = NULL,
+        failures          = 0,
+        locked_until      = NULL
 WHERE user_totp.confirmed_at IS NULL;
 
 -- name: ConfirmUserTOTP :execrows
 -- Confirms the setup that holds this very secret (not one started again meanwhile) with the step of its first code.
 UPDATE user_totp
 SET confirmed_at = sqlc.arg(confirmed_at)::timestamptz,
-    last_step    = sqlc.arg(last_step)::bigint
+    last_step    = sqlc.arg(last_step)::bigint,
+    failures     = 0,
+    locked_until = NULL
 WHERE user_id = sqlc.arg(user_id)
   AND confirmed_at IS NULL
   AND secret_ciphertext = sqlc.arg(secret_ciphertext);
@@ -27,10 +31,25 @@ WHERE user_id = sqlc.arg(user_id)
 -- name: UseUserTOTPStep :execrows
 -- Takes the step of an accepted code. No row when that step or a later one was already used: the code is refused.
 UPDATE user_totp
-SET last_step = sqlc.arg(step)::bigint
+SET last_step    = sqlc.arg(step)::bigint,
+    failures     = 0,
+    locked_until = NULL
 WHERE user_id = sqlc.arg(user_id)
   AND confirmed_at IS NOT NULL
   AND (last_step IS NULL OR last_step < sqlc.arg(step)::bigint);
+
+-- name: RecordUserTOTPFailure :one
+-- Counts a wrong code; from the max_failures-th on the checks lock, for lock_base_secs doubling with every further
+-- failure up to lock_max_secs.
+UPDATE user_totp
+SET failures     = failures + 1,
+    locked_until = CASE
+                       WHEN failures + 1 >= sqlc.arg(max_failures)::integer THEN
+                           sqlc.arg(now)::timestamptz + make_interval(secs => LEAST(sqlc.arg(lock_max_secs)::float8,
+                               sqlc.arg(lock_base_secs)::float8 * power(2, failures + 1 - sqlc.arg(max_failures)::integer)))
+                       ELSE locked_until END
+WHERE user_id = sqlc.arg(user_id)
+RETURNING failures;
 
 -- name: ResealUserTOTP :execrows
 -- The same secret sealed under the current platform key; nothing when the row changed meanwhile.
@@ -54,11 +73,12 @@ SELECT sqlc.arg(user_id), h, sqlc.arg(created_at)
 FROM unnest(sqlc.arg(code_hashes)::bytea[]) AS h;
 
 -- name: UseUserRecoveryCode :execrows
--- Takes an unused code once: no row for an unknown or used code.
+-- Takes an unused code once: no row for an unknown or used code. The hashes are the code under every key of the
+-- platform keyring (a rotation keeps the codes working).
 UPDATE user_recovery_codes
 SET used_at = sqlc.arg(used_at)::timestamptz
 WHERE user_id = sqlc.arg(user_id)
-  AND code_hash = sqlc.arg(code_hash)
+  AND code_hash = ANY (sqlc.arg(code_hashes)::bytea[])
   AND used_at IS NULL;
 
 -- name: CountUnusedUserRecoveryCodes :one
@@ -86,6 +106,24 @@ SET step_up_at     = sqlc.arg(step_up_at)::timestamptz,
     step_up_method = sqlc.arg(step_up_method)::text
 WHERE id = sqlc.arg(id)
   AND user_id = sqlc.arg(user_id);
+
+-- name: ClearUserStepUps :execrows
+-- Forgets the step-ups of every session of the person (a factor or the password changed).
+UPDATE sessions
+SET step_up_at     = NULL,
+    step_up_method = NULL
+WHERE user_id = $1
+  AND step_up_at IS NOT NULL;
+
+-- name: LockUserForFactorChange :one
+-- Serializes the factor changes of one person (the last-factor guard and its write are one decision).
+SELECT id
+FROM users
+WHERE id = $1
+FOR UPDATE;
+
+-- name: UserTOTPExists :one
+SELECT EXISTS (SELECT 1 FROM user_totp) AS present;
 
 -- name: GetSessionStepUp :one
 SELECT step_up_at, step_up_method

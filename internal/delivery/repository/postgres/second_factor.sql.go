@@ -13,10 +13,29 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const clearUserStepUps = `-- name: ClearUserStepUps :execrows
+UPDATE sessions
+SET step_up_at     = NULL,
+    step_up_method = NULL
+WHERE user_id = $1
+  AND step_up_at IS NOT NULL
+`
+
+// Forgets the step-ups of every session of the person (a factor or the password changed).
+func (q *Queries) ClearUserStepUps(ctx context.Context, userID uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, clearUserStepUps, userID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const confirmUserTOTP = `-- name: ConfirmUserTOTP :execrows
 UPDATE user_totp
 SET confirmed_at = $1::timestamptz,
-    last_step    = $2::bigint
+    last_step    = $2::bigint,
+    failures     = 0,
+    locked_until = NULL
 WHERE user_id = $3
   AND confirmed_at IS NULL
   AND secret_ciphertext = $4
@@ -126,7 +145,7 @@ func (q *Queries) GetSessionStepUp(ctx context.Context, id uuid.UUID) (GetSessio
 }
 
 const getUserTOTP = `-- name: GetUserTOTP :one
-SELECT user_id, secret_ciphertext, created_at, confirmed_at, last_step
+SELECT user_id, secret_ciphertext, created_at, confirmed_at, last_step, failures, locked_until
 FROM user_totp
 WHERE user_id = $1
 `
@@ -140,8 +159,60 @@ func (q *Queries) GetUserTOTP(ctx context.Context, userID uuid.UUID) (UserTotp, 
 		&i.CreatedAt,
 		&i.ConfirmedAt,
 		&i.LastStep,
+		&i.Failures,
+		&i.LockedUntil,
 	)
 	return i, err
+}
+
+const lockUserForFactorChange = `-- name: LockUserForFactorChange :one
+SELECT id
+FROM users
+WHERE id = $1
+FOR UPDATE
+`
+
+// Serializes the factor changes of one person (the last-factor guard and its write are one decision).
+func (q *Queries) LockUserForFactorChange(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockUserForFactorChange, id)
+	var id_2 uuid.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
+}
+
+const recordUserTOTPFailure = `-- name: RecordUserTOTPFailure :one
+UPDATE user_totp
+SET failures     = failures + 1,
+    locked_until = CASE
+                       WHEN failures + 1 >= $1::integer THEN
+                           $2::timestamptz + make_interval(secs => LEAST($3::float8,
+                               $4::float8 * power(2, failures + 1 - $1::integer)))
+                       ELSE locked_until END
+WHERE user_id = $5
+RETURNING failures
+`
+
+type RecordUserTOTPFailureParams struct {
+	MaxFailures  int32     `json:"max_failures"`
+	Now          time.Time `json:"now"`
+	LockMaxSecs  float64   `json:"lock_max_secs"`
+	LockBaseSecs float64   `json:"lock_base_secs"`
+	UserID       uuid.UUID `json:"user_id"`
+}
+
+// Counts a wrong code; from the max_failures-th on the checks lock, for lock_base_secs doubling with every further
+// failure up to lock_max_secs.
+func (q *Queries) RecordUserTOTPFailure(ctx context.Context, arg RecordUserTOTPFailureParams) (int32, error) {
+	row := q.db.QueryRow(ctx, recordUserTOTPFailure,
+		arg.MaxFailures,
+		arg.Now,
+		arg.LockMaxSecs,
+		arg.LockBaseSecs,
+		arg.UserID,
+	)
+	var failures int32
+	err := row.Scan(&failures)
+	return failures, err
 }
 
 const replaceUserRecoveryCodes = `-- name: ReplaceUserRecoveryCodes :execrows
@@ -224,7 +295,9 @@ ON CONFLICT (user_id) DO UPDATE
     SET secret_ciphertext = EXCLUDED.secret_ciphertext,
         created_at        = EXCLUDED.created_at,
         confirmed_at      = NULL,
-        last_step         = NULL
+        last_step         = NULL,
+        failures          = 0,
+        locked_until      = NULL
 WHERE user_totp.confirmed_at IS NULL
 `
 
@@ -248,19 +321,20 @@ const useUserRecoveryCode = `-- name: UseUserRecoveryCode :execrows
 UPDATE user_recovery_codes
 SET used_at = $1::timestamptz
 WHERE user_id = $2
-  AND code_hash = $3
+  AND code_hash = ANY ($3::bytea[])
   AND used_at IS NULL
 `
 
 type UseUserRecoveryCodeParams struct {
-	UsedAt   time.Time `json:"used_at"`
-	UserID   uuid.UUID `json:"user_id"`
-	CodeHash []byte    `json:"code_hash"`
+	UsedAt     time.Time `json:"used_at"`
+	UserID     uuid.UUID `json:"user_id"`
+	CodeHashes [][]byte  `json:"code_hashes"`
 }
 
-// Takes an unused code once: no row for an unknown or used code.
+// Takes an unused code once: no row for an unknown or used code. The hashes are the code under every key of the
+// platform keyring (a rotation keeps the codes working).
 func (q *Queries) UseUserRecoveryCode(ctx context.Context, arg UseUserRecoveryCodeParams) (int64, error) {
-	result, err := q.db.Exec(ctx, useUserRecoveryCode, arg.UsedAt, arg.UserID, arg.CodeHash)
+	result, err := q.db.Exec(ctx, useUserRecoveryCode, arg.UsedAt, arg.UserID, arg.CodeHashes)
 	if err != nil {
 		return 0, err
 	}
@@ -269,7 +343,9 @@ func (q *Queries) UseUserRecoveryCode(ctx context.Context, arg UseUserRecoveryCo
 
 const useUserTOTPStep = `-- name: UseUserTOTPStep :execrows
 UPDATE user_totp
-SET last_step = $1::bigint
+SET last_step    = $1::bigint,
+    failures     = 0,
+    locked_until = NULL
 WHERE user_id = $2
   AND confirmed_at IS NOT NULL
   AND (last_step IS NULL OR last_step < $1::bigint)
@@ -287,4 +363,15 @@ func (q *Queries) UseUserTOTPStep(ctx context.Context, arg UseUserTOTPStepParams
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const userTOTPExists = `-- name: UserTOTPExists :one
+SELECT EXISTS (SELECT 1 FROM user_totp) AS present
+`
+
+func (q *Queries) UserTOTPExists(ctx context.Context) (bool, error) {
+	row := q.db.QueryRow(ctx, userTOTPExists)
+	var present bool
+	err := row.Scan(&present)
+	return present, err
 }

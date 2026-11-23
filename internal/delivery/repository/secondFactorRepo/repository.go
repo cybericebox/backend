@@ -20,6 +20,10 @@ type Queries interface {
 	ConfirmUserTOTP(ctx context.Context, arg postgres.ConfirmUserTOTPParams) (int64, error)
 	UseUserTOTPStep(ctx context.Context, arg postgres.UseUserTOTPStepParams) (int64, error)
 	ResealUserTOTP(ctx context.Context, arg postgres.ResealUserTOTPParams) (int64, error)
+	RecordUserTOTPFailure(ctx context.Context, arg postgres.RecordUserTOTPFailureParams) (int32, error)
+	ClearUserStepUps(ctx context.Context, userID uuid.UUID) (int64, error)
+	LockUserForFactorChange(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	UserTOTPExists(ctx context.Context) (bool, error)
 	DeleteUserTOTP(ctx context.Context, arg postgres.DeleteUserTOTPParams) (int64, error)
 	ReplaceUserRecoveryCodes(ctx context.Context, arg postgres.ReplaceUserRecoveryCodesParams) (int64, error)
 	UseUserRecoveryCode(ctx context.Context, arg postgres.UseUserRecoveryCodeParams) (int64, error)
@@ -42,6 +46,9 @@ type TOTP struct {
 	ConfirmedAt *time.Time
 	// LastStep is the time step of the last accepted code (0: none yet).
 	LastStep int64
+	// Failures counts the wrong codes since the last right one; LockedUntil stops the checks until then.
+	Failures    int
+	LockedUntil *time.Time
 }
 
 // GetTOTP returns the authenticator of the person; found is false when there is none.
@@ -54,9 +61,14 @@ func (r *Repository) GetTOTP(ctx context.Context, userID uuid.UUID) (t TOTP, fou
 		return TOTP{}, false, err
 	}
 	t = TOTP{SealedSecret: row.SecretCiphertext, CreatedAt: row.CreatedAt, LastStep: row.LastStep.Int64}
+	t.Failures = int(row.Failures)
 	if row.ConfirmedAt.Valid {
 		at := row.ConfirmedAt.Time
 		t.ConfirmedAt = &at
+	}
+	if row.LockedUntil.Valid {
+		at := row.LockedUntil.Time
+		t.LockedUntil = &at
 	}
 	return t, true, nil
 }
@@ -99,11 +111,49 @@ func (r *Repository) ReplaceRecoveryCodes(ctx context.Context, userID uuid.UUID,
 	return err
 }
 
-// UseRecoveryCode takes an unused code once; false for an unknown or used one.
-func (r *Repository) UseRecoveryCode(ctx context.Context, userID uuid.UUID, hash []byte, at time.Time) (bool, error) {
-	n, err := r.q.UseUserRecoveryCode(ctx, postgres.UseUserRecoveryCodeParams{UserID: userID, CodeHash: hash, UsedAt: at})
+// UseRecoveryCode takes one unused code that has one of hashes (the code under each key of the keyring) once; false
+// for an unknown or used one.
+func (r *Repository) UseRecoveryCode(ctx context.Context, userID uuid.UUID, hashes [][]byte, at time.Time) (bool, error) {
+	n, err := r.q.UseUserRecoveryCode(ctx, postgres.UseUserRecoveryCodeParams{UserID: userID, CodeHashes: hashes, UsedAt: at})
 	return n == 1, err
 }
+
+// DeleteRecoveryCodes removes every recovery code of the person (the last factor went).
+func (r *Repository) DeleteRecoveryCodes(ctx context.Context, userID uuid.UUID) error {
+	_, err := r.q.DeleteUserRecoveryCodes(ctx, userID)
+	return err
+}
+
+// Lockout is the failure rule of the authenticator codes: from MaxFailures on, a lock of LockBase doubling up to LockMax.
+type Lockout struct {
+	MaxFailures       int
+	LockBase, LockMax time.Duration
+}
+
+// RecordTOTPFailure counts a wrong code and returns the failures so far.
+func (r *Repository) RecordTOTPFailure(ctx context.Context, userID uuid.UUID, l Lockout, now time.Time) (int, error) {
+	n, err := r.q.RecordUserTOTPFailure(ctx, postgres.RecordUserTOTPFailureParams{
+		UserID: userID, MaxFailures: int32(l.MaxFailures), Now: now, //nolint:gosec // a small configured count
+		LockBaseSecs: l.LockBase.Seconds(), LockMaxSecs: l.LockMax.Seconds(),
+	})
+	return int(n), err
+}
+
+// ClearStepUps forgets the step-ups of every session of the person.
+func (r *Repository) ClearStepUps(ctx context.Context, userID uuid.UUID) error {
+	_, err := r.q.ClearUserStepUps(ctx, userID)
+	return err
+}
+
+// LockUser holds the row of the person until the transaction ends, so two factor changes do not both pass the
+// last-factor guard.
+func (r *Repository) LockUser(ctx context.Context, userID uuid.UUID) error {
+	_, err := r.q.LockUserForFactorChange(ctx, userID)
+	return err
+}
+
+// AnyTOTP reports whether any authenticator secret is stored (the start-up check of the platform key).
+func (r *Repository) AnyTOTP(ctx context.Context) (bool, error) { return r.q.UserTOTPExists(ctx) }
 
 // UnusedRecoveryCodes counts the codes the person can still use.
 func (r *Repository) UnusedRecoveryCodes(ctx context.Context, userID uuid.UUID) (int, error) {

@@ -15,6 +15,7 @@ import (
 	"github.com/cybericebox/backend/internal/delivery/repository/draftKeyRepo"
 	"github.com/cybericebox/backend/internal/delivery/repository/googleLinkTicketRepo"
 	"github.com/cybericebox/backend/internal/delivery/repository/passkeyRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
 	"github.com/cybericebox/backend/internal/delivery/repository/secondFactorRepo"
 	"github.com/cybericebox/backend/internal/delivery/repository/sessionRepo"
 	"github.com/cybericebox/backend/internal/delivery/repository/tablePrefsRepo"
@@ -108,9 +109,11 @@ type AuthUseCase struct {
 	factorKeys ISecondFactorKeys
 	// factorJournal records the second-factor events (the log until the grant journal lands).
 	factorJournal IFactorJournal
-	exports       *userExportRepo.Repository
-	tablePrefs    *tablePrefsRepo.Repository
-	draftKeys     *draftKeyRepo.Repository
+	// factorUnit gives the factor changes their transaction (nil: none, isolated tests).
+	factorUnit postgres.IUnitOfWorker[IRepository]
+	exports    *userExportRepo.Repository
+	tablePrefs *tablePrefsRepo.Repository
+	draftKeys  *draftKeyRepo.Repository
 	// draftCipher seals the draft keys at rest; nil when PLATFORM_SECRETS_KEY is unset.
 	draftCipher *secret.Cipher
 	// webauthn is the relying party of passkey sign-in; nil when the hosts do not allow one.

@@ -34,20 +34,24 @@ func TestNewRecoveryCodesAreTenDistinctReadableCodes(t *testing.T) {
 	}
 }
 
-func TestRecoveryCodeHashIgnoresHowItIsTyped(t *testing.T) {
+func TestRecoveryCodeHashIgnoresHowItIsTypedAndNeedsTheKey(t *testing.T) {
 	user := uuid.Must(uuid.NewV7())
-	h := secondFactorModel.HashRecoveryCode(user, "AB2C-D3EF-G4HJ")
+	key := [32]byte{1, 2, 3}
+	h := secondFactorModel.HashRecoveryCode(key, user, "AB2C-D3EF-G4HJ")
 	for _, typed := range []string{"ab2c-d3ef-g4hj", " AB2C D3EF G4HJ ", "AB2CD3EFG4HJ"} {
-		if !bytes.Equal(secondFactorModel.HashRecoveryCode(user, typed), h) {
+		if !bytes.Equal(secondFactorModel.HashRecoveryCode(key, user, typed), h) {
 			t.Errorf("%q hashes differently", typed)
 		}
 	}
 	// O for 0, I and L for 1: the letters the alphabet leaves out read as the digits they look like.
-	if !bytes.Equal(secondFactorModel.HashRecoveryCode(user, "1000-AAAA-AAAA"), secondFactorModel.HashRecoveryCode(user, "IOOO-AAAA-AAAA")) {
+	if !bytes.Equal(secondFactorModel.HashRecoveryCode(key, user, "1000-AAAA-AAAA"), secondFactorModel.HashRecoveryCode(key, user, "IOOO-AAAA-AAAA")) {
 		t.Error("I and O are not read as 1 and 0")
 	}
-	if bytes.Equal(secondFactorModel.HashRecoveryCode(uuid.Must(uuid.NewV7()), "AB2C-D3EF-G4HJ"), h) {
+	if bytes.Equal(secondFactorModel.HashRecoveryCode(key, uuid.Must(uuid.NewV7()), "AB2C-D3EF-G4HJ"), h) {
 		t.Error("the same code of another person hashes the same")
+	}
+	if bytes.Equal(secondFactorModel.HashRecoveryCode([32]byte{9}, user, "AB2C-D3EF-G4HJ"), h) {
+		t.Error("another key hashes the same")
 	}
 }
 

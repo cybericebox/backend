@@ -3,18 +3,22 @@
 --
 -- The TOTP secret is sealed with the platform key (PLATFORM_SECRETS_KEY), bound to its person (secretctx.TOTPSecret);
 -- a row without confirmed_at is a setup that waits for its first code. last_step is the RFC 6238 time step of the last
--- accepted code: a code of that step or an older one is refused, so a code never works twice.
+-- accepted code: a code of that step or an older one is refused, so a code never works twice. failures counts the
+-- wrong codes since the last right one and locked_until stops the checks after too many: kept in the row, so the
+-- lockout holds across replicas.
 CREATE TABLE user_totp
 (
     user_id           uuid PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
     secret_ciphertext text        NOT NULL,
     created_at        timestamptz NOT NULL,
     confirmed_at      timestamptz,
-    last_step         bigint
+    last_step         bigint,
+    failures          integer     NOT NULL DEFAULT 0,
+    locked_until      timestamptz
 );
 
--- Ten one-time codes per person, stored only as a hash (secondFactorModel.HashRecoveryCode) and shown once. A used
--- code keeps its row (used_at) until the codes are replaced.
+-- Ten one-time codes per person, stored only as an HMAC with a key derived from the platform key
+-- (secondFactorModel.HashRecoveryCode) and shown once. A used code keeps its row (used_at) until the codes are replaced.
 CREATE TABLE user_recovery_codes
 (
     user_id    uuid        NOT NULL REFERENCES users (id) ON DELETE CASCADE,

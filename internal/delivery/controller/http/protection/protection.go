@@ -142,9 +142,11 @@ func (p *Protection) RequirePermission(required rbac.Permission) gin.HandlerFunc
 // RequireStepUp gates a grant, role, group or owner change (access-control design §6.6): the session must have been
 // confirmed (POST /api/auth/step-up) within maxAge, else the answer is 401 with the step-up code
 // (secondFactorModel.ErrStepUpRequired), and the client confirms and repeats the request. It is not a dead session: the
-// cookie stays and no sign-in URL is advertised. It goes after RequirePermission, which puts the session in the
-// context. With AUTHZ_STEP_UP_REQUIRED off it lets every request through and reads nothing.
-func (p *Protection) RequireStepUp(maxAge time.Duration) gin.HandlerFunc {
+// cookie stays and no sign-in URL is advertised. With requireFactor the step-up must have been made with a second
+// factor (a passkey or an authenticator app): a password, a recent sign-in or a recovery code never pass (granting a
+// role that holds *, §6.6). It goes after RequirePermission, which puts the session in the context. With
+// AUTHZ_STEP_UP_REQUIRED off it lets every request through and reads nothing.
+func (p *Protection) RequireStepUp(maxAge time.Duration, requireFactor bool) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		if !p.stepUpRequired {
 			ctx.Next()
@@ -160,7 +162,7 @@ func (p *Protection) RequireStepUp(maxAge time.Duration) gin.HandlerFunc {
 			response.AbortWithError(ctx, err)
 			return
 		}
-		if !s.Fresh(time.Now(), maxAge) {
+		if !s.Fresh(time.Now(), maxAge) || (requireFactor && !s.Method.IsSecondFactor()) {
 			response.AbortWithError(ctx, secondFactorModel.ErrStepUpRequired.Err())
 			return
 		}

@@ -33,6 +33,10 @@ func (s *stepUpUseCase) StepUpState(context.Context, uuid.UUID) (secondFactorMod
 }
 
 func stepUpRouter(t *testing.T, required bool, s secondFactorModel.StepUp) (*httptest.ResponseRecorder, *stepUpUseCase) {
+	return stepUpRouterWith(t, required, false, s)
+}
+
+func stepUpRouterWith(t *testing.T, required, requireFactor bool, s secondFactorModel.StepUp) (*httptest.ResponseRecorder, *stepUpUseCase) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	uc := &stepUpUseCase{fakeUseCase: &fakeUseCase{sessionResult: &authUseCase.SessionAuthResult{
@@ -44,7 +48,7 @@ func stepUpRouter(t *testing.T, required bool, s secondFactorModel.StepUp) (*htt
 	}})
 	r := gin.New()
 	r.Use(response.WithErrorHandler)
-	r.PATCH("/grant", p.RequirePermission(rbac.PermUsersRoleWrite), p.RequireStepUp(secondFactorModel.StepUpWindow),
+	r.PATCH("/grant", p.RequirePermission(rbac.PermUsersRoleWrite), p.RequireStepUp(secondFactorModel.StepUpWindow, requireFactor),
 		func(c *gin.Context) { c.Status(http.StatusOK) })
 	req := httptest.NewRequest(http.MethodPatch, "/grant", nil)
 	req.AddCookie(&http.Cookie{Name: authModel.SessionCookie, Value: "whatever"})
@@ -92,6 +96,27 @@ func TestRequireStepUp_OldOrMissingStepUpIs401WithTheStepUpCode(t *testing.T) {
 			if c.Name == authModel.SessionCookie {
 				t.Fatalf("%s: the session cookie is kept", name)
 			}
+		}
+	}
+}
+
+// With requireFactor only a step-up made with a passkey or an authenticator app passes.
+func TestRequireStepUp_WithFactorOnlyPasskeyOrTOTPPass(t *testing.T) {
+	fresh := time.Now().Add(-time.Minute)
+	for method, want := range map[secondFactorModel.Method]int{
+		secondFactorModel.MethodPasskey:      http.StatusOK,
+		secondFactorModel.MethodTOTP:         http.StatusOK,
+		secondFactorModel.MethodPassword:     http.StatusUnauthorized,
+		secondFactorModel.MethodRecentSignIn: http.StatusUnauthorized,
+		secondFactorModel.MethodRecoveryCode: http.StatusUnauthorized,
+	} {
+		w, _ := stepUpRouterWith(t, true, true, secondFactorModel.StepUp{At: fresh, Method: method})
+		if w.Code != want {
+			t.Errorf("%s: want %d, got %d", method, want, w.Code)
+		}
+		// Without requireFactor any fresh step-up passes.
+		if w, _ = stepUpRouterWith(t, true, false, secondFactorModel.StepUp{At: fresh, Method: method}); w.Code != http.StatusOK {
+			t.Errorf("%s without requireFactor: want 200, got %d", method, w.Code)
 		}
 	}
 }
