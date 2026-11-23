@@ -30,7 +30,7 @@ const (
 	// maxUndeclared is the number of routes in testdata/routes.undeclared. It only goes down: a PR that declares
 	// routes removes them from the list and lowers it by as many; a new route declares from the start. It is 0 at the
 	// end of P1b.
-	maxUndeclared = 637
+	maxUndeclared = 593
 )
 
 // readRouteList reads a list of routes with their reasons, one "METHOD /api/path | reason" per line; # starts a

@@ -97,9 +97,9 @@ GET    /api/events/:id/content-images/:fileID | gate: events.content.read(public
 GET    /api/events/:id/content/pages | gate: events.content.read(public) | layers: - | keys: ?
 GET    /api/events/:id/content/pages/:slug | gate: events.content.read(public) | layers: - | keys: ?
 GET    /api/events/:id/favicon/:fileID | gate: events.content.read(public) | layers: middleware.PublicMedia | keys: ?
-GET    /api/events/:id/forms/:formID | gate: self | layers: eventself.touchPresence | keys: ?
-POST   /api/events/:id/forms/:formID/response | gate: self | layers: eventself.touchPresence | keys: ?
-GET    /api/events/:id/forms/pending | gate: self | layers: eventself.touchPresence | keys: ?
+GET    /api/events/:id/forms/:formID | gate: self | layers: eventself.touchPresence | keys: self @ event(:id)
+POST   /api/events/:id/forms/:formID/response | gate: self | layers: eventself.touchPresence | keys: self @ event(:id)
+GET    /api/events/:id/forms/pending | gate: self | layers: eventself.touchPresence | keys: self @ event(:id)
 PUT    /api/events/:id/infrastructure | gate: events.write | layers: event.requireWritableEvent | keys: ?
 GET    /api/events/:id/logo/:fileID | gate: events.content.read(public) | layers: middleware.PublicMedia | keys: ?
 GET    /api/events/:id/manage/access | gate: self | layers: event.requireRead | keys: ?
@@ -382,33 +382,33 @@ GET    /api/events/:id/preview-picture/:fileID | gate: events.content.read(publi
 GET    /api/events/:id/results | gate: events.results.read(public) | layers: - | keys: ?
 GET    /api/events/:id/results/changes | gate: events.results.read(public) | layers: - | keys: ?
 GET    /api/events/:id/results/live | gate: events.results.read(public) | layers: - | keys: ?
-GET    /api/events/:id/results/participation | gate: self | layers: eventself.touchPresence | keys: ?
-GET    /api/events/:id/results/team | gate: self | layers: eventself.touchPresence | keys: ?
+GET    /api/events/:id/results/participation | gate: self | layers: eventself.touchPresence | keys: anyOf(event.labs.moderator-team.use,(participant)) @ event(:id)
+GET    /api/events/:id/results/team | gate: self | layers: eventself.touchPresence | keys: (participant) @ event(:id)
 GET    /api/events/:id/solution-attempts | gate: events.solution-attempts.read | layers: - | keys: ?
 PATCH  /api/events/:id/solution-attempts/:attemptID/decision | gate: events.solution-attempts.write | layers: - | keys: ?
-POST   /api/events/:id/teams | gate: self | layers: eventself.touchPresence | keys: ?
-DELETE /api/events/:id/teams/:teamID | gate: self | layers: eventself.touchPresence | keys: ?
-PUT    /api/events/:id/teams/:teamID | gate: self | layers: eventself.touchPresence | keys: ?
-POST   /api/events/:id/teams/:teamID/captain | gate: self | layers: eventself.touchPresence | keys: ?
-PUT    /api/events/:id/teams/:teamID/fields | gate: self | layers: eventself.touchPresence | keys: ?
-POST   /api/events/:id/teams/:teamID/join-code | gate: self | layers: eventself.touchPresence | keys: ?
-POST   /api/events/:id/teams/:teamID/members/:userID/kick | gate: self | layers: eventself.touchPresence | keys: ?
-GET    /api/events/:id/teams/challenges/:challengeID/files/:fileID | gate: self | layers: eventself.touchPresence | keys: ?
-POST   /api/events/:id/teams/challenges/:challengeID/hints/:hintID/unlock | gate: self | layers: eventself.touchPresence | keys: ?
-GET    /api/events/:id/teams/challenges/:challengeID/lab | gate: self | layers: eventself.touchPresence | keys: ?
-POST   /api/events/:id/teams/challenges/:challengeID/lab/link | gate: self | layers: eventself.touchPresence | keys: ?
-POST   /api/events/:id/teams/challenges/:challengeID/open | gate: self | layers: eventself.touchPresence | keys: ?
-POST   /api/events/:id/teams/challenges/:challengeID/run-checks | gate: self | layers: eventself.touchPresence | keys: ?
-GET    /api/events/:id/teams/challenges/:challengeID/solves | gate: self | layers: eventself.touchPresence | keys: ?
-POST   /api/events/:id/teams/challenges/:challengeID/submit | gate: self | layers: eventself.touchPresence,middleware.ReceivedAfterBody | keys: ?
-GET    /api/events/:id/teams/challenges/mine | gate: self | layers: eventself.touchPresence | keys: ?
-POST   /api/events/:id/teams/join | gate: self | layers: eventself.touchPresence | keys: ?
-GET    /api/events/:id/teams/labs/:labID | gate: self | layers: eventself.touchPresence | keys: ?
-POST   /api/events/:id/teams/labs/:labID/restart | gate: self | layers: eventself.touchPresence | keys: ?
-POST   /api/events/:id/teams/labs/:labID/stop | gate: self | layers: eventself.touchPresence | keys: ?
-GET    /api/events/:id/teams/labs/stand | gate: self | layers: eventself.touchPresence | keys: ?
-GET    /api/events/:id/teams/labs/vpn | gate: self | layers: eventself.touchPresence | keys: ?
-GET    /api/events/:id/teams/labs/vpn/status | gate: self | layers: eventself.touchPresence | keys: ?
+POST   /api/events/:id/teams | gate: self | layers: eventself.touchPresence | keys: (participant) @ event(:id)
+DELETE /api/events/:id/teams/:teamID | gate: self | layers: eventself.touchPresence | keys: (captain) @ object(team)
+PUT    /api/events/:id/teams/:teamID | gate: self | layers: eventself.touchPresence | keys: (captain) @ object(team)
+POST   /api/events/:id/teams/:teamID/captain | gate: self | layers: eventself.touchPresence | keys: (captain) @ object(team)
+PUT    /api/events/:id/teams/:teamID/fields | gate: self | layers: eventself.touchPresence | keys: (captain) @ object(team)
+POST   /api/events/:id/teams/:teamID/join-code | gate: self | layers: eventself.touchPresence | keys: (captain) @ object(team)
+POST   /api/events/:id/teams/:teamID/members/:userID/kick | gate: self | layers: eventself.touchPresence | keys: (captain) @ object(team)
+GET    /api/events/:id/teams/challenges/:challengeID/files/:fileID | gate: self | layers: eventself.touchPresence | keys: (participant) @ event(:id)
+POST   /api/events/:id/teams/challenges/:challengeID/hints/:hintID/unlock | gate: self | layers: eventself.touchPresence | keys: (participant) @ event(:id)
+GET    /api/events/:id/teams/challenges/:challengeID/lab | gate: self | layers: eventself.touchPresence | keys: (participant) @ event(:id)
+POST   /api/events/:id/teams/challenges/:challengeID/lab/link | gate: self | layers: eventself.touchPresence | keys: (participant) @ event(:id)
+POST   /api/events/:id/teams/challenges/:challengeID/open | gate: self | layers: eventself.touchPresence | keys: (participant) @ event(:id)
+POST   /api/events/:id/teams/challenges/:challengeID/run-checks | gate: self | layers: eventself.touchPresence | keys: (participant) @ event(:id)
+GET    /api/events/:id/teams/challenges/:challengeID/solves | gate: self | layers: eventself.touchPresence | keys: (participant) @ event(:id)
+POST   /api/events/:id/teams/challenges/:challengeID/submit | gate: self | layers: eventself.touchPresence,middleware.ReceivedAfterBody | keys: (participant) @ event(:id)
+GET    /api/events/:id/teams/challenges/mine | gate: self | layers: eventself.touchPresence | keys: (participant) @ event(:id)
+POST   /api/events/:id/teams/join | gate: self | layers: eventself.touchPresence | keys: (participant) @ event(:id)
+GET    /api/events/:id/teams/labs/:labID | gate: self | layers: eventself.touchPresence | keys: (participant) @ event(:id)
+POST   /api/events/:id/teams/labs/:labID/restart | gate: self | layers: eventself.touchPresence | keys: (participant) @ event(:id)
+POST   /api/events/:id/teams/labs/:labID/stop | gate: self | layers: eventself.touchPresence | keys: (participant) @ event(:id)
+GET    /api/events/:id/teams/labs/stand | gate: self | layers: eventself.touchPresence | keys: (participant) @ event(:id)
+GET    /api/events/:id/teams/labs/vpn | gate: self | layers: eventself.touchPresence | keys: (participant) @ event(:id)
+GET    /api/events/:id/teams/labs/vpn/status | gate: self | layers: eventself.touchPresence | keys: (participant) @ event(:id)
 GET    /api/events/:id/teams/mine | gate: self | layers: eventself.touchPresence | keys: ?
 POST   /api/events/:id/teams/mine/form | gate: self | layers: eventself.touchPresence | keys: ?
 POST   /api/events/:id/teams/mine/leave | gate: self | layers: eventself.touchPresence | keys: ?
@@ -418,26 +418,26 @@ POST   /api/events/bulk/archive | gate: events.write | layers: - | keys: ?
 GET    /api/events/facets | gate: events.read | layers: - | keys: ?
 GET    /api/events/organizers | gate: events.read | layers: - | keys: ?
 POST   /api/events/self/answer-files | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence,middleware.RateLimitPerUser.func | keys: ?
-GET    /api/events/self/answer-files/:fileID | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence | keys: ?
-GET    /api/events/self/info | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence | keys: ?
-POST   /api/events/self/invitation/accept | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence | keys: ?
-POST   /api/events/self/invitation/decline | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence | keys: ?
-POST   /api/events/self/join | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence | keys: ?
-GET    /api/events/self/join/info | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence | keys: ?
-POST   /api/events/self/join/invitation/accept | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence | keys: ?
+GET    /api/events/self/answer-files/:fileID | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence | keys: self @ tenant
+GET    /api/events/self/info | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence | keys: self @ tenant
+POST   /api/events/self/invitation/accept | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence | keys: self @ tenant
+POST   /api/events/self/invitation/decline | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence | keys: self @ tenant
+POST   /api/events/self/join | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence | keys: self @ tenant
+GET    /api/events/self/join/info | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence | keys: self @ tenant
+POST   /api/events/self/join/invitation/accept | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence | keys: self @ tenant
 GET    /api/events/self/live-screen | gate: events.content.read(public) | layers: eventself.liveScreenNoStore,eventself.(*windowLimiter).middleware,eventself.liveScreenGate,middleware.ResolveEventTenant.func | keys: ?
 GET    /api/events/self/live-screen/results | gate: events.content.read(public) | layers: eventself.liveScreenNoStore,eventself.(*windowLimiter).middleware,eventself.liveScreenGate,middleware.ResolveEventTenant.func,eventself.liveScreenAccess | keys: ?
 GET    /api/events/self/live-screen/results/live | gate: events.content.read(public) | layers: eventself.liveScreenNoStore,eventself.(*windowLimiter).middleware,eventself.liveScreenGate,middleware.ResolveEventTenant.func,eventself.liveScreenAccess | keys: ?
 GET    /api/events/self/live-screen/version | gate: events.content.read(public) | layers: eventself.liveScreenNoStore,eventself.(*windowLimiter).middleware,eventself.liveScreenGate,middleware.ResolveEventTenant.func | keys: ?
-GET    /api/events/self/participant-answers | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence | keys: ?
-PUT    /api/events/self/participant-answers | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence | keys: ?
-GET    /api/events/self/participant-form | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence | keys: ?
-POST   /api/events/self/participant-form | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence | keys: ?
-GET    /api/events/self/participant-info | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence | keys: ?
-PUT    /api/events/self/pseudonym | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence | keys: ?
-GET    /api/events/self/public-info | gate: events.content.read(public) | layers: middleware.ResolveEventTenant.func,eventself.touchPresence | keys: ?
-POST   /api/events/self/render-grant | gate: self | layers: eventself.(*EventRenderHandler).noStore,eventself.(*EventRenderHandler).resolveGrantTenant | keys: ?
-GET    /api/events/self/team-fields | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence | keys: ?
+GET    /api/events/self/participant-answers | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence | keys: self @ tenant
+PUT    /api/events/self/participant-answers | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence | keys: self @ tenant
+GET    /api/events/self/participant-form | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence | keys: self @ tenant
+POST   /api/events/self/participant-form | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence | keys: self @ tenant
+GET    /api/events/self/participant-info | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence | keys: (participant) @ tenant
+PUT    /api/events/self/pseudonym | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence | keys: self @ tenant
+GET    /api/events/self/public-info | gate: events.content.read(public) | layers: middleware.ResolveEventTenant.func,eventself.touchPresence | keys: - @ public(pages)
+POST   /api/events/self/render-grant | gate: self | layers: eventself.(*EventRenderHandler).noStore,eventself.(*EventRenderHandler).resolveGrantTenant | keys: anyOf(event.read,(participant)) @ tenant
+GET    /api/events/self/team-fields | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence | keys: self @ tenant
 GET    /api/exercises | gate: self | layers: - | keys: ?
 POST   /api/exercises | gate: self | layers: - | keys: ?
 DELETE /api/exercises/:id | gate: self | layers: exercise.authorize.func | keys: ?

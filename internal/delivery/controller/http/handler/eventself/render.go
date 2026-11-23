@@ -11,6 +11,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/gofrs/uuid"
+
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/config"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
@@ -20,8 +24,6 @@ import (
 	eventManagerModel "github.com/cybericebox/backend/internal/model/eventManager"
 	"github.com/cybericebox/backend/internal/model/rbac"
 	eventUC "github.com/cybericebox/backend/internal/useCase/event"
-	"github.com/gin-gonic/gin"
-	"github.com/gofrs/uuid"
 )
 
 type EventRenderUseCase interface {
@@ -57,7 +59,7 @@ func NewEventRenderAPIHandler(uc EventRenderUseCase, prot IProtection, cfg confi
 }
 func (h *EventRenderHandler) Init(router *gin.RouterGroup) {
 	// Issuance retains the ordinary API session gate and tenant/staff policy.
-	router.POST("events/self/render-grant", h.noStore, h.prot.RequirePermission(rbac.PermSelf), h.resolveGrantTenant, h.grant)
+	router.POST("events/self/render-grant", h.noStore, h.prot.Route(authz.AnyOf(authz.SourceTenant, authz.EventRead).Or(authz.RelParticipant), h.prot.RequirePermission(rbac.PermSelf)), h.resolveGrantTenant, h.grant)
 	// The render routes are for the event-frontend server only: the shared render secret is their
 	// whole gate (no permission, no Origin), and without it they do not exist (404). Grants are
 	// consumed only inside these handlers. They never inject rbac.Claims, so even a valid render

@@ -1,2 +1,18 @@
 # Participant routes that declare no relation (tools/checkroutes): Appendix A.3 gives them self, the caller's own
 # data before or beside participation. METHOD /api/path | A.3 row and reason
+GET /api/events/:id/forms/:formID | A.3 #395: self; Participant-facing; the caller's own deliveries (delivery row = the grant). Applicants included, so no role key
+GET /api/events/:id/forms/pending | A.3 #397: self; Participant-facing; the caller's own deliveries (delivery row = the grant). Applicants included, so no role key
+POST /api/events/:id/forms/:formID/response | A.3 #396: self; Participant-facing; own delivery only
+GET /api/events/self/answer-files/:fileID | A.3 #428: self; Own or own team's file (file.VisibleTo)
+GET /api/events/self/info | A.3 #429: self; Before joining; public-ish event data
+GET /api/events/self/join/info | A.3 #433: self; Before joining; public-ish event data
+POST /api/events/self/join | A.3 #432: self; Applicant actions; approval makes the caller a participant (relation, §3)
+POST /api/events/self/invitation/accept | A.3 #430: self; Applicant actions; approval makes the caller a participant (relation, §3)
+POST /api/events/self/invitation/decline | A.3 #431: self; Applicant actions; approval makes the caller a participant (relation, §3)
+POST /api/events/self/join/invitation/accept | A.3 #434: self; Applicant actions; approval makes the caller a participant (relation, §3)
+GET /api/events/self/participant-form | A.3 #441: self; Applicant or participant: own answers
+POST /api/events/self/participant-form | A.3 #442: self; Applicant or participant: own answers
+GET /api/events/self/participant-answers | A.3 #439: self; Applicant or participant: own answers
+PUT /api/events/self/participant-answers | A.3 #440: self; Applicant or participant: own answers
+PUT /api/events/self/pseudonym | A.3 #444: self; Applicant or participant: own answers
+GET /api/events/self/team-fields | A.3 #447: self; Before joining; public-ish event data
