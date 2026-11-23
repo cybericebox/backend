@@ -535,7 +535,7 @@ type mediaArchiveReader interface {
 	StreamFile(context.Context, uuid.UUID) (io.ReadCloser, mediaModel.File, error)
 }
 
-// ExportExerciseArchive writes one task as an archive: exercise.json (schema cib-exercise/1.0, or 1.1 when it uses the console keys), every attachment
+// ExportExerciseArchive writes one task as an archive: exercise.json (schema cib-exercise/1.0), every attachment
 // once per content (SHA-256) at the path assignExportPaths gives it under files/, and manifest.json. With
 // secrets the archive is AES-protected and secret values are written in plain text only inside it. lim are the
 // archive limits of the whole export (several tasks of one request share one set).

@@ -9,7 +9,7 @@ import (
 	"github.com/gofrs/uuid"
 )
 
-// The defender block of a variant (document 1.1, console design 9a.1) and the dossier built from it (9a.2). The defender, a
+// The defender block of a variant (console design 9a.1) and the dossier built from it (9a.2). The defender, a
 // human at the seat or a bot, gets full operating information, like a privileged operator's runbook: which serial line leads to
 // which console and what runs there, which devices are off-limits, the operator credentials and the topology. An attacker gets
 // none of it.

@@ -8,7 +8,6 @@ import (
 	"io"
 	"path"
 	"reflect"
-	"slices"
 	"sort"
 	"strings"
 	"unicode"
@@ -20,58 +19,10 @@ import (
 	"github.com/gofrs/uuid"
 )
 
-// The versions of the document's `schema` key the import reads. 1.1 is 1.0 plus the console keys (a device's console_ports
-// and serial_ports, a connection's kind, an opponent's seat, a variant's defender block): the fields tagged cib:"1.1". A 1.0 document stays valid
-// forever; the export writes the lowest version that holds the content (archiveSchemaOf).
-const (
-	archiveSchema10 = "cib-exercise/1.0"
-	archiveSchema11 = "cib-exercise/1.1"
-)
-
-// archiveSchemas lists the versions read, oldest first.
-var archiveSchemas = []string{archiveSchema10, archiveSchema11}
-
-// archiveSchemaKey is the struct tag that marks a document key added in a later version (cib:"1.1"); a key without it is
-// part of 1.0.
-const archiveSchemaKey = "cib"
-
-func archiveSchemaSupported(schema string) bool { return slices.Contains(archiveSchemas, schema) }
-
-// keyInSchema reports whether a field of a document struct is a key of the schema version.
-func keyInSchema(field reflect.StructField, schema string) bool {
-	since := field.Tag.Get(archiveSchemaKey)
-	return since == "" || schema != archiveSchema10
-}
-
-// archiveSchemaOf is the lowest version that holds what the document writes: 1.1 when a written variant has a console
-// port, a serial port, a console cable or an opponent seat, else 1.0 (so an export of an old task still opens in an older
-// reader). It reads the written form, so what a linked variant inherits and does not write (its topology, its opponents)
-// never counts.
-func archiveSchemaOf(versions []archiveVersionV2) string {
-	for _, version := range versions {
-		for _, variant := range version.Variants {
-			for _, device := range variant.Topology.Devices {
-				if len(device.ConsolePorts) > 0 || len(device.SerialPorts) > 0 {
-					return archiveSchema11
-				}
-			}
-			for _, connection := range variant.Topology.Connections {
-				if connection.Kind == exerciseModel.ConnectionConsole {
-					return archiveSchema11
-				}
-			}
-			for _, opponent := range variant.Opponents {
-				if opponent.Seat != "" {
-					return archiveSchema11
-				}
-			}
-			if variant.Defender != nil {
-				return archiveSchema11
-			}
-		}
-	}
-	return archiveSchema10
-}
+// archiveSchema is the version of the document's `schema` key: the import reads only it and the export always writes it.
+// Version 1 evolves in place until the first release, so every key (the console keys too: a device's console_ports and
+// serial_ports, a connection's kind, an opponent's seat, a variant's defender block) is part of 1.0.
+const archiveSchema = "cib-exercise/1.0"
 
 // The DTOs below are the portable document (snake_case keys). Domain types are reused where
 // their JSON shape already is the document shape (placeholders, interfaces, env vars, ...);
@@ -131,9 +82,9 @@ type (
 		// their image, toolset, keys and budget: naming one of those is refused. Not for a linked variant (it takes its
 		// base's).
 		Opponents []exerciseModel.Opponent `json:"opponents,omitempty"`
-		// Defender (document 1.1): what the defender of the lab is told (seat, topology, off_limits, credentials). A secret
+		// Defender: what the defender of the lab is told (seat, topology, off_limits, credentials). A secret
 		// credential value travels only in a password-protected archive. Not for a linked variant (it takes its base's).
-		Defender *exerciseModel.Defender `json:"defender,omitempty" cib:"1.1"`
+		Defender *exerciseModel.Defender `json:"defender,omitempty"`
 	}
 
 	archiveTaskV2 struct {
@@ -247,9 +198,9 @@ type (
 		DHCPRanges         []exerciseModel.DHCPRange `json:"dhcp_ranges,omitempty"`
 		DNS                string                    `json:"dns,omitempty"`
 		ReverseConnections bool                      `json:"reverse_connections,omitempty"`
-		// The console ports of a node (1.1).
-		ConsolePorts []exerciseModel.ConsolePort `json:"console_ports,omitempty" cib:"1.1"`
-		SerialPorts  []exerciseModel.SerialPort  `json:"serial_ports,omitempty" cib:"1.1"`
+		// The console and serial ports of a node.
+		ConsolePorts []exerciseModel.ConsolePort `json:"console_ports,omitempty"`
+		SerialPorts  []exerciseModel.SerialPort  `json:"serial_ports,omitempty"`
 	}
 
 	// archiveEnvVarV2 is a bootstrap env var as the document writes it (the server-side origin of a secret is not).
@@ -284,8 +235,8 @@ type (
 	}
 
 	archiveConnectionV2 struct {
-		// Kind (1.1) is empty for a network connection and console for a console cable.
-		Kind      exerciseModel.ConnectionKind `json:"kind,omitempty" cib:"1.1"`
+		// Kind is empty for a network connection and console for a console cable.
+		Kind      exerciseModel.ConnectionKind `json:"kind,omitempty"`
 		Endpoints []archiveEndpointV2          `json:"endpoints"`
 	}
 
@@ -377,11 +328,11 @@ func archiveBothDocuments() error {
 
 // archiveUnsupportedSchema: the document does not declare a schema this import reads.
 func archiveUnsupportedSchema() error {
-	return exerciseModel.ErrArchiveSchemaUnsupported.WithPublicContext("expected", strings.Join(archiveSchemas, ", ")).Err()
+	return exerciseModel.ErrArchiveSchemaUnsupported.WithPublicContext("expected", archiveSchema).Err()
 }
 
 // probeArchiveSchema reads only the schema key of a (comment-free) document and accepts nothing
-// but one of the JSON strings of archiveSchemas.
+// but the JSON string archiveSchema.
 func probeArchiveSchema(payload []byte) error {
 	var probe struct {
 		Schema json.RawMessage `json:"schema"`
@@ -390,7 +341,7 @@ func probeArchiveSchema(payload []byte) error {
 		return decodeFailure(payload, err)
 	}
 	var schema string
-	if json.Unmarshal(probe.Schema, &schema) != nil || !archiveSchemaSupported(schema) {
+	if json.Unmarshal(probe.Schema, &schema) != nil || schema != archiveSchema {
 		return archiveUnsupportedSchema()
 	}
 	return nil
@@ -421,15 +372,7 @@ func decodeArchiveV2(payload []byte) (archiveDocV2, error) {
 	if err := checkOpponentKeys(payload); err != nil {
 		return archiveDocV2{}, err
 	}
-	// The keys are those of the declared version; an unknown or missing version is checked as the newest one, and refused
-	// below.
-	schema := archiveSchemas[len(archiveSchemas)-1]
-	if object, ok := generic.(map[string]any); ok {
-		if declared, ok := object["schema"].(string); ok && archiveSchemaSupported(declared) {
-			schema = declared
-		}
-	}
-	if err := checkArchiveKeys("", generic, reflect.TypeFor[archiveDocV2](), schema); err != nil {
+	if err := checkArchiveKeys("", generic, reflect.TypeFor[archiveDocV2]()); err != nil {
 		return archiveDocV2{}, err
 	}
 	var doc archiveDocV2
@@ -438,8 +381,8 @@ func decodeArchiveV2(payload []byte) (archiveDocV2, error) {
 	if err := strict.Decode(&doc); err != nil {
 		return archiveDocV2{}, decodeFailure(payload, err)
 	}
-	if !archiveSchemaSupported(doc.Schema) {
-		return archiveDocV2{}, archiveInvalid(fmt.Sprintf("schema must be one of %s", strings.Join(archiveSchemas, ", ")))
+	if doc.Schema != archiveSchema {
+		return archiveDocV2{}, archiveInvalid("schema must be " + archiveSchema)
 	}
 	return doc, nil
 }
@@ -577,9 +520,8 @@ var jsonUnmarshalerType = reflect.TypeFor[json.Unmarshaler]()
 
 // checkArchiveKeys walks the generic JSON tree next to the Go type it decodes into and names the
 // first key (alphabetical, for stable messages) no field declares, matching case-sensitively.
-// Paths are 1-based, as in every message to the author. A key of a later version than schema is unknown too, and the message
-// names the version that has it.
-func checkArchiveKeys(path string, value any, t reflect.Type, schema string) error {
+// Paths are 1-based, as in every message to the author.
+func checkArchiveKeys(path string, value any, t reflect.Type) error {
 	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
@@ -593,14 +535,9 @@ func checkArchiveKeys(path string, value any, t reflect.Type, schema string) err
 			return nil // a type mismatch, reported by the decode
 		}
 		fields := make(map[string]reflect.Type, t.NumField())
-		later := make(map[string]string)
 		for i := range t.NumField() {
 			field := t.Field(i)
 			if name, _, _ := strings.Cut(field.Tag.Get("json"), ","); name != "" && name != "-" {
-				if !keyInSchema(field, schema) {
-					later[name] = "cib-exercise/" + field.Tag.Get(archiveSchemaKey)
-					continue
-				}
 				fields[name] = field.Type
 			}
 		}
@@ -616,16 +553,13 @@ func checkArchiveKeys(path string, value any, t reflect.Type, schema string) err
 				if where == "" {
 					where = "the document"
 				}
-				if since, ok := later[key]; ok {
-					return archiveInvalid(fmt.Sprintf("unknown key %q in %s: it needs schema %s", key, where, since))
-				}
 				return archiveInvalid(fmt.Sprintf("unknown key %q in %s", key, where))
 			}
 			child := key
 			if path != "" {
 				child = path + "." + key
 			}
-			if err := checkArchiveKeys(child, object[key], fieldType, schema); err != nil {
+			if err := checkArchiveKeys(child, object[key], fieldType); err != nil {
 				return err
 			}
 		}
@@ -635,7 +569,7 @@ func checkArchiveKeys(path string, value any, t reflect.Type, schema string) err
 			return nil
 		}
 		for i, item := range items {
-			if err := checkArchiveKeys(fmt.Sprintf("%s[%d]", path, i+1), item, t.Elem(), schema); err != nil {
+			if err := checkArchiveKeys(fmt.Sprintf("%s[%d]", path, i+1), item, t.Elem()); err != nil {
 				return err
 			}
 		}
@@ -1168,7 +1102,7 @@ func buildV2DocumentWithEdit(e exerciseModel.Exercise, versions []exerciseModel.
 	if doc.Versions == nil {
 		doc.Versions = []archiveVersionV2{}
 	}
-	doc.Schema = archiveSchemaOf(doc.Versions)
+	doc.Schema = archiveSchema
 	var buffer bytes.Buffer
 	encoder := json.NewEncoder(&buffer)
 	encoder.SetEscapeHTML(false)

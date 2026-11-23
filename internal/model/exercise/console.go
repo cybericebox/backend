@@ -135,8 +135,8 @@ func (t Topology) ConsoleCables() int {
 // IsConsole reports whether the connection is a console cable.
 func (c Connection) IsConsole() bool { return c.Kind == ConnectionConsole }
 
-// UsesConsoleLines reports whether the topology declares a console or serial port or a console cable: the topology keys of
-// the document schema 1.1. (UsesConsole, of variants, is the browser terminal: another thing.)
+// UsesConsoleLines reports whether the topology declares a console or serial port or a console cable (the console keys of
+// the topology). (UsesConsole, of variants, is the browser terminal: another thing.)
 func (t Topology) UsesConsoleLines() bool {
 	for _, d := range t.Devices {
 		if d.HasPorts() {

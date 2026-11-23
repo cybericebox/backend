@@ -27,6 +27,30 @@
       },
       "type": "object"
     },
+    "ConsolePort": {
+      "additionalProperties": false,
+      "properties": {
+        "command": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "name": {
+          "type": "string"
+        },
+        "native": {
+          "$ref": "#/$defs/NativeSource"
+        },
+        "user": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
     "DHCPRange": {
       "additionalProperties": false,
       "properties": {
@@ -37,6 +61,59 @@
           "type": "integer"
         }
       },
+      "type": "object"
+    },
+    "Defender": {
+      "additionalProperties": false,
+      "properties": {
+        "credentials": {
+          "items": {
+            "$ref": "#/$defs/DefenderCredential"
+          },
+          "type": "array"
+        },
+        "off_limits": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "seat": {
+          "type": "string"
+        },
+        "topology": {
+          "enum": [
+            "full",
+            "operates",
+            "none"
+          ],
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "DefenderCredential": {
+      "additionalProperties": false,
+      "properties": {
+        "device": {
+          "type": "string"
+        },
+        "port": {
+          "type": "string"
+        },
+        "secret": {
+          "type": "boolean"
+        },
+        "user": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "device"
+      ],
       "type": "object"
     },
     "DevicePersistence": {
@@ -144,6 +221,25 @@
       },
       "type": "object"
     },
+    "NativeSource": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "stdio",
+            "tcp"
+          ],
+          "type": "string"
+        },
+        "port": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "type": "object"
+    },
     "NetworkIPRef": {
       "additionalProperties": false,
       "properties": {
@@ -190,6 +286,9 @@
           "type": "array"
         },
         "role": {
+          "type": "string"
+        },
+        "seat": {
           "type": "string"
         },
         "start": {
@@ -374,6 +473,21 @@
       },
       "type": "object"
     },
+    "SerialPort": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
     "archiveAnswerV2": {
       "additionalProperties": false,
       "properties": {
@@ -530,6 +644,12 @@
             "$ref": "#/$defs/archiveEndpointV2"
           },
           "type": "array"
+        },
+        "kind": {
+          "enum": [
+            "console"
+          ],
+          "type": "string"
         }
       },
       "required": [
@@ -582,6 +702,12 @@
         "command": {
           "items": {
             "type": "string"
+          },
+          "type": "array"
+        },
+        "console_ports": {
+          "items": {
+            "$ref": "#/$defs/ConsolePort"
           },
           "type": "array"
         },
@@ -660,6 +786,12 @@
             "extended"
           ],
           "type": "string"
+        },
+        "serial_ports": {
+          "items": {
+            "$ref": "#/$defs/SerialPort"
+          },
+          "type": "array"
         },
         "system": {
           "enum": [
@@ -992,6 +1124,9 @@
     "archiveVariantV2": {
       "additionalProperties": false,
       "properties": {
+        "defender": {
+          "$ref": "#/$defs/Defender"
+        },
         "device_images": {
           "additionalProperties": {
             "oneOf": [

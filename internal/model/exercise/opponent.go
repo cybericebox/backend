@@ -108,10 +108,10 @@ type Opponent struct {
 	Foothold string `json:"foothold,omitempty"`
 	// Brief is the author's text for the opponent (author content, not UI text).
 	Brief string `json:"brief,omitempty"`
-	// Seat (defense and attack-defense only, document 1.1) is the device a human defender of the task sits at: a node with
+	// Seat (defense and attack-defense only) is the device a human defender of the task sits at: a node with
 	// serial ports. A bot run of the opponent takes that seat (ToolsPlacement.Seat: its first data NIC and its console cables,
 	// port for port); a human run deploys it as authored.
-	Seat string `json:"seat,omitempty" cib:"1.1"`
+	Seat string `json:"seat,omitempty"`
 }
 
 // The reasons ErrOpponentInvalid names in its public context, next to the field.
