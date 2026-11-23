@@ -39,6 +39,7 @@ const (
 	probeGateKey      = "probe.gate"
 	probeRecaptchaKey = "probe.recaptcha"
 	probeDeclKey      = "probe.decl"
+	probeLegacyKey    = "probe.legacy"
 	goldenPath        = "testdata/routes.golden"
 )
 
@@ -58,6 +59,7 @@ func (probeProtector) Route(decl authz.Decl, legacy gin.HandlerFunc) gin.Handler
 	return func(c *gin.Context) {
 		c.Set(probeDeclKey, decl)
 		if legacy != nil {
+			c.Set(probeLegacyKey, legacy)
 			legacy(c)
 		}
 	}
@@ -122,7 +124,8 @@ func layerName(fn gin.HandlerFunc) string {
 }
 
 // probe runs one middleware on an empty context and reports what it did.
-func probe(fn gin.HandlerFunc) (gate *rbac.Permission, decl *authz.Decl, recaptcha bool) {
+// A Route around something that is not a permission gate returns it as legacy: it is a layer of the route.
+func probe(fn gin.HandlerFunc) (gate *rbac.Permission, decl *authz.Decl, legacy gin.HandlerFunc, recaptcha bool) {
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Request = httptest.NewRequest("GET", "/", nil)
 	func() {
@@ -135,10 +138,13 @@ func probe(fn gin.HandlerFunc) (gate *rbac.Permission, decl *authz.Decl, recaptc
 	}
 	if v, ok := c.Get(probeGateKey); ok {
 		p := v.(rbac.Permission)
-		return &p, decl, false
+		return &p, decl, nil, false
+	}
+	if v, ok := c.Get(probeLegacyKey); ok {
+		legacy = v.(gin.HandlerFunc)
 	}
 	_, recaptcha = c.Get(probeRecaptchaKey)
-	return nil, decl, recaptcha
+	return nil, decl, legacy, recaptcha
 }
 
 func buildRoutePolicy(t *testing.T) []routeSummary {
@@ -156,7 +162,7 @@ func buildRoutePolicy(t *testing.T) []routeSummary {
 			if i == len(chain)-1 {
 				break // the handler itself
 			}
-			gate, decl, recaptcha := probe(fn)
+			gate, decl, legacy, recaptcha := probe(fn)
 			if decl != nil {
 				if s.decl != nil {
 					t.Errorf("%s: declared twice (%s, %s)", key, s.decl, decl)
@@ -164,8 +170,12 @@ func buildRoutePolicy(t *testing.T) []routeSummary {
 				s.decl = decl
 			}
 			switch {
+			case legacy != nil:
+				// Route wraps only a permission gate (or nil); another check stays visible as a layer, and fails.
+				s.layers = append(s.layers, layerName(legacy))
+				t.Errorf("%s: Route wraps %s, which is not a RequirePermission gate: pass the gate or nil, keep the check as its own middleware", key, layerName(legacy))
 			case decl != nil && gate == nil:
-				// a declaration without a legacy gate (a public flow) is not a layer
+				// a declaration without a legacy gate (a public flow, a service) is not a layer
 			case gate != nil:
 				s.gates = append(s.gates, *gate)
 			case recaptcha:

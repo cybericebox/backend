@@ -145,6 +145,13 @@ func funcViolations(body *ast.BlockStmt) []string {
 				gatedGroups[id.Name] = gated
 			}
 		case *ast.CallExpr:
+			// Route(decl, legacy): legacy is the permission gate or nil (a route without one), never another check;
+			// another check is its own middleware, so it stays visible as a layer.
+			if callTo(n, "Route") && len(n.Args) == 2 {
+				if id, ok := n.Args[1].(*ast.Ident); !(ok && id.Name == "nil") && !isGate(n.Args[1]) {
+					out = append(out, "Route with a second argument that is neither a RequirePermission gate nor nil")
+				}
+			}
 			sel, ok := n.Fun.(*ast.SelectorExpr)
 			if !ok {
 				return true
@@ -251,12 +258,18 @@ func main() {
 		os.Exit(2)
 	}
 
-	golden, err := readGolden(root)
+	golden, err := readTestdata(root, "routes.golden")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "checkroutes:", err)
 		os.Exit(2)
 	}
-	declared := declarationViolations(golden, deleteExceptions)
+	exceptionsText, err := readTestdata(root, "routes.delete-exceptions")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "checkroutes:", err)
+		os.Exit(2)
+	}
+	exceptions, declared := parseExceptions(exceptionsText)
+	declared = append(declared, declarationViolations(golden, exceptions)...)
 	if len(declared) > 0 {
 		fmt.Fprintln(os.Stderr, "route declarations (keys @ scope in routes.golden) that break the access rules:")
 		for _, v := range declared {
