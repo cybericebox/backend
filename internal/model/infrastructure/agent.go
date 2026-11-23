@@ -124,10 +124,40 @@ type AgentFeatures struct {
 	AllowedRegistries *AllowedRegistriesFeature `json:"allowed_registries,omitempty"`
 	// Activity is the laboratory's activity reports (contract 2.5): nil for an agent older than the field.
 	Activity *ActivityFeature `json:"activity,omitempty"`
+	// ConsoleCables is the console lines of the laboratory (contract 3.1): nil for an agent older than the field, which serves
+	// no console port, serial port or console cable.
+	ConsoleCables *ConsoleCablesFeature `json:"console_cables,omitempty"`
 	// PersistenceUnavailable and LifecycleUnavailable say why a feature the cluster is configured for is held back
 	// (nil: nothing is). Only a fixed code and a count of nodes: never node names, paths or text of the agent.
 	PersistenceUnavailable *UnavailableReason `json:"persistence_unavailable,omitempty"`
 	LifecycleUnavailable   *UnavailableReason `json:"lifecycle_unavailable,omitempty"`
+}
+
+// ConsoleCablesFeature: Enabled says the laboratory serves console ports, serial ports and console cables (its chart switch is on
+// and the line relay is ready on every lab node); MaxCablesPerLab is the most cables of one lab and MaxBytesPerSecond the rate cap
+// of a line per direction (0: not reported).
+type ConsoleCablesFeature struct {
+	Enabled           bool  `json:"enabled"`
+	MaxCablesPerLab   int32 `json:"max_cables_per_lab"`
+	MaxBytesPerSecond int32 `json:"max_bytes_per_second"`
+}
+
+// ServesConsoleCables reports whether the laboratory serves console lines.
+func (f AgentFeatures) ServesConsoleCables() bool { return f.ConsoleCables != nil && f.ConsoleCables.Enabled }
+
+// RequireConsoleLines refuses a lab with console lines the laboratory does not serve (ErrConsoleUnavailable), or with more cables
+// than it takes (ErrConsoleCableLimit with the limit). A lab without console lines passes.
+func (f AgentFeatures) RequireConsoleLines(n exerciseModel.LabNeeds) error {
+	if !n.ConsoleLines {
+		return nil
+	}
+	if !f.ServesConsoleCables() {
+		return exerciseModel.ErrConsoleUnavailable.Err()
+	}
+	if limit := f.ConsoleCables.MaxCablesPerLab; limit > 0 && n.ConsoleCables > int(limit) {
+		return exerciseModel.ErrConsoleCableLimit.WithPublicContext("limit", limit).Err()
+	}
+	return nil
 }
 
 // ActivityFeature: Enabled says the cluster keeps raw activity facts for the platform to pull; MaxEvents and RingMinutes bound

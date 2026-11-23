@@ -49,4 +49,9 @@ var (
 	ErrConsolePortOnNetwork = err.ErrInvalidData.WithObjectCode(model.ConsoleObjectCode).
 				WithMessage("A network connection ends on a console or serial port, or on a port name the device has no interface for").
 				WithDetailCode(12)
+	// ErrConsoleSpecRefused: the laboratory refused the console ports, serial ports or console cables of the lab (its reason
+	// CONSOLE_CABLE_INVALID). The platform checks the same rules first, so it means the two disagree; the agent's own words go
+	// to the log only.
+	ErrConsoleSpecRefused = err.ErrInvalidData.WithObjectCode(model.ConsoleObjectCode).
+				WithMessage("The laboratory refused the console ports or console cables of the lab").WithDetailCode(13)
 )

@@ -35,6 +35,8 @@ type LabCapabilities struct {
 	Checks Availability
 	// VPNReverse: the block of connections the lab starts to VPN clients can be lifted (topology.vpn.reverse_connections).
 	VPNReverse Availability
+	// ConsoleCables: console ports, serial ports and console cables are served.
+	ConsoleCables Availability
 }
 
 // CapabilityObservationKeys lists, in a fixed order, the keys of LabCapabilities.Observations.
@@ -95,5 +97,6 @@ func CapabilitiesOf(labs []*AgentFeatures) LabCapabilities {
 	out.Bootstrap = pick(func(f *AgentFeatures) bool { return f.Bootstrap != nil })
 	out.Checks = pick(func(f *AgentFeatures) bool { return f.Checks != nil && f.Checks.Enabled })
 	out.VPNReverse = pick(func(f *AgentFeatures) bool { return f.EnforcesVPNReverse() })
+	out.ConsoleCables = pick(func(f *AgentFeatures) bool { return f.ServesConsoleCables() })
 	return out
 }

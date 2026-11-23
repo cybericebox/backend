@@ -130,6 +130,10 @@ type (
 		ChecksMaxPerLab    int32 `json:"ChecksMaxPerLab"`
 		TerminalEnabled    bool  `json:"TerminalEnabled"`
 		BootstrapAvailable bool  `json:"BootstrapAvailable"`
+		// ConsoleCablesEnabled: the laboratory serves console ports, serial ports and console cables (contract 3.1; false for an
+		// older agent); ConsoleCablesMaxPerLab is the most cables of one lab (0 when not reported).
+		ConsoleCablesEnabled   bool  `json:"ConsoleCablesEnabled"`
+		ConsoleCablesMaxPerLab int32 `json:"ConsoleCablesMaxPerLab"`
 	}
 
 	groupPodSizingResponse struct {
@@ -229,6 +233,9 @@ func toFeaturesResponse(f *infraModel.AgentFeatures) *agentFeaturesResponse {
 	}
 	out.TerminalEnabled = f.ServesAccess("terminal")
 	out.BootstrapAvailable = f.Bootstrap != nil
+	if f.ConsoleCables != nil {
+		out.ConsoleCablesEnabled, out.ConsoleCablesMaxPerLab = f.ConsoleCables.Enabled, f.ConsoleCables.MaxCablesPerLab
+	}
 	return &out
 }
 

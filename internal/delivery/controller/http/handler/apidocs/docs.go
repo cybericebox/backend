@@ -40778,6 +40778,23 @@ const docTemplate = `{
                 }
             }
         },
+        "exercise.deployConsoleCableResponse": {
+            "type": "object",
+            "properties": {
+                "Console": {
+                    "$ref": "#/definitions/exercise.deployPortRefResponse"
+                },
+                "LineUp": {
+                    "type": "boolean"
+                },
+                "Reason": {
+                    "type": "string"
+                },
+                "Serial": {
+                    "$ref": "#/definitions/exercise.deployPortRefResponse"
+                }
+            }
+        },
         "exercise.deployDeviceResponse": {
             "type": "object",
             "properties": {
@@ -40916,6 +40933,17 @@ const docTemplate = `{
                 }
             }
         },
+        "exercise.deployPortRefResponse": {
+            "type": "object",
+            "properties": {
+                "Device": {
+                    "type": "string"
+                },
+                "Port": {
+                    "type": "string"
+                }
+            }
+        },
         "exercise.deployRequest": {
             "type": "object",
             "properties": {
@@ -40998,6 +41026,13 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/exercise.deployAccessResponse"
+                    }
+                },
+                "ConsoleCables": {
+                    "description": "ConsoleCables are the console lines of the lab, one per console cable the laboratory made (devices by their topology\nname); absent for a lab without cables.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/exercise.deployConsoleCableResponse"
                     }
                 },
                 "Devices": {
@@ -43883,6 +43918,29 @@ const docTemplate = `{
                 }
             }
         },
+        "exerciseModel.LabConsoleCable": {
+            "type": "object",
+            "properties": {
+                "consoleDevice": {
+                    "type": "string"
+                },
+                "consolePort": {
+                    "type": "string"
+                },
+                "lineUp": {
+                    "type": "boolean"
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "serialDevice": {
+                    "type": "string"
+                },
+                "serialPort": {
+                    "type": "string"
+                }
+            }
+        },
         "exerciseModel.LabDeployStatus": {
             "type": "object",
             "properties": {
@@ -43890,6 +43948,13 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/exerciseModel.LabAccess"
+                    }
+                },
+                "consoleCables": {
+                    "description": "ConsoleCables are the console lines of the lab (the laboratory's status.console_cables, contract 3.1), one per cable it made.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/exerciseModel.LabConsoleCable"
                     }
                 },
                 "cpumillicores": {
@@ -44700,6 +44765,13 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "ChecksMaxPerLab": {
+                    "type": "integer"
+                },
+                "ConsoleCablesEnabled": {
+                    "description": "ConsoleCablesEnabled: the laboratory serves console ports, serial ports and console cables (contract 3.1; false for an\nolder agent); ConsoleCablesMaxPerLab is the most cables of one lab (0 when not reported).",
+                    "type": "boolean"
+                },
+                "ConsoleCablesMaxPerLab": {
                     "type": "integer"
                 },
                 "DeviceMaxCPUMillicores": {

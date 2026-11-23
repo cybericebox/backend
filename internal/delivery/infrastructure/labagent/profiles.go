@@ -122,27 +122,80 @@ func (f *Fleet) RunnableNodeProfiles(context.Context) map[exerciseModel.NodeProf
 	return out
 }
 
-// requireConsoleCables refuses a topology with console ports or console cables: no agent is known to offer them yet. The
-// agent client does not read the console feature of an agent (FeaturesResponse.console_cables, agent contract 3.1) and the
-// lab spec carries no ports or cables yet; both come with the deploy phase of console cables, which replaces this refusal
-// with the agent's report. Until then a console cable must never reach an agent as a network connection.
-func requireConsoleCables(topo exerciseModel.Topology) error {
-	if topo.UsesConsoleLines() && !consoleCablesOffered {
-		return exerciseModel.ErrConsoleUnavailable.Err()
-	}
-	return nil
+// servesConsoleLines reports whether the member's last report says it serves console lines. An agent that has not reported
+// does not: a console port or cable sent to an agent older than contract 3.1 would be dropped from the lab, never refused.
+func servesConsoleLines(m *Member) bool {
+	feat := m.Features.Get()
+	return feat != nil && feat.ServesConsoleCables()
 }
 
-// consoleCablesOffered is false until the agent client reads the console feature of the agents (phase 8 of the console
-// design replaces it with their report).
-const consoleCablesOffered = false
+// ConsoleCablesAvailable reports whether an agent that is used offers console ports and console cables (the editor's
+// capability). It reads the cached reports only.
+func (f *Fleet) ConsoleCablesAvailable() bool {
+	return slices.ContainsFunc(f.eligible(), servesConsoleLines)
+}
 
-// ConsoleCablesAvailable reports whether an agent offers console ports and console cables (the editor's capability).
-func (f *Fleet) ConsoleCablesAvailable() bool { return consoleCablesOffered }
+// RequireConsoleLines refuses a topology with console lines that no agent that is used can run: none reports the feature
+// (ErrConsoleUnavailable), or each that does takes fewer cables (ErrConsoleCableLimit). The event pre-flight asks it for every
+// task, so an event fails when it is prepared, not at each stand; a deploy asks it again of the agent the lab goes to.
+func (f *Fleet) RequireConsoleLines(topo exerciseModel.Topology) error {
+	if !topo.UsesConsoleLines() {
+		return nil
+	}
+	needs := exerciseModel.NeedsOf(topo, nil)
+	var refusal error = exerciseModel.ErrConsoleUnavailable.Err()
+	for _, m := range f.eligible() {
+		feat := m.Features.Get()
+		if feat == nil {
+			continue
+		}
+		err := feat.RequireConsoleLines(needs)
+		if err == nil {
+			return nil
+		}
+		if feat.ServesConsoleCables() {
+			refusal = err // a limit is more telling than the absence
+		}
+	}
+	return refusal
+}
 
-// RequireConsoleLines refuses a topology with console lines while no agent offers them: the event pre-flight asks it for
-// every task, so an event fails when it is prepared, not at each stand.
-func (f *Fleet) RequireConsoleLines(topo exerciseModel.Topology) error { return requireConsoleCables(topo) }
+// requireConsoleLines refuses a lab with console lines the member does not serve. Unlike the other options, an agent that has
+// not reported is refused too (see servesConsoleLines); the cached report may be old (the feature can be switched on after the
+// agent started), so it is read again, once per window, before a refusal stands.
+func (f *Fleet) requireConsoleLines(ctx context.Context, m *Member, needs exerciseModel.LabNeeds) error {
+	if !needs.ConsoleLines {
+		return nil
+	}
+	refuse := func(feat *infraModel.AgentFeatures) error {
+		if feat == nil {
+			return exerciseModel.ErrConsoleUnavailable.Err()
+		}
+		return feat.RequireConsoleLines(needs)
+	}
+	err := refuse(m.Features.Get())
+	if err == nil {
+		return nil
+	}
+	if fresh := refreshOnRefusal(ctx, m.Features, time.Now(), featuresReader(m)); fresh != nil {
+		return refuse(fresh)
+	}
+	return err
+}
+
+// consoleRunners keeps the members that serve console lines, for a new group whose labs have them; none is ErrConsoleUnavailable.
+func consoleRunners(members []*Member) ([]*Member, error) {
+	var kept []*Member
+	for _, m := range members {
+		if servesConsoleLines(m) {
+			kept = append(kept, m)
+		}
+	}
+	if len(kept) == 0 {
+		return nil, exerciseModel.ErrConsoleUnavailable.Err()
+	}
+	return kept, nil
+}
 
 // requireProfiles refuses a topology that asks for a node profile the lab cannot get: the VM profile is not run yet,
 // and another one needs an agent that reports it runnable. An agent that has not reported yet is not refused here:

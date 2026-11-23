@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -990,8 +991,32 @@ func mapLabStatus(l *labpb.Lab) exerciseModel.LabDeployStatus {
 			Device: a.GetDevice(), Port: a.GetPort(), Protocol: a.GetProtocol(), URL: a.GetUrl(),
 		})
 	}
+	for _, c := range st.GetConsoleCables() {
+		out.ConsoleCables = append(out.ConsoleCables, exerciseModel.LabConsoleCable{
+			SerialDevice: c.GetSerialDevice(), SerialPort: c.GetSerialPort(), ConsoleDevice: c.GetConsoleDevice(), ConsolePort: c.GetConsolePort(),
+			LineUp: c.GetLineUp(), Reason: consoleCableReason(c.GetLineUp(), c.GetReason()),
+		})
+	}
 	out.FillQueueDetails()
 	return out
+}
+
+// consoleCableReasons are the reasons a line is down that the laboratory reports (the Ready condition of a ConsoleCable); another
+// text is not passed on as it is.
+var consoleCableReasons = []string{
+	exerciseModel.ConsoleCableWaitingForDevice, exerciseModel.ConsoleCablePortDown, exerciseModel.ConsoleCablePeerUnreachable,
+	exerciseModel.ConsoleCableNodeLineLimit,
+}
+
+// consoleCableReason is the reason of a line that is down: one of the fixed list, else "Unknown"; empty while the line is up.
+func consoleCableReason(up bool, reason string) string {
+	if up {
+		return ""
+	}
+	if slices.Contains(consoleCableReasons, reason) {
+		return reason
+	}
+	return exerciseModel.ConsoleCableUnknown
 }
 
 // mapBootstrap maps the bootstrap state of a device; nil when the device has none (or the laboratory has not seen it yet).
@@ -1066,6 +1091,11 @@ func agentErr(op string, err error) error {
 	if labclient.IsRegistryNotAllowed(err) {
 		return fmt.Errorf("%s: %w: %s", op, exerciseModel.ErrLabOptionUnavailable.WithPublicContext("options", "registry").Err(), status.Convert(err).Message())
 	}
+	// Console ports or cables the laboratory refuses (contract 3.1): the platform checks the same rules first, so the two disagree.
+	// The agent's message (it names the variant, the device and the port) goes to the log, not to the user.
+	if isConsoleCableInvalid(err) {
+		return fmt.Errorf("%s: %w: %s", op, exerciseModel.ErrConsoleSpecRefused.Err(), status.Convert(err).Message())
+	}
 	if labclient.IsTerminating(err) {
 		return &infraModel.TerminatingError{
 			Message:    fmt.Sprintf("%s: %s", op, err),
@@ -1074,6 +1104,21 @@ func agentErr(op string, err error) error {
 		}
 	}
 	return fmt.Errorf("%s: %w", op, err)
+}
+
+// isConsoleCableInvalid reports whether err is the refusal of a spec whose console ports, serial ports or console cables break a
+// rule of the laboratory (InvalidArgument with the ErrorInfo reason CONSOLE_CABLE_INVALID).
+func isConsoleCableInvalid(err error) bool {
+	st, ok := status.FromError(err)
+	if !ok || st.Code() != codes.InvalidArgument {
+		return false
+	}
+	for _, d := range st.Details() {
+		if info, isInfo := d.(*errdetails.ErrorInfo); isInfo && info.GetDomain() == labclient.ErrorDomain && info.GetReason() == labclient.ReasonConsoleCableInvalid {
+			return true
+		}
+	}
+	return false
 }
 
 // unixMilli is the zero time for 0 (the agent's "never"/"not yet").

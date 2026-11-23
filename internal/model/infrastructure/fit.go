@@ -158,6 +158,9 @@ type PlacementNeed struct {
 	Plan       GroupPlan
 	// Profiles are the node profiles the devices of the tasks use: the agent of the group must be able to run each.
 	Profiles exerciseModel.NodeProfileSet
+	// ConsoleLines: a lab of the group has console or serial ports or console cables, so the agent of the group must serve
+	// console lines.
+	ConsoleLines bool
 }
 
 // Known is true when the need says anything about the labs.

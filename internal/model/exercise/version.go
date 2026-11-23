@@ -383,7 +383,7 @@ func InVariantIfScoped(failure error, number int) error {
 	}{
 		ErrRuntimeNotSupported, ErrLabOptionUnavailable, ErrServiceCommandUnknown, ErrServiceUserUnknown, ErrRuntimeDeviceUnresolved,
 		ErrDeviceRuntimeInvalid, ErrVariableInvalid, ErrStateInvalid, ErrBootstrapTooLarge, ErrSubstitutionUnresolved,
-		ErrConsoleUnavailable,
+		ErrConsoleUnavailable, ErrConsoleCableLimit, ErrConsoleSpecRefused,
 	} {
 		if errors.Is(failure, scoped.Err()) {
 			return InVariant(failure, number)

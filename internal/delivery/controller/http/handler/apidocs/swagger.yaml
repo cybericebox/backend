@@ -7515,6 +7515,17 @@ definitions:
       Correct:
         type: boolean
     type: object
+  exercise.deployConsoleCableResponse:
+    properties:
+      Console:
+        $ref: '#/definitions/exercise.deployPortRefResponse'
+      LineUp:
+        type: boolean
+      Reason:
+        type: string
+      Serial:
+        $ref: '#/definitions/exercise.deployPortRefResponse'
+    type: object
   exercise.deployDeviceResponse:
     properties:
       Bootstrap:
@@ -7620,6 +7631,13 @@ definitions:
       VersionID:
         type: string
     type: object
+  exercise.deployPortRefResponse:
+    properties:
+      Device:
+        type: string
+      Port:
+        type: string
+    type: object
   exercise.deployRequest:
     properties:
       LeaseMinutes:
@@ -7679,6 +7697,13 @@ definitions:
       Access:
         items:
           $ref: '#/definitions/exercise.deployAccessResponse'
+        type: array
+      ConsoleCables:
+        description: |-
+          ConsoleCables are the console lines of the lab, one per console cable the laboratory made (devices by their topology
+          name); absent for a lab without cables.
+        items:
+          $ref: '#/definitions/exercise.deployConsoleCableResponse'
         type: array
       Devices:
         items:
@@ -9773,11 +9798,32 @@ definitions:
       url:
         type: string
     type: object
+  exerciseModel.LabConsoleCable:
+    properties:
+      consoleDevice:
+        type: string
+      consolePort:
+        type: string
+      lineUp:
+        type: boolean
+      reason:
+        type: string
+      serialDevice:
+        type: string
+      serialPort:
+        type: string
+    type: object
   exerciseModel.LabDeployStatus:
     properties:
       access:
         items:
           $ref: '#/definitions/exerciseModel.LabAccess'
+        type: array
+      consoleCables:
+        description: ConsoleCables are the console lines of the lab (the laboratory's
+          status.console_cables, contract 3.1), one per cable it made.
+        items:
+          $ref: '#/definitions/exerciseModel.LabConsoleCable'
         type: array
       cpumillicores:
         description: |-
@@ -10391,6 +10437,13 @@ definitions:
           older agent. ChecksMaxPerLab is the most checks of one lab (0 when not reported).
         type: boolean
       ChecksMaxPerLab:
+        type: integer
+      ConsoleCablesEnabled:
+        description: |-
+          ConsoleCablesEnabled: the laboratory serves console ports, serial ports and console cables (contract 3.1; false for an
+          older agent); ConsoleCablesMaxPerLab is the most cables of one lab (0 when not reported).
+        type: boolean
+      ConsoleCablesMaxPerLab:
         type: integer
       DeviceMaxCPUMillicores:
         description: |-

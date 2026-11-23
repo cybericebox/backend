@@ -110,7 +110,15 @@ func FeaturesOf(r *labpb.FeaturesResponse) infraModel.AgentFeatures {
 		Internet:               internetFeatureOf(r.GetInternet()),
 		AllowedRegistries:      allowedRegistriesOf(r.GetAllowedRegistries()),
 		Activity:               activityFeatureOf(r.GetActivity()),
+		ConsoleCables:          consoleCablesFeatureOf(r.GetConsoleCables()),
 	}
+}
+
+func consoleCablesFeatureOf(c *labpb.ConsoleCablesFeature) *infraModel.ConsoleCablesFeature {
+	if c == nil {
+		return nil
+	}
+	return &infraModel.ConsoleCablesFeature{Enabled: c.GetEnabled(), MaxCablesPerLab: c.GetMaxCablesPerLab(), MaxBytesPerSecond: c.GetMaxBytesPerSecond()}
 }
 
 // The optional parts of contract 1.5 are nil when the report lacks them (an agent older than the fields).
@@ -372,6 +380,7 @@ func labNeed(p resourcesModel.Policy, topo exerciseModel.Topology) infraModel.Pl
 		need.LabDevices++
 		need.Device = need.Device.Max(d.Amount)
 	}
+	need.ConsoleLines = topo.UsesConsoleLines()
 	return need
 }
 
@@ -380,6 +389,7 @@ func labNeed(p resourcesModel.Policy, topo exerciseModel.Topology) infraModel.Pl
 func withLab(need, lab infraModel.PlacementNeed) infraModel.PlacementNeed {
 	need.Device = need.Device.Max(lab.Device)
 	need.LabDevices = max(need.LabDevices, lab.LabDevices)
+	need.ConsoleLines = need.ConsoleLines || lab.ConsoleLines
 	return need
 }
 
@@ -425,8 +435,14 @@ func (f *Fleet) SchedulerMaxPods() int {
 // RequireLabLifecyclePreparation checks the actual selected producer; ordinary
 // persistence support is not a required capture barrier.
 func (c *Client) RequireLabLifecyclePreparation(ctx context.Context, _ string, policy eventLabModel.Policy, topology exerciseModel.Topology) error {
-	if err := requireConsoleCables(topology); err != nil {
-		return err
+	if topology.UsesConsoleLines() {
+		response, err := c.GetFeatures(ctx, &labpb.Empty{})
+		if err != nil {
+			return agentErr("get console line features", err)
+		}
+		if err = FeaturesOf(response).RequireConsoleLines(exerciseModel.NeedsOf(topology, nil)); err != nil {
+			return err
+		}
 	}
 	if err := policy.ValidatePreparation(topology, true); err != nil {
 		return err
@@ -449,7 +465,7 @@ func (c *Client) lifecycleFeature(ctx context.Context) (*labpb.LifecycleFeature,
 }
 
 func (f *Fleet) RequireLabLifecyclePreparation(ctx context.Context, group string, policy eventLabModel.Policy, topology exerciseModel.Topology) error {
-	if err := requireConsoleCables(topology); err != nil {
+	if err := f.RequireConsoleLines(topology); err != nil {
 		return err
 	}
 	if err := policy.ValidatePreparation(topology, true); err != nil {
