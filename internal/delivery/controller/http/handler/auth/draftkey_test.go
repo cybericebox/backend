@@ -198,3 +198,28 @@ func TestChangePassword_ForgetsTheOtherBrowsersDraftKeys(t *testing.T) {
 		t.Fatalf("a failed change deleted draft keys")
 	}
 }
+
+// One person asks for at most draftKeyRequestsPerMinute keys a minute (owner decision 2026-11-23, A.3 #47): the next
+// request is refused with 429 and reaches no use case.
+func TestDraftKey_IsLimitedPerPerson(t *testing.T) {
+	uc := &fakeUC{draftKey: draftKeyModel.Key{ID: testDraftID, Key: bytes.Repeat([]byte{5}, 32)}}
+	r := passkeyRouter(uc, &fakeProt{}, true)
+	call := func() int {
+		req := httptest.NewRequest(http.MethodPost, "/api/me/draft-key", nil)
+		req.Header.Set("Origin", "https://exercises.example.test")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		return w.Code
+	}
+	for i := 1; i <= 60; i++ {
+		if code := call(); code != http.StatusOK {
+			t.Fatalf("request %d: want 200, got %d", i, code)
+		}
+	}
+	if code := call(); code != http.StatusTooManyRequests {
+		t.Fatalf("request 61: want 429, got %d", code)
+	}
+	if uc.draftCalls != 60 {
+		t.Fatalf("the use case was asked %d times, want 60", uc.draftCalls)
+	}
+}

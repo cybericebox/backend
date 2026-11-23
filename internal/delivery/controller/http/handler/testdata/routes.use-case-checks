@@ -1,0 +1,2 @@
+# Pinned legacy checks (TestDeclaredKeysMapToTheLegacyGate): the check a use case runs behind a bare self gate, or the
+# one an ambiguous layer runs for the route, and the relation the use case checks. METHOD /api/path | check[,relation]

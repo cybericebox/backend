@@ -1,4 +1,4 @@
-# Routes that declare no keys yet (TestEveryRouteDeclaresKeys). The list only shrinks; maxUndeclared counts it.
+# Routes that declare no keys yet (TestEveryRouteDeclaresKeys). The list only shrinks.
 # METHOD /api/path | P1b area and A.3 row; "open:" when the row is not settled in the spec
 # area 2: admin, analytics, dashboard
 GET /api/admin/assistant/statistics | area 2, A.3 #48
