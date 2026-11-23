@@ -101,7 +101,7 @@ func (h *Handler) Init(router *gin.RouterGroup) {
 		"admin/dashboard",
 		h.prot.Route(
 			authz.AnyOf(authz.SourcePlatform, authz.EventsList, authz.InfrastructureRead, authz.ExercisesElevationsRead,
-				authz.PlatformErrorsRead, authz.AnalyticsRead, authz.UsersList),
+				authz.PlatformErrorsRead, authz.AnalyticsRead, authz.UsersList).WithData(authz.EventsList, authz.InfrastructureRead, authz.ExercisesElevationsRead, authz.PlatformErrorsRead, authz.AnalyticsRead, authz.UsersList),
 			h.prot.RequirePermission(rbac.PermSelf),
 		),
 		h.requireAdminTier,

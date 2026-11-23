@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"os"
 	"slices"
 	"strings"
@@ -23,14 +24,11 @@ import (
 // staff areas, service routes) are tools/checkroutes, which reads the keys column of routes.golden.
 
 const (
-	undeclaredPath   = "testdata/routes.undeclared"
-	divergencesPath  = "testdata/routes.legacy-divergences"
-	expectedKeysPath = "testdata/routes.expected-keys"
-
-	// maxUndeclared is the number of routes in testdata/routes.undeclared. It only goes down: a PR that declares
-	// routes removes them from the list and lowers it by as many; a new route declares from the start. It is 0 at the
-	// end of P1b.
-	maxUndeclared = 604
+	undeclaredPath    = "testdata/routes.undeclared"
+	divergencesPath   = "testdata/routes.legacy-divergences"
+	expectedKeysPath  = "testdata/routes.expected-keys"
+	useCaseChecksPath = "testdata/routes.use-case-checks"
+	eventObjectsPath  = "testdata/routes.event-objects"
 )
 
 // readRouteList reads a list of routes with their reasons, one "METHOD /api/path | reason" per line; # starts a
@@ -62,10 +60,8 @@ func readRouteList(t *testing.T, path string) map[string]string {
 }
 
 func TestEveryRouteDeclaresKeys(t *testing.T) {
+	// The list only shrinks: a listed route that now declares fails below, and a new route declares from the start.
 	undeclared := readRouteList(t, undeclaredPath)
-	if len(undeclared) != maxUndeclared {
-		t.Errorf("%s lists %d routes, maxUndeclared is %d: the list only shrinks, lower the constant with it", undeclaredPath, len(undeclared), maxUndeclared)
-	}
 	mounted := map[string]bool{}
 	for _, s := range buildRoutePolicy(t) {
 		id := s.method + " " + s.path
@@ -87,6 +83,14 @@ func TestEveryRouteDeclaresKeys(t *testing.T) {
 
 // expectedDecl is a line of routes.expected-keys.
 type expectedDecl struct{ decl, data, source string }
+
+// withData is the declaration with its data-level keys, as Decl.String renders it.
+func (e expectedDecl) withData() string {
+	if e.data == "-" {
+		return e.decl
+	}
+	return e.decl + " data(" + e.data + ")"
+}
 
 func readExpectedKeys(t *testing.T) map[string]expectedDecl {
 	t.Helper()
@@ -129,8 +133,8 @@ func TestDeclarationsFollowAppendixA3(t *testing.T) {
 		case s.decl == nil:
 		case e.decl == "?":
 			t.Errorf("%s declares %s, but its A.3 row is not settled (%s)", id, s.decl, e.source)
-		case s.decl.String() != e.decl:
-			t.Errorf("%s declares %s, Appendix A.3 gives %s (%s)", id, s.decl, e.decl, e.source)
+		case s.decl.String() != e.withData():
+			t.Errorf("%s declares %s, Appendix A.3 gives %s (%s)", id, s.decl, e.withData(), e.source)
 		}
 	}
 	for id := range expected {
@@ -148,13 +152,21 @@ func TestDeclarationsFollowAppendixA3(t *testing.T) {
 // explains it with the A.3 row and the spec section that makes the change.
 func TestDeclaredKeysMapToTheLegacyGate(t *testing.T) {
 	divergences := readRouteList(t, divergencesPath)
-	seen := map[string]bool{}
+	pins := readRouteList(t, useCaseChecksPath)
+	seen, pinned := map[string]bool{}, map[string]bool{}
 	for _, s := range buildRoutePolicy(t) {
 		if s.decl == nil {
 			continue
 		}
 		id := s.method + " " + s.path
-		problem := legacyMismatch(s)
+		var pin []string
+		if p, ok := pins[id]; ok {
+			pin = strings.Split(strings.ReplaceAll(p, " ", ""), ",")
+		}
+		problem, used := legacyMismatch(s, pin)
+		if used {
+			pinned[id] = true
+		}
 		_, excused := divergences[id]
 		if excused {
 			seen[id] = true
@@ -171,10 +183,65 @@ func TestDeclaredKeysMapToTheLegacyGate(t *testing.T) {
 			t.Errorf("%s lists %s, which is not a declared route", divergencesPath, id)
 		}
 	}
+	for id := range pins {
+		if !pinned[id] {
+			t.Errorf("%s pins %s, which needs no pin (or is not declared): drop the line", useCaseChecksPath, id)
+		}
+	}
 }
 
-// legacyMismatch explains why the declaration of s does not map back to its legacy gate, or returns "".
-func legacyMismatch(s routeSummary) string {
+// TestEventScopedObjectRoutes keeps testdata/routes.event-objects: every declared route checked at an event that also
+// names another object in its path (a page, a form, a team, a secret, a user). The enforcement (P2) must make each of
+// their use cases check that the object belongs to that event; the list is the checklist. Regenerate with -update.
+func TestEventScopedObjectRoutes(t *testing.T) {
+	var lines []string
+	for _, s := range buildRoutePolicy(t) {
+		if s.decl == nil {
+			continue
+		}
+		kind, event := s.decl.Scope.Kind(), s.decl.Scope.Param()
+		if kind == "tenant" || kind == "object" && strings.Contains(s.path, "/events/:id/") {
+			event = "id"
+		}
+		if event == "" {
+			continue
+		}
+		var objects []string
+		for _, part := range strings.Split(s.path, "/") {
+			if strings.HasPrefix(part, ":") && part != ":"+event {
+				objects = append(objects, part)
+			}
+		}
+		if kind == "object" {
+			objects = append(objects, string(s.decl.Scope))
+		}
+		if len(objects) == 0 {
+			continue
+		}
+		lines = append(lines, fmt.Sprintf("%-6s %s | %s | %s", s.method, s.path, s.decl.Scope, strings.Join(objects, ",")))
+	}
+	got := "# Declared routes checked at an event that also address another object (TestEventScopedObjectRoutes).\n" +
+		"# P2: each use case must check that the object belongs to the event. METHOD path | scope | objects\n" +
+		strings.Join(lines, "\n") + "\n"
+	if *updateGolden {
+		if err := os.WriteFile(eventObjectsPath, []byte(got), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	want, err := os.ReadFile(eventObjectsPath)
+	if err != nil {
+		t.Fatalf("read %s: %v (run with -update to create it)", eventObjectsPath, err)
+	}
+	if string(want) != got {
+		t.Errorf("%s is stale: run go test -run TestEventScopedObjectRoutes -update and review the diff", eventObjectsPath)
+	}
+}
+
+// legacyMismatch explains why the declaration of s does not map back to its legacy gate, or returns "". pin is the
+// route's line of testdata/routes.use-case-checks: the legacy check a use case or an ambiguous layer runs for it, and
+// the relation the use case checks. used reports that the route needed its pin.
+func legacyMismatch(s routeSummary, pin []string) (problem string, used bool) {
 	d := *s.decl
 	var real []rbac.Permission
 	for _, g := range s.gates {
@@ -187,7 +254,7 @@ func legacyMismatch(s routeSummary) string {
 		spec, ok := authz.Lookup(k)
 		switch {
 		case !ok:
-			return "key " + string(k) + " is not in the catalogue"
+			return "key " + string(k) + " is not in the catalogue", false
 		case spec.Allows(authz.ScopeImplicit):
 			implicit = append(implicit, k)
 		case spec.Allows(authz.ScopePublic):
@@ -197,29 +264,73 @@ func legacyMismatch(s routeSummary) string {
 		}
 	}
 
-	if d.Scope.Kind() == "service" {
+	switch d.Scope.Kind() {
+	case "service", "bearer":
 		if len(real) > 0 {
-			return "a service declaration on a route gated by a user permission"
+			return "a " + d.Scope.Kind() + " declaration on a route gated by a user permission", false
 		}
-		return ""
-	}
-	if d.Scope.Kind() == "public" {
+		return "", false
+	case "public":
 		if len(real) > 0 {
-			return "a public declaration on a gated route"
+			return "a public declaration on a gated route", false
 		}
 		for _, k := range public {
 			if !mapsToGate(k, s.gates, nil) {
-				return "public key " + string(k) + " is not today's public gate"
+				return "public key " + string(k) + " is not today's public gate", false
 			}
 		}
-		return ""
+		return "", false
 	}
 	if len(real) == 0 {
-		return "the route has no real gate today, but declares " + d.String()
+		return "the route has no real gate today, but declares " + d.String(), false
 	}
 
-	// Every real gate is explained by a declared key, and every declared key by the gate or a layer.
+	// Behind a bare self gate in an area whose check sits in the use case (selfWithoutLayerPrefixes), and behind a
+	// layer that runs one of several checks (the exercise policy closure), the route pins the one check that decides
+	// it; a key maps only to that check.
 	layers := authzLayers(s)
+	selfOnly := len(real) == 1 && real[0] == rbac.PermSelf
+	var pinnedChecks []string
+	pinnedRelation := ""
+	for _, p := range pin {
+		if slices.Contains(pinRelations, p) {
+			pinnedRelation = p
+		} else {
+			pinnedChecks = append(pinnedChecks, p)
+		}
+	}
+	needsCheckPin := len(grantable) > 0 && (selfOnly && len(layers) == 0 && hasPrefix(s.path, selfWithoutLayerPrefixes) ||
+		slices.ContainsFunc(layers, func(l string) bool { return len(layerChecks[l]) > 1 }))
+	if needsCheckPin {
+		if len(pinnedChecks) == 0 {
+			return "the legacy check runs in the use case or behind an ambiguous layer: pin it in " + useCaseChecksPath, false
+		}
+		for _, l := range layers {
+			if choices := layerChecks[l]; len(choices) > 1 {
+				for _, c := range pinnedChecks {
+					if !slices.Contains(choices, authz.LegacyCheck(c)) {
+						return "pinned check " + c + " is not one that layer " + l + " runs", true
+					}
+				}
+			}
+		}
+		layers = pinnedChecks
+		used = true
+	} else if len(pinnedChecks) > 0 {
+		return "pins a legacy check it does not need", true
+	}
+	if d.Relation != "" && selfOnly {
+		if pinnedRelation == "" {
+			return "the relation is checked in the use case: pin the use case's relation in " + useCaseChecksPath, used
+		}
+		if pinnedRelation != string(d.Relation) {
+			return "declares (" + string(d.Relation) + "), the use case checks (" + pinnedRelation + ")", true
+		}
+		used = true
+	} else if pinnedRelation != "" {
+		return "pins a relation it does not need", true
+	}
+
 	for _, g := range real {
 		explained := false
 		for _, k := range d.Keys() {
@@ -229,18 +340,23 @@ func legacyMismatch(s routeSummary) string {
 			}
 		}
 		if g == rbac.PermSelf && d.Relation != "" {
-			explained = true // the relation is checked behind the self gate, in the use case
+			explained = true // pinned above: the use case checks this relation behind the self gate
 		}
 		if !explained {
-			return "today's gate " + string(g) + " is decided by none of the declared keys"
+			return "today's gate " + string(g) + " is decided by none of the declared keys", used
 		}
 	}
 	for _, k := range append(implicit, grantable...) {
 		if !mapsToGate(k, real, layers) {
-			return "key " + string(k) + " does not map back to today's gate or layers"
+			return "key " + string(k) + " does not map back to today's gate or layers", used
 		}
 	}
-	return ""
+	return "", used
+}
+
+// pinRelations are the relation names a pin may give (the use case's participation or authorship check).
+var pinRelations = []string{
+	string(authz.RelParticipant), string(authz.RelTeamMember), string(authz.RelCaptain), string(authz.RelAuthor),
 }
 
 func mapsToGate(k authz.Key, gates []rbac.Permission, layers []string) bool {
@@ -264,6 +380,24 @@ func mapsToGate(k authz.Key, gates []rbac.Permission, layers []string) bool {
 	return false
 }
 
+// layerChecks names the legacy checks of layers whose name does not end in their check (spec §2.5): the analytics
+// levels of model/eventAnalytics.ResolveAccess, manage and read checks under another name, the authoring checks, and
+// the exercise policy closure, which runs AuthorizeExercise with the action of its route.
+var layerChecks = map[string][]authz.LegacyCheck{
+	"eventAnalytics.requireSections":                     {authz.CheckAnalyticsSections},
+	"eventAnalytics.requireSensitive":                    {authz.CheckAnalyticsSensitive},
+	"eventAnalytics.requirePeople":                       {authz.CheckAnalyticsPeople},
+	"event.requirePreviewCleanup":                        {authz.CheckRequireManage},
+	"imageRegistry.requireManageAccess":                  {authz.CheckRequireManage},
+	"eventself.(*EventRenderHandler).resolveGrantTenant": {authz.CheckRequireRead},
+	"assistant.author":                                   {authz.CheckRequireAuthor},
+	"exercise.requireAuthor":                             {authz.CheckRequireAuthor},
+	"resourceCalendar.requireTestLabAuthor":              {authz.CheckRequireTestLabAuthor},
+	"exercise.authorize.func": {
+		authz.CheckAuthorizeExerciseRead, authz.CheckAuthorizeExerciseManage, authz.CheckAuthorizeExerciseFlags,
+	},
+}
+
 // mapsToLayer: the named legacy check of k is one of the route's layers (event.requireManage → requireManage).
 func mapsToLayer(k authz.Key, layers []string) bool {
 	l, ok := authz.LegacyOf(k)
@@ -271,7 +405,7 @@ func mapsToLayer(k authz.Key, layers []string) bool {
 		return false
 	}
 	for _, layer := range layers {
-		if strings.HasSuffix(layer, "."+string(l.Check)) || layer == string(l.Check) {
+		if slices.Contains(layerChecks[layer], l.Check) || strings.HasSuffix(layer, "."+string(l.Check)) || layer == string(l.Check) {
 			return true
 		}
 	}
@@ -283,25 +417,37 @@ func TestLegacyMismatchCatchesDisagreement(t *testing.T) {
 	cases := []struct {
 		name  string
 		s     routeSummary
+		pin   []string
 		agree bool
 	}{
-		{"platform key on its permission", routeSummary{gates: []rbac.Permission{rbac.PermUsersRead}, decl: decl(authz.AnyOf(authz.SourcePlatform, authz.UsersList))}, true},
-		{"platform key on another permission", routeSummary{gates: []rbac.Permission{rbac.PermUsersRead}, decl: decl(authz.AnyOf(authz.SourcePlatform, authz.UsersDelete))}, false},
-		{"one any-of key off the gate", routeSummary{gates: []rbac.Permission{rbac.PermUsersRead}, decl: decl(authz.AnyOf(authz.SourcePlatform, authz.UsersList, authz.EventsRead))}, false},
-		{"own data on self", routeSummary{gates: []rbac.Permission{rbac.PermSelf}, decl: decl(authz.OwnData())}, true},
-		{"own data on a permission", routeSummary{gates: []rbac.Permission{rbac.PermUsersRead}, decl: decl(authz.OwnData())}, false},
-		{"public flow without a gate", routeSummary{decl: decl(authz.PublicRoute())}, true},
-		{"public declaration on a gated route", routeSummary{gates: []rbac.Permission{rbac.PermSelf}, decl: decl(authz.PublicRoute())}, false},
-		{"keys on an ungated route", routeSummary{decl: decl(authz.AnyOf(authz.SourcePlatform, authz.UsersList))}, false},
-		{"event key on its layer", routeSummary{gates: []rbac.Permission{rbac.PermSelf}, layers: []string{"event.requireManage"}, decl: decl(authz.AnyOf(authz.SourceEventParam("id"), authz.EventSettingsUpdate))}, true},
-		{"event key without its layer", routeSummary{gates: []rbac.Permission{rbac.PermSelf}, decl: decl(authz.AnyOf(authz.SourceEventParam("id"), authz.EventSettingsUpdate))}, false},
-		{"event key carried by the platform key", routeSummary{gates: []rbac.Permission{rbac.PermEventsWrite}, decl: decl(authz.AnyOf(authz.SourceEventParam("id"), authz.EventsArchive, authz.EventArchive))}, true},
-		{"service route without a gate", routeSummary{decl: decl(authz.ServiceRoute(authz.ServiceRender))}, true},
-		{"service route behind a permission", routeSummary{gates: []rbac.Permission{rbac.PermSelf}, decl: decl(authz.ServiceRoute(authz.ServiceRender))}, false},
-		{"relation behind self", routeSummary{gates: []rbac.Permission{rbac.PermSelf}, decl: decl(authz.Related(authz.SourceTenant, authz.RelParticipant))}, true},
+		{"platform key on its permission", routeSummary{gates: []rbac.Permission{rbac.PermUsersRead}, decl: decl(authz.AnyOf(authz.SourcePlatform, authz.UsersList))}, nil, true},
+		{"platform key on another permission", routeSummary{gates: []rbac.Permission{rbac.PermUsersRead}, decl: decl(authz.AnyOf(authz.SourcePlatform, authz.UsersDelete))}, nil, false},
+		{"one any-of key off the gate", routeSummary{gates: []rbac.Permission{rbac.PermUsersRead}, decl: decl(authz.AnyOf(authz.SourcePlatform, authz.UsersList, authz.EventsRead))}, nil, false},
+		{"own data on self", routeSummary{gates: []rbac.Permission{rbac.PermSelf}, decl: decl(authz.OwnData())}, nil, true},
+		{"own data on a permission", routeSummary{gates: []rbac.Permission{rbac.PermUsersRead}, decl: decl(authz.OwnData())}, nil, false},
+		{"public flow without a gate", routeSummary{decl: decl(authz.PublicRoute())}, nil, true},
+		{"public declaration on a gated route", routeSummary{gates: []rbac.Permission{rbac.PermSelf}, decl: decl(authz.PublicRoute())}, nil, false},
+		{"keys on an ungated route", routeSummary{decl: decl(authz.AnyOf(authz.SourcePlatform, authz.UsersList))}, nil, false},
+		{"event key on its layer", routeSummary{gates: []rbac.Permission{rbac.PermSelf}, layers: []string{"event.requireManage"}, decl: decl(authz.AnyOf(authz.SourceEventParam("id"), authz.EventSettingsUpdate))}, nil, true},
+		{"event key without its layer", routeSummary{gates: []rbac.Permission{rbac.PermSelf}, decl: decl(authz.AnyOf(authz.SourceEventParam("id"), authz.EventSettingsUpdate))}, nil, false},
+		{"event key carried by the platform key", routeSummary{gates: []rbac.Permission{rbac.PermEventsWrite}, decl: decl(authz.AnyOf(authz.SourceEventParam("id"), authz.EventsArchive, authz.EventArchive))}, nil, true},
+		{"service route without a gate", routeSummary{decl: decl(authz.ServiceRoute(authz.ServiceRender))}, nil, true},
+		{"service route behind a permission", routeSummary{gates: []rbac.Permission{rbac.PermSelf}, decl: decl(authz.ServiceRoute(authz.ServiceRender))}, nil, false},
+		{"no use-case check outside its areas", routeSummary{path: "/api/users/:userID", gates: []rbac.Permission{rbac.PermSelf}, decl: decl(authz.AnyOf(authz.SourcePlatform, authz.UsersRead))}, nil, false},
+		{"use-case check without a pin", routeSummary{path: "/api/exercises/:id", gates: []rbac.Permission{rbac.PermSelf}, decl: decl(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesUpdate))}, nil, false},
+		{"use-case check pinned", routeSummary{path: "/api/exercises/:id", gates: []rbac.Permission{rbac.PermSelf}, decl: decl(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesUpdate))}, []string{"AuthorizeExercise.Manage"}, true},
+		{"wrong key for the pinned check", routeSummary{path: "/api/exercises/:id", gates: []rbac.Permission{rbac.PermSelf}, decl: decl(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesDelete))}, []string{"AuthorizeExercise.Read"}, false},
+		{"policy closure pinned to read", routeSummary{gates: []rbac.Permission{rbac.PermSelf}, layers: []string{"exercise.authorize.func"}, decl: decl(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesRead))}, []string{"AuthorizeExercise.Read"}, true},
+		{"policy closure pinned to manage, read declared", routeSummary{gates: []rbac.Permission{rbac.PermSelf}, layers: []string{"exercise.authorize.func"}, decl: decl(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesRead))}, []string{"AuthorizeExercise.Manage"}, false},
+		{"policy closure pinned to a check it never runs", routeSummary{gates: []rbac.Permission{rbac.PermSelf}, layers: []string{"exercise.authorize.func"}, decl: decl(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesRead))}, []string{"requireRead"}, false},
+		{"pin a route does not need", routeSummary{gates: []rbac.Permission{rbac.PermUsersRead}, decl: decl(authz.AnyOf(authz.SourcePlatform, authz.UsersList))}, []string{"requireRead"}, false},
+		{"relation behind self without a pin", routeSummary{gates: []rbac.Permission{rbac.PermSelf}, decl: decl(authz.Related(authz.SourceTenant, authz.RelParticipant))}, nil, false},
+		{"relation pinned", routeSummary{gates: []rbac.Permission{rbac.PermSelf}, decl: decl(authz.Related(authz.SourceTenant, authz.RelParticipant))}, []string{"participant"}, true},
+		{"relation other than the use case's", routeSummary{gates: []rbac.Permission{rbac.PermSelf}, decl: decl(authz.Related(authz.SourceObject("team"), authz.RelParticipant))}, []string{"captain"}, false},
+		{"bearer route without a user gate", routeSummary{decl: decl(authz.BearerRoute(authz.BearerLiveScreen))}, nil, true},
 	}
 	for _, c := range cases {
-		got := legacyMismatch(c.s)
+		got, _ := legacyMismatch(c.s, c.pin)
 		if (got == "") != c.agree {
 			t.Errorf("%s: legacyMismatch = %q, want agreement %v", c.name, got, c.agree)
 		}

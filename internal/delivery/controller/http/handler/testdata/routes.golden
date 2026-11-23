@@ -4,7 +4,7 @@ GET    /api/admin/assistant/statistics/events/:eventID | gate: platform.settings
 PUT    /api/admin/assistant/statistics/events/:eventID | gate: platform.settings.write | layers: - | keys: anyOf(cyberbrain.stats.update,events.stats_source.update) @ platform
 GET    /api/admin/audit-log | gate: platform.audit.read | layers: - | keys: platform.audit.read @ platform
 GET    /api/admin/audit-log/export | gate: platform.audit.read | layers: - | keys: platform.audit.read @ platform
-GET    /api/admin/dashboard | gate: self | layers: dashboard.requireAdminTier | keys: anyOf(events.list,infrastructure.read,exercises.elevations.read,platform.errors.read,analytics.read,users.list) @ platform
+GET    /api/admin/dashboard | gate: self | layers: dashboard.requireAdminTier | keys: anyOf(events.list,infrastructure.read,exercises.elevations.read,platform.errors.read,analytics.read,users.list) @ platform data(events.list,infrastructure.read,exercises.elevations.read,platform.errors.read,analytics.read,users.list)
 GET    /api/admin/errors | gate: platform.errors.read | layers: - | keys: platform.errors.read @ platform
 GET    /api/admin/errors/:groupID | gate: platform.errors.read | layers: - | keys: platform.errors.read @ platform
 PATCH  /api/admin/errors/:groupID/status | gate: platform.errors.write | layers: - | keys: platform.errors.update @ platform
