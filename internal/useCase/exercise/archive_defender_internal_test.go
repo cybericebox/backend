@@ -17,9 +17,9 @@ func defenderDoc(schema, defender string) string {
 
 const plainDefender = `{"seat":"pc1","topology":"none","off_limits":["lan"],"credentials":[{"device":"r1","port":"console0","user":"admin","value":"cisco"}]}`
 
-// The defender block is a key of 1.1: read, validated, written back (and a 1.0 document that holds it is refused by name).
-func TestArchive11_DefenderBlock(t *testing.T) {
-	parsed, err := parseDoc(t, defenderDoc(archiveSchema11, plainDefender))
+// The defender block is read, validated and written back.
+func TestArchive_DefenderBlock(t *testing.T) {
+	parsed, err := parseDoc(t, defenderDoc(archiveSchema, plainDefender))
 	require.NoError(t, err)
 	assert.Equal(t, &exerciseModel.Defender{
 		Seat: "pc1", Topology: exerciseModel.DefenderTopologyNone, OffLimits: []string{"lan"},
@@ -33,15 +33,11 @@ func TestArchive11_DefenderBlock(t *testing.T) {
 		Schema string `json:"schema"`
 	}
 	require.NoError(t, json.Unmarshal(data, &head))
-	assert.Equal(t, archiveSchema11, head.Schema, "a defender block needs 1.1")
+	assert.Equal(t, archiveSchema, head.Schema)
 	again, err := parseDoc(t, string(data))
 	require.NoError(t, err)
 	assert.Equal(t, parsed.Versions[0].Variants[0].Defender, again.Versions[0].Variants[0].Defender)
 
-	_, err = decodeArchiveV2([]byte(defenderDoc(archiveSchema10, plainDefender)))
-	require.ErrorIs(t, err, exerciseModel.ErrArchiveInvalid.Err())
-	assert.Contains(t, publicContext(t, err)["reason"].(string), `unknown key "defender"`)
-
-	_, err = parseDoc(t, defenderDoc(archiveSchema11, `{"seat":"r1"}`))
+	_, err = parseDoc(t, defenderDoc(archiveSchema, `{"seat":"r1"}`))
 	require.ErrorIs(t, err, exerciseModel.ErrDefenderInvalid.Err(), "the seat has no serial port")
 }

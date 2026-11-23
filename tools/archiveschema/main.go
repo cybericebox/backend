@@ -1,7 +1,7 @@
-// Command archiveschema writes the JSON Schema of the exercise document of a task archive (one version, cib-exercise/1.0 or
-// cib-exercise/1.1), generated from the Go structs the importer decodes. Usage:
-// go run ./tools/archiveschema -schema cib-exercise/1.1 -o testdata/brain/schema/cib-exercise-1.1.schema.json
-// (or `go generate ./internal/useCase/exercise`, which writes every version). Without -o it writes to the standard output.
+// Command archiveschema writes the JSON Schema of the exercise document of a task archive (cib-exercise/1.0), generated from
+// the Go structs the importer decodes. Usage:
+// go run ./tools/archiveschema -o testdata/brain/schema/cib-exercise-1.0.schema.json
+// (or `go generate ./internal/useCase/exercise`). Without -o it writes to the standard output.
 package main
 
 import (
@@ -14,9 +14,8 @@ import (
 
 func main() {
 	out := flag.String("o", "", "the file to write (default: the standard output)")
-	version := flag.String("schema", "cib-exercise/1.0", "the document version")
 	flag.Parse()
-	schema, err := exercise.ArchiveDocumentSchema(*version)
+	schema, err := exercise.ArchiveDocumentSchema()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "archiveschema:", err)
 		os.Exit(1)

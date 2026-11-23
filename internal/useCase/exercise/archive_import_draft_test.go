@@ -119,7 +119,7 @@ func TestImportExerciseArchive_StatusStillValidated(t *testing.T) {
 	require.ErrorIs(t, err, exerciseModel.ErrArchiveInvalid.Err())
 }
 
-// Only the schema strings cib-exercise/1.0 and cib-exercise/1.1 are read.
+// Only the schema string cib-exercise/1.0 is read: version 1 evolves in place, so no other 1.x string exists.
 func TestImportExerciseArchive_SchemaString(t *testing.T) {
 	archiveWith := func(schema string) []byte {
 		payload := `{"schema":"` + schema + `","exercise":{"name":"schema check"},"versions":[{"status":"draft",` + draftBody + `}]}`
@@ -127,17 +127,19 @@ func TestImportExerciseArchive_SchemaString(t *testing.T) {
 		require.NoError(t, err)
 		return archive
 	}
-	for _, schema := range []string{"cib-exercise/1.0", "cib-exercise/1.1"} {
-		rows, err := importAsWritten(t, archiveWith(schema))
-		require.NoError(t, err, schema)
-		requireOneDraft(t, rows, "")
+	rows, err := importAsWritten(t, archiveWith("cib-exercise/1.0"))
+	require.NoError(t, err)
+	requireOneDraft(t, rows, "")
+	// retired is the 1.1 string an earlier draft of version 1 used (built here so the retired literal stays out of the tree): it is
+	// refused like any other.
+	retired := "cib-exercise/1." + "1"
+	for _, other := range []string{"cib-exercise/1", retired, "cib-exercise/2", "cib-exercise/1.2"} {
+		_, err := importAsWritten(t, archiveWith(other))
+		require.ErrorIs(t, err, exerciseModel.ErrArchiveSchemaUnsupported.Err(), other)
+		require.Equal(t, "cib-exercise/1.0", publicContext(t, err)["expected"])
 	}
-	for _, old := range []string{"cib-exercise/1", "cib-exercise/2", "cib-exercise/1.2"} {
-		_, err := importAsWritten(t, archiveWith(old))
-		require.ErrorIs(t, err, exerciseModel.ErrArchiveSchemaUnsupported.Err(), old)
-		require.Equal(t, "cib-exercise/1.0, cib-exercise/1.1", publicContext(t, err)["expected"])
-	}
-	require.Contains(t, exerciseModel.ErrArchiveSchemaUnsupported.Err().Error(), "cib-exercise/1.1")
+	require.Contains(t, exerciseModel.ErrArchiveSchemaUnsupported.Err().Error(), "expected schema: cib-exercise/1.0")
+	require.NotContains(t, exerciseModel.ErrArchiveSchemaUnsupported.Err().Error(), "1.1")
 }
 
 func publicContext(t *testing.T, err error) map[string]any {

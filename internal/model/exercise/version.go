@@ -183,7 +183,7 @@ type Variant struct {
 	// Opponents are the automated attackers and defenders the Academy may run against this variant's lab: author
 	// content, never shown to participants and ignored by events (see opponent.go). A linked variant takes its base's.
 	Opponents []Opponent `json:"opponents,omitempty"`
-	// Defender (document 1.1) is what the defender of the lab is told: its seat, whether it sees the topology, the devices it
+	// Defender is what the defender of the lab is told: its seat, whether it sees the topology, the devices it
 	// must not touch and the operator credentials (see defender.go). Author content: never in a participant-facing view,
 	// ignored by events for now. A linked variant takes its base's.
 	Defender *Defender `json:"defender,omitempty"`
