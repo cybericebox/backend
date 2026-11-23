@@ -162,7 +162,7 @@ FROM event_participants participant
          -- columns that hold it filter and sort by what the screen shows.
          CROSS JOIN LATERAL (SELECT CASE
                                         WHEN $1::boolean
-                                            THEN left(person.email, 1) || '***' || substring(person.email from '@[^@]*$')
+                                            THEN event_mask_email(person.email)
                                         ELSE person.email END AS value) listed_email
          CROSS JOIN LATERAL (SELECT CASE
                                         WHEN $2::boolean
@@ -551,7 +551,7 @@ FROM event_participants participant
          -- columns that hold it filter and sort by what the screen shows.
          CROSS JOIN LATERAL (SELECT CASE
                                         WHEN $1::boolean
-                                            THEN left(person.email, 1) || '***' || substring(person.email from '@[^@]*$')
+                                            THEN event_mask_email(person.email)
                                         ELSE person.email END AS value) listed_email
          CROSS JOIN LATERAL (SELECT CASE
                                         WHEN $2::boolean

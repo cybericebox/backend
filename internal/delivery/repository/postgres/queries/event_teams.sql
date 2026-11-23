@@ -159,7 +159,7 @@ FROM event_teams
                                         -- An observer (hide_emails) filters and sorts by the address masked, as it is shown.
                                         '@captain', (SELECT btrim(captain.first_name || ' ' || captain.last_name || ' ' ||
                                                                   CASE WHEN sqlc.arg(hide_emails)::boolean
-                                                                           THEN left(captain.email, 1) || '***' || substring(captain.email from '@[^@]*$')
+                                                                           THEN event_mask_email(captain.email)
                                                                        ELSE captain.email END)
                                                      FROM users captain
                                                      WHERE captain.id = event_teams.captain_id),
@@ -202,7 +202,7 @@ FROM event_teams
                                         -- An observer (hide_emails) filters and sorts by the address masked, as it is shown.
                                         '@captain', (SELECT btrim(captain.first_name || ' ' || captain.last_name || ' ' ||
                                                                   CASE WHEN sqlc.arg(hide_emails)::boolean
-                                                                           THEN left(captain.email, 1) || '***' || substring(captain.email from '@[^@]*$')
+                                                                           THEN event_mask_email(captain.email)
                                                                        ELSE captain.email END)
                                                      FROM users captain
                                                      WHERE captain.id = event_teams.captain_id),

@@ -10,6 +10,7 @@ import (
 	"github.com/cybericebox/backend/internal/delivery/repository/eventTeamRepo"
 	"github.com/cybericebox/backend/internal/delivery/repository/participantRepo"
 	eventTeamModel "github.com/cybericebox/backend/internal/model/eventTeam"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
 	"github.com/cybericebox/backend/internal/testhelpers"
 )
 
@@ -74,6 +75,8 @@ func TestManageListsKeepEmailsOutOfObserverQueries(t *testing.T) {
 		{"the masked address is what an observer sees", `[{"key":"@email","op":"contains","value":"s***@pdata.test"}]`, 0, 1},
 		{"a pending invitation's @name is its address", `[{"key":"@name","op":"contains","value":"hidden-taras"}]`, 1, 0},
 		{"no filter lists everyone", `[]`, 2, 2},
+		{"@name of an applicant is the profile name", `[{"key":"@name","op":"contains","value":"Olena"}]`, 1, 1},
+		{"@name of an applicant never holds the address", `[{"key":"@name","op":"contains","value":"secret"}]`, 0, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := table(tc.filters, "@email", false); got != tc.manager {
@@ -108,5 +111,86 @@ func TestManageListsKeepEmailsOutOfObserverQueries(t *testing.T) {
 	}
 	if captain("secret-olena", false) != 1 || captain("secret-olena", true) != 0 || captain("Olena", true) != 1 {
 		t.Fatal("an observer filters the teams by the captain's address")
+	}
+}
+
+// The SQL mask of the observer's columns (event_mask_email) is dispatch.MaskEmail, which masks what the screen shows,
+// on ordinary and odd addresses alike.
+func TestEventMaskEmailEqualsDispatchMaskEmail(t *testing.T) {
+	db := testhelpers.SetupTestDB(t)
+	for _, email := range []string{
+		"olena@example.com", "o@example.com", "Олена@приклад.укр", "😀smile@example.com",
+		"a@b@example.com", "@example.com", "olena@", "no-at-sign", "",
+	} {
+		t.Run(email, func(t *testing.T) {
+			var got string
+			if err := db.Pool.QueryRow(context.Background(), `SELECT event_mask_email($1)`, email).Scan(&got); err != nil {
+				t.Fatal(err)
+			}
+			if want := dispatchModel.MaskEmail(email); got != want {
+				t.Fatalf("event_mask_email(%q) = %q, dispatch.MaskEmail = %q", email, got, want)
+			}
+		})
+	}
+}
+
+// An observer's sort by an address column follows the masked address, so the order tells nothing the screen does
+// not: «ab@a…» (a***@a…) comes before «aa@b…» (a***@b…), the reverse of the full addresses.
+func TestObserverSortsByTheMaskedAddress(t *testing.T) {
+	db := testhelpers.SetupTestDB(t)
+	ctx := context.Background()
+	repo := participantRepo.New(db.Queries)
+	teams := eventTeamRepo.New(db.Queries)
+	event := mustSeedEventForParticipants(t, db, "pdsort")
+	first := mustSeedUser(t, db, "aa@b.pdsort.test")
+	second := mustSeedUser(t, db, "ab@a.pdsort.test")
+	names := map[uuid.UUID]string{first: "aa", second: "ab"}
+	for i, user := range []uuid.UUID{first, second} {
+		if _, _, err := repo.Upsert(ctx, mustNewPendingParticipant(t, event.ID, user, epNow.Add(time.Duration(i)*time.Hour))); err != nil {
+			t.Fatalf("Upsert: %v", err)
+		}
+		team, err := eventTeamModel.New(event.ID, user, "Team "+names[user], "pdsort-code-"+names[user], epNow.Add(time.Duration(i)*time.Minute))
+		if err != nil {
+			t.Fatalf("New team: %v", err)
+		}
+		if _, err = teams.Create(ctx, team); err != nil {
+			t.Fatalf("Create team: %v", err)
+		}
+	}
+	participants := func(hide bool) string {
+		t.Helper()
+		rows, err := repo.ListTable(ctx, participantRepo.TableQuery{EventID: event.ID, StatusFilter: -1, Kind: participantRepo.KindAll, Filters: []byte("[]"), SortKey: "@email", Limit: 10, HideEmails: hide})
+		if err != nil {
+			t.Fatalf("ListTable: %v", err)
+		}
+		out := ""
+		for _, row := range rows {
+			out += names[row.Participant.UserID] + " "
+		}
+		return out
+	}
+	captains := func(hide bool) string {
+		t.Helper()
+		rows, err := teams.ListTable(ctx, eventTeamRepo.TableQuery{EventID: event.ID, Filters: []byte("[]"), SortKey: "@captain", Limit: 10, HideEmails: hide})
+		if err != nil {
+			t.Fatalf("teams ListTable: %v", err)
+		}
+		out := ""
+		for _, row := range rows {
+			out += row.Team.Name + " "
+		}
+		return out
+	}
+	if got := participants(false); got != "aa ab " {
+		t.Fatalf("manager sort by @email = %q", got)
+	}
+	if got := participants(true); got != "ab aa " {
+		t.Fatalf("observer sort by @email = %q", got)
+	}
+	if got := captains(false); got != "Team aa Team ab " {
+		t.Fatalf("manager sort by @captain = %q", got)
+	}
+	if got := captains(true); got != "Team ab Team aa " {
+		t.Fatalf("observer sort by @captain = %q", got)
 	}
 }
