@@ -47,6 +47,7 @@ type (
 		MaxActiveTestDeploys() int
 		DevicePersistenceAllowed() bool
 		ConsoleCablesAvailable() bool
+		KernelLogAvailable() bool
 		LabCapabilities(ctx context.Context) exerciseUseCase.LabCapabilitiesView
 		DraftDocument(ctx context.Context, exerciseID uuid.UUID, withFlags bool) ([]byte, error)
 		// Policy is the platform's device resources settings (presets, frame, ceiling).
@@ -429,10 +430,15 @@ func (h *Handler) capabilities(ctx *gin.Context) {
 		// the ports (they save and publish), but a test lab with them is refused (409, ErrConsoleUnavailable).
 		// LabCapabilities.ConsoleCables says the same as all/some/none/unknown.
 		ConsoleCablesAvailable bool `json:"ConsoleCablesAvailable"`
+		// KernelLogAvailable: a laboratory agent that is used puts the guest kernel's log on a console port of a microvm device
+		// (agent contract 3.2, console_cables.kernel_log). False when none does; the flag still saves and publishes, but a test
+		// lab with it is refused (409, ErrKernelLogUnavailable).
+		KernelLogAvailable bool `json:"KernelLogAvailable"`
 	}{
 		Laboratories: h.useCase.InfrastructureAvailable(), MaxActiveTestDeploys: h.useCase.MaxActiveTestDeploys(), MaxLabGateways: exerciseModel.MaxLabGateways,
 		DevicePersistence: h.useCase.DevicePersistenceAllowed(), Resources: toResourceSettings(h.useCase.Policy()),
 		LabCapabilities: toLabCapabilities(h.useCase.LabCapabilities(ctx)), ConsoleCablesAvailable: h.useCase.ConsoleCablesAvailable(),
+		KernelLogAvailable: h.useCase.KernelLogAvailable(),
 	})
 }
 

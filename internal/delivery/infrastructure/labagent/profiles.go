@@ -130,12 +130,31 @@ func servesConsoleLines(m *Member) bool {
 }
 
 // consoleRefusal is the refusal of a lab's console lines by an agent's report: the agent must speak contract 3.1 (the console
-// feature) and report the feature on, and take the lab's cables.
+// feature) and report the feature on, and take the lab's cables; for the kernel log on a console port it must speak contract 3.2
+// and report console_cables.kernel_log.
 func consoleRefusal(feat infraModel.AgentFeatures, needs exerciseModel.LabNeeds) error {
 	if needs.ConsoleLines && !contractAtLeast(consoleLinesContract, feat.ContractVersion) {
 		return exerciseModel.ErrConsoleUnavailable.Err()
 	}
-	return feat.RequireConsoleLines(needs)
+	if err := feat.RequireConsoleLines(needs); err != nil {
+		return err
+	}
+	if needs.KernelLog && !contractAtLeast(kernelLogContract, feat.ContractVersion) {
+		return exerciseModel.ErrKernelLogUnavailable.Err()
+	}
+	return nil
+}
+
+// servesKernelLog reports whether the member's last report says it puts the kernel log on a console port (contract 3.2).
+func servesKernelLog(m *Member) bool {
+	feat := m.Features.Get()
+	return feat != nil && consoleRefusal(*feat, exerciseModel.LabNeeds{ConsoleLines: true, KernelLog: true}) == nil
+}
+
+// KernelLogAvailable reports whether an agent that is used offers the kernel log on a console port (the editor's capability).
+// It reads the cached reports only.
+func (f *Fleet) KernelLogAvailable() bool {
+	return slices.ContainsFunc(f.eligible(), servesKernelLog)
 }
 
 // ConsoleCablesAvailable reports whether an agent that is used offers console ports and console cables (the editor's

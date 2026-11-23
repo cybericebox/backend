@@ -127,7 +127,8 @@ func ReasonError(reason string) error {
 // So is a feature the cluster does not serve (VPN_UNAVAILABLE, ...): the laboratory is set up without it, a retry changes nothing.
 func IsPlanningError(err error) bool {
 	return errors.Is(err, ErrGroupVPNOff) || errors.Is(err, ErrGroupInternetOff) || errors.Is(err, ErrGroupServerInUse) ||
-		errors.Is(err, exerciseModel.ErrLabOptionUnavailable.Err()) || errors.Is(err, exerciseModel.ErrConsoleUnavailable.Err())
+		errors.Is(err, exerciseModel.ErrLabOptionUnavailable.Err()) || errors.Is(err, exerciseModel.ErrConsoleUnavailable.Err()) ||
+		errors.Is(err, exerciseModel.ErrKernelLogUnavailable.Err())
 }
 
 // optionUnavailable is the refusal of something the laboratory does not serve, named for the admin as an option of the lab.

@@ -585,6 +585,8 @@ type deviceDTO struct {
 	// (serial0...; at most 16), the ends of a console cable. Absent when the device has none.
 	ConsolePorts []consolePortDTO `json:"ConsolePorts,omitempty"`
 	SerialPorts  []serialPortDTO  `json:"SerialPorts,omitempty"`
+	// KernelLog (a microvm node only): the guest kernel's log goes on the first console port that is not native. Absent when off.
+	KernelLog bool `json:"KernelLog,omitempty"`
 }
 
 // consolePortDTO: at most one of Command and Native; neither runs /bin/login as root.
@@ -660,9 +662,9 @@ type variantDTO struct {
 // defenderDTO is the defender block of a variant. Seat is the node with serial ports the human defender sits at; Topology is
 // "full" (default when empty) or "none"; OffLimits are device names the defender must not console into.
 type defenderDTO struct {
-	Seat        string                   `json:"Seat,omitempty"`
-	Topology    string                   `json:"Topology,omitempty"`
-	OffLimits   []string                 `json:"OffLimits,omitempty"`
+	Seat        string                  `json:"Seat,omitempty"`
+	Topology    string                  `json:"Topology,omitempty"`
+	OffLimits   []string                `json:"OffLimits,omitempty"`
 	Credentials []defenderCredentialDTO `json:"Credentials,omitempty"`
 }
 
@@ -713,8 +715,8 @@ type opponentDTO struct {
 	// Foothold is a switch or hub of the topology: the opponent's first position (attack, attack-defense).
 	Foothold string `json:"Foothold,omitempty"`
 	// Seat (defense, attack-defense) is the node with serial ports a human defender sits at; a bot run takes it.
-	Seat string `json:"Seat,omitempty"`
-	Brief    string `json:"Brief,omitempty"`
+	Seat  string `json:"Seat,omitempty"`
+	Brief string `json:"Brief,omitempty"`
 }
 
 // imageOverrideDTO is a linked variant's own image for one device of its base.
@@ -1348,6 +1350,7 @@ func (d topologyDTO) toDomain() exerciseModel.Topology {
 		for _, p := range dev.SerialPorts {
 			domainDev.SerialPorts = append(domainDev.SerialPorts, exerciseModel.SerialPort{Name: p.Name, Path: p.Path})
 		}
+		domainDev.KernelLog = dev.KernelLog
 		out.Devices = append(out.Devices, domainDev)
 	}
 	for _, c := range d.Connections {
@@ -1502,6 +1505,7 @@ func topologyToDTO(t exerciseModel.Topology) topologyDTO {
 		for _, p := range dev.SerialPorts {
 			dtoDev.SerialPorts = append(dtoDev.SerialPorts, serialPortDTO{Name: p.Name, Path: p.Path})
 		}
+		dtoDev.KernelLog = dev.KernelLog
 		out.Devices = append(out.Devices, dtoDev)
 	}
 	for _, c := range t.Connections {

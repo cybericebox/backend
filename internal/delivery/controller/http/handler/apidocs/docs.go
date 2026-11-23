@@ -41320,6 +41320,10 @@ const docTemplate = `{
                         "$ref": "#/definitions/exercise.interfaceDTO"
                     }
                 },
+                "KernelLog": {
+                    "description": "KernelLog (a microvm node only): the guest kernel's log goes on the first console port that is not native. Absent when off.",
+                    "type": "boolean"
+                },
                 "Name": {
                     "type": "string"
                 },

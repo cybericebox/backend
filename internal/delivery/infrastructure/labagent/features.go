@@ -5,6 +5,9 @@ import (
 	"sync"
 	"time"
 
+	"google.golang.org/protobuf/encoding/protowire"
+	"google.golang.org/protobuf/reflect/protoreflect"
+
 	labpb "github.com/cybericebox/laboratory/pkg/agent/protobuf"
 
 	eventLabModel "github.com/cybericebox/backend/internal/model/eventLab"
@@ -118,7 +121,43 @@ func consoleCablesFeatureOf(c *labpb.ConsoleCablesFeature) *infraModel.ConsoleCa
 	if c == nil {
 		return nil
 	}
-	return &infraModel.ConsoleCablesFeature{Enabled: c.GetEnabled(), MaxCablesPerLab: c.GetMaxCablesPerLab(), MaxBytesPerSecond: c.GetMaxBytesPerSecond()}
+	return &infraModel.ConsoleCablesFeature{
+		Enabled: c.GetEnabled(), MaxCablesPerLab: c.GetMaxCablesPerLab(), MaxBytesPerSecond: c.GetMaxBytesPerSecond(),
+		KernelLog: kernelLogOf(c),
+	}
+}
+
+// kernelLogField is ConsoleCablesFeature.kernel_log (contract 3.2).
+const kernelLogField protowire.Number = 4
+
+// kernelLogOf reads ConsoleCablesFeature.kernel_log. The laboratory SDK this build is pinned to may be older than the field: its
+// message then keeps the field among the unknown fields, which are read here; once the SDK has it, the declared field is read.
+func kernelLogOf(c *labpb.ConsoleCablesFeature) bool {
+	m := c.ProtoReflect()
+	if fd := m.Descriptor().Fields().ByNumber(kernelLogField); fd != nil {
+		return fd.Kind() == protoreflect.BoolKind && m.Get(fd).Bool()
+	}
+	on := false
+	for b := m.GetUnknown(); len(b) > 0; {
+		num, typ, n := protowire.ConsumeTag(b)
+		if n < 0 {
+			return false
+		}
+		b = b[n:]
+		if num == kernelLogField && typ == protowire.VarintType {
+			v, n := protowire.ConsumeVarint(b)
+			if n < 0 {
+				return false
+			}
+			on, b = v != 0, b[n:] // the last one wins, as protobuf reads a repeated scalar
+			continue
+		}
+		if n = protowire.ConsumeFieldValue(num, typ, b); n < 0 {
+			return false
+		}
+		b = b[n:]
+	}
+	return on
 }
 
 // The optional parts of contract 1.5 are nil when the report lacks them (an agent older than the fields).
@@ -440,7 +479,7 @@ func (c *Client) RequireLabLifecyclePreparation(ctx context.Context, _ string, p
 		if err != nil {
 			return agentErr("get console line features", err)
 		}
-		if err = FeaturesOf(response).RequireConsoleLines(exerciseModel.NeedsOf(topology, nil)); err != nil {
+		if err = consoleRefusal(FeaturesOf(response), exerciseModel.NeedsOf(topology, nil)); err != nil {
 			return err
 		}
 	}
