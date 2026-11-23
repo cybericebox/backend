@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	adminAuditHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/adminAudit"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
@@ -252,5 +253,14 @@ func TestAuditLogMineFilterUsesTheCaller(t *testing.T) {
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/admin/audit-log?mine=false&actorID="+other.String(), nil))
 	if uc.got.ActorID.UUID != other {
 		t.Fatalf("without mine the actorID filter stays: %+v", uc.got.ActorID)
+	}
+}
+
+// Route mirrors protection.Route: the declaration decides nothing, the legacy gate runs unchanged.
+func (openProt) Route(_ authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if legacy != nil {
+			legacy(c)
+		}
 	}
 }

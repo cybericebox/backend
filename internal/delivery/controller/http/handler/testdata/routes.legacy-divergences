@@ -1,2 +1,18 @@
 # Declared routes whose keys differ from today's gate on purpose (TestDeclaredKeysMapToTheLegacyGate).
 # METHOD /api/path | A.3 row and the spec section that makes the change
+GET /api/admin/assistant/statistics/events/:eventID | A.3.3 #50: any-of cyberbrain.stats.read, events.read; today platform.settings.read only. The event card reader sees the per-event statistics source (spec §7.2, assistant statistics row; §9 Q14)
+GET /api/admin/dashboard | A.3.3 #54: any-of the block keys; today self + the hard-coded IsAdminTier() (spec §7.2: IsAdminTier() becomes "holds any admin-area key"; A.4.1 item 10)
+GET /api/events/:id/manage/analytics/access | A.3.7 #123: any-of event.stats.read, event.stats.sensitive.read; today the sections level only. The route reports which analytics keys the caller holds, so a holder of the sensitive key alone gets an answer too
+GET /api/events/:id/manage/analytics/integrity/export.csv | A.3.7 #130: all-of event.export, event.stats.sensitive.read; today the sensitive level only (A.4.1 item 3: the two sets coincide today, separate keys need both)
+GET /api/events/:id/manage/broadcasts/:broadcastID/deliveries/export | A.3.7 #171: all-of event.comms.read, event.export; today messaging.requireRead, so observers export (A.4.1 item 2: closed on purpose)
+POST /api/events/self/answer-files | A.3.8 #427: (participant); today UploadAnswerFile has no participant or team check (A.4.1 item 5), a change on purpose for P2 (plan P2 checklist)
+GET /api/exercises/:id | A.3.9 #451: event.exercises.read (the event audience) replaces today's "any member of the owner event reads" of AuthorizeExercise (spec §7.2, decision 12)
+GET /api/exercises/:id/draft | A.3.9 #457: event.exercises.read (the event audience) replaces today's "any member of the owner event reads" of AuthorizeExercise (spec §7.2, decision 12)
+GET /api/exercises/:id/draft/document | A.3.9 #459: event.exercises.read (the event audience) replaces today's "any member of the owner event reads" of AuthorizeExercise (spec §7.2, decision 12)
+GET /api/exercises/:id/elevation | A.3.9 #460: event.exercises.read (the event audience) replaces today's "any member of the owner event reads" of AuthorizeExercise (spec §7.2, decision 12)
+GET /api/exercises/:id/usage | A.3.9 #472: event.exercises.read (the event audience) replaces today's "any member of the owner event reads" of AuthorizeExercise (spec §7.2, decision 12)
+GET /api/exercises/:id/variant-stats | A.3.9 #473: event.exercises.read (the event audience) replaces today's "any member of the owner event reads" of AuthorizeExercise (spec §7.2, decision 12)
+GET /api/exercises/:id/versions | A.3.9 #474: event.exercises.read (the event audience) replaces today's "any member of the owner event reads" of AuthorizeExercise (spec §7.2, decision 12)
+GET /api/exercises/:id/versions/:versionID | A.3.9 #475: event.exercises.read (the event audience) replaces today's "any member of the owner event reads" of AuthorizeExercise (spec §7.2, decision 12)
+DELETE /api/exercises/:id/draft | A.3.9 #456: the update keys or authorship (discarding a draft is an undo); today the exercise policy runs the publish action (authorize(ActionPublish)), so exercises.publish holders discard drafts today
+POST /api/exercises/:id/versions/:versionID/variants/:variantID/deploy | A.3.9 #478: all-of exercises.testlab.start and the update access; today AuthorizeTestDeploy checks the update access only (§9 Q25, plan P3b: test labs need exercises.testlab.start)

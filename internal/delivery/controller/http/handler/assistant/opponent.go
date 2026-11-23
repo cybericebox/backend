@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	assistantModel "github.com/cybericebox/backend/internal/model/assistant"
 	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
@@ -43,13 +44,13 @@ func NewOpponent(useCase IOpponentUseCase, prot IProtection) *OpponentHandler {
 func (h *OpponentHandler) Init(r *gin.RouterGroup) {
 	g := r.Group("exercises/:id/versions/:versionID/variants/:variantID/opponents/:index/try")
 	self := h.prot.RequirePermission(rbac.PermSelf)
-	g.POST("", self, h.start)
-	g.GET("", self, h.list)
-	g.GET(":runID", self, h.get)
-	g.GET(":runID/events", self, h.events)
-	g.POST(":runID/stop", self, h.stop)
+	g.POST("", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesUpdate, authz.EventExercisesUpdate).Or(authz.RelAuthor).And(authz.CyberbrainRunsStart), self), h.start)
+	g.GET("", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesUpdate, authz.EventExercisesUpdate).Or(authz.RelAuthor).And(authz.CyberbrainRunsRead), self), h.list)
+	g.GET(":runID", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesUpdate, authz.EventExercisesUpdate).Or(authz.RelAuthor).And(authz.CyberbrainRunsRead), self), h.get)
+	g.GET(":runID/events", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesUpdate, authz.EventExercisesUpdate).Or(authz.RelAuthor).And(authz.CyberbrainRunsRead), self), h.events)
+	g.POST(":runID/stop", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesUpdate, authz.EventExercisesUpdate).Or(authz.RelAuthor).And(authz.CyberbrainRunsStart), self), h.stop)
 	// Several opponents of the variant together in one lab; each run is then read and stopped under its own opponent above.
-	r.POST("exercises/:id/versions/:versionID/variants/:variantID/opponents/try", self, h.startMany)
+	r.POST("exercises/:id/versions/:versionID/variants/:variantID/opponents/try", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesUpdate, authz.EventExercisesUpdate).Or(authz.RelAuthor).And(authz.CyberbrainRunsStart), self), h.startMany)
 }
 
 // variantIDs reads the actor and the variant's path; false means the response is already written.

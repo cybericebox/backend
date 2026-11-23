@@ -85,18 +85,28 @@ func (u *AuthUseCase) createSession(
 	userID uuid.UUID,
 	meta authModel.SessionMetadata,
 ) (string, error) {
+	cookie, _, err := u.createSessionWithID(ctx, userID, meta)
+	return cookie, err
+}
+
+// createSessionWithID is createSession that also returns the id of the new session.
+func (u *AuthUseCase) createSessionWithID(
+	ctx context.Context,
+	userID uuid.UUID,
+	meta authModel.SessionMetadata,
+) (string, uuid.UUID, error) {
 	now := time.Now()
 	session, err := u.sessions.Create(ctx, authModel.NewSession(userID, meta, u.cfg.SessionIdleTTL, now))
 	if err != nil {
-		return "", model.ErrPlatform.WithError(err).WithMessage("Failed to create session").Err()
+		return "", uuid.Nil, model.ErrPlatform.WithError(err).WithMessage("Failed to create session").Err()
 	}
 
 	u.evictOldestSessions(ctx, userID, session.ID)
 	cookie, err := u.rt.Codec.Seal(sessionPkg.NewTicket(session.ID, userID, now, u.lifetimes()))
 	if err != nil {
-		return "", model.ErrPlatform.WithError(err).WithMessage("Failed to generate session cookie").Err()
+		return "", uuid.Nil, model.ErrPlatform.WithError(err).WithMessage("Failed to generate session cookie").Err()
 	}
-	return cookie, nil
+	return cookie, session.ID, nil
 }
 
 // resolveRedirect returns raw if it is a trusted platform URL, else the

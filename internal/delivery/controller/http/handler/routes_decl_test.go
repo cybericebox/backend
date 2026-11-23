@@ -137,8 +137,9 @@ func TestDeclarationsFollowAppendixA3(t *testing.T) {
 			t.Errorf("%s declares %s, Appendix A.3 gives %s (%s)", id, s.decl, e.withData(), e.source)
 		}
 	}
-	for id := range expected {
-		if !mounted[id] {
+	for id, e := range expected {
+		// A new route of A.3.14 (N1…) is listed before it is built.
+		if !mounted[id] && !strings.HasPrefix(e.source, "A.3 #N") {
 			t.Errorf("%s lists %s, which is not mounted", expectedKeysPath, id)
 		}
 	}
@@ -287,7 +288,9 @@ func legacyMismatch(s routeSummary, pin []string) (problem string, used bool) {
 
 	// Behind a bare self gate in an area whose check sits in the use case (selfWithoutLayerPrefixes), and behind a
 	// layer that runs one of several checks (the exercise policy closure), the route pins the one check that decides
-	// it; a key maps only to that check.
+	// it; a key maps only to that check. A pin fixes the legacy check family (which check decides, so a read key on a
+	// write route or a wrong relation fails); it does not choose among the keys of that family. The exact key is
+	// checked by TestDeclarationsFollowAppendixA3 against Appendix A.3.
 	layers := authzLayers(s)
 	selfOnly := len(real) == 1 && real[0] == rbac.PermSelf
 	var pinnedChecks []string

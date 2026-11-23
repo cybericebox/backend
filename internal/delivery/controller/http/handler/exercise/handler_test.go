@@ -17,6 +17,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	exerciseHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/exercise"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
@@ -2559,5 +2560,23 @@ func TestGetDraftDocument_IsYAMLWithoutTheEnvelope(t *testing.T) {
 	newEngine(uc, uuid.Must(uuid.NewV7())).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/exercises/"+uuid.Must(uuid.NewV7()).String()+"/draft/document", nil))
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("a missing exercise: status %d", w.Code)
+	}
+}
+
+// Route mirrors protection.Route: the declaration decides nothing, the legacy gate runs unchanged.
+func (fakeProt) Route(_ authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if legacy != nil {
+			legacy(c)
+		}
+	}
+}
+
+// Route mirrors protection.Route: the declaration decides nothing, the legacy gate runs unchanged.
+func (p roleProt) Route(_ authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if legacy != nil {
+			legacy(c)
+		}
 	}
 }

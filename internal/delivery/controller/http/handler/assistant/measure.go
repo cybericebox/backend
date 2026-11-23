@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/sse"
 	"github.com/cybericebox/backend/internal/limits"
@@ -88,11 +89,11 @@ func (h *MeasureHandler) Init(r *gin.RouterGroup) {
 	// the same family and the same parameters as the variant's test deploy
 	g := r.Group("exercises/:id/versions/:versionID/variants/:variantID/measure")
 	self := h.prot.RequirePermission(rbac.PermSelf)
-	g.POST("", self, h.start)
-	g.GET("", self, h.list)
-	g.GET(":runID", self, h.get)
-	g.GET(":runID/events", self, h.events)
-	g.POST(":runID/stop", self, h.stop)
+	g.POST("", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesUpdate, authz.EventExercisesUpdate).Or(authz.RelAuthor).And(authz.CyberbrainRunsStart), self), h.start)
+	g.GET("", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesUpdate, authz.EventExercisesUpdate).Or(authz.RelAuthor).And(authz.CyberbrainRunsRead), self), h.list)
+	g.GET(":runID", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesUpdate, authz.EventExercisesUpdate).Or(authz.RelAuthor).And(authz.CyberbrainRunsRead), self), h.get)
+	g.GET(":runID/events", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesUpdate, authz.EventExercisesUpdate).Or(authz.RelAuthor).And(authz.CyberbrainRunsRead), self), h.events)
+	g.POST(":runID/stop", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesUpdate, authz.EventExercisesUpdate).Or(authz.RelAuthor).And(authz.CyberbrainRunsStart), self), h.stop)
 }
 
 func timePtr(t time.Time) *time.Time {

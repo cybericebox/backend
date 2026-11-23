@@ -15,6 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/audit"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/download"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
@@ -40,6 +41,7 @@ type (
 
 	IProtection interface {
 		RequirePermission(required rbac.Permission) gin.HandlerFunc
+		Route(decl authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc
 	}
 
 	IUseCase interface {
@@ -231,7 +233,7 @@ func (h *Handler) Init(router *gin.RouterGroup) {
 		ex.GET("import/example", self, h.importExample)
 		ex.GET("import/example/document", self, h.importExampleDocument)
 		// every task of the selection is authorized in the handler (AuthorizeExport)
-		ex.POST("export", self, h.export)
+		ex.POST("export", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesExport, authz.EventTasksExport).WithData(authz.ExercisesSecretsRead, authz.ExercisesFlagsRead, authz.EventFlagsRead), self), h.export)
 		// the background export's state, for the user who started it only (the use case scopes it to them)
 		ex.GET("export/jobs/:jobID", self, h.exportJob)
 		ex.POST("import", long, self, h.importArchive)
@@ -240,34 +242,34 @@ func (h *Handler) Init(router *gin.RouterGroup) {
 		ex.GET("flag-policy", self, h.requireAuthor, h.flagPolicy)
 
 		// catalog proposals (admin review)
-		ex.GET("proposals", h.prot.RequirePermission(rbac.PermExercisesRead), h.listProposals)
-		ex.POST("proposals/:proposalID/approve", h.prot.RequirePermission(rbac.PermExercisesPublish), h.approveProposal)
-		ex.POST("proposals/:proposalID/reject", h.prot.RequirePermission(rbac.PermExercisesPublish), h.rejectProposal)
+		ex.GET("proposals", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.ExercisesPublish), h.prot.RequirePermission(rbac.PermExercisesRead)), h.listProposals)
+		ex.POST("proposals/:proposalID/approve", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.ExercisesPublish), h.prot.RequirePermission(rbac.PermExercisesPublish)), h.approveProposal)
+		ex.POST("proposals/:proposalID/reject", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.ExercisesPublish), h.prot.RequirePermission(rbac.PermExercisesPublish)), h.rejectProposal)
 
 		// resource elevations: a platform admin lists and decides the requests to take devices above the frame
 		ex.GET(
 			"elevations",
-			h.prot.RequirePermission(rbac.PermExercisesElevationsRead),
+			h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.ExercisesElevationsRead), h.prot.RequirePermission(rbac.PermExercisesElevationsRead)),
 			h.listElevations,
 		)
 		ex.GET(
 			"elevations/pending-count",
-			h.prot.RequirePermission(rbac.PermExercisesElevationsRead),
+			h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.ExercisesElevationsRead), h.prot.RequirePermission(rbac.PermExercisesElevationsRead)),
 			h.pendingElevationCount,
 		)
 		ex.GET(
 			"elevations/:elevationID",
-			h.prot.RequirePermission(rbac.PermExercisesElevationsRead),
+			h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.ExercisesElevationsRead), h.prot.RequirePermission(rbac.PermExercisesElevationsRead)),
 			h.getElevation,
 		)
 		ex.POST(
 			"elevations/:elevationID/approve",
-			h.prot.RequirePermission(rbac.PermExercisesElevationsWrite),
+			h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.ExercisesElevationsUpdate), h.prot.RequirePermission(rbac.PermExercisesElevationsWrite)),
 			h.approveElevation,
 		)
 		ex.POST(
 			"elevations/:elevationID/reject",
-			h.prot.RequirePermission(rbac.PermExercisesElevationsWrite),
+			h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.ExercisesElevationsUpdate), h.prot.RequirePermission(rbac.PermExercisesElevationsWrite)),
 			h.rejectElevation,
 		)
 
@@ -289,45 +291,45 @@ func (h *Handler) Init(router *gin.RouterGroup) {
 
 		// bulk actions of the catalog table ("bulk" is a static segment, registered before ":id"): every task is
 		// authorized as by its single-task route (archive: the exercise policy per task; access: exercises.write).
-		ex.POST("bulk/archive", self, h.bulkArchive)
-		ex.POST("bulk/unarchive", self, h.bulkUnarchive)
-		ex.PUT("bulk/access", h.prot.RequirePermission(rbac.PermExercisesWrite), h.bulkSetAccess)
+		ex.POST("bulk/archive", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesUpdate, authz.EventExercisesUpdate).Or(authz.RelAuthor), self), h.bulkArchive)
+		ex.POST("bulk/unarchive", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesUpdate, authz.EventExercisesUpdate).Or(authz.RelAuthor), self), h.bulkUnarchive)
+		ex.PUT("bulk/access", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesAudiencesUpdate), h.prot.RequirePermission(rbac.PermExercisesWrite)), h.bulkSetAccess)
 
-		ex.GET(":id", self, h.authorize(exerciseUseCase.ActionReadPublished), h.get)
-		ex.GET(":id/usage", self, h.authorize(exerciseUseCase.ActionRead), h.usage)
-		ex.GET(":id/variant-stats", self, h.authorize(exerciseUseCase.ActionRead), h.variantStats)
-		ex.PATCH(":id", self, h.authorize(exerciseUseCase.ActionWrite), h.update)
-		ex.DELETE(":id", self, h.authorize(exerciseUseCase.ActionDelete), h.delete)
-		ex.POST(":id/archive", self, h.authorize(exerciseUseCase.ActionWrite), h.archive)
-		ex.POST(":id/unarchive", self, h.authorize(exerciseUseCase.ActionWrite), h.unarchive)
-		ex.PUT(":id/access", h.prot.RequirePermission(rbac.PermExercisesWrite), h.setAccess)
-		ex.POST(":id/proposals", self, h.authorize(exerciseUseCase.ActionPublish), h.propose)
-		ex.GET(":id/elevation", self, h.authorize(exerciseUseCase.ActionRead), h.exerciseElevation)
-		ex.POST(":id/elevation", self, h.authorize(exerciseUseCase.ActionWrite), h.requestElevation)
-		ex.POST(":id/files/lookup", self, h.authorize(exerciseUseCase.ActionWrite), h.lookupFile)
+		ex.GET(":id", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesRead, authz.EventExercisesRead, authz.EventTasksRead).Or(authz.RelAuthor).WithData(authz.ExercisesFlagsRead, authz.EventFlagsRead), self), h.authorize(exerciseUseCase.ActionReadPublished), h.get)
+		ex.GET(":id/usage", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesRead, authz.EventExercisesRead).Or(authz.RelAuthor), self), h.authorize(exerciseUseCase.ActionRead), h.usage)
+		ex.GET(":id/variant-stats", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesRead, authz.EventExercisesRead).Or(authz.RelAuthor), self), h.authorize(exerciseUseCase.ActionRead), h.variantStats)
+		ex.PATCH(":id", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesUpdate, authz.EventExercisesUpdate).Or(authz.RelAuthor), self), h.authorize(exerciseUseCase.ActionWrite), h.update)
+		ex.DELETE(":id", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesDelete, authz.EventExercisesDelete).Or(authz.RelAuthor), self), h.authorize(exerciseUseCase.ActionDelete), h.delete)
+		ex.POST(":id/archive", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesUpdate, authz.EventExercisesUpdate).Or(authz.RelAuthor), self), h.authorize(exerciseUseCase.ActionWrite), h.archive)
+		ex.POST(":id/unarchive", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesUpdate, authz.EventExercisesUpdate).Or(authz.RelAuthor), self), h.authorize(exerciseUseCase.ActionWrite), h.unarchive)
+		ex.PUT(":id/access", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesAudiencesUpdate), h.prot.RequirePermission(rbac.PermExercisesWrite)), h.setAccess)
+		ex.POST(":id/proposals", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesPublish, authz.EventExercisesPublish), self), h.authorize(exerciseUseCase.ActionPublish), h.propose)
+		ex.GET(":id/elevation", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesRead, authz.EventExercisesRead).Or(authz.RelAuthor), self), h.authorize(exerciseUseCase.ActionRead), h.exerciseElevation)
+		ex.POST(":id/elevation", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesUpdate, authz.EventExercisesUpdate).Or(authz.RelAuthor), self), h.authorize(exerciseUseCase.ActionWrite), h.requestElevation)
+		ex.POST(":id/files/lookup", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesUpdate, authz.EventExercisesUpdate).Or(authz.RelAuthor), self), h.authorize(exerciseUseCase.ActionWrite), h.lookupFile)
 
-		ex.GET(":id/versions", self, h.authorize(exerciseUseCase.ActionRead), h.listVersions)
-		ex.GET(":id/versions/:versionID", self, h.authorize(exerciseUseCase.ActionReadPublished), h.getVersion)
-		ex.POST(":id/versions/:versionID/rollback", self, h.authorize(exerciseUseCase.ActionPublish), h.rollback)
-		ex.POST(":id/versions/:versionID/restore", self, h.authorize(exerciseUseCase.ActionWrite), h.restore)
-		ex.POST(":id/checkpoints", self, h.authorize(exerciseUseCase.ActionWrite), h.checkpoint)
-		ex.POST(":id/versions/:versionID/variants/:variantID/deploy", self, h.deploy)
+		ex.GET(":id/versions", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesRead, authz.EventExercisesRead).Or(authz.RelAuthor), self), h.authorize(exerciseUseCase.ActionRead), h.listVersions)
+		ex.GET(":id/versions/:versionID", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesRead, authz.EventExercisesRead, authz.EventTasksRead).Or(authz.RelAuthor).WithData(authz.ExercisesFlagsRead, authz.EventFlagsRead), self), h.authorize(exerciseUseCase.ActionReadPublished), h.getVersion)
+		ex.POST(":id/versions/:versionID/rollback", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesPublish, authz.EventExercisesPublish), self), h.authorize(exerciseUseCase.ActionPublish), h.rollback)
+		ex.POST(":id/versions/:versionID/restore", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesUpdate, authz.EventExercisesUpdate).Or(authz.RelAuthor), self), h.authorize(exerciseUseCase.ActionWrite), h.restore)
+		ex.POST(":id/checkpoints", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesUpdate, authz.EventExercisesUpdate).Or(authz.RelAuthor), self), h.authorize(exerciseUseCase.ActionWrite), h.checkpoint)
+		ex.POST(":id/versions/:versionID/variants/:variantID/deploy", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesUpdate, authz.EventExercisesUpdate).Or(authz.RelAuthor).And(authz.ExercisesTestlabStart), self), h.deploy)
 
-		ex.GET(":id/draft", self, h.authorize(exerciseUseCase.ActionRead), h.getDraft)
-		ex.PUT(":id/draft", self, h.authorize(exerciseUseCase.ActionWrite), h.saveDraft)
+		ex.GET(":id/draft", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesRead, authz.EventExercisesRead).Or(authz.RelAuthor), self), h.authorize(exerciseUseCase.ActionRead), h.getDraft)
+		ex.PUT(":id/draft", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesUpdate, authz.EventExercisesUpdate).Or(authz.RelAuthor), self), h.authorize(exerciseUseCase.ActionWrite), h.saveDraft)
 		// the working copy as the exercise document in YAML: the same access as reading the draft
-		ex.GET(":id/draft/document", self, h.authorize(exerciseUseCase.ActionRead), h.getDraftDocument)
+		ex.GET(":id/draft/document", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesRead, authz.EventExercisesRead).Or(authz.RelAuthor), self), h.authorize(exerciseUseCase.ActionRead), h.getDraftDocument)
 		// image availability: the same access as saving the draft
-		ex.POST(":id/images/check", self, h.authorize(exerciseUseCase.ActionWrite), h.checkImages)
+		ex.POST(":id/images/check", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesUpdate, authz.EventExercisesUpdate).Or(authz.RelAuthor), self), h.authorize(exerciseUseCase.ActionWrite), h.checkImages)
 		// the image's own start configuration (entrypoint, cmd, user, working dir): the same access as saving the draft
-		ex.POST(":id/images/service", self, h.authorize(exerciseUseCase.ActionWrite), h.imageServices)
+		ex.POST(":id/images/service", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesUpdate, authz.EventExercisesUpdate).Or(authz.RelAuthor), self), h.authorize(exerciseUseCase.ActionWrite), h.imageServices)
 		// image upload through the site: the same access as saving the draft
-		ex.POST(":id/images/blobs/missing", self, h.authorize(exerciseUseCase.ActionWrite), h.missingImageBlobs)
-		ex.POST(":id/images/blobs", self, h.authorize(exerciseUseCase.ActionWrite), h.pushImageBlob)
-		ex.GET(":id/images/blobs/:digest", self, h.authorize(exerciseUseCase.ActionWrite), h.imageBlobStatus)
-		ex.POST(":id/images", self, h.authorize(exerciseUseCase.ActionWrite), h.createImage)
-		ex.DELETE(":id/draft", self, h.authorize(exerciseUseCase.ActionPublish), h.discardDraft)
-		ex.POST(":id/publish", self, h.authorize(exerciseUseCase.ActionPublish), h.publish)
+		ex.POST(":id/images/blobs/missing", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesUpdate, authz.EventExercisesUpdate).Or(authz.RelAuthor), self), h.authorize(exerciseUseCase.ActionWrite), h.missingImageBlobs)
+		ex.POST(":id/images/blobs", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesUpdate, authz.EventExercisesUpdate).Or(authz.RelAuthor), self), h.authorize(exerciseUseCase.ActionWrite), h.pushImageBlob)
+		ex.GET(":id/images/blobs/:digest", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesUpdate, authz.EventExercisesUpdate).Or(authz.RelAuthor), self), h.authorize(exerciseUseCase.ActionWrite), h.imageBlobStatus)
+		ex.POST(":id/images", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesUpdate, authz.EventExercisesUpdate).Or(authz.RelAuthor), self), h.authorize(exerciseUseCase.ActionWrite), h.createImage)
+		ex.DELETE(":id/draft", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesUpdate, authz.EventExercisesUpdate).Or(authz.RelAuthor), self), h.authorize(exerciseUseCase.ActionPublish), h.discardDraft)
+		ex.POST(":id/publish", h.prot.Route(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesPublish, authz.EventExercisesPublish), self), h.authorize(exerciseUseCase.ActionPublish), h.publish)
 	}
 }
 

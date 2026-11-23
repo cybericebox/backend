@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
 	platformAnalyticsModel "github.com/cybericebox/backend/internal/model/platformAnalytics"
@@ -22,7 +23,10 @@ type MailUseCase interface {
 }
 
 func (h *Handler) initMail(router *gin.RouterGroup) {
-	group := router.Group("analytics", h.prot.RequirePermission(rbac.PermAnalyticsRead))
+	group := router.Group("analytics", h.prot.Route(
+		authz.AnyOf(authz.SourcePlatform, authz.AnalyticsRead), // Appendix A.3.4 of the access spec
+		h.prot.RequirePermission(rbac.PermAnalyticsRead),
+	))
 	group.GET("mail", h.mail)
 	group.GET("mail/export.csv", h.exportMail)
 }

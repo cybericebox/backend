@@ -15,6 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/sse"
 	"github.com/cybericebox/backend/internal/limits"
@@ -32,6 +33,7 @@ const (
 type (
 	IProtection interface {
 		RequirePermission(required rbac.Permission) gin.HandlerFunc
+		Route(decl authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc
 	}
 
 	IUseCase interface {
@@ -56,8 +58,9 @@ func New(useCase IUseCase, prot IProtection) *Handler { return &Handler{useCase:
 
 func (h *Handler) Init(r *gin.RouterGroup) {
 	g := r.Group("admin/errors")
-	read := h.prot.RequirePermission(rbac.PermPlatformErrorsRead)
-	write := h.prot.RequirePermission(rbac.PermPlatformErrorsWrite)
+	// Appendix A.3.3 #55-65 of the access spec.
+	read := h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformErrorsRead), h.prot.RequirePermission(rbac.PermPlatformErrorsRead))
+	write := h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformErrorsUpdate), h.prot.RequirePermission(rbac.PermPlatformErrorsWrite))
 	g.GET("", read, h.list)
 	g.GET("stream", read, h.stream)
 	g.GET("not-found", read, h.notFound)

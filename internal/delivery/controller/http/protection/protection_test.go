@@ -22,6 +22,7 @@ import (
 	"github.com/cybericebox/backend/internal/model"
 	authModel "github.com/cybericebox/backend/internal/model/auth"
 	"github.com/cybericebox/backend/internal/model/rbac"
+	secondFactorModel "github.com/cybericebox/backend/internal/model/secondFactor"
 	adminAuditUseCase "github.com/cybericebox/backend/internal/useCase/adminAudit"
 	authUseCase "github.com/cybericebox/backend/internal/useCase/auth"
 	"github.com/cybericebox/backend/pkg/overload"
@@ -65,6 +66,9 @@ func (f *fakeUseCase) ReissueCookie(_ authUseCase.SessionPass) (string, bool) {
 }
 
 func (f *fakeUseCase) SignOut(_ context.Context, _ uuid.UUID) error { return nil }
+func (f *fakeUseCase) StepUpState(context.Context, uuid.UUID) (secondFactorModel.StepUp, error) {
+	return secondFactorModel.StepUp{}, nil
+}
 func (f *fakeUseCase) RecordAdminAction(ctx context.Context, entry adminAuditUseCase.Entry) error {
 	f.auditCtxErr = ctx.Err()
 	f.auditEntries = append(f.auditEntries, entry)

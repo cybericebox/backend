@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/download"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	eventAnalyticsModel "github.com/cybericebox/backend/internal/model/eventAnalytics"
@@ -31,8 +32,8 @@ type ReportUseCase interface {
 // print-optimised page and the browser saves it as PDF.
 func (h *Handler) initReport(router *gin.RouterGroup) {
 	analytics := router.Group("events/:id/manage/analytics", h.prot.RequirePermission(rbac.PermSelf))
-	analytics.GET("report", h.requireSections, h.report)
-	analytics.GET("report/export.zip", h.requireExport, h.exportReport)
+	analytics.GET("report", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventStatsRead), nil), h.requireSections, h.report)
+	analytics.GET("report/export.zip", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventExport).WithData(authz.EventStatsPeopleRead), nil), h.requireExport, h.exportReport)
 }
 
 type (
