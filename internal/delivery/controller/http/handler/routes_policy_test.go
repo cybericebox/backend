@@ -233,6 +233,7 @@ func TestRoutePolicy(t *testing.T) {
 // gate fails TestRouteInvariants; so does an entry that got a gate (stale).
 var publicRoutes = map[string]string{
 	"POST /api/auth/sign-in":                 "credential entry; recaptcha, failure lockout",
+	"POST /api/auth/sign-in/recovery":        "recovery-code sign-in; recaptcha, the password when set, failure lockout",
 	"POST /api/auth/sign-up":                 "registration entry; recaptcha, per-recipient mail quota",
 	"GET /api/auth/last-email":               "answers with the browser's own last-sign-in cookie, nothing else",
 	"DELETE /api/auth/last-email":            "clears the browser's own last-sign-in cookie",

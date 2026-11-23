@@ -173,6 +173,19 @@ func (r *Repository) UploadKeys(ctx context.Context, visit func(id uuid.UUID, ci
 		})
 }
 
+// TOTPSecrets visits the sealed authenticator secrets (user_totp.secret_ciphertext), with the person they are bound to.
+func (r *Repository) TOTPSecrets(ctx context.Context, visit func(userID uuid.UUID, ciphertext string) error) error {
+	return r.each(ctx, `SELECT user_id, secret_ciphertext FROM user_totp`,
+		func(row interface{ Scan(...any) error }) error {
+			var userID uuid.UUID
+			var ct string
+			if err := row.Scan(&userID, &ct); err != nil {
+				return err
+			}
+			return visit(userID, ct)
+		})
+}
+
 // ExerciseVersions visits the variants document of every exercise version that holds a secret env value; the secrets
 // are sealed inside it (topology.devices[].bootstrap.env[]).
 func (r *Repository) ExerciseVersions(ctx context.Context, visit func(versionID uuid.UUID, variants []byte) error) error {

@@ -583,6 +583,9 @@ func (u *AuthUseCase) RemovePasskey(
 		return authModel.ErrNoLoginMethod.WithError(errors.New("passkey-remove: would leave account without any login method")).
 			Err()
 	}
+	if err = u.guardLastFactor(ctx, userID, "passkey-remove: the last second factor of a holder of a second-factor key"); err != nil {
+		return err
+	}
 	found, err := u.passkeys.Delete(ctx, userID, passkeyID)
 	if err != nil {
 		return model.ErrPlatform.WithError(err).WithMessage("Failed to remove passkey").Err()

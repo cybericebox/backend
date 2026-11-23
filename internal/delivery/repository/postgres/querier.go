@@ -94,6 +94,8 @@ type Querier interface {
 	CompleteRequestIdempotency(ctx context.Context, arg CompleteRequestIdempotencyParams) (int64, error)
 	CompleteSignalHookExecution(ctx context.Context, arg CompleteSignalHookExecutionParams) (int64, error)
 	CompleteSignalOutbox(ctx context.Context, arg CompleteSignalOutboxParams) (int64, error)
+	// Confirms the setup that holds this very secret (not one started again meanwhile) with the step of its first code.
+	ConfirmUserTOTP(ctx context.Context, arg ConfirmUserTOTPParams) (int64, error)
 	ConsumeEventStageRuntimeSelection(ctx context.Context, arg ConsumeEventStageRuntimeSelectionParams) (int64, error)
 	// The delete is the claim: of two concurrent confirmations only one removes the row.
 	ConsumeGoogleLinkTicket(ctx context.Context, arg ConsumeGoogleLinkTicketParams) (int64, error)
@@ -187,6 +189,9 @@ type Querier interface {
 	CountStaleLabObservations(ctx context.Context, observedBefore time.Time) (int64, error)
 	CountTargetsByChannelStatusSince(ctx context.Context, createdAt time.Time) ([]CountTargetsByChannelStatusSinceRow, error)
 	CountUnreadInbox(ctx context.Context, arg CountUnreadInboxParams) (int64, error)
+	CountUnusedUserRecoveryCodes(ctx context.Context, userID uuid.UUID) (int64, error)
+	// The passkeys that count as a second factor: registered with user verification and not marked compromised.
+	CountUserFactorPasskeys(ctx context.Context, userID uuid.UUID) (int64, error)
 	CountUserLoginMethods(ctx context.Context, id uuid.UUID) (int64, error)
 	CountUserPasskeys(ctx context.Context, userID uuid.UUID) (int64, error)
 	CountUsers(ctx context.Context, arg CountUsersParams) (int64, error)
@@ -442,6 +447,8 @@ type Querier interface {
 	DeleteUserPasskeys(ctx context.Context, userID uuid.UUID) (int64, error)
 	DeleteUserProvider(ctx context.Context, arg DeleteUserProviderParams) (int64, error)
 	DeleteUserProviders(ctx context.Context, userID uuid.UUID) (int64, error)
+	DeleteUserRecoveryCodes(ctx context.Context, userID uuid.UUID) (int64, error)
+	DeleteUserTOTP(ctx context.Context, arg DeleteUserTOTPParams) (int64, error)
 	DeleteUserTablePrefs(ctx context.Context, arg DeleteUserTablePrefsParams) (int64, error)
 	DeleteUserVPNConfig(ctx context.Context, arg DeleteUserVPNConfigParams) (int64, error)
 	DetachEventExercise(ctx context.Context, arg DetachEventExerciseParams) (int64, error)
@@ -829,6 +836,7 @@ type Querier interface {
 	GetResourceChangeRequest(ctx context.Context, id uuid.UUID) (ResourceChangeRequest, error)
 	GetResourceReservation(ctx context.Context, id uuid.UUID) (ResourceReservation, error)
 	GetSessionByID(ctx context.Context, id uuid.UUID) (Session, error)
+	GetSessionStepUp(ctx context.Context, id uuid.UUID) (GetSessionStepUpRow, error)
 	GetSessionsByUser(ctx context.Context, userID uuid.UUID) ([]Session, error)
 	GetSiteBanner(ctx context.Context, id uuid.UUID) (SiteBanner, error)
 	// Any team of the event, including the moderators team.
@@ -861,6 +869,7 @@ type Querier interface {
 	GetUserByProvider(ctx context.Context, arg GetUserByProviderParams) (User, error)
 	GetUserPasskeyByCredentialID(ctx context.Context, credentialID []byte) (UserPasskey, error)
 	GetUserProviders(ctx context.Context, userID uuid.UUID) ([]UserProvider, error)
+	GetUserTOTP(ctx context.Context, userID uuid.UUID) (UserTotp, error)
 	GetUserTablePrefs(ctx context.Context, arg GetUserTablePrefsParams) (GetUserTablePrefsRow, error)
 	GetUserUIPreference(ctx context.Context, arg GetUserUIPreferenceParams) ([]byte, error)
 	// IS NOT DISTINCT FROM matches a null scope_ref (the test scope) NULL-safely.
@@ -2126,12 +2135,16 @@ type Querier interface {
 	ReplaceGoogleLinkTicket(ctx context.Context, arg ReplaceGoogleLinkTicketParams) error
 	// Reconnect: the same cluster enrolled again for new keys. The record, its priority and its lab groups stay.
 	ReplaceInfrastructureAgentCredentials(ctx context.Context, arg ReplaceInfrastructureAgentCredentialsParams) (int64, error)
+	// The new codes replace every old one, used or not, in one statement.
+	ReplaceUserRecoveryCodes(ctx context.Context, arg ReplaceUserRecoveryCodesParams) (int64, error)
 	RequestEventLabAccessSync(ctx context.Context, arg RequestEventLabAccessSyncParams) (EventLabAccessSync, error)
 	RequestEventLabAccessSyncsForEvent(ctx context.Context, arg RequestEventLabAccessSyncsForEventParams) error
 	// Manager changes alter the moderators team's VPN client set.
 	RequestModeratorsTeamLabAccessSync(ctx context.Context, arg RequestModeratorsTeamLabAccessSyncParams) error
 	// Replaces the sealed key with the same key sealed under the current platform key; nothing when the row changed meanwhile.
 	ResealUserDraftKey(ctx context.Context, arg ResealUserDraftKeyParams) (int64, error)
+	// The same secret sealed under the current platform key; nothing when the row changed meanwhile.
+	ResealUserTOTP(ctx context.Context, arg ResealUserTOTPParams) (int64, error)
 	// Claims one message of the provider's daily allowance for the UTC day. No row =
 	// the daily limit is used up. The counter restarts when the day changes.
 	ReservePlatformSMTPSend(ctx context.Context, arg ReservePlatformSMTPSendParams) (int32, error)
@@ -2317,10 +2330,14 @@ type Querier interface {
 	SetPlatformMailFooter(ctx context.Context, arg SetPlatformMailFooterParams) error
 	SetPlatformSMTPProviderEnabled(ctx context.Context, arg SetPlatformSMTPProviderEnabledParams) (MailSmtpConfig, error)
 	SetResourceCalendarSettings(ctx context.Context, arg SetResourceCalendarSettingsParams) error
+	SetSessionStepUp(ctx context.Context, arg SetSessionStepUpParams) (int64, error)
 	StartErrorNotification(ctx context.Context, arg StartErrorNotificationParams) error
 	// Background imports of task archives with device images (the import job aggregate: one row per source).
 	// Records a new import of the source, or returns the row the source already has: one import per source.
 	StartExerciseImportJob(ctx context.Context, arg StartExerciseImportJobParams) (ExerciseImportJob, error)
+	// Stores a new setup that waits for its first code, replacing an older unconfirmed one. No row when the person already
+	// has a confirmed authenticator app.
+	StartUserTOTP(ctx context.Context, arg StartUserTOTPParams) (int64, error)
 	// What a user (or, with a nil user, anybody in the team) did against one task
 	// before a moment. Keep lab-only rows separate from participant observations:
 	// their packets cannot supply missing participant response evidence.
@@ -2508,6 +2525,10 @@ type Querier interface {
 	// Records a sign-in. The counter must move forward (or stay at zero for authenticators that have none): a
 	// replayed or cloned assertion matches no row, so two parallel uses of one counter value cannot both win.
 	UseUserPasskey(ctx context.Context, arg UseUserPasskeyParams) (int64, error)
+	// Takes an unused code once: no row for an unknown or used code.
+	UseUserRecoveryCode(ctx context.Context, arg UseUserRecoveryCodeParams) (int64, error)
+	// Takes the step of an accepted code. No row when that step or a later one was already used: the code is refused.
+	UseUserTOTPStep(ctx context.Context, arg UseUserTOTPStepParams) (int64, error)
 	VacateEventChallengeGroupOrders(ctx context.Context, eventID uuid.UUID) error
 	VacateEventChallengeOrders(ctx context.Context, eventExerciseID uuid.UUID) error
 }

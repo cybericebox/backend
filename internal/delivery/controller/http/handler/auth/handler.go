@@ -15,6 +15,7 @@ import (
 	draftKeyModel "github.com/cybericebox/backend/internal/model/draftKey"
 	passkeyModel "github.com/cybericebox/backend/internal/model/passkey"
 	"github.com/cybericebox/backend/internal/model/rbac"
+	secondFactorModel "github.com/cybericebox/backend/internal/model/secondFactor"
 	tablePrefsModel "github.com/cybericebox/backend/internal/model/tablePrefs"
 	userModel "github.com/cybericebox/backend/internal/model/user"
 	authUseCase "github.com/cybericebox/backend/internal/useCase/auth"
@@ -136,6 +137,20 @@ type (
 		ListPasskeys(ctx context.Context, userID uuid.UUID) ([]passkeyModel.Passkey, error)
 		RemovePasskey(ctx context.Context, userID, passkeyID uuid.UUID, currentPassword string) error
 
+		// second factor and step-up (access-control design §6.6)
+		SecondFactorStatus(ctx context.Context, userID uuid.UUID) (secondFactorModel.Status, error)
+		BeginTOTPEnrolment(ctx context.Context, userID uuid.UUID, currentPassword string) (authUseCase.TOTPEnrolment, error)
+		FinishTOTPEnrolment(ctx context.Context, userID uuid.UUID, code string) ([]string, error)
+		RemoveTOTP(ctx context.Context, userID uuid.UUID) error
+		RegenerateRecoveryCodes(ctx context.Context, userID uuid.UUID) ([]string, error)
+		BeginPasskeyStepUp(ctx context.Context, userID uuid.UUID) (authUseCase.PasskeyCeremony, error)
+		StepUp(ctx context.Context, userID uuid.UUID, req authUseCase.StepUpRequest) (secondFactorModel.StepUp, error)
+		SignInWithRecoveryCode(
+			ctx context.Context,
+			email, password, code, redirect string,
+			meta authModel.SessionMetadata,
+		) (string, string, error)
+
 		// avatars (S3-backed)
 		UploadAvatar(
 			ctx context.Context,
@@ -176,6 +191,8 @@ func (h *Handler) Init(public, secured *gin.RouterGroup) {
 
 	pub := public.Group("auth")
 	pub.POST("sign-in", h.prot.RequireCaptcha("signIn"), h.signIn)
+	// A recovery code stands in for a lost second factor: behind the captcha and the per-account sign-in lockout.
+	pub.POST("sign-in/recovery", h.prot.RequireCaptcha("recoverySignIn"), h.recoverySignIn)
 	pub.POST("sign-up", h.prot.RequireCaptcha("signUp"), h.signUp)
 	pub.GET("last-email", h.getLastEmail)
 	pub.DELETE("last-email", h.forgetLastEmail)
@@ -235,6 +252,14 @@ func (h *Handler) Init(public, secured *gin.RouterGroup) {
 	sec.POST("passkeys/registration/begin", self, selfCheck, h.passkeyRegistrationBegin)
 	sec.POST("passkeys/registration/finish", self, h.passkeyRegistrationFinish)
 	sec.DELETE("passkeys/:id", self, h.removePasskey)
+	// The second factor and the step-up (access-control design §6.6, N25-N29).
+	sec.GET("second-factor", self, h.secondFactorStatus)
+	sec.POST("totp/begin", self, selfCheck, h.totpBegin)
+	sec.POST("totp/finish", self, selfCheck, h.totpFinish)
+	sec.DELETE("totp", self, h.removeTOTP)
+	sec.POST("recovery-codes", self, selfCheck, h.regenerateRecoveryCodes)
+	sec.POST("step-up/passkey/begin", self, selfCheck, h.stepUpPasskeyBegin)
+	sec.POST("step-up", self, selfCheck, h.stepUp)
 	sec.POST("google/link", self, h.googleLink)
 	sec.DELETE("google/link", self, h.unlinkGoogle)
 

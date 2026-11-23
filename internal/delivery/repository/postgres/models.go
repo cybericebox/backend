@@ -1263,12 +1263,14 @@ type ResourceTestLabHold struct {
 }
 
 type Session struct {
-	ID        uuid.UUID `json:"id"`
-	UserID    uuid.UUID `json:"user_id"`
-	ExpiresAt time.Time `json:"expires_at"`
-	LastSeen  time.Time `json:"last_seen"`
-	Metadata  []byte    `json:"metadata"`
-	CreatedAt time.Time `json:"created_at"`
+	ID           uuid.UUID          `json:"id"`
+	UserID       uuid.UUID          `json:"user_id"`
+	ExpiresAt    time.Time          `json:"expires_at"`
+	LastSeen     time.Time          `json:"last_seen"`
+	Metadata     []byte             `json:"metadata"`
+	CreatedAt    time.Time          `json:"created_at"`
+	StepUpAt     pgtype.Timestamptz `json:"step_up_at"`
+	StepUpMethod pgtype.Text        `json:"step_up_method"`
 }
 
 type SessionRevocation struct {
@@ -1393,6 +1395,14 @@ type UserProvider struct {
 	Provider       string    `json:"provider"`
 	ProviderUserID string    `json:"provider_user_id"`
 	CreatedAt      time.Time `json:"created_at"`
+}
+
+type UserTotp struct {
+	UserID           uuid.UUID          `json:"user_id"`
+	SecretCiphertext string             `json:"secret_ciphertext"`
+	CreatedAt        time.Time          `json:"created_at"`
+	ConfirmedAt      pgtype.Timestamptz `json:"confirmed_at"`
+	LastStep         pgtype.Int8        `json:"last_step"`
 }
 
 type UserVpnConfig struct {

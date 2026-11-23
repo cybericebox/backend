@@ -345,6 +345,29 @@ definitions:
       CurrentPassword:
         type: string
     type: object
+  auth.recoveryCodesResponse:
+    properties:
+      RecoveryCodes:
+        description: RecoveryCodes are shown this once; only their hashes are stored.
+        items:
+          type: string
+        type: array
+    type: object
+  auth.recoverySignInRequest:
+    properties:
+      Code:
+        type: string
+      Email:
+        type: string
+      Password:
+        description: 'Password is required when the account has one: the code stands
+          in for the second factor only.'
+        type: string
+      RecaptchaToken:
+        type: string
+      Redirect:
+        type: string
+    type: object
   auth.requestEmailChangeRequest:
     properties:
       CurrentPassword:
@@ -367,6 +390,25 @@ definitions:
         type: string
       Password:
         type: string
+    type: object
+  auth.secondFactorStatusResponse:
+    properties:
+      HasSecondFactor:
+        type: boolean
+      Passkeys:
+        type: integer
+      RecoveryCodesLeft:
+        type: integer
+      StepUpExpiresAt:
+        type: string
+      StepUpMethod:
+        description: StepUpMethod and StepUpExpiresAt describe the last step-up of
+          this session; null without one.
+        type: string
+      TOTPConfirmedAt:
+        type: string
+      TOTPEnabled:
+        type: boolean
     type: object
   auth.sessionResponse:
     properties:
@@ -415,6 +457,46 @@ definitions:
         description: |-
           Redirect is the optional post-registration landing URL; a trusted one is
           carried on the emailed setup link as return_to.
+        type: string
+    type: object
+  auth.stepUpRequest:
+    properties:
+      CeremonyID:
+        type: string
+      Code:
+        type: string
+      Credential:
+        items:
+          type: integer
+        type: array
+      Method:
+        description: Method is passkey, totp or password (the password only for an
+          account without a second factor).
+        type: string
+      Password:
+        type: string
+    type: object
+  auth.stepUpResponse:
+    properties:
+      At:
+        type: string
+      ExpiresAt:
+        type: string
+      Method:
+        type: string
+    type: object
+  auth.totpBeginResponse:
+    properties:
+      Secret:
+        description: Secret is the base32 secret for typing into an app; URI is the
+          otpauth:// URI the QR code shows.
+        type: string
+      URI:
+        type: string
+    type: object
+  auth.totpFinishRequest:
+    properties:
+      Code:
         type: string
     type: object
   auth.updateProfileRequest:
@@ -16578,6 +16660,54 @@ paths:
       summary: Request a password reset link
       tags:
       - auth
+  /auth/recovery-codes:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/auth.recoveryCodesResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: Replace the recovery codes with 10 new ones, shown once (N28); needs
+        a second factor and a step-up made with it
+      tags:
+      - auth
+  /auth/second-factor:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/auth.secondFactorStatusResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 'The second factor of the current user: authenticator app, passkeys,
+        recovery codes left, step-up of this session'
+      tags:
+      - auth
   /auth/sessions:
     delete:
       produces:
@@ -16728,6 +16858,43 @@ paths:
       summary: Sign in with email and password
       tags:
       - auth
+  /auth/sign-in/recovery:
+    post:
+      consumes:
+      - application/json
+      description: The password is still needed when the account has one. The session
+        may then enrol a new factor and get new codes; the use is journaled and mailed
+        to the owner.
+      parameters:
+      - description: credentials and code
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/auth.recoverySignInRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: Sign in with a one-time recovery code when the second factor is lost
+      tags:
+      - auth
   /auth/sign-up:
     post:
       consumes:
@@ -16749,6 +16916,172 @@ paths:
           schema:
             $ref: '#/definitions/response.Response'
       summary: Begin email registration
+      tags:
+      - auth
+  /auth/step-up:
+    post:
+      consumes:
+      - application/json
+      description: Method passkey (CeremonyID and Credential from /auth/step-up/passkey/begin),
+        totp (Code), or password (Password; only for an account without a second factor,
+        and an account without a password needs a recent sign-in). Google sign-in,
+        email codes and SMS are not methods.
+      parameters:
+      - description: the confirmation
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/auth.stepUpRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/auth.stepUpResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Response'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: Confirm the current user on this session for 5 minutes (N29)
+      tags:
+      - auth
+  /auth/step-up/passkey/begin:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/auth.passkeyCeremonyResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: Begin a passkey confirmation of the current user (user verification
+        required)
+      tags:
+      - auth
+  /auth/totp:
+    delete:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: Remove the authenticator app (N27); needs a step-up with a second factor
+        or a recovery code, refused for the last factor of a holder of a second-factor
+        key
+      tags:
+      - auth
+  /auth/totp/begin:
+    post:
+      consumes:
+      - application/json
+      description: 'The owner is confirmed first: a step-up of this session in the
+        last 5 minutes, or the current password (a recent sign-in for an account without
+        one).'
+      parameters:
+      - description: current password
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/auth.reauthRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/auth.totpBeginResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Response'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 'Start adding an authenticator app: a new secret and its otpauth://
+        URI for the QR code (N25)'
+      tags:
+      - auth
+  /auth/totp/finish:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: the first code of the app
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/auth.totpFinishRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/auth.recoveryCodesResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: Confirm the authenticator app with its first code; issues the 10 recovery
+        codes, shown once (N26)
       tags:
       - auth
   /events:

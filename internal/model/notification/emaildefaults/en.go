@@ -68,6 +68,16 @@ func enTemplates() []Template {
 				rich(para("If this was not you, do nothing and tell nobody the code: Google will not be linked."))),
 		},
 		{
+			Type: "recovery_code_used", Subject: "A recovery code was used", Preheader: "Someone signed in with a recovery code",
+			Body: blocks(logo(),
+				rich(heading("A recovery code was used"),
+					para("Hello, ", variable("Name"), "! Someone signed in to your Cyber ICE Box account with a one-time recovery code. Recovery codes left: ", variable("CodesLeft"), "."),
+					para("If it was you, set up a new passkey or authenticator app and get new recovery codes.")),
+				button("Open security settings", "{{SecurityURL}}"),
+				fallbackEN("SecurityURL"),
+				rich(para("If this was not you, sign in, change your password and get new recovery codes now."))),
+		},
+		{
 			Type: "account_inactivity_warning", Subject: "Your Cyber ICE Box account will be deleted", Preheader: "Sign in to keep your account",
 			Body: blocks(logo(),
 				rich(heading("Your account will be deleted"),
