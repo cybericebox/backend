@@ -38,6 +38,7 @@ func TestBuildersGiveTheStringsTheStoredDataWasSealedWith(t *testing.T) {
 		"import password": {secretctx.ArchiveImportPassword(id), "exercise-import:password:00000000-0000-4000-8000-000000000001"},
 		"export password": {secretctx.ArchiveExportPassword(id), "exercise-export:password:00000000-0000-4000-8000-000000000001"},
 		"session ticket":  {secretctx.SessionTicket(), "cybericebox/session-ticket/v1"},
+		"totp secret":     {secretctx.TOTPSecret(user), "user-totp:00000000-0000-4000-8000-000000000004"},
 	}
 	for name, c := range cases {
 		require.Equal(t, c.want, string(c.got), name)
@@ -127,7 +128,7 @@ func TestContextsOfDifferentPurposesDiffer(t *testing.T) {
 		"registry push": []byte(secretctx.RegistryPush), "registry pull": []byte(secretctx.RegistryPull), "event registry": secretctx.EventRegistry(id),
 		"vpn": secretctx.VPNConfig(id, "event", uuid.NullUUID{UUID: id, Valid: true}), "env": secretctx.ExerciseEnv(id, "web", "A"),
 		"notify": secretctx.NotifyPayload(id), "auth": secretctx.AuthDelivery(id), "import": secretctx.ArchiveImportPassword(id),
-		"export": secretctx.ArchiveExportPassword(id), "ticket": secretctx.SessionTicket(),
+		"export": secretctx.ArchiveExportPassword(id), "ticket": secretctx.SessionTicket(), "totp": secretctx.TOTPSecret(id),
 	}
 	seen := map[string]string{}
 	for name, ctx := range all {

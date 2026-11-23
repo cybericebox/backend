@@ -61,7 +61,7 @@ func TestReadAppendixAndOverrides(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(routes) != 2 || routes["GET /api/health"] != nil {
+	if len(routes) != 3 || routes["GET /api/health"] != nil || routes["GET /api/access/roles"] == nil {
 		t.Fatalf("routes = %v", routes)
 	}
 	if err := applyOverrides(routes, "DELETE /api/auth/account | data: users.delete | test\n"); err != nil {
@@ -76,6 +76,15 @@ func TestReadAppendixAndOverrides(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("render() lacks %q:\n%s", want, out)
 		}
+	}
+	if err := applyOverrides(routes, "+POST /api/auth/step-up/passkey/begin | keys: self @ self | built with P7, not in A.3 yet\n"); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(render(routes, "abc123"), "POST   /api/auth/step-up/passkey/begin | keys: self @ self | data: - | not in A.3; override: built with P7, not in A.3 yet") {
+		t.Errorf("an added route is not rendered")
+	}
+	if err := applyOverrides(routes, "+GET /api/events | keys: events.list @ platform | x\n"); err == nil {
+		t.Error("adding a route A.3 lists passed")
 	}
 	if err := applyOverrides(routes, "GET /api/nowhere | keys: self @ self | x\n"); err == nil {
 		t.Error("an override for a route outside A.3 passed")

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/delivery/repository/secondFactorRepo"
 	"github.com/cybericebox/backend/internal/delivery/repository/temporalCodeRepo"
 	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
 	"github.com/cybericebox/backend/internal/delivery/repository/userRepo"
@@ -113,7 +114,7 @@ func (u *AuthUseCase) ProcessAuthDelivery(ctx context.Context, id uuid.UUID) err
 	defer unit.Restore()
 	ctx = txCtx
 	// All account mutations, the normal notification handoff and consumption of this command share this commit.
-	bound := &AuthUseCase{users: userRepo.New(repo), codes: temporalCodeRepo.New(repo), token: u.token, notifier: u.notifier, cfg: u.cfg, limits: u.limits, setupTokens: NewSetupTokenStore(repo, u.token)}
+	bound := &AuthUseCase{users: userRepo.New(repo), codes: temporalCodeRepo.New(repo), factors: secondFactorRepo.New(repo), token: u.token, notifier: u.notifier, cfg: u.cfg, limits: u.limits, setupTokens: NewSetupTokenStore(repo, u.token)}
 	key := authDeliveryKey(id)
 	code, err := bound.codes.GetByCode(ctx, key)
 	if repositoryTools.IsObjectNotFoundError(err) {

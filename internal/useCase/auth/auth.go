@@ -15,6 +15,8 @@ import (
 	"github.com/cybericebox/backend/internal/delivery/repository/draftKeyRepo"
 	"github.com/cybericebox/backend/internal/delivery/repository/googleLinkTicketRepo"
 	"github.com/cybericebox/backend/internal/delivery/repository/passkeyRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/delivery/repository/secondFactorRepo"
 	"github.com/cybericebox/backend/internal/delivery/repository/sessionRepo"
 	"github.com/cybericebox/backend/internal/delivery/repository/tablePrefsRepo"
 	"github.com/cybericebox/backend/internal/delivery/repository/temporalCodeRepo"
@@ -42,6 +44,7 @@ type IRepository interface {
 	sessionRepo.Queries
 	temporalCodeRepo.Queries
 	passkeyRepo.Queries
+	secondFactorRepo.Queries
 	userExportRepo.Queries
 	tablePrefsRepo.Queries
 	draftKeyRepo.Queries
@@ -95,10 +98,19 @@ type IAvatarStorage interface {
 }
 
 type AuthUseCase struct {
-	sessions   *sessionRepo.Repository
-	users      *userRepo.Repository
-	codes      *temporalCodeRepo.Repository
-	passkeys   *passkeyRepo.Repository
+	sessions *sessionRepo.Repository
+	users    *userRepo.Repository
+	codes    *temporalCodeRepo.Repository
+	passkeys *passkeyRepo.Repository
+	factors  *secondFactorRepo.Repository
+	// factorCipher seals the authenticator secrets at rest; nil when PLATFORM_SECRETS_KEY is unset.
+	factorCipher *secret.Cipher
+	// factorKeys says who holds a second-factor key (stub until the key catalogue and grants land).
+	factorKeys ISecondFactorKeys
+	// factorJournal records the second-factor events (the log until the grant journal lands).
+	factorJournal IFactorJournal
+	// factorUnit gives the factor changes their transaction (nil: none, isolated tests).
+	factorUnit postgres.IUnitOfWorker[IRepository]
 	exports    *userExportRepo.Repository
 	tablePrefs *tablePrefsRepo.Repository
 	draftKeys  *draftKeyRepo.Repository
@@ -183,6 +195,9 @@ func NewAuthUseCase(deps Dependencies) *AuthUseCase {
 		users:             userRepo.New(deps.Repo),
 		codes:             temporalCodeRepo.New(deps.Repo),
 		passkeys:          passkeyRepo.New(deps.Repo),
+		factors:           secondFactorRepo.New(deps.Repo),
+		factorKeys:        noSecondFactorKeys{},
+		factorJournal:     logFactorJournal{},
 		exports:           userExportRepo.New(deps.Repo),
 		tablePrefs:        tablePrefsRepo.New(deps.Repo),
 		draftKeys:         draftKeyRepo.New(deps.Repo),
@@ -314,6 +329,9 @@ func (u *AuthUseCase) deleteUserCascade(ctx context.Context, userID uuid.UUID, a
 	}
 	if _, err := u.passkeys.DeleteAll(ctx, userID); err != nil {
 		return model.ErrPlatform.WithError(err).WithMessage("Failed to delete user passkeys").Err()
+	}
+	if err := u.factors.DeleteAll(ctx, userID); err != nil {
+		return model.ErrPlatform.WithError(err).WithMessage("Failed to delete user second factor").Err()
 	}
 	u.removeAvatars(ctx, userID)
 	if u.inboxRequests != nil {

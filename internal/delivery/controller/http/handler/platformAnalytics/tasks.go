@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	platformAnalyticsModel "github.com/cybericebox/backend/internal/model/platformAnalytics"
 	"github.com/cybericebox/backend/internal/model/rbac"
@@ -31,7 +32,10 @@ type TasksUseCase interface {
 }
 
 func (h *Handler) initTasks(router *gin.RouterGroup) {
-	analytics := router.Group("analytics", h.prot.RequirePermission(rbac.PermAnalyticsRead))
+	analytics := router.Group("analytics", h.prot.Route(
+		authz.AnyOf(authz.SourcePlatform, authz.AnalyticsRead), // Appendix A.3.4 of the access spec
+		h.prot.RequirePermission(rbac.PermAnalyticsRead),
+	))
 	analytics.GET("tasks", h.tasks)
 	analytics.GET("tasks/table", h.tasksTable)
 	analytics.GET("tasks/export.csv", h.exportTasks)

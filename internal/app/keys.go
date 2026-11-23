@@ -232,3 +232,25 @@ func RunKeysReencrypt(ctx context.Context, cfg *config.Config, family string, dr
 	defer stop()
 	return reencryptCommand(ctx, uc, family, dryRun, yes, expectKey, out)
 }
+
+// totpStore says whether any authenticator secret is stored.
+type totpStore interface {
+	AnyTOTP(ctx context.Context) (bool, error)
+}
+
+// guardTOTPKey refuses to start when authenticator secrets are stored but PLATFORM_SECRETS_KEY is not set: they are
+// sealed with it, and without it every person with an app is locked out of every step-up. It holds whatever
+// SECRETS_GUARD says.
+func guardTOTPKey(ctx context.Context, store totpStore, platform *secret.Cipher) error {
+	if platform != nil {
+		return nil
+	}
+	stored, err := store.AnyTOTP(ctx)
+	if err != nil {
+		return fmt.Errorf("check the authenticator secrets: %w", err)
+	}
+	if stored {
+		return errors.New("authenticator secrets are stored (user_totp) but PLATFORM_SECRETS_KEY is not set: set the platform key they were sealed with")
+	}
+	return nil
+}

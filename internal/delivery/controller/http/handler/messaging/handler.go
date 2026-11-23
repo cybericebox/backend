@@ -6,12 +6,13 @@ package messaging
 import (
 	"context"
 	"fmt"
-	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	broadcastModel "github.com/cybericebox/backend/internal/model/notification/broadcast"
 	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
@@ -29,6 +30,7 @@ type (
 
 	IProtection interface {
 		RequirePermission(required rbac.Permission) gin.HandlerFunc
+		Route(decl authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc
 	}
 
 	IUseCase interface {
@@ -228,26 +230,27 @@ func (h *Handler) Init(api *gin.RouterGroup) {
 
 	// Event scope: owners and write moderators send and edit; viewers read.
 	manage := api.Group("events/:id/manage", h.prot.RequirePermission(rbac.PermSelf))
-	manage.POST("broadcasts/audience-count", h.requireManage, h.countAudience(eventScope))
-	manage.POST("broadcasts", h.requireManage, h.send(eventScope))
-	manage.GET("broadcasts", h.requireRead, h.listBroadcasts(eventScope))
-	manage.GET("broadcasts/:broadcastID", h.requireRead, h.getBroadcast(eventScope))
-	manage.GET("broadcasts/:broadcastID/deliveries", h.requireRead, h.listDeliveries(eventScope))
+	manage.POST("broadcasts/audience-count", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventCommsUpdate), nil), h.requireManage, h.countAudience(eventScope))
+	manage.POST("broadcasts", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventCommsUpdate), nil), h.requireManage, h.send(eventScope))
+	manage.GET("broadcasts", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventCommsRead), nil), h.requireRead, h.listBroadcasts(eventScope))
+	manage.GET("broadcasts/:broadcastID", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventCommsRead), nil), h.requireRead, h.getBroadcast(eventScope))
+	manage.GET("broadcasts/:broadcastID/deliveries", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventCommsRead).WithData(authz.EventPersonalDataRead), nil), h.requireRead, h.listDeliveries(eventScope))
 	manage.GET(
 		"broadcasts/:broadcastID/deliveries/export",
+		h.prot.Route(authz.AllOf(authz.SourceEventParam("id"), authz.EventCommsRead, authz.EventExport).WithData(authz.EventPersonalDataRead), nil),
 		h.requireRead,
 		h.exportDeliveries(eventScope),
 	)
-	manage.POST("broadcasts/:broadcastID/cancel", h.requireManage, h.cancelBroadcast(eventScope))
-	manage.GET("notification-templates/custom", h.requireRead, h.listTemplates(eventScope))
-	manage.GET("notification-templates/custom/:templateID", h.requireRead, h.getTemplate(eventScope))
-	manage.POST("notification-templates/custom", h.requireManage, h.createTemplate(eventScope))
-	manage.PUT("notification-templates/custom/:templateID", h.requireManage, h.updateTemplate(eventScope))
-	manage.DELETE("notification-templates/custom/:templateID", h.requireManage, h.deleteTemplate(eventScope))
-	manage.GET("banners", h.requireRead, h.listBanners(eventScope))
-	manage.POST("banners", h.requireManage, h.createBanner(eventScope))
-	manage.PUT("banners/:bannerID", h.requireManage, h.updateBanner(eventScope))
-	manage.DELETE("banners/:bannerID", h.requireManage, h.deleteBanner(eventScope))
+	manage.POST("broadcasts/:broadcastID/cancel", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventCommsUpdate), nil), h.requireManage, h.cancelBroadcast(eventScope))
+	manage.GET("notification-templates/custom", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventCommsRead), nil), h.requireRead, h.listTemplates(eventScope))
+	manage.GET("notification-templates/custom/:templateID", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventCommsRead), nil), h.requireRead, h.getTemplate(eventScope))
+	manage.POST("notification-templates/custom", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventCommsUpdate), nil), h.requireManage, h.createTemplate(eventScope))
+	manage.PUT("notification-templates/custom/:templateID", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventCommsUpdate), nil), h.requireManage, h.updateTemplate(eventScope))
+	manage.DELETE("notification-templates/custom/:templateID", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventCommsDelete), nil), h.requireManage, h.deleteTemplate(eventScope))
+	manage.GET("banners", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventCommsRead), nil), h.requireRead, h.listBanners(eventScope))
+	manage.POST("banners", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventCommsUpdate), nil), h.requireManage, h.createBanner(eventScope))
+	manage.PUT("banners/:bannerID", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventCommsUpdate), nil), h.requireManage, h.updateBanner(eventScope))
+	manage.DELETE("banners/:bannerID", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventCommsDelete), nil), h.requireManage, h.deleteBanner(eventScope))
 }
 
 func eventScope(ctx *gin.Context) (*uuid.UUID, bool) {

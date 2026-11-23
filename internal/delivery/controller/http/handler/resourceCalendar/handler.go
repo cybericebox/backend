@@ -90,8 +90,8 @@ func (h *Handler) Init(router *gin.RouterGroup) {
 	self := h.prot.RequirePermission(rbac.PermSelf)
 	manage := router.Group("events/:id/manage/resources", self)
 	{
-		manage.GET("", h.requireRead, h.getEventResources)
-		manage.POST("change-requests", h.requireManage, h.requestChange)
+		manage.GET("", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventLabsRead), nil), h.requireRead, h.getEventResources)
+		manage.POST("change-requests", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventLabsUpdate), nil), h.requireManage, h.requestChange)
 	}
 
 	labs := router.Group("exercises/test-labs", self, h.requireTestLabAuthor)

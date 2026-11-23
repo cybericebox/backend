@@ -44,6 +44,7 @@ var pathArg = map[string]int{
 // authorization — so recaptcha-only routes are listed here too.
 var publicRoutes = map[string]bool{
 	"POST pub/sign-in":                   true, // recaptcha-gated credential entry
+	"POST pub/sign-in/recovery":          true, // recaptcha-gated recovery-code sign-in (password when set, per-account lockout)
 	"POST pub/sign-up":                   true, // recaptcha-gated registration entry
 	"GET pub/last-email":                 true, // the browser's own cookie, nothing else
 	"DELETE pub/last-email":              true, // clears the browser's own cookie
@@ -268,8 +269,15 @@ func main() {
 		fmt.Fprintln(os.Stderr, "checkroutes:", err)
 		os.Exit(2)
 	}
-	exceptions, declared := parseExceptions(exceptionsText)
-	declared = append(declared, declarationViolations(golden, exceptions)...)
+	relationText, err := readTestdata(root, "routes.relation-exceptions")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "checkroutes:", err)
+		os.Exit(2)
+	}
+	exceptions, declared := parseExceptions("routes.delete-exceptions", exceptionsText)
+	relationExceptions, problems := parseExceptions("routes.relation-exceptions", relationText)
+	declared = append(declared, problems...)
+	declared = append(declared, declarationViolations(golden, exceptions, relationExceptions)...)
 	if len(declared) > 0 {
 		fmt.Fprintln(os.Stderr, "route declarations (keys @ scope in routes.golden) that break the access rules:")
 		for _, v := range declared {

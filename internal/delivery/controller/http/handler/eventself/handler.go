@@ -10,13 +10,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"github.com/gofrs/uuid"
 	"io"
 	"net/http"
 	"strconv"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/gofrs/uuid"
+
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/handler/labview"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
@@ -45,6 +47,7 @@ type (
 
 	IProtection interface {
 		RequirePermission(required rbac.Permission) gin.HandlerFunc
+		Route(decl authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc
 	}
 
 	IUseCase interface {
@@ -114,84 +117,92 @@ func NewEventSelfAPIHandler(useCase IUseCase, prot IProtection) *Handler {
 // with an explicit event ID apply their own read or mutation permissions.
 func (h *Handler) Init(router *gin.RouterGroup, resolveTenant gin.HandlerFunc) {
 	public := router.Group("events/self", h.prot.RequirePermission(rbac.PermEventContentRead), resolveTenant, h.touchPresence)
-	public.GET("public-info", h.publicInfo)
+	public.GET("public-info", h.prot.Route(authz.PublicRoute(authz.PublicPages), nil), h.publicInfo)
 	h.initLiveScreen(router, resolveTenant)
 
 	self := router.Group("events/self", h.prot.RequirePermission(rbac.PermSelf), resolveTenant, h.touchPresence)
 	{
-		self.GET("info", h.info)
-		self.GET("participant-info", h.participantInfo)
-		self.GET("join/info", h.joinInfo)
-		self.POST("join", h.join)
+		self.GET("info", h.prot.Route(authz.AnyOf(authz.SourceTenant, authz.Self), nil), h.info)
+		self.GET("participant-info", h.prot.Route(authz.Related(authz.SourceTenant, authz.RelParticipant), nil), h.participantInfo)
+		self.GET("join/info", h.prot.Route(authz.AnyOf(authz.SourceTenant, authz.Self), nil), h.joinInfo)
+		self.POST("join", h.prot.Route(authz.AnyOf(authz.SourceTenant, authz.Self), nil), h.join)
 		// join/invitation/accept is the pre-/invite alias kept for older clients.
-		self.POST("join/invitation/accept", h.acceptInvitation)
-		self.POST("invitation/accept", h.acceptInvitation)
-		self.POST("invitation/decline", h.declineInvitation)
-		self.PUT("pseudonym", h.setPseudonym)
-		self.GET("participant-form", h.participantForm)
-		self.GET("team-fields", h.teamFields)
-		self.POST("participant-form", h.submitParticipantForm)
-		self.GET("participant-answers", h.participantAnswers)
-		self.PUT("participant-answers", h.updateParticipantAnswers)
-		self.POST("answer-files", middleware.RateLimitPerUser(answerFileUploadsPerMinute, time.Minute), h.uploadAnswerFile)
-		self.GET("answer-files/:fileID", h.downloadAnswerFile)
+		self.POST("join/invitation/accept", h.prot.Route(authz.AnyOf(authz.SourceTenant, authz.Self), nil), h.acceptInvitation)
+		self.POST("invitation/accept", h.prot.Route(authz.AnyOf(authz.SourceTenant, authz.Self), nil), h.acceptInvitation)
+		self.POST("invitation/decline", h.prot.Route(authz.AnyOf(authz.SourceTenant, authz.Self), nil), h.declineInvitation)
+		self.PUT("pseudonym", h.prot.Route(authz.AnyOf(authz.SourceTenant, authz.Self), nil), h.setPseudonym)
+		self.GET("participant-form", h.prot.Route(authz.AnyOf(authz.SourceTenant, authz.Self), nil), h.participantForm)
+		self.GET("team-fields", h.prot.Route(authz.AnyOf(authz.SourceTenant, authz.Self), nil), h.teamFields)
+		self.POST("participant-form", h.prot.Route(authz.AnyOf(authz.SourceTenant, authz.Self), nil), h.submitParticipantForm)
+		self.GET("participant-answers", h.prot.Route(authz.AnyOf(authz.SourceTenant, authz.Self), nil), h.participantAnswers)
+		self.PUT("participant-answers", h.prot.Route(authz.AnyOf(authz.SourceTenant, authz.Self), nil), h.updateParticipantAnswers)
+		self.POST("answer-files", h.prot.Route(authz.Related(authz.SourceTenant, authz.RelParticipant), nil), middleware.RateLimitPerUser(answerFileUploadsPerMinute, time.Minute), h.uploadAnswerFile)
+		self.GET("answer-files/:fileID", h.prot.Route(authz.AnyOf(authz.SourceTenant, authz.Self), nil), h.downloadAnswerFile)
 	}
 
 	teams := router.Group("events/:id/teams", h.prot.RequirePermission(rbac.PermSelf), h.touchPresence)
 	{
-		teams.POST("", h.createTeam)
-		teams.POST("join", h.joinTeam)
-		teams.GET("mine", h.ownTeam)
-		teams.GET("mine/members", h.ownTeamMembers)
-		teams.POST("mine/leave", h.leaveTeam)
-		teams.POST("mine/form", h.formTeam)
-		teams.PUT(":teamID", h.renameTeam)
-		teams.PUT(":teamID/fields", h.updateTeamFields)
-		teams.POST(":teamID/join-code", h.regenerateJoinCode)
-		teams.POST(":teamID/captain", h.transferCaptain)
-		teams.POST(":teamID/members/:userID/kick", h.kickMember)
-		teams.DELETE(":teamID", h.disbandTeam)
+		teams.POST("", h.prot.Route(authz.Related(authz.SourceEventParam("id"), authz.RelParticipant), nil), h.createTeam)
+		teams.POST("join", h.prot.Route(authz.Related(authz.SourceEventParam("id"), authz.RelParticipant), nil), h.joinTeam)
+		teams.GET("mine", h.prot.Route(authz.Related(authz.SourceOwnTeam("id"), authz.RelTeamMember), nil), h.ownTeam)
+		teams.GET("mine/members", h.prot.Route(authz.Related(authz.SourceOwnTeam("id"), authz.RelTeamMember), nil), h.ownTeamMembers)
+		teams.POST("mine/leave", h.prot.Route(authz.AnyOf(authz.SourceOwnTeam("id"), authz.Self), nil), h.leaveTeam)
+		teams.POST("mine/form", h.prot.Route(authz.Related(authz.SourceOwnTeam("id"), authz.RelCaptain), nil), h.formTeam)
+		teams.PUT(":teamID", h.prot.Route(authz.Related(authz.SourceObject("team"), authz.RelCaptain), nil), h.renameTeam)
+		teams.PUT(":teamID/fields", h.prot.Route(authz.Related(authz.SourceObject("team"), authz.RelCaptain), nil), h.updateTeamFields)
+		teams.POST(":teamID/join-code", h.prot.Route(authz.Related(authz.SourceObject("team"), authz.RelCaptain), nil), h.regenerateJoinCode)
+		teams.POST(":teamID/captain", h.prot.Route(authz.Related(authz.SourceObject("team"), authz.RelCaptain), nil), h.transferCaptain)
+		teams.POST(":teamID/members/:userID/kick", h.prot.Route(authz.Related(authz.SourceObject("team"), authz.RelCaptain), nil), h.kickMember)
+		teams.DELETE(":teamID", h.prot.Route(authz.Related(authz.SourceObject("team"), authz.RelCaptain), nil), h.disbandTeam)
 		// The arrival time decides first blood and the deadline: counted from the end of the body.
-		teams.POST("challenges/:challengeID/submit", middleware.ReceivedAfterBody, h.submitChallenge)
-		teams.POST("challenges/:challengeID/hints/:hintID/unlock", h.unlockHint)
-		teams.GET("challenges/mine", h.listOwnChallenges)
-		teams.GET("challenges/:challengeID/files/:fileID", h.downloadChallengeAttachment)
-		teams.POST("challenges/:challengeID/open", h.openChallenge)
-		teams.POST("challenges/:challengeID/run-checks", h.runChecks)
-		teams.GET("challenges/:challengeID/solves", h.challengeSolves)
+		teams.POST("challenges/:challengeID/submit", h.prot.Route(authz.Related(authz.SourceEventParam("id"), authz.RelParticipant), nil), middleware.ReceivedAfterBody, h.submitChallenge)
+		teams.POST("challenges/:challengeID/hints/:hintID/unlock", h.prot.Route(authz.Related(authz.SourceEventParam("id"), authz.RelParticipant), nil), h.unlockHint)
+		teams.GET("challenges/mine", h.prot.Route(authz.Related(authz.SourceEventParam("id"), authz.RelParticipant), nil), h.listOwnChallenges)
+		teams.GET("challenges/:challengeID/files/:fileID", h.prot.Route(authz.Related(authz.SourceEventParam("id"), authz.RelParticipant), nil), h.downloadChallengeAttachment)
+		teams.POST("challenges/:challengeID/open", h.prot.Route(authz.Related(authz.SourceEventParam("id"), authz.RelParticipant), nil), h.openChallenge)
+		teams.POST("challenges/:challengeID/run-checks", h.prot.Route(authz.Related(authz.SourceEventParam("id"), authz.RelParticipant), nil), h.runChecks)
+		teams.GET("challenges/:challengeID/solves", h.prot.Route(authz.Related(authz.SourceEventParam("id"), authz.RelParticipant), nil), h.challengeSolves)
 		// Stands are managed only by moderators (manage/labs); participants
 		// read the lab status, their team stand status and their VPN config.
-		teams.GET("challenges/:challengeID/lab", h.labStatus)
-		teams.POST("challenges/:challengeID/lab/link", h.openLabLink)
-		teams.GET("labs/:labID", h.labLifecycle)
-		teams.POST("labs/:labID/stop", h.stopLab)
-		teams.POST("labs/:labID/restart", h.restartLab)
-		teams.GET("labs/stand", h.standStatus)
-		teams.GET("labs/vpn", h.labVPNConfig)
-		teams.GET("labs/vpn/status", h.labVPNStatus)
+		teams.GET("challenges/:challengeID/lab", h.prot.Route(authz.Related(authz.SourceEventParam("id"), authz.RelParticipant), nil), h.labStatus)
+		teams.POST("challenges/:challengeID/lab/link", h.prot.Route(authz.Related(authz.SourceEventParam("id"), authz.RelParticipant), nil), h.openLabLink)
+		teams.GET("labs/:labID", h.prot.Route(authz.Related(authz.SourceEventParam("id"), authz.RelParticipant), nil), h.labLifecycle)
+		teams.POST("labs/:labID/stop", h.prot.Route(authz.Related(authz.SourceEventParam("id"), authz.RelParticipant), nil), h.stopLab)
+		teams.POST("labs/:labID/restart", h.prot.Route(authz.Related(authz.SourceEventParam("id"), authz.RelParticipant), nil), h.restartLab)
+		teams.GET("labs/stand", h.prot.Route(authz.Related(authz.SourceEventParam("id"), authz.RelParticipant), nil), h.standStatus)
+		teams.GET("labs/vpn", h.prot.Route(authz.Related(authz.SourceEventParam("id"), authz.RelParticipant), nil), h.labVPNConfig)
+		teams.GET("labs/vpn/status", h.prot.Route(authz.Related(authz.SourceEventParam("id"), authz.RelParticipant), nil), h.labVPNStatus)
 	}
 
-	results := router.Group("events/:id/results", h.prot.RequirePermission(rbac.PermEventResultsRead))
+	// Public standings: the scoreboard while the event runs, the results after it (Appendix A.3.6 #110-112, §4.5).
+	results := router.Group("events/:id/results", h.prot.Route(
+		authz.PublicRoute(authz.PublicScoreboard, authz.PublicResults).WithData(authz.EventScoreboardRead),
+		h.prot.RequirePermission(rbac.PermEventResultsRead),
+	))
 	{
 		results.GET("", h.resultsSnapshot)
 		results.GET("live", h.liveResults)
 		results.GET("changes", h.resultsChanges)
 	}
-	content := router.Group("events/:id/content", h.prot.RequirePermission(rbac.PermEventContentRead))
+	// Public event pages (Appendix A.3.6 #101, #102, §4.5).
+	content := router.Group("events/:id/content", h.prot.Route(
+		authz.PublicRoute(authz.PublicPages),
+		h.prot.RequirePermission(rbac.PermEventContentRead),
+	))
 	{
 		content.GET("pages", h.visiblePages)
 		content.GET("pages/:slug", h.publicPage)
 	}
 	teamResults := router.Group("events/:id/results", h.prot.RequirePermission(rbac.PermSelf), h.touchPresence)
 	{
-		teamResults.GET("team", h.ownResults)
-		teamResults.GET("participation", h.participationStats)
+		teamResults.GET("team", h.prot.Route(authz.Related(authz.SourceEventParam("id"), authz.RelParticipant), nil), h.ownResults)
+		teamResults.GET("participation", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventLabsModeratorTeamUse).Or(authz.RelParticipant), nil), h.participationStats)
 	}
 	forms := router.Group("events/:id/forms", h.prot.RequirePermission(rbac.PermSelf), h.touchPresence)
 	{
-		forms.GET("pending", h.pendingForms)
-		forms.GET(":formID", h.getForm)
-		forms.POST(":formID/response", h.submitFormResponse)
+		forms.GET("pending", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.Self), nil), h.pendingForms)
+		forms.GET(":formID", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.Self), nil), h.getForm)
+		forms.POST(":formID/response", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.Self), nil), h.submitFormResponse)
 	}
 }
 

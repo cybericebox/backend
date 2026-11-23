@@ -10,7 +10,22 @@ DELETE /api/auth/last-email | A.3 #26: public flow; clears the browser's own coo
 DELETE /api/auth/passkeys/:id | A.3 #30: own passkey (self)
 DELETE /api/auth/sessions | A.3 #39: own other sessions (self)
 DELETE /api/auth/sessions/:id | A.3 #41: own session (self)
+DELETE /api/auth/totp | A.3 #N27: own TOTP factor (self)
 PATCH /api/users/:userID/role | A.3 #690: a role change revokes and grants, all-of access.grants.create and access.grants.delete
+DELETE /api/events/:id/manage/analytics/integrity/dismissals/:dismissalID | A.3 #129: undoes a dismissal (a review decision), event.stats.sensitive.update
+DELETE /api/events/:id/manage/analytics/integrity/solves/:teamChallengeID/review | A.3 #132: undoes a solve review, event.stats.sensitive.update
+DELETE /api/events/:id/manage/content/landing/draft | A.3 #184: discards the landing draft (undo), event.pages.update
+DELETE /api/events/:id/manage/logo | A.3 #265: clears the logo, a setting (event.settings.update)
+DELETE /api/events/:id/manage/mail/smtp | A.3 #270: a reset to the platform mail, so update (§4)
+DELETE /api/events/:id/manage/notification-subscriptions/:signalType/:channel | A.3 #277: a reset to the default, so update (§4)
+DELETE /api/events/:id/manage/notification-templates/email/type/:notificationType | A.3 #297: a reset to the default, so update (§4)
+DELETE /api/events/:id/manage/notification-templates/in-app/type/:notificationType | A.3 #306: a reset to the default, so update (§4)
+DELETE /api/events/:id/manage/pages/:pageID/draft | A.3 #312: discards the page draft (undo), event.pages.update
+DELETE /api/events/:id/manage/participant-preview/labs/:deployID | A.3 #320: stops the caller's own preview lab, event.preview.participant
+DELETE /api/events/:id/manage/participant-preview/runs | A.3 #321: ends the caller's own preview runs, event.preview.participant
+DELETE /api/events/:id/manage/participant-preview/selections/:selectionID/run | A.3 #324: ends the caller's own preview run, event.preview.participant
+DELETE /api/events/:id/manage/preview-picture | A.3 #346: clears the preview picture, a setting (event.settings.update)
+DELETE /api/events/:id/teams/:teamID | A.3 #401: the captain disbands the own team (captain relation, no key)
 DELETE /api/assistant/sessions/:id | A.3 #83: the caller's own brain session (sessions are the caller's own in the brain), cyberbrain.chat.use
 DELETE /api/assistant/sessions/:id/attachments/:aid | A.3 #86: an attachment of the caller's own brain session, cyberbrain.chat.use
 DELETE /api/exercises/:id/draft | A.3 #456: discards the task draft (undo), the update keys or authorship

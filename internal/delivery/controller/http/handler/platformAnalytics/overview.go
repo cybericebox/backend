@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	platformAnalyticsModel "github.com/cybericebox/backend/internal/model/platformAnalytics"
 	"github.com/cybericebox/backend/internal/model/rbac"
@@ -110,7 +111,10 @@ type (
 )
 
 func (h *Handler) initOverview(router *gin.RouterGroup) {
-	group := router.Group("analytics", h.prot.RequirePermission(rbac.PermAnalyticsRead))
+	group := router.Group("analytics", h.prot.Route(
+		authz.AnyOf(authz.SourcePlatform, authz.AnalyticsRead), // Appendix A.3.4 of the access spec
+		h.prot.RequirePermission(rbac.PermAnalyticsRead),
+	))
 	group.GET("overview", h.overview)
 	group.GET("overview/export.csv", h.exportOverview)
 }

@@ -4,6 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/gofrs/uuid"
+	"github.com/stretchr/testify/require"
+
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/handler/eventself"
 	"github.com/cybericebox/backend/internal/delivery/repository/eventConfigRepo"
 	"github.com/cybericebox/backend/internal/delivery/repository/eventLabRepo"
@@ -16,19 +26,19 @@ import (
 	"github.com/cybericebox/backend/internal/model/rbac"
 	calModel "github.com/cybericebox/backend/internal/model/resourceCalendar"
 	"github.com/cybericebox/backend/internal/useCase/event"
-	"github.com/gin-gonic/gin"
-	"github.com/gofrs/uuid"
-	"github.com/stretchr/testify/require"
-	"net/http"
-	"net/http/httptest"
-	"testing"
-	"time"
 )
 
 type waveProtection struct{}
 
 func (waveProtection) RequirePermission(rbac.Permission) gin.HandlerFunc {
 	return func(c *gin.Context) {}
+}
+func (waveProtection) Route(_ authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if legacy != nil {
+			legacy(c)
+		}
+	}
 }
 func waveProgressive(t *testing.T, f *standFixture) {
 	t.Helper()

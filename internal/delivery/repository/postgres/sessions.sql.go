@@ -14,7 +14,7 @@ import (
 
 const createSession = `-- name: CreateSession :one
 INSERT INTO sessions (id, user_id, expires_at, last_seen, created_at, metadata)
-VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, user_id, expires_at, last_seen, metadata, created_at
+VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, user_id, expires_at, last_seen, metadata, created_at, step_up_at, step_up_method
 `
 
 type CreateSessionParams struct {
@@ -45,6 +45,8 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (S
 		&i.LastSeen,
 		&i.Metadata,
 		&i.CreatedAt,
+		&i.StepUpAt,
+		&i.StepUpMethod,
 	)
 	return i, err
 }
@@ -75,7 +77,7 @@ func (q *Queries) GetDatabaseTime(ctx context.Context) (time.Time, error) {
 }
 
 const getSessionByID = `-- name: GetSessionByID :one
-SELECT id, user_id, expires_at, last_seen, metadata, created_at
+SELECT id, user_id, expires_at, last_seen, metadata, created_at, step_up_at, step_up_method
 FROM sessions
 WHERE id = $1
 `
@@ -90,12 +92,14 @@ func (q *Queries) GetSessionByID(ctx context.Context, id uuid.UUID) (Session, er
 		&i.LastSeen,
 		&i.Metadata,
 		&i.CreatedAt,
+		&i.StepUpAt,
+		&i.StepUpMethod,
 	)
 	return i, err
 }
 
 const getSessionsByUser = `-- name: GetSessionsByUser :many
-SELECT id, user_id, expires_at, last_seen, metadata, created_at
+SELECT id, user_id, expires_at, last_seen, metadata, created_at, step_up_at, step_up_method
 FROM sessions
 WHERE user_id = $1
 ORDER BY last_seen DESC
@@ -117,6 +121,8 @@ func (q *Queries) GetSessionsByUser(ctx context.Context, userID uuid.UUID) ([]Se
 			&i.LastSeen,
 			&i.Metadata,
 			&i.CreatedAt,
+			&i.StepUpAt,
+			&i.StepUpMethod,
 		); err != nil {
 			return nil, err
 		}

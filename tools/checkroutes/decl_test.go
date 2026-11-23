@@ -61,7 +61,7 @@ func TestDeclarationViolations(t *testing.T) {
 		"GET    /api/events/self/live-screen | gate: events.content.read(public) | layers: eventself.liveScreenGate,middleware.ResolveEventTenant.func | keys: - @ bearer(live-screen)",
 		"GET    /api/events/:id/teams/mine/members | gate: self | layers: eventself.touchPresence | keys: (team-member) @ own-team(:id)",
 	}, "\n")
-	if got := declarationViolations(golden, exceptions); len(got) != 0 {
+	if got := declarationViolations(golden, exceptions, nil); len(got) != 0 {
 		t.Fatalf("want no violations, got %v", got)
 	}
 
@@ -86,34 +86,62 @@ func TestDeclarationViolations(t *testing.T) {
 		"own team param":        "GET    /api/events/self/team | gate: self | layers: - | keys: (team-member) @ own-team(:id)",
 	}
 	for name, line := range bad {
-		if got := declarationViolations(line, nil); len(got) == 0 {
+		if got := declarationViolations(line, nil, nil); len(got) == 0 {
 			t.Errorf("%s: %q passed", name, line)
 		}
 	}
 
 	// A reset to a default keeps update (Appendix A.3): the exception lets it through.
 	reset := "DELETE /api/settings/retention | gate: platform.settings.write | layers: - | keys: platform.settings.update @ platform"
-	if got := declarationViolations(reset, nil); len(got) == 0 {
+	if got := declarationViolations(reset, nil, nil); len(got) == 0 {
 		t.Errorf("a DELETE route with an update key passed without the exception")
 	}
-	if got := declarationViolations(reset, map[string]string{"DELETE /api/settings/retention": "reset to the default"}); len(got) != 0 {
+	if got := declarationViolations(reset, map[string]string{"DELETE /api/settings/retention": "reset to the default"}, nil); len(got) != 0 {
 		t.Errorf("an excepted reset still fails: %v", got)
 	}
 	// A stale exception (the route follows the rule, or is not declared) fails.
-	if got := declarationViolations("DELETE /api/users/:userID | gate: users.delete | layers: - | keys: users.delete @ platform", map[string]string{"DELETE /api/users/:userID": "x"}); len(got) == 0 {
+	if got := declarationViolations("DELETE /api/users/:userID | gate: users.delete | layers: - | keys: users.delete @ platform", map[string]string{"DELETE /api/users/:userID": "x"}, nil); len(got) == 0 {
 		t.Errorf("a stale delete exception passed")
 	}
-	if got := declarationViolations("GET    /api/users | gate: users.read | layers: - | keys: users.list @ platform", map[string]string{"DELETE /api/nowhere": "x"}); len(got) == 0 {
+	if got := declarationViolations("GET    /api/users | gate: users.read | layers: - | keys: users.list @ platform", map[string]string{"DELETE /api/nowhere": "x"}, nil); len(got) == 0 {
 		t.Errorf("an exception for an undeclared route passed")
 	}
 }
 
 func TestParseExceptions(t *testing.T) {
-	got, problems := parseExceptions("# comment\n\nDELETE /api/auth/account | own account\nDELETE  /api/x | y\nbroken line\nDELETE /api/auth/account | again\n")
+	got, problems := parseExceptions("routes.delete-exceptions", "# comment\n\nDELETE /api/auth/account | own account\nDELETE  /api/x | y\nbroken line\nDELETE /api/auth/account | again\n")
 	if len(got) != 2 || got["DELETE /api/x"] != "y" {
 		t.Errorf("parsed %v", got)
 	}
 	if len(problems) != 2 {
 		t.Errorf("want the malformed and the duplicate line reported, got %v", problems)
+	}
+}
+
+func TestParticipantRoutesDeclareARelation(t *testing.T) {
+	ok := strings.Join([]string{
+		"GET    /api/events/:id/teams/mine/members | gate: self | layers: - | keys: (team-member) @ event(:id)",
+		"GET    /api/events/self/public-info | gate: events.content.read(public) | layers: - | keys: - @ public(pages)",
+		"GET    /api/events/self/participant-form | gate: self | layers: - | keys: self @ tenant",
+	}, "\n")
+	listed := map[string]string{"GET /api/events/self/participant-form": "A.3 #441: filled before approval"}
+	if got := declarationViolations(ok, nil, listed); len(got) != 0 {
+		t.Fatalf("want no violations, got %v", got)
+	}
+	if got := declarationViolations("GET    /api/events/self/participant-form | gate: self | layers: - | keys: self @ tenant", nil, nil); len(got) != 1 {
+		t.Errorf("a participant route without a relation passed: %v", got)
+	}
+	if got := declarationViolations("GET    /api/events/self/participant-form | gate: self | layers: - | keys: event.read @ tenant", nil, listed); len(got) == 0 {
+		t.Errorf("a listed participant route with staff keys alone passed")
+	}
+	if got := declarationViolations("GET    /api/events/:id/lobby | gate: self | layers: eventself.touchPresence | keys: self @ event(:id)", nil, nil); len(got) == 0 {
+		t.Errorf("a participant route outside the prefixes (presence layer) passed without a relation")
+	}
+	stale := map[string]string{"GET /api/events/:id/teams/mine/members": "x"}
+	if got := declarationViolations("GET    /api/events/:id/teams/mine/members | gate: self | layers: - | keys: (team-member) @ event(:id)", nil, stale); len(got) == 0 {
+		t.Errorf("a stale relation exception passed")
+	}
+	if got := declarationViolations("GET    /api/users | gate: users.read | layers: - | keys: users.list @ platform", nil, map[string]string{"GET /api/events/self/info": "x"}); len(got) == 0 {
+		t.Errorf("a relation exception for an undeclared route passed")
 	}
 }

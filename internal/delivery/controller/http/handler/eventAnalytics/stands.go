@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	"github.com/cybericebox/backend/internal/model/rbac"
 	"github.com/cybericebox/backend/internal/model/usertext"
@@ -22,8 +23,8 @@ type StandsUseCase interface {
 // initStands registers the Stands routes on the analytics group.
 func (h *Handler) initStands(router *gin.RouterGroup) {
 	analytics := router.Group("events/:id/manage/analytics", h.prot.RequirePermission(rbac.PermSelf))
-	analytics.GET("stands", h.requireSections, h.stands)
-	analytics.GET("stands/export.csv", h.requireExport, h.exportStands)
+	analytics.GET("stands", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventStatsRead), nil), h.requireSections, h.stands)
+	analytics.GET("stands/export.csv", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventExport).WithData(authz.EventStatsPeopleRead), nil), h.requireExport, h.exportStands)
 }
 
 type (
