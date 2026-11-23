@@ -14,6 +14,7 @@ func TestConvert(t *testing.T) {
 		{"`public` (visibility: scoreboard during the event, results after it, §4.5)", "path :id → event", "- @ public(scoreboard,results)"},
 		{"service secret (X-Render-Secret)", "path :tag", "- @ service(render)"},
 		{"`users.list`", "none", "users.list @ platform"},
+		{"`events.archive`", "platform (bulk: body IDs)", "events.archive @ platform"},
 		{"all-of: `access.grants.create`, `access.grants.delete`", "none (delegation §6.4)", "allOf(access.grants.create,access.grants.delete) @ platform"},
 		{"any-of: `events.read`, `event.settings.read`", "path :id → event", "anyOf(events.read,event.settings.read) @ event(:id)"},
 		{"`events.delete`; an archived event: all-of `events.delete`, `events.archived.read`", "path :id → event (bulk: body IDs)", "events.delete @ event(:id)"},

@@ -287,7 +287,7 @@ func scopeOf(scope string, d authz.Decl) (authz.ScopeSource, string) {
 			}
 		}
 		return "", "scope \"—\" with keys that are not implicit"
-	case scope == "platform", strings.HasPrefix(scope, "none"):
+	case scope == "platform", strings.HasPrefix(scope, "platform ("), strings.HasPrefix(scope, "none"):
 		return authz.SourcePlatform, ""
 	case strings.HasPrefix(scope, "tenant (Origin)"):
 		return authz.SourceTenant, ""
