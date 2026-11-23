@@ -1,0 +1,4 @@
+# Declared routes whose keys differ from today's gate on purpose (TestDeclaredKeysMapToTheLegacyGate).
+# METHOD /api/path | A.3 row and the spec section that makes the change
+GET /api/admin/assistant/statistics/events/:eventID | A.3.3 #50: any-of cyberbrain.stats.read, events.read; today platform.settings.read only. The event card reader sees the per-event statistics source (spec §7.2, assistant statistics row; §9 Q14)
+GET /api/admin/dashboard | A.3.3 #54: any-of the block keys; today self + the hard-coded IsAdminTier() (spec §7.2: IsAdminTier() becomes "holds any admin-area key"; A.4.1 item 10)

@@ -23,37 +23,62 @@ func (h *H) Init(r *gin.RouterGroup) {
 func TestRouteWithoutGateIsViolation(t *testing.T) {
 	got := parse(t, `package x
 func (h *H) Init(r *gin.RouterGroup) {
-	r.GET("users", h.prot.Route(authz.PublicRoute(""), nil), h.list)
+	r.GET("users", h.prot.Route(authz.PublicRoute(), nil), h.list)
 }`)
 	if len(got) != 1 {
 		t.Fatalf("want 1 violation, got %v", got)
 	}
 }
 
+// Route wraps only the permission gate: any other check is a middleware of its own (a layer of the route).
+func TestRouteAroundANonPermissionCheckIsViolation(t *testing.T) {
+	got := parse(t, `package x
+func (h *H) Init(r *gin.RouterGroup) {
+	g := r.Group("x", h.prot.RequirePermission(rbac.PermSelf))
+	g.GET("dashboard", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.UsersList), h.requireAdminTier), h.get)
+}`)
+	if len(got) != 1 || !strings.Contains(got[0], "neither a RequirePermission gate nor nil") {
+		t.Fatalf("want the Route argument violation, got %v", got)
+	}
+}
+
 func TestDeclarationViolations(t *testing.T) {
+	exceptions := map[string]string{
+		"DELETE /api/auth/sessions/:id": "own sessions",
+		"DELETE /api/auth/last-email":   "the browser's own cookie",
+	}
 	golden := strings.Join([]string{
 		"GET    /api/users | gate: users.read | layers: - | keys: users.list @ platform",
 		"GET    /api/auth/me | gate: self | layers: - | keys: self @ self",
 		"POST   /api/auth/sign-in | gate: - | layers: recaptcha | keys: - @ public",
 		"GET    /api/events/:id | gate: events.read | layers: - | keys: ?",
 		"DELETE /api/users/:userID | gate: users.delete | layers: - | keys: users.delete @ platform",
+		"POST   /api/users/bulk/delete | gate: users.delete | layers: - | keys: users.delete @ platform",
 		"DELETE /api/auth/sessions/:id | gate: self | layers: - | keys: self @ self",
 		"DELETE /api/auth/last-email | gate: - | layers: - | keys: - @ public",
+		"GET    /api/admin/assistant/statistics/events/:eventID | gate: platform.settings.read | layers: - | keys: cyberbrain.stats.read @ event(:eventID)",
+		"GET    /api/render/events/:tag/page | gate: - | layers: eventself.requireSecret | keys: - @ service(render)",
 	}, "\n")
-	if got := declarationViolations(golden, nil); len(got) != 0 {
+	if got := declarationViolations(golden, exceptions); len(got) != 0 {
 		t.Fatalf("want no violations, got %v", got)
 	}
 
 	bad := map[string]string{
-		"unknown key":         "GET    /api/users | gate: users.read | layers: - | keys: users.teleport @ platform",
-		"scope source":        "POST   /api/me/draft-key | gate: self | layers: - | keys: event.exercises.create @ platform",
-		"delete without key":  "DELETE /api/users/:userID | gate: users.delete | layers: - | keys: users.status.update @ platform",
-		"reject without key":  "POST   /api/events/:id/participants/:userID/reject | gate: events.write | layers: - | keys: event.participants.update @ event(:id)",
-		"bare self in manage": "GET    /api/events/:id/manage/teams | gate: self | layers: event.requireRead | keys: self @ event(:id)",
-		"bare self exercises": "GET    /api/exercises | gate: self | layers: - | keys: self @ self",
-		"bare self assistant": "GET    /api/assistant/sessions | gate: self | layers: - | keys: self @ self",
-		"unreadable":          "GET    /api/users | gate: users.read | layers: - | keys: users.list",
-		"no keys column":      "GET    /api/users | gate: users.read | layers: -",
+		"unknown key":           "GET    /api/users | gate: users.read | layers: - | keys: users.teleport @ platform",
+		"scope source":          "POST   /api/me/draft-key | gate: self | layers: - | keys: event.exercises.create @ platform",
+		"delete without key":    "DELETE /api/users/:userID | gate: users.delete | layers: - | keys: users.status.update @ platform",
+		"reject without key":    "POST   /api/events/:id/participants/:userID/reject | gate: events.write | layers: - | keys: event.participants.update @ event(:id)",
+		"own-data delete":       "DELETE /api/auth/account | gate: self | layers: - | keys: self @ self",
+		"public delete":         "DELETE /api/auth/google/pending | gate: - | layers: - | keys: - @ public",
+		"delete key off delete": "PATCH  /api/users/:userID/status | gate: users.status.write | layers: - | keys: users.delete @ platform",
+		"bare self in manage":   "GET    /api/events/:id/manage/teams | gate: self | layers: event.requireRead | keys: self @ event(:id)",
+		"bare self exercises":   "GET    /api/exercises | gate: self | layers: - | keys: self @ self",
+		"bare self assistant":   "GET    /api/assistant/sessions | gate: self | layers: - | keys: self @ self",
+		"unreadable":            "GET    /api/users | gate: users.read | layers: - | keys: users.list",
+		"no keys column":        "GET    /api/users | gate: users.read | layers: -",
+		"event param missing":   "POST   /api/events/bulk/archive | gate: events.write | layers: - | keys: events.archive @ event(:id)",
+		"service elsewhere":     "GET    /api/events/:id | gate: - | layers: eventself.requireSecret | keys: - @ service(render)",
+		"service without layer": "GET    /api/render/key | gate: - | layers: - | keys: - @ service(render)",
 	}
 	for name, line := range bad {
 		if got := declarationViolations(line, nil); len(got) == 0 {
@@ -61,16 +86,29 @@ func TestDeclarationViolations(t *testing.T) {
 		}
 	}
 
-	// A reset to a default keeps update (Appendix A.3): the allowlist lets it through.
+	// A reset to a default keeps update (Appendix A.3): the exception lets it through.
 	reset := "DELETE /api/settings/retention | gate: platform.settings.write | layers: - | keys: platform.settings.update @ platform"
 	if got := declarationViolations(reset, nil); len(got) == 0 {
-		t.Errorf("a DELETE route with an update key passed without the allowlist")
+		t.Errorf("a DELETE route with an update key passed without the exception")
 	}
 	if got := declarationViolations(reset, map[string]string{"DELETE /api/settings/retention": "reset to the default"}); len(got) != 0 {
-		t.Errorf("an allowlisted reset still fails: %v", got)
+		t.Errorf("an excepted reset still fails: %v", got)
 	}
-	// A stale allowlist entry (the route is not declared, or now has a delete key) fails.
+	// A stale exception (the route follows the rule, or is not declared) fails.
 	if got := declarationViolations("DELETE /api/users/:userID | gate: users.delete | layers: - | keys: users.delete @ platform", map[string]string{"DELETE /api/users/:userID": "x"}); len(got) == 0 {
 		t.Errorf("a stale delete exception passed")
+	}
+	if got := declarationViolations("GET    /api/users | gate: users.read | layers: - | keys: users.list @ platform", map[string]string{"DELETE /api/nowhere": "x"}); len(got) == 0 {
+		t.Errorf("an exception for an undeclared route passed")
+	}
+}
+
+func TestParseExceptions(t *testing.T) {
+	got, problems := parseExceptions("# comment\n\nDELETE /api/auth/account | own account\nDELETE  /api/x | y\nbroken line\nDELETE /api/auth/account | again\n")
+	if len(got) != 2 || got["DELETE /api/x"] != "y" {
+		t.Errorf("parsed %v", got)
+	}
+	if len(problems) != 2 {
+		t.Errorf("want the malformed and the duplicate line reported, got %v", problems)
 	}
 }

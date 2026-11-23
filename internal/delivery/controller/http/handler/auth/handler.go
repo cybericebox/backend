@@ -3,13 +3,13 @@ package auth
 import (
 	"context"
 	"io"
-
-	"github.com/cybericebox/backend/internal/authz"
-	"github.com/cybericebox/backend/internal/config"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
+	"github.com/cybericebox/backend/internal/config"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
 	"github.com/cybericebox/backend/internal/limits"
 	authModel "github.com/cybericebox/backend/internal/model/auth"
@@ -245,8 +245,16 @@ func (h *Handler) Init(public, secured *gin.RouterGroup) {
 	sec.POST("google/link", own, h.googleLink)
 	sec.DELETE("google/link", own, h.unlinkGoogle)
 
-	// The key the catalog editor seals its local drafts with: one per person and browser.
-	secured.Group("me").POST("draft-key", self, h.requireEditorOrigin, h.draftKey)
+	// The key the catalog editor seals its local drafts with: one per person and browser (at most
+	// draftKeyModel.MaxPerUser keys per person, the least recently used go first). Own data (owner decision
+	// 2026-11-23, A.3 #47); the editor-origin check stays a layer, and the requests of one person are limited.
+	secured.Group("me").POST(
+		"draft-key",
+		own,
+		h.requireEditorOrigin,
+		middleware.RateLimitPerUser(draftKeyRequestsPerMinute, time.Minute),
+		h.draftKey,
+	)
 
 	pub.POST("account/email/confirm", open, h.confirmEmailChange)
 	// Public avatar proxy: streams the stored image so the bucket stays private.

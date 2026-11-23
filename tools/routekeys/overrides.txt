@@ -1,0 +1,6 @@
+# Owner and review decisions the access spec does not show yet (tools/routekeys reads them over Appendix A.3).
+# METHOD /api/path | keys: <declaration> | data: <key,key> | reason
+POST /api/me/draft-key | keys: self @ self | owner decision 2026-11-23: own data; the editor-origin check stays a layer (spec fix: A.3 #47)
+POST /api/events/bulk/archive | keys: events.archive @ platform | review 2026-11-23: the events come from the body, the bulk route is checked at platform scope
+DELETE /api/events/:id | data: events.archived.read | A.3 #94: an archived event also needs events.archived.read (state rule, kept for P2)
+GET /api/events/:id | data: events.archived.read | the card of an archived event needs events.archived.read (A.2, round 4; kept for P2)
