@@ -21,40 +21,6 @@ import (
 var undeclaredRoutes = map[string]string{
 	// P1b area 1: auth, me, users
 	"POST /api/me/draft-key": "A.3.2 #47 names any-of exercises.create, exercises.update, event.exercises.create, event.exercises.update with scope \"none\"; the event keys are not platform-grantable, so no scope source of the plan checks them (it reads like \"platform, or any event via ScopesWith\", N3): owner to settle",
-	// P1b area 2: admin, analytics, dashboard
-	"GET /api/admin/assistant/statistics":                  "area 2, A.3 #48",
-	"GET /api/admin/assistant/statistics/events/:eventID":  "area 2, A.3 #50",
-	"GET /api/admin/audit-log":                             "area 2, A.3 #52",
-	"GET /api/admin/audit-log/export":                      "area 2, A.3 #53",
-	"GET /api/admin/dashboard":                             "area 2, A.3 #54",
-	"GET /api/admin/errors":                                "area 2, A.3 #55",
-	"GET /api/admin/errors/:groupID":                       "area 2, A.3 #56",
-	"GET /api/admin/errors/not-found":                      "area 2, A.3 #61",
-	"GET /api/admin/errors/settings":                       "area 2, A.3 #62",
-	"GET /api/admin/errors/stream":                         "area 2, A.3 #65",
-	"GET /api/analytics/events":                            "area 2, A.3 #66",
-	"GET /api/analytics/events/export.csv":                 "area 2, A.3 #67",
-	"GET /api/analytics/events/table":                      "area 2, A.3 #68",
-	"GET /api/analytics/infrastructure":                    "area 2, A.3 #69",
-	"GET /api/analytics/infrastructure/export.csv":         "area 2, A.3 #70",
-	"GET /api/analytics/mail":                              "area 2, A.3 #71",
-	"GET /api/analytics/mail/export.csv":                   "area 2, A.3 #72",
-	"GET /api/analytics/overview":                          "area 2, A.3 #73",
-	"GET /api/analytics/overview/export.csv":               "area 2, A.3 #74",
-	"GET /api/analytics/tasks":                             "area 2, A.3 #75",
-	"GET /api/analytics/tasks/export.csv":                  "area 2, A.3 #76",
-	"GET /api/analytics/tasks/table":                       "area 2, A.3 #77",
-	"GET /api/analytics/users":                             "area 2, A.3 #78",
-	"GET /api/analytics/users/export.csv":                  "area 2, A.3 #79",
-	"GET /api/analytics/users/people":                      "area 2, A.3 #80",
-	"PATCH /api/admin/errors/:groupID/status":              "area 2, A.3 #57",
-	"POST /api/admin/errors/bulk/ignore":                   "area 2, A.3 #58",
-	"POST /api/admin/errors/bulk/reopen":                   "area 2, A.3 #59",
-	"POST /api/admin/errors/bulk/resolve":                  "area 2, A.3 #60",
-	"POST /api/admin/errors/settings/test":                 "area 2, A.3 #64",
-	"PUT /api/admin/assistant/statistics/defaults/:source": "area 2, A.3 #49",
-	"PUT /api/admin/assistant/statistics/events/:eventID":  "area 2, A.3 #51",
-	"PUT /api/admin/errors/settings":                       "area 2, A.3 #63",
 	// P1b area 3: events platform side and public
 	"DELETE /api/events/:id":                                      "area 3, A.3 #94",
 	"GET /api/events":                                             "area 3, A.3 #92",
@@ -689,7 +655,10 @@ func TestEveryRouteDeclaresKeys(t *testing.T) {
 // legacyDivergences are the declared routes whose keys do not map back to today's gate on purpose: the change
 // Appendix A.3 asks for (spec §7.2 lists it), shown here so a reviewer reads it as a rule change. Keyed like
 // undeclaredRoutes, with the A.3 row and the reason.
-var legacyDivergences = map[string]string{}
+var legacyDivergences = map[string]string{
+	"GET /api/admin/assistant/statistics/events/:eventID": "A.3.3 #50: any-of cyberbrain.stats.read, events.read; today platform.settings.read only. The event card reader sees the per-event statistics source (spec §7.2, assistant statistics row; §9 Q14)",
+	"GET /api/admin/dashboard":                            "A.3.3 #54: any-of the block keys; today self + the hard-coded IsAdminTier() (spec §7.2: IsAdminTier() becomes \"holds any admin-area key\"; A.4.1 item 10)",
+}
 
 // TestDeclaredKeysMapToTheLegacyGate: for each declared route, the keys map back (authz.LegacyOf) to the check that
 // routes.golden shows today. A key maps when today's permission that decides it gates the route, or when its named
