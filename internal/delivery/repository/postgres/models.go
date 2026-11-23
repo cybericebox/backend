@@ -1404,6 +1404,7 @@ type UserTotp struct {
 	ConfirmedAt      pgtype.Timestamptz `json:"confirmed_at"`
 	LastStep         pgtype.Int8        `json:"last_step"`
 	Failures         int32              `json:"failures"`
+	LastFailureAt    pgtype.Timestamptz `json:"last_failure_at"`
 	LockedUntil      pgtype.Timestamptz `json:"locked_until"`
 }
 

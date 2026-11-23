@@ -34,8 +34,9 @@ const confirmUserTOTP = `-- name: ConfirmUserTOTP :execrows
 UPDATE user_totp
 SET confirmed_at = $1::timestamptz,
     last_step    = $2::bigint,
-    failures     = 0,
-    locked_until = NULL
+    failures        = 0,
+    last_failure_at = NULL,
+    locked_until    = NULL
 WHERE user_id = $3
   AND confirmed_at IS NULL
   AND secret_ciphertext = $4
@@ -145,7 +146,7 @@ func (q *Queries) GetSessionStepUp(ctx context.Context, id uuid.UUID) (GetSessio
 }
 
 const getUserTOTP = `-- name: GetUserTOTP :one
-SELECT user_id, secret_ciphertext, created_at, confirmed_at, last_step, failures, locked_until
+SELECT user_id, secret_ciphertext, created_at, confirmed_at, last_step, failures, last_failure_at, locked_until
 FROM user_totp
 WHERE user_id = $1
 `
@@ -160,6 +161,7 @@ func (q *Queries) GetUserTOTP(ctx context.Context, userID uuid.UUID) (UserTotp, 
 		&i.ConfirmedAt,
 		&i.LastStep,
 		&i.Failures,
+		&i.LastFailureAt,
 		&i.LockedUntil,
 	)
 	return i, err
@@ -245,33 +247,51 @@ func (q *Queries) ResealUserTOTP(ctx context.Context, arg ResealUserTOTPParams) 
 
 const reserveUserTOTPAttempt = `-- name: ReserveUserTOTPAttempt :one
 UPDATE user_totp
-SET failures     = failures + 1,
-    locked_until = CASE
-                       WHEN failures + 1 >= $1::integer THEN
-                           $2::timestamptz + make_interval(secs => LEAST($3::float8,
-                               $4::float8 * power(2, failures + 1 - $1::integer)))
-                       ELSE locked_until END
-WHERE user_id = $5
-  AND (locked_until IS NULL OR locked_until <= $2::timestamptz)
+SET failures        = (CASE
+                           WHEN last_failure_at IS NULL OR
+                                last_failure_at <= $1::timestamptz - make_interval(secs => $2::float8)
+                               THEN 0
+                           ELSE LEAST(failures, 1000000) END) + 1,
+    locked_until    = CASE
+                          WHEN (CASE
+                           WHEN last_failure_at IS NULL OR
+                                last_failure_at <= $1::timestamptz - make_interval(secs => $2::float8)
+                               THEN 0
+                           ELSE LEAST(failures, 1000000) END) + 1 >= $3::integer THEN
+                              $1::timestamptz + make_interval(secs => LEAST($4::float8,
+                                  $5::float8 *
+                                  power(2, LEAST((CASE
+                           WHEN last_failure_at IS NULL OR
+                                last_failure_at <= $1::timestamptz - make_interval(secs => $2::float8)
+                               THEN 0
+                           ELSE LEAST(failures, 1000000) END) + 1 - $3::integer, 20))))
+                          ELSE locked_until END,
+    last_failure_at = $1::timestamptz
+WHERE user_id = $6
+  AND (locked_until IS NULL OR locked_until <= $1::timestamptz)
 RETURNING failures
 `
 
 type ReserveUserTOTPAttemptParams struct {
-	MaxFailures  int32     `json:"max_failures"`
 	Now          time.Time `json:"now"`
+	WindowSecs   float64   `json:"window_secs"`
+	MaxFailures  int32     `json:"max_failures"`
 	LockMaxSecs  float64   `json:"lock_max_secs"`
 	LockBaseSecs float64   `json:"lock_base_secs"`
 	UserID       uuid.UUID `json:"user_id"`
 }
 
-// Reserves one code check before the code is compared: counted up front, in one statement, so parallel guesses cannot
-// all pass a lockout that is read first and counted later. No row while the checks are locked. The max_failures-th
-// attempt locks the checks for lock_base_secs, doubling with every further attempt up to lock_max_secs; a right code
-// resets both (UseUserTOTPStep, ConfirmUserTOTP).
+// Reserves one code check before the code is compared: counted up front, in one statement that reads the latest row
+// (parallel guesses cannot all pass a lockout that is read first and counted later). No row while the checks are
+// locked. The count starts again when the last check is older than window_secs, so a guesser who stopped does not keep
+// the owner locked for good, and it is capped so it cannot overflow. The max_failures-th check locks the checks for
+// lock_base_secs, doubling with every further check (the exponent capped at 20) up to lock_max_secs; a right code
+// resets all of it (UseUserTOTPStep, ConfirmUserTOTP).
 func (q *Queries) ReserveUserTOTPAttempt(ctx context.Context, arg ReserveUserTOTPAttemptParams) (int32, error) {
 	row := q.db.QueryRow(ctx, reserveUserTOTPAttempt,
-		arg.MaxFailures,
 		arg.Now,
+		arg.WindowSecs,
+		arg.MaxFailures,
 		arg.LockMaxSecs,
 		arg.LockBaseSecs,
 		arg.UserID,
@@ -318,6 +338,7 @@ ON CONFLICT (user_id) DO UPDATE
         confirmed_at      = NULL,
         last_step         = NULL,
         failures          = 0,
+        last_failure_at   = NULL,
         locked_until      = NULL
 WHERE user_totp.confirmed_at IS NULL
 `
@@ -365,8 +386,9 @@ func (q *Queries) UseUserRecoveryCode(ctx context.Context, arg UseUserRecoveryCo
 const useUserTOTPStep = `-- name: UseUserTOTPStep :execrows
 UPDATE user_totp
 SET last_step    = $1::bigint,
-    failures     = 0,
-    locked_until = NULL
+    failures        = 0,
+    last_failure_at = NULL,
+    locked_until    = NULL
 WHERE user_id = $2
   AND confirmed_at IS NOT NULL
   AND (last_step IS NULL OR last_step < $1::bigint)

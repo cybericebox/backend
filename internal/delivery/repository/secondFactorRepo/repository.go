@@ -125,17 +125,19 @@ func (r *Repository) DeleteRecoveryCodes(ctx context.Context, userID uuid.UUID) 
 	return err
 }
 
-// Lockout is the failure rule of the authenticator codes: from MaxFailures on, a lock of LockBase doubling up to LockMax.
+// Lockout is the failure rule of the authenticator codes: from MaxFailures checks on, a lock of LockBase doubling up to
+// LockMax; the count starts again when the last check is older than Window.
 type Lockout struct {
 	MaxFailures       int
 	LockBase, LockMax time.Duration
+	Window            time.Duration
 }
 
 // ReserveTOTPAttempt counts one code check before the code is compared; reserved is false while the checks are locked.
 func (r *Repository) ReserveTOTPAttempt(ctx context.Context, userID uuid.UUID, l Lockout, now time.Time) (reserved bool, err error) {
 	_, err = r.q.ReserveUserTOTPAttempt(ctx, postgres.ReserveUserTOTPAttemptParams{
 		UserID: userID, MaxFailures: int32(l.MaxFailures), Now: now, //nolint:gosec // a small configured count
-		LockBaseSecs: l.LockBase.Seconds(), LockMaxSecs: l.LockMax.Seconds(),
+		LockBaseSecs: l.LockBase.Seconds(), LockMaxSecs: l.LockMax.Seconds(), WindowSecs: l.Window.Seconds(),
 	})
 	if repositoryTools.IsObjectNotFoundError(err) {
 		return false, nil

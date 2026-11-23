@@ -2155,10 +2155,12 @@ type Querier interface {
 	// the daily limit is used up. The counter restarts when the day changes.
 	ReservePlatformSMTPSend(ctx context.Context, arg ReservePlatformSMTPSendParams) (int32, error)
 	ReserveRequestIdempotency(ctx context.Context, arg ReserveRequestIdempotencyParams) ([]RequestIdempotency, error)
-	// Reserves one code check before the code is compared: counted up front, in one statement, so parallel guesses cannot
-	// all pass a lockout that is read first and counted later. No row while the checks are locked. The max_failures-th
-	// attempt locks the checks for lock_base_secs, doubling with every further attempt up to lock_max_secs; a right code
-	// resets both (UseUserTOTPStep, ConfirmUserTOTP).
+	// Reserves one code check before the code is compared: counted up front, in one statement that reads the latest row
+	// (parallel guesses cannot all pass a lockout that is read first and counted later). No row while the checks are
+	// locked. The count starts again when the last check is older than window_secs, so a guesser who stopped does not keep
+	// the owner locked for good, and it is capped so it cannot overflow. The max_failures-th check locks the checks for
+	// lock_base_secs, doubling with every further check (the exponent capped at 20) up to lock_max_secs; a right code
+	// resets all of it (UseUserTOTPStep, ConfirmUserTOTP).
 	ReserveUserTOTPAttempt(ctx context.Context, arg ReserveUserTOTPAttemptParams) (int32, error)
 	// Deletes everything the lab usage rollup and the transitions journal derived
 	// for the event and rewinds their cursors; the VPN sessions, the archive and

@@ -89,10 +89,13 @@ func (u *AuthUseCase) requireFactorCipher() error {
 	return nil
 }
 
-// totpLockout is the persistent lockout of the authenticator codes: the sign-in failure limits (LIMIT_SIGN_IN_*).
+// totpLockout is the persistent lockout of the authenticator codes: the sign-in failure limits (LIMIT_SIGN_IN_*, the
+// failure window included).
 func totpLockout() secondFactorRepo.Lockout {
 	c := limits.Get()
-	return secondFactorRepo.Lockout{MaxFailures: c.SignInMaxFailures, LockBase: c.SignInLockBase, LockMax: c.SignInLockMax}
+	return secondFactorRepo.Lockout{
+		MaxFailures: c.SignInMaxFailures, LockBase: c.SignInLockBase, LockMax: c.SignInLockMax, Window: c.SignInFailureWindow,
+	}
 }
 
 // currentSession is the session of the request; a request without one cannot confirm anything.

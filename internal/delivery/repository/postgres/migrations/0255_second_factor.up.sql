@@ -4,8 +4,9 @@
 -- The TOTP secret is sealed with the platform key (PLATFORM_SECRETS_KEY), bound to its person (secretctx.TOTPSecret);
 -- a row without confirmed_at is a setup that waits for its first code. last_step is the RFC 6238 time step of the last
 -- accepted code: a code of that step or an older one is refused, so a code never works twice. failures counts the
--- wrong codes since the last right one and locked_until stops the checks after too many: kept in the row, so the
--- lockout holds across replicas.
+-- checks since the last right code (last_failure_at: the latest; the count starts again once it is older than the
+-- failure window) and locked_until stops the checks after too many: kept in the row, so the lockout holds across
+-- replicas.
 CREATE TABLE user_totp
 (
     user_id           uuid PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
@@ -14,6 +15,7 @@ CREATE TABLE user_totp
     confirmed_at      timestamptz,
     last_step         bigint,
     failures          integer     NOT NULL DEFAULT 0,
+    last_failure_at   timestamptz,
     locked_until      timestamptz
 );
 

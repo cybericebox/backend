@@ -14,6 +14,7 @@ ON CONFLICT (user_id) DO UPDATE
         confirmed_at      = NULL,
         last_step         = NULL,
         failures          = 0,
+        last_failure_at   = NULL,
         locked_until      = NULL
 WHERE user_totp.confirmed_at IS NULL;
 
@@ -22,8 +23,9 @@ WHERE user_totp.confirmed_at IS NULL;
 UPDATE user_totp
 SET confirmed_at = sqlc.arg(confirmed_at)::timestamptz,
     last_step    = sqlc.arg(last_step)::bigint,
-    failures     = 0,
-    locked_until = NULL
+    failures        = 0,
+    last_failure_at = NULL,
+    locked_until    = NULL
 WHERE user_id = sqlc.arg(user_id)
   AND confirmed_at IS NULL
   AND secret_ciphertext = sqlc.arg(secret_ciphertext);
@@ -32,24 +34,41 @@ WHERE user_id = sqlc.arg(user_id)
 -- Takes the step of an accepted code. No row when that step or a later one was already used: the code is refused.
 UPDATE user_totp
 SET last_step    = sqlc.arg(step)::bigint,
-    failures     = 0,
-    locked_until = NULL
+    failures        = 0,
+    last_failure_at = NULL,
+    locked_until    = NULL
 WHERE user_id = sqlc.arg(user_id)
   AND confirmed_at IS NOT NULL
   AND (last_step IS NULL OR last_step < sqlc.arg(step)::bigint);
 
 -- name: ReserveUserTOTPAttempt :one
--- Reserves one code check before the code is compared: counted up front, in one statement, so parallel guesses cannot
--- all pass a lockout that is read first and counted later. No row while the checks are locked. The max_failures-th
--- attempt locks the checks for lock_base_secs, doubling with every further attempt up to lock_max_secs; a right code
--- resets both (UseUserTOTPStep, ConfirmUserTOTP).
+-- Reserves one code check before the code is compared: counted up front, in one statement that reads the latest row
+-- (parallel guesses cannot all pass a lockout that is read first and counted later). No row while the checks are
+-- locked. The count starts again when the last check is older than window_secs, so a guesser who stopped does not keep
+-- the owner locked for good, and it is capped so it cannot overflow. The max_failures-th check locks the checks for
+-- lock_base_secs, doubling with every further check (the exponent capped at 20) up to lock_max_secs; a right code
+-- resets all of it (UseUserTOTPStep, ConfirmUserTOTP).
 UPDATE user_totp
-SET failures     = failures + 1,
-    locked_until = CASE
-                       WHEN failures + 1 >= sqlc.arg(max_failures)::integer THEN
-                           sqlc.arg(now)::timestamptz + make_interval(secs => LEAST(sqlc.arg(lock_max_secs)::float8,
-                               sqlc.arg(lock_base_secs)::float8 * power(2, failures + 1 - sqlc.arg(max_failures)::integer)))
-                       ELSE locked_until END
+SET failures        = (CASE
+                           WHEN last_failure_at IS NULL OR
+                                last_failure_at <= sqlc.arg(now)::timestamptz - make_interval(secs => sqlc.arg(window_secs)::float8)
+                               THEN 0
+                           ELSE LEAST(failures, 1000000) END) + 1,
+    locked_until    = CASE
+                          WHEN (CASE
+                           WHEN last_failure_at IS NULL OR
+                                last_failure_at <= sqlc.arg(now)::timestamptz - make_interval(secs => sqlc.arg(window_secs)::float8)
+                               THEN 0
+                           ELSE LEAST(failures, 1000000) END) + 1 >= sqlc.arg(max_failures)::integer THEN
+                              sqlc.arg(now)::timestamptz + make_interval(secs => LEAST(sqlc.arg(lock_max_secs)::float8,
+                                  sqlc.arg(lock_base_secs)::float8 *
+                                  power(2, LEAST((CASE
+                           WHEN last_failure_at IS NULL OR
+                                last_failure_at <= sqlc.arg(now)::timestamptz - make_interval(secs => sqlc.arg(window_secs)::float8)
+                               THEN 0
+                           ELSE LEAST(failures, 1000000) END) + 1 - sqlc.arg(max_failures)::integer, 20))))
+                          ELSE locked_until END,
+    last_failure_at = sqlc.arg(now)::timestamptz
 WHERE user_id = sqlc.arg(user_id)
   AND (locked_until IS NULL OR locked_until <= sqlc.arg(now)::timestamptz)
 RETURNING failures;

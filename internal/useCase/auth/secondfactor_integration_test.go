@@ -586,3 +586,36 @@ func TestParallelWrongCodesAreBoundedByTheLockout(t *testing.T) {
 	// Even the right code is refused while the checks are locked.
 	wantErr(t, e.totpStepUp(enrolment, 1), authModel.ErrAuthTooManyRequests)
 }
+
+// A huge count neither overflows nor makes the lock longer than its maximum (the exponent is capped).
+func TestAHugeFailureCountKeepsTheLockWithinItsMaximum(t *testing.T) {
+	e := newFactorEnv(t, true)
+	enrolment, _ := e.enrol(e.ctx(), factorPass)
+	_, err := e.db.Pool.Exec(context.Background(),
+		`UPDATE user_totp SET failures = 2147483647, last_failure_at = now(), locked_until = NULL WHERE user_id = $1`, e.userID)
+	require.NoError(t, err)
+
+	wantErr(t, e.totpStepUp(enrolment, 4), secondFactorModel.ErrStepUpFailed)
+	var lockSecs float64
+	require.NoError(t, e.db.Pool.QueryRow(context.Background(),
+		`SELECT extract(epoch FROM locked_until - now()) FROM user_totp WHERE user_id = $1`, e.userID).Scan(&lockSecs))
+	require.Greater(t, lockSecs, 0.0)
+	require.LessOrEqual(t, lockSecs, (15*time.Minute).Seconds()+5, "LIMIT_SIGN_IN_LOCK_MAX bounds the lock")
+	wantErr(t, e.totpStepUp(enrolment, 1), authModel.ErrAuthTooManyRequests)
+}
+
+// Failures older than the window are forgotten: a guesser who stopped does not keep the owner locked for good.
+func TestOldFailuresDecay(t *testing.T) {
+	e := newFactorEnv(t, true)
+	enrolment, _ := e.enrol(e.ctx(), factorPass)
+	_, err := e.db.Pool.Exec(context.Background(), `UPDATE user_totp
+SET failures = 1000, last_failure_at = now() - interval '1 hour', locked_until = now() - interval '1 minute'
+WHERE user_id = $1`, e.userID)
+	require.NoError(t, err)
+
+	wantErr(t, e.totpStepUp(enrolment, 4), secondFactorModel.ErrStepUpFailed)
+	require.Equal(t, 1, e.count(`SELECT failures FROM user_totp WHERE user_id = $1`), "the count started again")
+	require.Zero(t, e.count(`SELECT count(*) FROM user_totp WHERE user_id = $1 AND locked_until > now()`), "no new lock")
+	require.NoError(t, e.totpStepUp(enrolment, 1))
+	require.Zero(t, e.count(`SELECT failures FROM user_totp WHERE user_id = $1`))
+}
