@@ -145,6 +145,8 @@
   "21156": "An event has at most 10 live screens",
   "21158": "A live screen name has 1 to 40 characters",
   "21159": "The live screen order must list every screen of the event once",
+  "21160": "Too many files of this question wait to be saved with an answer",
+  "21161": "Your files for this event exceed the total size allowed",
   "21202": "Participation type is invalid",
   "21203": "Registration type is invalid",
   "21204": "Visibility value is invalid",

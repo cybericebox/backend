@@ -89,6 +89,13 @@ var (
 				WithMessage("Answer file not found").WithDetailCode(31)
 	ErrAnswerFileUnavailable = err.ErrInvalidData.WithObjectCode(model.EventObjectCode).
 					WithMessage("The answer references a file that cannot be used").WithDetailCode(32)
+	// ErrAnswerFilePendingLimit: too many uploads of one question wait for an answer; saving the answer (or
+	// waiting for the unused ones to expire) frees them.
+	ErrAnswerFilePendingLimit = err.ErrInvalidData.WithObjectCode(model.EventObjectCode).
+					WithMessage("Too many files of this question wait to be saved with an answer").WithDetailCode(60)
+	// ErrAnswerFileQuotaExceeded: the person's files of the event together would exceed the byte budget.
+	ErrAnswerFileQuotaExceeded = err.ErrInvalidData.WithObjectCode(model.EventObjectCode).
+					WithMessage("Your files for this event exceed the total size allowed").WithDetailCode(61)
 
 	// Event stages (docs/specs/event-stages.md). EventObjectCode detail codes 43-52.
 	ErrEventStageNotFound = err.ErrObjectNotFound.WithObjectCode(model.EventObjectCode).

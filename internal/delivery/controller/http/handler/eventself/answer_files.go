@@ -20,6 +20,11 @@ import (
 // platform maximum of a file question plus the multipart envelope.
 const maxAnswerFileRequestBytes = eventFormModel.MaxAnswerFileMB<<20 + 1<<20
 
+// answerFileUploadsPerMinute bounds one user's uploads (each is stored before an answer uses it), as
+// emailPreviewsPerMinute bounds the previews; the per-question and per-event caps of the use case stay the limit
+// of what is kept.
+const answerFileUploadsPerMinute = 30
+
 type answerFileResponse struct {
 	ID          uuid.UUID `json:"id"`
 	Name        string    `json:"name"`

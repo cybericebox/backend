@@ -35,3 +35,13 @@ SET owner_id    = sqlc.arg(owner_id),
 WHERE f.event_id = sqlc.arg(event_id)
   AND f.scope = sqlc.arg(scope)
   AND f.file_id = ANY(sqlc.arg(file_ids)::uuid[]);
+
+-- name: GetEventAnswerFileUsage :one
+-- What one person has uploaded to an event: the uploads of one question still
+-- waiting for an answer, and the bytes of every file they uploaded there
+-- (attached or not), for the upload caps.
+SELECT count(*) FILTER (WHERE attached_at IS NULL AND scope = sqlc.arg(scope) AND field_key = sqlc.arg(field_key))::bigint AS pending_in_field,
+       COALESCE(sum(size_bytes), 0)::bigint                                                                              AS total_bytes
+FROM event_answer_files
+WHERE event_id = sqlc.arg(event_id)
+  AND uploaded_by = sqlc.arg(uploaded_by);

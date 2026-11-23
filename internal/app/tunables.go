@@ -47,6 +47,9 @@ func applyTunables(t config.TunablesConfig) {
 		Logo: int64(t.EventLogoMaxBytes), PreviewPicture: int64(t.EventPreviewPictureMaxBytes),
 		ContentImage: int64(t.EventContentImageMaxBytes), LiveLogo: int64(t.LiveLogoMaxBytes),
 	})
+	eventUseCase.ConfigureAnswerFileLimits(eventUseCase.AnswerFileLimits{
+		PendingPerField: int64(t.AnswerFilePendingPerField), BytesPerEvent: t.AnswerFileMaxBytesPerEvent,
+	})
 	emailUseCase.ConfigureTemplateImages(emailUseCase.TemplateImageLimits{
 		UploadBytes: t.EmailImageUploadMaxBytes, Bytes: t.EmailImageMaxBytes,
 		Width: t.EmailImageMaxWidth, Pixels: t.EmailImageMaxPixels,

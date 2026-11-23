@@ -222,6 +222,10 @@ type (
 		EventPreviewPictureMaxBytes int   `env:"EVENT_PREVIEW_PICTURE_MAX_BYTES" envDefault:"5242880"`
 		EventContentImageMaxBytes   int   `env:"EVENT_CONTENT_IMAGE_MAX_BYTES"   envDefault:"5242880"`
 		LiveLogoMaxBytes            int   `env:"LIVE_LOGO_MAX_BYTES"             envDefault:"1048576"`
+		// Participant answer files: the uploads of one question that may wait for an answer, and the bytes of all
+		// one person's answer files of an event (256 MiB).
+		AnswerFilePendingPerField  int   `env:"ANSWER_FILE_PENDING_PER_FIELD"   envDefault:"5"`
+		AnswerFileMaxBytesPerEvent int64 `env:"ANSWER_FILE_MAX_BYTES_PER_EVENT" envDefault:"268435456"`
 		// Email template images: the raw upload, the processed image, its width and the decoded pixels.
 		EmailImageUploadMaxBytes int `env:"EMAIL_IMAGE_UPLOAD_MAX_BYTES" envDefault:"10485760"`
 		EmailImageMaxBytes       int `env:"EMAIL_IMAGE_MAX_BYTES"        envDefault:"307200"`
@@ -899,6 +903,7 @@ func (c TunablesConfig) Validate() error {
 		"EVENT_CONTENT_IMAGE_MAX_BYTES":   int64(c.EventContentImageMaxBytes), "LIVE_LOGO_MAX_BYTES": int64(c.LiveLogoMaxBytes),
 		"EMAIL_IMAGE_UPLOAD_MAX_BYTES": int64(c.EmailImageUploadMaxBytes), "EMAIL_IMAGE_MAX_BYTES": int64(c.EmailImageMaxBytes),
 		"EMAIL_IMAGE_MAX_WIDTH": int64(c.EmailImageMaxWidth), "EMAIL_IMAGE_MAX_PIXELS": int64(c.EmailImageMaxPixels),
+		"ANSWER_FILE_PENDING_PER_FIELD": int64(c.AnswerFilePendingPerField), "ANSWER_FILE_MAX_BYTES_PER_EVENT": c.AnswerFileMaxBytesPerEvent,
 	}
 	for name, v := range sizes {
 		if v < 1 {

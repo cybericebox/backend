@@ -73,6 +73,18 @@ func TestEventAnswerFilesLifecycle(t *testing.T) {
 	if n := count(`SELECT count(*) FROM file_references WHERE ref_id = $1`, first); n != 0 {
 		t.Fatal("the replaced file must lose its reference")
 	}
+	// The upload caps: the attached file counts in the bytes only, the waiting upload in both; another question
+	// or person has nothing waiting.
+	usage, err := repo.Usage(ctx, e.ID, user.ID, eventFormModel.AnswerScopeParticipant, "cv")
+	if err != nil || usage != (eventAnswerFileRepo.Usage{PendingInField: 1, TotalBytes: 8}) {
+		t.Fatalf("usage = %+v, %v", usage, err)
+	}
+	if usage, err = repo.Usage(ctx, e.ID, user.ID, eventFormModel.AnswerScopeParticipant, "photo"); err != nil || usage.PendingInField != 0 || usage.TotalBytes != 8 {
+		t.Fatalf("usage of another question = %+v, %v", usage, err)
+	}
+	if usage, err = repo.Usage(ctx, e.ID, uuid.Must(uuid.NewV7()), eventFormModel.AnswerScopeParticipant, "cv"); err != nil || usage != (eventAnswerFileRepo.Usage{}) {
+		t.Fatalf("usage of another person = %+v, %v", usage, err)
+	}
 
 	// An orphaned reference (its row removed with a team or an account).
 	orphan := uuid.Must(uuid.NewV7())

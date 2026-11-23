@@ -18,6 +18,7 @@ type Queries interface {
 	GetEventAnswerFile(ctx context.Context, fileID uuid.UUID) (postgres.EventAnswerFile, error)
 	ListEventAnswerFiles(ctx context.Context, fileIds []uuid.UUID) ([]postgres.EventAnswerFile, error)
 	AttachEventAnswerFiles(ctx context.Context, arg postgres.AttachEventAnswerFilesParams) (int64, error)
+	GetEventAnswerFileUsage(ctx context.Context, arg postgres.GetEventAnswerFileUsageParams) (postgres.GetEventAnswerFileUsageRow, error)
 }
 
 type Repository struct{ q Queries }
@@ -66,6 +67,20 @@ func (r *Repository) Attach(ctx context.Context, eventID uuid.UUID, scope eventF
 		OwnerID: uuid.NullUUID{UUID: ownerID, Valid: true}, AttachedAt: now, EventID: eventID, Scope: string(scope), FileIds: fileIDs,
 	})
 	return err
+}
+
+// Usage is what one person has uploaded to an event: their uploads of one question still waiting for an
+// answer, and the bytes of all their files there.
+type Usage struct {
+	PendingInField, TotalBytes int64
+}
+
+func (r *Repository) Usage(ctx context.Context, eventID, uploadedBy uuid.UUID, scope eventFormModel.AnswerScope, fieldKey string) (Usage, error) {
+	row, err := r.q.GetEventAnswerFileUsage(ctx, postgres.GetEventAnswerFileUsageParams{EventID: eventID, UploadedBy: uploadedBy, Scope: string(scope), FieldKey: fieldKey})
+	if err != nil {
+		return Usage{}, err
+	}
+	return Usage{PendingInField: row.PendingInField, TotalBytes: row.TotalBytes}, nil
 }
 
 func toDomain(row postgres.EventAnswerFile) eventFormModel.AnswerFile {

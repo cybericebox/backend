@@ -118,6 +118,41 @@ func (q *Queries) GetEventAnswerFile(ctx context.Context, fileID uuid.UUID) (Eve
 	return i, err
 }
 
+const getEventAnswerFileUsage = `-- name: GetEventAnswerFileUsage :one
+SELECT count(*) FILTER (WHERE attached_at IS NULL AND scope = $1 AND field_key = $2)::bigint AS pending_in_field,
+       COALESCE(sum(size_bytes), 0)::bigint                                                                              AS total_bytes
+FROM event_answer_files
+WHERE event_id = $3
+  AND uploaded_by = $4
+`
+
+type GetEventAnswerFileUsageParams struct {
+	Scope      string    `json:"scope"`
+	FieldKey   string    `json:"field_key"`
+	EventID    uuid.UUID `json:"event_id"`
+	UploadedBy uuid.UUID `json:"uploaded_by"`
+}
+
+type GetEventAnswerFileUsageRow struct {
+	PendingInField int64 `json:"pending_in_field"`
+	TotalBytes     int64 `json:"total_bytes"`
+}
+
+// What one person has uploaded to an event: the uploads of one question still
+// waiting for an answer, and the bytes of every file they uploaded there
+// (attached or not), for the upload caps.
+func (q *Queries) GetEventAnswerFileUsage(ctx context.Context, arg GetEventAnswerFileUsageParams) (GetEventAnswerFileUsageRow, error) {
+	row := q.db.QueryRow(ctx, getEventAnswerFileUsage,
+		arg.Scope,
+		arg.FieldKey,
+		arg.EventID,
+		arg.UploadedBy,
+	)
+	var i GetEventAnswerFileUsageRow
+	err := row.Scan(&i.PendingInField, &i.TotalBytes)
+	return i, err
+}
+
 const listEventAnswerFiles = `-- name: ListEventAnswerFiles :many
 SELECT file_id, event_id, scope, field_key, name, size_bytes, content_type, uploaded_by, owner_id, attached_at, created_at FROM event_answer_files WHERE file_id = ANY($1::uuid[])
 `

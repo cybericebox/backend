@@ -23,6 +23,24 @@ import (
 
 const maxAnswerFileNameLength = 200
 
+// AnswerFileLimits cap what one person stores through participant uploads (ANSWER_FILE_PENDING_PER_FIELD,
+// ANSWER_FILE_MAX_BYTES_PER_EVENT): the uploads of one question still waiting for an answer, and the bytes of all
+// their answer files of one event. Unused uploads expire under retention (UnusedAnswerFile, 24 h).
+type AnswerFileLimits struct {
+	PendingPerField int64
+	BytesPerEvent   int64
+}
+
+// DefaultAnswerFileLimits are the env defaults: 5 waiting uploads per question, 256 MiB per person and event.
+func DefaultAnswerFileLimits() AnswerFileLimits {
+	return AnswerFileLimits{PendingPerField: 5, BytesPerEvent: 256 << 20}
+}
+
+var answerFileLimits = DefaultAnswerFileLimits()
+
+// ConfigureAnswerFileLimits sets the participant upload caps once at start.
+func ConfigureAnswerFileLimits(l AnswerFileLimits) { answerFileLimits = l }
+
 // AnswerFileView is an uploaded answer file as the client stores it in the
 // answer and shows it.
 type AnswerFileView struct {
@@ -80,6 +98,11 @@ func (u *EventUseCase) answerForm(ctx context.Context, eventID uuid.UUID, scope 
 // by content and fit its size limit. It stays with the uploader until an
 // answer that references it is saved; unused uploads expire under retention.
 func (u *EventUseCase) UploadAnswerFile(ctx context.Context, eventID, actorID uuid.UUID, scope eventFormModel.AnswerScope, fieldKey, name string, r io.Reader) (AnswerFileView, error) {
+	return u.uploadAnswerFile(ctx, eventID, actorID, scope, fieldKey, name, r, false)
+}
+
+// uploadAnswerFile stores the file; capped applies the participant caps (AnswerFileLimits) to the uploader.
+func (u *EventUseCase) uploadAnswerFile(ctx context.Context, eventID, actorID uuid.UUID, scope eventFormModel.AnswerScope, fieldKey, name string, r io.Reader, capped bool) (AnswerFileView, error) {
 	form, found, err := u.answerForm(ctx, eventID, scope)
 	if err != nil {
 		return AnswerFileView{}, err
@@ -88,6 +111,18 @@ func (u *EventUseCase) UploadAnswerFile(ctx context.Context, eventID, actorID uu
 	if !found || !ok || !form.Enabled {
 		return AnswerFileView{}, eventModel.ErrAnswerFileFieldInvalid.Err()
 	}
+	budget := int64(-1)
+	if capped {
+		usage, usageErr := u.answerFiles.Usage(ctx, eventID, actorID, scope, fieldKey)
+		if usageErr != nil {
+			return AnswerFileView{}, model.ErrPlatform.WithError(usageErr).WithMessage("Failed to count answer files").Err()
+		}
+		limits := answerFileLimits
+		if usage.PendingInField >= limits.PendingPerField {
+			return AnswerFileView{}, eventModel.ErrAnswerFilePendingLimit.Err()
+		}
+		budget = max(limits.BytesPerEvent-usage.TotalBytes, 0)
+	}
 	limit := eventFormModel.FileLimitBytes(field)
 	data, err := io.ReadAll(io.LimitReader(r, limit+1))
 	if err != nil {
@@ -95,6 +130,9 @@ func (u *EventUseCase) UploadAnswerFile(ctx context.Context, eventID, actorID uu
 	}
 	if int64(len(data)) > limit {
 		return AnswerFileView{}, eventModel.ErrAnswerFileTooLarge.Err()
+	}
+	if budget >= 0 && int64(len(data)) > budget {
+		return AnswerFileView{}, eventModel.ErrAnswerFileQuotaExceeded.Err()
 	}
 	name = answerFileName(name)
 	kind, contentType, err := eventFormModel.DetectFileKind(name, data)
@@ -115,7 +153,9 @@ func (u *EventUseCase) UploadAnswerFile(ctx context.Context, eventID, actorID uu
 // UploadOwnAnswerFile is UploadAnswerFile for a participant (the event site), under the rules of saving the
 // answers: the participant form is part of applying, so it refuses only a rejected person (as SubmitParticipantForm);
 // team fields are filled by an approved participant only (creating a team, or its captain editing them; the team
-// itself is checked when the answer that references the file is saved).
+// itself is checked when the answer that references the file is saved). After the event's effective finish the
+// answers are frozen, so nothing is uploaded; someone who has not applied yet uploads only while they may apply
+// (the event is published and its join period open). One person's uploads are capped (AnswerFileLimits).
 func (u *EventUseCase) UploadOwnAnswerFile(ctx context.Context, eventID, userID uuid.UUID, scope eventFormModel.AnswerScope, fieldKey, name string, r io.Reader) (AnswerFileView, error) {
 	p, err := u.participants.Get(ctx, eventID, userID)
 	if err != nil && !repositoryTools.IsObjectNotFoundError(err) && err != pgx.ErrNoRows {
@@ -130,7 +170,21 @@ func (u *EventUseCase) UploadOwnAnswerFile(ctx context.Context, eventID, userID 
 	case found && p.Status == participantModel.StatusRejected:
 		return AnswerFileView{}, participantModel.ErrParticipantAccessForbidden.Err()
 	}
-	return u.UploadAnswerFile(ctx, eventID, userID, scope, fieldKey, name, r)
+	e, err := u.events.GetByID(ctx, eventID)
+	if err != nil {
+		if repositoryTools.IsObjectNotFoundError(err) {
+			return AnswerFileView{}, eventModel.ErrEventNotFound.Err()
+		}
+		return AnswerFileView{}, model.ErrPlatform.WithError(err).WithMessage("Failed to get event").Err()
+	}
+	now := time.Now()
+	if !participantModel.AnswersEditable(e.Lifecycle.EffectiveFinishAt(), now) {
+		return AnswerFileView{}, participantModel.ErrParticipantFieldsLocked.Err()
+	}
+	if !found && !e.Lifecycle.RegistrationOpen(now) {
+		return AnswerFileView{}, participantModel.ErrRegistrationNotOpen.Err()
+	}
+	return u.uploadAnswerFile(ctx, eventID, userID, scope, fieldKey, name, r, true)
 }
 
 // boundAnswers are answers whose file references were checked and replaced

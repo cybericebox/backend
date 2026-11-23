@@ -4789,6 +4789,21 @@ func (mr *MockQuerierMockRecorder) GetEventAnswerFile(ctx, fileID any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEventAnswerFile", reflect.TypeOf((*MockQuerier)(nil).GetEventAnswerFile), ctx, fileID)
 }
 
+// GetEventAnswerFileUsage mocks base method.
+func (m *MockQuerier) GetEventAnswerFileUsage(ctx context.Context, arg postgres.GetEventAnswerFileUsageParams) (postgres.GetEventAnswerFileUsageRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetEventAnswerFileUsage", ctx, arg)
+	ret0, _ := ret[0].(postgres.GetEventAnswerFileUsageRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetEventAnswerFileUsage indicates an expected call of GetEventAnswerFileUsage.
+func (mr *MockQuerierMockRecorder) GetEventAnswerFileUsage(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEventAnswerFileUsage", reflect.TypeOf((*MockQuerier)(nil).GetEventAnswerFileUsage), ctx, arg)
+}
+
 // GetEventAssistantStatsMode mocks base method.
 func (m *MockQuerier) GetEventAssistantStatsMode(ctx context.Context, eventID uuid.UUID) (int16, error) {
 	m.ctrl.T.Helper()

@@ -566,6 +566,10 @@ type Querier interface {
 	GetEventAnalyticsOverview(ctx context.Context, arg GetEventAnalyticsOverviewParams) (GetEventAnalyticsOverviewRow, error)
 	GetEventAnalyticsRollupState(ctx context.Context, eventID uuid.UUID) (GetEventAnalyticsRollupStateRow, error)
 	GetEventAnswerFile(ctx context.Context, fileID uuid.UUID) (EventAnswerFile, error)
+	// What one person has uploaded to an event: the uploads of one question still
+	// waiting for an answer, and the bytes of every file they uploaded there
+	// (attached or not), for the upload caps.
+	GetEventAnswerFileUsage(ctx context.Context, arg GetEventAnswerFileUsageParams) (GetEventAnswerFileUsageRow, error)
 	// The event's own mode; no row: it follows the platform default.
 	GetEventAssistantStatsMode(ctx context.Context, eventID uuid.UUID) (int16, error)
 	// Cheap change marker for the moderators' live journal: attempts, decisions
