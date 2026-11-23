@@ -141,6 +141,9 @@ const (
 	OpponentReasonSeatOnFoothold = "seat_on_foothold"
 	OpponentReasonSeatNoNetwork  = "seat_no_network"
 	OpponentReasonSeatReferenced = "seat_referenced"
+	// OpponentReasonSeatConsoleEnd: the seat is the console end of a cable (another device's serial port is cabled to a console
+	// port of it). A seat is only a serial-port connector, what a human defender sits at.
+	OpponentReasonSeatConsoleEnd = "seat_console_end"
 )
 
 func opponentInvalid(field, reason string) error {
@@ -248,6 +251,8 @@ func (v Variant) validateSeats() error {
 			return opponentInvalid(field, OpponentReasonSeatUnknown)
 		case len(seat.SerialPorts) == 0:
 			return opponentInvalid(field, OpponentReasonSeatNoSerial)
+		case v.Topology.isConsoleEnd(seat):
+			return opponentInvalid(field, OpponentReasonSeatConsoleEnd)
 		case taken[opponent.Seat]:
 			return opponentInvalid(field, OpponentReasonSeatRepeated)
 		case operated[opponent.Seat]: // by this opponent or another one: a seat is not a device a bot defends
@@ -266,6 +271,21 @@ func (v Variant) validateSeats() error {
 		}
 	}
 	return nil
+}
+
+// isConsoleEnd reports whether a console cable ends on a console port of the device.
+func (t Topology) isConsoleEnd(d Device) bool {
+	for _, c := range t.Connections {
+		if !c.IsConsole() {
+			continue
+		}
+		for _, ep := range c.Endpoints {
+			if ep.Kind == EndpointDevice && ep.DeviceID == d.ID && d.PortOf(ep.Interface) == PortConsole {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // firstDataNIC is the first interface of the device, in its order, that has a network connection.

@@ -31,6 +31,13 @@ var (
 	ErrToolsGatewayLimit = errors.New("the lab cannot hold a control gateway for every tools device")
 	// ErrToolsPullConflict: the lab pulls other images from the registry of the tools image with another credential.
 	ErrToolsPullConflict = errors.New("the tools image registry is already used by the lab with another credential")
+	// ErrToolsNoSeat: the seat the tools device is to take is not a node of the lab with a network connection.
+	ErrToolsNoSeat = errors.New("the seat of the tools device is not a node of the lab with a network connection")
+	// ErrToolsNoSerialPort: auto-cabling would give the tools device more serial ports than a device may have (MaxSerialPorts).
+	ErrToolsNoSerialPort = errors.New("the tools device would need more serial ports than a device may have")
+	// ErrToolsNoService: the tools device has serial ports or dossier files, so it starts through the launcher, and the start
+	// configuration (command and user) of its image cannot be read.
+	ErrToolsNoService = errors.New("the start configuration of the tools image is not known")
 )
 
 // ToolsDeviceName is the logical name of the platform tools device in a lab; a taken name gets a number.
@@ -46,8 +53,17 @@ type ToolsPlacement struct {
 	// Foothold is the name of a switch or hub of the topology: the device takes a port of it (the attacker's place).
 	Foothold string
 	// Beside are names of devices: the device sits on the segment of the first of them (the defender's place, with the devices
-	// it operates). Ignored when Foothold is set.
+	// it operates). Ignored when Foothold or Seat is set.
 	Beside []string
+	// Seat (a role that operates, in a bot run) is the device of the topology the tools device takes the place of (console design
+	// 8.2): the seat is not deployed, the tools device takes its first data NIC (position and IP configuration), its serial ports
+	// (same names and paths) and its console cables, port for port; the seat's other NICs drop with it. It comes before Foothold
+	// and Beside.
+	Seat string
+	// Operates are the devices the opponent operates. Without a Seat, the tools device gets a serial port and a console cable to
+	// the first free console port of each of them that declares one, in this order (console design 8.3); with a Seat, nothing is
+	// added. Empty for a role that does not operate (an attacker, a grader): no cable.
+	Operates []string
 	// Env is what the device's service process is given (see EDAEnv).
 	Env []EnvVar
 	// Image is the image of the device as the brain specified it (GetOpponent), applied as it is; empty: the platform's
@@ -220,7 +236,9 @@ func (t Topology) WithToolsDevice(image string, place ToolsPlacement) (Topology,
 // and the address ControlHostBase there. At most MaxOpponents devices are added, and only while the gateways of the task and
 // the control gateways stay within MaxLabGateways (ErrToolsGatewayLimit); a task device with any control name is refused
 // (ErrToolsNoControl); every device of a lab is added in this one call (a topology that has a
-// control gateway already is refused). The copy is validated; the input is never changed.
+// control gateway already is refused). A placement with a Seat takes the seat's place instead (takeSeat), and one that operates
+// devices without a seat is cabled to their free console ports (cableOperated): see tools_cabling.go. The copy is validated; the
+// input is never changed.
 func (t Topology) WithToolsDevices(places []ToolsPlacement) (Topology, []Device, error) {
 	if len(places) > MaxOpponents {
 		return Topology{}, nil, ErrToolsTooMany
@@ -271,6 +289,11 @@ func (t Topology) WithToolsDevices(places []ToolsPlacement) (Topology, []Device,
 			return Topology{}, nil, err
 		}
 		ctl.attach(&out, &tools)
+		if place.Seat == "" {
+			if err = out.cableOperated(&tools, place.Operates); err != nil {
+				return Topology{}, nil, err
+			}
+		}
 		out.Devices = append(out.Devices, tools)
 		devices = append(devices, tools)
 	}
@@ -304,6 +327,10 @@ func (t *Topology) placeTools(vpn Device, place ToolsPlacement) (Device, error) 
 	toolsEnd := Endpoint{Kind: EndpointDevice, DeviceID: tools.ID, Interface: "eth0"}
 
 	switch {
+	case place.Seat != "":
+		if err := t.takeSeat(&tools, place.Seat); err != nil {
+			return Device{}, err
+		}
 	case place.Foothold != "":
 		sw, ok := byName[place.Foothold]
 		if !ok || !sw.Type.IsForwarding() {

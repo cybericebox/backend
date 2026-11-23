@@ -103,12 +103,19 @@ func (u *UseCase) opponentSpec(ctx context.Context, runID uuid.UUID, o exerciseM
 // TODO(owner-design): the defender's admin credentials for its operates devices belong on the tools host, so the brain gets no
 // extra secrets. The manifest holds none today (a device's access entry names a user and a command, never a password or key),
 // so nothing is placed; this waits for where those credentials come from.
+//
+// A role that operates devices gets its console lines too (console design, section 8): with a seat the tools device takes the
+// seat's place (its first data NIC and its console cables, port for port; this comes before the foothold and Beside), without
+// one it is cabled to a free console port of each operated device. An attacker operates nothing and gets no cable.
 func toolsPlacement(o exerciseModel.Opponent, run uuid.UUID, trustCA string) exerciseModel.ToolsPlacement {
 	place := exerciseModel.ToolsPlacement{Env: exerciseModel.EDAEnv(run.String(), trustCA)}
 	if o.Role == exerciseModel.OpponentDefense {
 		place.Beside = o.Operates
 	} else {
 		place.Foothold = o.Foothold
+	}
+	if o.Role.Operates() {
+		place.Operates, place.Seat = slices.Clone(o.Operates), o.Seat
 	}
 	return place
 }
@@ -211,6 +218,14 @@ func (u *UseCase) StartOpponentRuns(ctx context.Context, actor exerciseUseCase.A
 	case errors.Is(err, exerciseModel.ErrToolsNoControl):
 		// A device of the task is named like a control gateway of the platform (the deploy refuses to add the gateway).
 		return nil, assistantModel.ErrAssistantOpponentControlName.Err()
+	case errors.Is(err, exerciseModel.ErrToolsNoSerialPort):
+		// Auto-cabling would give the tools device more serial ports than a device may have.
+		return nil, assistantModel.ErrAssistantOpponentUnavailable.WithPublicContext("reason", "serial_ports").WithPublicContext("limit", exerciseModel.MaxSerialPorts).Err()
+	case errors.Is(err, exerciseModel.ErrToolsNoService):
+		// The tools device has serial ports, so it starts through the launcher, and its image's start configuration is unknown.
+		return nil, assistantModel.ErrAssistantOpponentUnavailable.WithPublicContext("reason", "tools_service").Err()
+	case errors.Is(err, exerciseModel.ErrToolsNoSeat):
+		return nil, assistantModel.ErrAssistantOpponentUnavailable.WithPublicContext("reason", "seat").Err()
 	case errors.Is(err, exerciseModel.ErrToolsNoImage) || errors.Is(err, exerciseModel.ErrToolsNoVPN) || errors.Is(err, exerciseModel.ErrToolsNoSegment) ||
 		errors.Is(err, exerciseModel.ErrToolsPullConflict) || errors.Is(err, exerciseModel.ErrToolsTooMany):
 		return nil, assistantModel.ErrAssistantOpponentUnavailable.Err()

@@ -21,7 +21,6 @@ import (
 	"github.com/cybericebox/backend/internal/model"
 	"github.com/cybericebox/backend/internal/model/challengeAttempt"
 	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
-	imageRegistryModel "github.com/cybericebox/backend/internal/model/imageRegistry"
 	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
 	labAccessModel "github.com/cybericebox/backend/internal/model/labAccess"
 	labBindingModel "github.com/cybericebox/backend/internal/model/labBinding"
@@ -29,6 +28,7 @@ import (
 	calModel "github.com/cybericebox/backend/internal/model/resourceCalendar"
 	resourcesModel "github.com/cybericebox/backend/internal/model/resources"
 	vpnModel "github.com/cybericebox/backend/internal/model/vpn"
+	imageRegistryUseCase "github.com/cybericebox/backend/internal/useCase/imageRegistry"
 	calendarUseCase "github.com/cybericebox/backend/internal/useCase/resourceCalendar"
 	"github.com/cybericebox/backend/pkg/labaccess"
 )
@@ -291,8 +291,7 @@ func withToolsPull(creds []infraModel.RegistryCredential, pull *exerciseModel.To
 	if pull == nil {
 		return creds, nil
 	}
-	registry := strings.TrimPrefix(strings.TrimPrefix(pull.Registry, "https://"), "http://")
-	host := imageRegistryModel.CredentialHost(registry)
+	host := imageRegistryUseCase.ToolsCredentialHost(pull.Registry)
 	c := infraModel.RegistryCredential{Registry: host, Username: pull.Username, Password: pull.Password}
 	for _, have := range creds {
 		if have.Registry == host {
@@ -409,6 +408,7 @@ func (u *ExerciseUseCase) deployVariantTest(ctx context.Context, eventID *uuid.U
 	// All the tools devices are added at once, each with a control gateway of its own; the device of position i has the index i.
 	var (
 		toolsNames  []string
+		toolsIDs    []uuid.UUID
 		brainImages map[uuid.UUID]string
 	)
 	if len(tools) > 0 {
@@ -431,7 +431,7 @@ func (u *ExerciseUseCase) deployVariantTest(ctx context.Context, eventID *uuid.U
 		// it is: it is hidden from the check (a device without an image is not checked) and put back after it.
 		brainImages = map[uuid.UUID]string{}
 		for i, d := range devices {
-			toolsNames = append(toolsNames, d.Name)
+			toolsNames, toolsIDs = append(toolsNames, d.Name), append(toolsIDs, d.ID)
 			if fromBrain[i] {
 				brainImages[d.ID] = d.Image
 			}
@@ -449,6 +449,9 @@ func (u *ExerciseUseCase) deployVariantTest(ctx context.Context, eventID *uuid.U
 		if pullCredentials, err = withToolsPull(pullCredentials, p.Pull); err != nil {
 			return exerciseModel.DeployHandle{}, err
 		}
+	}
+	if topo, err = u.withToolsServices(ctx, topo, toolsIDs, tools); err != nil {
+		return exerciseModel.DeployHandle{}, err
 	}
 	// The conditions of the state tasks become the checks of the lab, with this deploy's values in their expectations.
 	checks, err := variant.BuildLabChecks(topo, resolved.Conditions)

@@ -15,6 +15,7 @@ import (
 	"net/netip"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/cybericebox/backend/pkg/email"
 	"github.com/google/go-containerregistry/pkg/authn"
@@ -46,6 +47,85 @@ type Options struct {
 	AllowInternal bool
 	// Transport is the base round tripper; use GuardedTransport for user-supplied hosts. Default when nil.
 	Transport http.RoundTripper
+	// SameHostCredentials sends the basic credential to the registry host only: the token exchange of a registry whose
+	// realm is on another host goes there without it (the token it would get is not needed for an anonymous read). Set it
+	// for a credential that belongs to one registry host and must never reach another (a run's pull credential).
+	SameHostCredentials bool
+	// RequestTimeout bounds each HTTP request on its own (the token exchange, the manifest, the config blob); zero: none.
+	RequestTimeout time.Duration
+}
+
+// WithSameHostCredentials is the client with SameHostCredentials set.
+func (c *Client) WithSameHostCredentials() *Client {
+	out := *c
+	out.opts.SameHostCredentials = true
+	return &out
+}
+
+// WithRequestTimeout is the client with RequestTimeout set.
+func (c *Client) WithRequestTimeout(d time.Duration) *Client {
+	out := *c
+	out.opts.RequestTimeout = d
+	return &out
+}
+
+// sameHostAuth drops a basic Authorization header from every request that is not for the registry host: the token
+// transport of go-containerregistry sends the basic credential to the realm the registry names, whatever its host.
+type sameHostAuth struct {
+	base http.RoundTripper
+	host string
+}
+
+func (s sameHostAuth) RoundTrip(req *http.Request) (*http.Response, error) {
+	if !strings.EqualFold(req.URL.Host, s.host) && strings.HasPrefix(strings.ToLower(req.Header.Get("Authorization")), "basic ") {
+		req = req.Clone(req.Context())
+		req.Header.Del("Authorization")
+	}
+	return s.base.RoundTrip(req)
+}
+
+// requestTimeout bounds every request it carries on its own, the body read included (the ping and the token exchange of
+// go-containerregistry go through it too).
+type requestTimeout struct {
+	base http.RoundTripper
+	d    time.Duration
+}
+
+func (r requestTimeout) RoundTrip(req *http.Request) (*http.Response, error) {
+	ctx, cancel := context.WithTimeout(req.Context(), r.d)
+	resp, err := r.base.RoundTrip(req.WithContext(ctx))
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+	resp.Body = cancelOnClose{ReadCloser: resp.Body, cancel: cancel}
+	return resp, nil
+}
+
+type cancelOnClose struct {
+	io.ReadCloser
+	cancel context.CancelFunc
+}
+
+func (c cancelOnClose) Close() error {
+	err := c.ReadCloser.Close()
+	c.cancel()
+	return err
+}
+
+// baseTransport is the round tripper under the token transport of a registry.
+func (c *Client) baseTransport(reg name.Registry) http.RoundTripper {
+	base := c.opts.Transport
+	if base == nil {
+		base = http.DefaultTransport
+	}
+	if c.opts.SameHostCredentials {
+		base = sameHostAuth{base: base, host: reg.RegistryStr()}
+	}
+	if c.opts.RequestTimeout > 0 {
+		base = requestTimeout{base: base, d: c.opts.RequestTimeout}
+	}
+	return base
 }
 
 // Client talks to one repository of one registry.
@@ -124,11 +204,7 @@ func (c *Client) httpScopes(ctx context.Context, reg name.Registry, scopes []str
 	if c.opts.Username != "" || c.opts.Password != "" {
 		auth = authn.FromConfig(authn.AuthConfig{Username: c.opts.Username, Password: c.opts.Password})
 	}
-	base := c.opts.Transport
-	if base == nil {
-		base = http.DefaultTransport
-	}
-	rt, err := transport.NewWithContext(ctx, reg, auth, base, scopes)
+	rt, err := transport.NewWithContext(ctx, reg, auth, c.baseTransport(reg), scopes)
 	if err != nil {
 		return nil, err
 	}
@@ -285,11 +361,7 @@ func (c *Client) PingCredentials(ctx context.Context) error {
 	if c.opts.Username != "" || c.opts.Password != "" {
 		auth = authn.FromConfig(authn.AuthConfig{Username: c.opts.Username, Password: c.opts.Password})
 	}
-	base := c.opts.Transport
-	if base == nil {
-		base = http.DefaultTransport
-	}
-	rt, err := transport.NewWithContext(ctx, reg, auth, base, nil)
+	rt, err := transport.NewWithContext(ctx, reg, auth, c.baseTransport(reg), nil)
 	if err != nil {
 		return c.wrap("ping", err)
 	}
