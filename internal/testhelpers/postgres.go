@@ -57,7 +57,8 @@ type startedServer struct {
 func startSharedServer() (out startedServer) {
 	ctx := context.Background()
 	container, err := tcpostgres.Run(ctx,
-		"mirror.gcr.io/library/postgres:17-alpine",
+		// The major of production (infrastructure/versions.env PLATFORM_POSTGRES_IMAGE, PostgreSQL 18).
+		"mirror.gcr.io/library/postgres:18-alpine",
 		tcpostgres.WithDatabase("testdb"),
 		tcpostgres.WithUsername("testuser"),
 		tcpostgres.WithPassword("testpass"),
