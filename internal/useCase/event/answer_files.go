@@ -11,6 +11,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/rs/zerolog/log"
 
 	"github.com/cybericebox/backend/internal/delivery/repository/eventAnswerFileRepo"
 	"github.com/cybericebox/backend/internal/delivery/repository/eventFormRepo"
@@ -169,9 +170,11 @@ func (u *EventUseCase) uploadAnswerFile(ctx context.Context, eventID, actorID uu
 // check before the upload can race with a parallel upload of the same person, so the row is written under their
 // lock against their usage read again. A refused upload's stored file is discarded at once.
 func (u *EventUseCase) createCappedAnswerFile(ctx context.Context, f eventFormModel.AnswerFile) (AnswerFileView, error) {
+	// A file that cannot be discarded now is left to the collector (nothing references it); the caller still
+	// learns why the upload was refused.
 	refuse := func(err error) (AnswerFileView, error) {
 		if discardErr := u.brandMedia.DiscardFile(ctx, f.FileID, f.UploadedBy); discardErr != nil {
-			return AnswerFileView{}, discardErr
+			log.Warn().Err(discardErr).Stringer("file_id", f.FileID).Stringer("event_id", f.EventID).Msg("answer file: discard of a refused upload failed")
 		}
 		return AnswerFileView{}, err
 	}

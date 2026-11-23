@@ -213,3 +213,34 @@ func TestUploadOwnAnswerFileReadsNoMoreThanTheBudget(t *testing.T) {
 		t.Fatalf("read %d bytes of the body, the budget left 10", body.read)
 	}
 }
+
+// A refused upload whose file cannot be discarded still answers with the cap it went past: the collector reclaims
+// the unreferenced file later, and the person needs to know why the upload was refused.
+func TestUploadOwnAnswerFileReportsTheCapWhenTheDiscardFails(t *testing.T) {
+	event.ConfigureAnswerFileLimits(event.AnswerFileLimits{PendingPerField: 5, PendingBytesPerEvent: 100, PendingBytesPerUser: 200})
+	t.Cleanup(func() { event.ConfigureAnswerFileLimits(event.DefaultAnswerFileLimits()) })
+	for _, tc := range []struct {
+		name  string
+		usage postgres.GetEventAnswerFileUsageRow
+		want  error
+	}{
+		{name: "pending cap", usage: postgres.GetEventAnswerFileUsageRow{PendingInField: 5}, want: eventModel.ErrAnswerFilePendingLimit.Err()},
+		{name: "byte budget", usage: postgres.GetEventAnswerFileUsageRow{PendingInField: 1, EventPendingBytes: 95, UserPendingBytes: 95}, want: eventModel.ErrAnswerFileQuotaExceeded.Err()},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newAnswerFileFixture(t)
+			f.media.discardErr = errors.New("storage unavailable")
+			gomock.InOrder(
+				f.q.EXPECT().GetEventAnswerFileUsage(gomock.Any(), gomock.Any()).Return(postgres.GetEventAnswerFileUsageRow{}, nil),
+				f.q.EXPECT().GetEventAnswerFileUsage(gomock.Any(), gomock.Any()).Return(tc.usage, nil),
+			)
+			_, err := f.uc.UploadOwnAnswerFile(context.Background(), f.eventID, f.userID, eventFormModel.AnswerScopeParticipant, "cv", "cv.pdf", strings.NewReader("%PDF-1.7\n"))
+			if !errors.Is(err, tc.want) {
+				t.Fatalf("err = %v, want %v", err, tc.want)
+			}
+			if len(f.media.discarded) != 1 {
+				t.Fatalf("discard tried %d times", len(f.media.discarded))
+			}
+		})
+	}
+}
