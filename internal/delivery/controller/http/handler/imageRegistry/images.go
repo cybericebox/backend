@@ -3,6 +3,7 @@ package imageRegistry
 import (
 	"github.com/gin-gonic/gin"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	"github.com/cybericebox/backend/internal/model/rbac"
 	imageRegistryUseCase "github.com/cybericebox/backend/internal/useCase/imageRegistry"
@@ -28,7 +29,7 @@ type (
 
 func (h *Handler) initEventImages(router *gin.RouterGroup) {
 	images := router.Group("events/:id/manage/images", h.prot.RequirePermission(rbac.PermSelf))
-	images.GET("availability", h.requireRead, h.eventImagesAvailability)
+	images.GET("availability", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventRegistryImagesRead), nil), h.requireRead, h.eventImagesAvailability)
 }
 
 // eventImagesAvailability godoc

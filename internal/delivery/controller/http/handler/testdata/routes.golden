@@ -102,279 +102,279 @@ POST   /api/events/:id/forms/:formID/response | gate: self | layers: eventself.t
 GET    /api/events/:id/forms/pending | gate: self | layers: eventself.touchPresence | keys: ?
 PUT    /api/events/:id/infrastructure | gate: events.write | layers: event.requireWritableEvent | keys: ?
 GET    /api/events/:id/logo/:fileID | gate: events.content.read(public) | layers: middleware.PublicMedia | keys: ?
-GET    /api/events/:id/manage/access | gate: self | layers: event.requireRead | keys: ?
-GET    /api/events/:id/manage/analytics/access | gate: self | layers: eventAnalytics.requireSections | keys: ?
-GET    /api/events/:id/manage/analytics/communications | gate: self | layers: eventAnalytics.requireSections | keys: ?
-GET    /api/events/:id/manage/analytics/communications/export.csv | gate: self | layers: eventAnalytics.requireExport | keys: ?
-GET    /api/events/:id/manage/analytics/integrity | gate: self | layers: eventAnalytics.requireSensitive | keys: ?
-GET    /api/events/:id/manage/analytics/integrity/dismissals | gate: self | layers: eventAnalytics.requireSensitive | keys: ?
-POST   /api/events/:id/manage/analytics/integrity/dismissals | gate: self | layers: eventAnalytics.requireSensitive,eventAnalytics.requireWritable | keys: ?
-DELETE /api/events/:id/manage/analytics/integrity/dismissals/:dismissalID | gate: self | layers: eventAnalytics.requireSensitive,eventAnalytics.requireWritable | keys: ?
-GET    /api/events/:id/manage/analytics/integrity/export.csv | gate: self | layers: eventAnalytics.requireSensitive | keys: ?
-GET    /api/events/:id/manage/analytics/integrity/flags | gate: self | layers: eventAnalytics.requireSensitive | keys: ?
-DELETE /api/events/:id/manage/analytics/integrity/solves/:teamChallengeID/review | gate: self | layers: eventAnalytics.requireSensitive,eventAnalytics.requireWritable | keys: ?
-PUT    /api/events/:id/manage/analytics/integrity/solves/:teamChallengeID/review | gate: self | layers: eventAnalytics.requireSensitive,eventAnalytics.requireWritable | keys: ?
-GET    /api/events/:id/manage/analytics/lab-telemetry | gate: self | layers: eventAnalytics.requireSections | keys: ?
-GET    /api/events/:id/manage/analytics/lab-telemetry/transitions | gate: self | layers: eventAnalytics.requireSections | keys: ?
-GET    /api/events/:id/manage/analytics/overview | gate: self | layers: eventAnalytics.requireSections | keys: ?
-GET    /api/events/:id/manage/analytics/overview/export.csv | gate: self | layers: eventAnalytics.requireExport | keys: ?
-GET    /api/events/:id/manage/analytics/participants | gate: self | layers: eventAnalytics.requireSections | keys: ?
-GET    /api/events/:id/manage/analytics/participants/export.csv | gate: self | layers: eventAnalytics.requireExport | keys: ?
-GET    /api/events/:id/manage/analytics/progress/heatmap | gate: self | layers: eventAnalytics.requireSections | keys: ?
-GET    /api/events/:id/manage/analytics/progress/inactive | gate: self | layers: eventAnalytics.requireSections | keys: ?
-GET    /api/events/:id/manage/analytics/progress/inactive/export.csv | gate: self | layers: eventAnalytics.requireExport | keys: ?
-GET    /api/events/:id/manage/analytics/progress/matrix | gate: self | layers: eventAnalytics.requireSections | keys: ?
-GET    /api/events/:id/manage/analytics/progress/matrix/export.csv | gate: self | layers: eventAnalytics.requireExport | keys: ?
-GET    /api/events/:id/manage/analytics/progress/scores | gate: self | layers: eventAnalytics.requireSections | keys: ?
-GET    /api/events/:id/manage/analytics/report | gate: self | layers: eventAnalytics.requireSections | keys: ?
-GET    /api/events/:id/manage/analytics/report/export.zip | gate: self | layers: eventAnalytics.requireExport | keys: ?
-GET    /api/events/:id/manage/analytics/stands | gate: self | layers: eventAnalytics.requireSections | keys: ?
-GET    /api/events/:id/manage/analytics/stands/export.csv | gate: self | layers: eventAnalytics.requireExport | keys: ?
-GET    /api/events/:id/manage/analytics/submissions | gate: self | layers: eventAnalytics.requireSections | keys: ?
-GET    /api/events/:id/manage/analytics/submissions/export.csv | gate: self | layers: eventAnalytics.requireExport | keys: ?
-GET    /api/events/:id/manage/analytics/tasks | gate: self | layers: eventAnalytics.requireSections | keys: ?
-GET    /api/events/:id/manage/analytics/tasks/:challengeID | gate: self | layers: eventAnalytics.requireSections | keys: ?
-GET    /api/events/:id/manage/analytics/tasks/:challengeID/wrong-answers | gate: self | layers: eventAnalytics.requireSensitive | keys: ?
-GET    /api/events/:id/manage/analytics/tasks/export.csv | gate: self | layers: eventAnalytics.requireExport | keys: ?
-GET    /api/events/:id/manage/analytics/usage | gate: self | layers: eventAnalytics.requireSections | keys: ?
-GET    /api/events/:id/manage/analytics/usage/export.csv | gate: self | layers: eventAnalytics.requireExport | keys: ?
-POST   /api/events/:id/manage/answer-files | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/answer-files/:fileID | gate: self | layers: event.requireRead | keys: ?
-PUT    /api/events/:id/manage/appearance | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/banners | gate: self | layers: messaging.requireRead | keys: ?
-POST   /api/events/:id/manage/banners | gate: self | layers: messaging.requireManage | keys: ?
-DELETE /api/events/:id/manage/banners/:bannerID | gate: self | layers: messaging.requireManage | keys: ?
-PUT    /api/events/:id/manage/banners/:bannerID | gate: self | layers: messaging.requireManage | keys: ?
-POST   /api/events/:id/manage/brand-drafts/:kind | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/broadcasts | gate: self | layers: messaging.requireRead | keys: ?
-POST   /api/events/:id/manage/broadcasts | gate: self | layers: messaging.requireManage | keys: ?
-GET    /api/events/:id/manage/broadcasts/:broadcastID | gate: self | layers: messaging.requireRead | keys: ?
-POST   /api/events/:id/manage/broadcasts/:broadcastID/cancel | gate: self | layers: messaging.requireManage | keys: ?
-GET    /api/events/:id/manage/broadcasts/:broadcastID/deliveries | gate: self | layers: messaging.requireRead | keys: ?
-GET    /api/events/:id/manage/broadcasts/:broadcastID/deliveries/export | gate: self | layers: messaging.requireRead | keys: ?
-POST   /api/events/:id/manage/broadcasts/audience-count | gate: self | layers: messaging.requireManage | keys: ?
-GET    /api/events/:id/manage/challenge-groups | gate: self | layers: event.requireRead | keys: ?
-POST   /api/events/:id/manage/challenge-groups | gate: self | layers: event.requireManage | keys: ?
-DELETE /api/events/:id/manage/challenge-groups/:groupID | gate: self | layers: event.requireManage | keys: ?
-PUT    /api/events/:id/manage/challenge-groups/:groupID | gate: self | layers: event.requireManage | keys: ?
-PUT    /api/events/:id/manage/challenge-groups/order | gate: self | layers: event.requireManage | keys: ?
-PUT    /api/events/:id/manage/challenge-order | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/config | gate: self | layers: event.requireRead | keys: ?
-PUT    /api/events/:id/manage/config | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/content | gate: self | layers: event.requireRead | keys: ?
-POST   /api/events/:id/manage/content-images | gate: self | layers: event.requireManage | keys: ?
-PUT    /api/events/:id/manage/content/landing | gate: self | layers: event.requireManage | keys: ?
-DELETE /api/events/:id/manage/content/landing/draft | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/content/landing/publish | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/content/live | gate: self | layers: event.requireRead | keys: ?
-PUT    /api/events/:id/manage/content/live | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/content/live/logos | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/content/live/publish | gate: self | layers: event.requireManage | keys: ?
-DELETE /api/events/:id/manage/content/live/screen-link | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/content/live/screen-link | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/content/live/screen-link | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/content/live/screen-link/regenerate | gate: self | layers: event.requireManage | keys: ?
-PUT    /api/events/:id/manage/content/live/screen-order | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/content/live/screens | gate: self | layers: event.requireRead | keys: ?
-POST   /api/events/:id/manage/content/live/screens | gate: self | layers: event.requireManage | keys: ?
-DELETE /api/events/:id/manage/content/live/screens/:screenID | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/content/live/screens/:screenID | gate: self | layers: event.requireRead | keys: ?
-PATCH  /api/events/:id/manage/content/live/screens/:screenID | gate: self | layers: event.requireManage | keys: ?
-PUT    /api/events/:id/manage/content/live/screens/:screenID/draft | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/content/live/screens/:screenID/duplicate | gate: self | layers: event.requireManage | keys: ?
-DELETE /api/events/:id/manage/content/live/screens/:screenID/link | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/content/live/screens/:screenID/link | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/content/live/screens/:screenID/link | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/content/live/screens/:screenID/link/regenerate | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/content/live/screens/:screenID/publish | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/content/live/screens/:screenID/version | gate: self | layers: event.requireRead | keys: ?
-GET    /api/events/:id/manage/content/live/version | gate: self | layers: event.requireRead | keys: ?
-GET    /api/events/:id/manage/content/variables | gate: self | layers: event.requireRead | keys: ?
-GET    /api/events/:id/manage/exercise-catalog | gate: self | layers: event.requireRead | keys: ?
-GET    /api/events/:id/manage/exercise-catalog/:versionID | gate: self | layers: event.requireRead | keys: ?
-GET    /api/events/:id/manage/exercise-catalog/tags | gate: self | layers: event.requireRead | keys: ?
-GET    /api/events/:id/manage/exercises | gate: self | layers: event.requireRead | keys: ?
-POST   /api/events/:id/manage/exercises | gate: self | layers: event.requireManage | keys: ?
-DELETE /api/events/:id/manage/exercises/:exerciseID | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/exercises/:exerciseID/challenges | gate: self | layers: event.requireRead | keys: ?
-PUT    /api/events/:id/manage/exercises/:exerciseID/challenges/:challengeID | gate: self | layers: event.requireManage | keys: ?
-PUT    /api/events/:id/manage/exercises/:exerciseID/challenges/:challengeID/hints | gate: self | layers: event.requireManage | keys: ?
-PUT    /api/events/:id/manage/exercises/:exerciseID/challenges/:challengeID/relations | gate: self | layers: event.requireManage | keys: ?
-PUT    /api/events/:id/manage/exercises/:exerciseID/challenges/order | gate: self | layers: event.requireManage | keys: ?
-PUT    /api/events/:id/manage/exercises/:exerciseID/challenges/scoring | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/exercises/:exerciseID/fork | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/exercises/:exerciseID/replace | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/exercises/:exerciseID/revert | gate: self | layers: event.requireManage | keys: ?
-PUT    /api/events/:id/manage/exercises/:exerciseID/stage | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/exercises/:exerciseID/team-copies | gate: self | layers: event.requireRead | keys: ?
-POST   /api/events/:id/manage/exercises/:exerciseID/team-copies/sync | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/exercises/:exerciseID/update | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/exercises/:exerciseID/update/preview | gate: self | layers: event.requireManage | keys: ?
-PUT    /api/events/:id/manage/exercises/:exerciseID/visibility | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/exercises/bulk/detach | gate: self | layers: event.requireManage | keys: ?
-PUT    /api/events/:id/manage/exercises/bulk/scoring | gate: self | layers: event.requireManage | keys: ?
-PUT    /api/events/:id/manage/exercises/bulk/visibility | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/forms | gate: self | layers: event.requireRead | keys: ?
-POST   /api/events/:id/manage/forms | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/forms/:formID | gate: self | layers: event.requireRead | keys: ?
-PUT    /api/events/:id/manage/forms/:formID | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/forms/:formID/answers | gate: self | layers: event.requireRead | keys: ?
-GET    /api/events/:id/manage/forms/:formID/deliveries | gate: self | layers: event.requireRead | keys: ?
-POST   /api/events/:id/manage/forms/:formID/deliveries | gate: self | layers: event.requireManage | keys: ?
-PUT    /api/events/:id/manage/general | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/hint-unlocks | gate: self | layers: event.requireRead | keys: ?
-GET    /api/events/:id/manage/images/availability | gate: self | layers: imageRegistry.requireRead | keys: ?
-GET    /api/events/:id/manage/labs | gate: self | layers: event.requireRead | keys: ?
-POST   /api/events/:id/manage/labs/:teamID/challenges/:challengeID/devices/:device/rescue | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/labs/:teamID/challenges/:challengeID/devices/:device/reset | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/labs/:teamID/detail | gate: self | layers: event.requireRead | keys: ?
-POST   /api/events/:id/manage/labs/:teamID/recreate | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/labs/moderators/board | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/labs/moderators/challenges | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/labs/moderators/challenges/:challengeID/files/:fileID | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/labs/moderators/challenges/:challengeID/lab | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/labs/moderators/challenges/:challengeID/lab/link | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/labs/moderators/challenges/:challengeID/solves | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/labs/moderators/challenges/:challengeID/submit | gate: self | layers: event.requireManage,middleware.ReceivedAfterBody | keys: ?
-GET    /api/events/:id/manage/labs/moderators/team | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/labs/moderators/vpn | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/labs/moderators/vpn/status | gate: self | layers: event.requireManage | keys: ?
-PUT    /api/events/:id/manage/labs/settings | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/lifecycle | gate: self | layers: event.requireRead | keys: ?
-PUT    /api/events/:id/manage/lifecycle | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/lifecycle/changes | gate: self | layers: event.requireRead | keys: ?
-GET    /api/events/:id/manage/list-columns/:list | gate: self | layers: event.requireRead | keys: ?
-PUT    /api/events/:id/manage/list-columns/:list | gate: self | layers: event.requireManage | keys: ?
-DELETE /api/events/:id/manage/logo | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/logo | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/mail | gate: self | layers: mail.requireRead | keys: ?
-PUT    /api/events/:id/manage/mail/identity | gate: self | layers: mail.requireManage | keys: ?
-GET    /api/events/:id/manage/mail/journal | gate: self | layers: mail.requireRead | keys: ?
-DELETE /api/events/:id/manage/mail/smtp | gate: self | layers: mail.requireManage | keys: ?
-PUT    /api/events/:id/manage/mail/smtp | gate: self | layers: mail.requireManage | keys: ?
-POST   /api/events/:id/manage/mail/smtp/test | gate: self | layers: mail.requireManage | keys: ?
-GET    /api/events/:id/manage/name | gate: self | layers: event.requireRead | keys: ?
-PUT    /api/events/:id/manage/name | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/notification-subscriptions | gate: self | layers: event.requireRead | keys: ?
-PUT    /api/events/:id/manage/notification-subscriptions | gate: self | layers: event.requireManage | keys: ?
-DELETE /api/events/:id/manage/notification-subscriptions/:signalType/:channel | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/notification-templates/custom | gate: self | layers: messaging.requireRead | keys: ?
-POST   /api/events/:id/manage/notification-templates/custom | gate: self | layers: messaging.requireManage | keys: ?
-DELETE /api/events/:id/manage/notification-templates/custom/:templateID | gate: self | layers: messaging.requireManage | keys: ?
-GET    /api/events/:id/manage/notification-templates/custom/:templateID | gate: self | layers: messaging.requireRead | keys: ?
-PUT    /api/events/:id/manage/notification-templates/custom/:templateID | gate: self | layers: messaging.requireManage | keys: ?
-GET    /api/events/:id/manage/notification-templates/email | gate: self | layers: event.requireRead | keys: ?
-POST   /api/events/:id/manage/notification-templates/email | gate: self | layers: event.requireManage | keys: ?
-DELETE /api/events/:id/manage/notification-templates/email/:templateID | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/notification-templates/email/:templateID | gate: self | layers: event.requireRead | keys: ?
-PUT    /api/events/:id/manage/notification-templates/email/:templateID | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/notification-templates/email/:templateID/customize | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/notification-templates/email/:templateID/images | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/notification-templates/email/:templateID/publish | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/notification-templates/email/:templateID/rollback | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/notification-templates/email/:templateID/test | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/notification-templates/email/brand/logo | gate: self | layers: event.requireRead,middleware.SameSiteResource | keys: ?
-GET    /api/events/:id/manage/notification-templates/email/images/:fileID | gate: self | layers: event.requireRead,middleware.SameSiteResource | keys: ?
-GET    /api/events/:id/manage/notification-templates/email/presets | gate: self | layers: event.requireRead | keys: ?
-POST   /api/events/:id/manage/notification-templates/email/preview | gate: self | layers: event.requireRead,middleware.RateLimitPerUser.func | keys: ?
-DELETE /api/events/:id/manage/notification-templates/email/type/:notificationType | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/notification-templates/in-app | gate: self | layers: event.requireRead | keys: ?
-POST   /api/events/:id/manage/notification-templates/in-app | gate: self | layers: event.requireManage | keys: ?
-DELETE /api/events/:id/manage/notification-templates/in-app/:templateID | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/notification-templates/in-app/:templateID | gate: self | layers: event.requireRead | keys: ?
-PUT    /api/events/:id/manage/notification-templates/in-app/:templateID | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/notification-templates/in-app/:templateID/customize | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/notification-templates/in-app/:templateID/publish | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/notification-templates/in-app/:templateID/rollback | gate: self | layers: event.requireManage | keys: ?
-DELETE /api/events/:id/manage/notification-templates/in-app/type/:notificationType | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/notification-types | gate: self | layers: event.requireRead | keys: ?
-GET    /api/events/:id/manage/pages | gate: self | layers: event.requireRead | keys: ?
-POST   /api/events/:id/manage/pages | gate: self | layers: event.requireManage | keys: ?
-DELETE /api/events/:id/manage/pages/:pageID | gate: self | layers: event.requireManage | keys: ?
-PUT    /api/events/:id/manage/pages/:pageID | gate: self | layers: event.requireManage | keys: ?
-DELETE /api/events/:id/manage/pages/:pageID/draft | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/pages/:pageID/publish | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/pages/:slug | gate: self | layers: event.requireRead | keys: ?
-GET    /api/events/:id/manage/participant-form | gate: self | layers: event.requireRead | keys: ?
-PUT    /api/events/:id/manage/participant-form | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/participant-form/answers | gate: self | layers: event.requireRead | keys: ?
-GET    /api/events/:id/manage/participant-preview/board | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/participant-preview/catalog | gate: self | layers: event.requireManage | keys: ?
-DELETE /api/events/:id/manage/participant-preview/labs/:deployID | gate: self | layers: event.requireManage | keys: ?
-DELETE /api/events/:id/manage/participant-preview/runs | gate: self | layers: event.requirePreviewCleanup | keys: ?
-GET    /api/events/:id/manage/participant-preview/selections/:selectionID/lab | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/participant-preview/selections/:selectionID/proxy | gate: self | layers: event.requireManage | keys: ?
-DELETE /api/events/:id/manage/participant-preview/selections/:selectionID/run | gate: self | layers: event.requirePreviewCleanup | keys: ?
-POST   /api/events/:id/manage/participant-preview/selections/:selectionID/start | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/participant-preview/selections/:selectionID/tasks/:taskID/files/:fileID | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/participant-preview/selections/:selectionID/tasks/:taskID/hints/:hintID/unlock | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/participant-preview/selections/:selectionID/tasks/:taskID/solves | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/participant-preview/selections/:selectionID/tasks/:taskID/submit | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/participant-preview/selections/:selectionID/vpn | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/participant-preview/settings | gate: self | layers: event.requireManage | keys: ?
-PUT    /api/events/:id/manage/participant-preview/settings | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/participants | gate: self | layers: event.requireRead | keys: ?
-GET    /api/events/:id/manage/participants/:userID | gate: self | layers: event.requireRead | keys: ?
-POST   /api/events/:id/manage/participants/:userID/approve | gate: self | layers: event.requireManage | keys: ?
-DELETE /api/events/:id/manage/participants/:userID/invitation | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/participants/:userID/invitation/accept | gate: self | layers: event.requireManage | keys: ?
-PUT    /api/events/:id/manage/participants/:userID/invitation/email | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/participants/:userID/invitation/resend | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/participants/:userID/reject | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/participants/:userID/staff-fields | gate: self | layers: event.requireRead | keys: ?
-PUT    /api/events/:id/manage/participants/:userID/staff-fields | gate: self | layers: event.requireManage | keys: ?
-PUT    /api/events/:id/manage/participants/:userID/team/:teamID | gate: self | layers: event.requireManage | keys: ?
-PUT    /api/events/:id/manage/participants/:userID/visibility | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/participants/invitations | gate: self | layers: event.requireManage | keys: ?
-DELETE /api/events/:id/manage/preview-picture | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/preview-picture | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/readiness | gate: self | layers: event.requireRead | keys: ?
-GET    /api/events/:id/manage/registry-secrets | gate: self | layers: imageRegistry.requireManageAccess | keys: ?
-POST   /api/events/:id/manage/registry-secrets | gate: self | layers: imageRegistry.requireManage | keys: ?
-DELETE /api/events/:id/manage/registry-secrets/:secretId | gate: self | layers: imageRegistry.requireManage | keys: ?
-PUT    /api/events/:id/manage/registry-secrets/:secretId | gate: self | layers: imageRegistry.requireManage | keys: ?
-POST   /api/events/:id/manage/registry-secrets/:secretId/check | gate: self | layers: imageRegistry.requireManage | keys: ?
-GET    /api/events/:id/manage/resource-plan | gate: self | layers: event.requireRead | keys: ?
-GET    /api/events/:id/manage/resources | gate: self | layers: resourceCalendar.requireRead | keys: ?
-POST   /api/events/:id/manage/resources/change-requests | gate: self | layers: resourceCalendar.requireManage | keys: ?
-GET    /api/events/:id/manage/results | gate: self | layers: event.requireRead | keys: ?
-GET    /api/events/:id/manage/results-settings | gate: self | layers: event.requireRead | keys: ?
-PUT    /api/events/:id/manage/results-settings | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/results/export.csv | gate: self | layers: event.requireExport | keys: ?
-PUT    /api/events/:id/manage/results/opened | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/scoring | gate: self | layers: event.requireRead | keys: ?
-PUT    /api/events/:id/manage/scoring | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/solution-attempts | gate: self | layers: event.requireRead | keys: ?
-PATCH  /api/events/:id/manage/solution-attempts/:attemptID/decision | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/solution-attempts/annul | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/solution-attempts/export.csv | gate: self | layers: event.requireExport | keys: ?
-GET    /api/events/:id/manage/solution-attempts/live | gate: self | layers: event.requireRead | keys: ?
-GET    /api/events/:id/manage/stages | gate: self | layers: event.requireRead | keys: ?
-POST   /api/events/:id/manage/stages | gate: self | layers: event.requireManage | keys: ?
-DELETE /api/events/:id/manage/stages/:stageID | gate: self | layers: event.requireManage | keys: ?
-PUT    /api/events/:id/manage/stages/:stageID | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/team-fields | gate: self | layers: event.requireRead | keys: ?
-PUT    /api/events/:id/manage/team-fields | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/teams | gate: self | layers: event.requireRead | keys: ?
-POST   /api/events/:id/manage/teams | gate: self | layers: event.requireManage | keys: ?
-DELETE /api/events/:id/manage/teams/:teamID | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/teams/:teamID | gate: self | layers: event.requireRead | keys: ?
-PUT    /api/events/:id/manage/teams/:teamID | gate: self | layers: event.requireManage | keys: ?
-PUT    /api/events/:id/manage/teams/:teamID/admission | gate: self | layers: event.requireManage | keys: ?
-PUT    /api/events/:id/manage/teams/:teamID/captain/:userID | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/teams/:teamID/form | gate: self | layers: event.requireManage | keys: ?
-PUT    /api/events/:id/manage/teams/:teamID/hidden | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/teams/:teamID/invitations | gate: self | layers: event.requireManage | keys: ?
-DELETE /api/events/:id/manage/teams/:teamID/members/:userID | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/teams/:teamID/members/:userID | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/manage/teams/:teamID/staff-fields | gate: self | layers: event.requireRead | keys: ?
-PUT    /api/events/:id/manage/teams/:teamID/staff-fields | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/teams/batch | gate: self | layers: event.requireManage | keys: ?
-POST   /api/events/:id/manage/teams/form | gate: self | layers: event.requireManage | keys: ?
-PUT    /api/events/:id/manage/theme | gate: self | layers: event.requireManage | keys: ?
-GET    /api/events/:id/managers | gate: events.read | layers: - | keys: ?
-DELETE /api/events/:id/managers/:userID | gate: events.write | layers: - | keys: ?
-PUT    /api/events/:id/managers/:userID | gate: events.write | layers: - | keys: ?
+GET    /api/events/:id/manage/access | gate: self | layers: event.requireRead | keys: event.read @ event(:id)
+GET    /api/events/:id/manage/analytics/access | gate: self | layers: eventAnalytics.requireSections | keys: anyOf(event.stats.read,event.stats.sensitive.read) @ event(:id)
+GET    /api/events/:id/manage/analytics/communications | gate: self | layers: eventAnalytics.requireSections | keys: event.stats.read @ event(:id)
+GET    /api/events/:id/manage/analytics/communications/export.csv | gate: self | layers: eventAnalytics.requireExport | keys: event.export @ event(:id)
+GET    /api/events/:id/manage/analytics/integrity | gate: self | layers: eventAnalytics.requireSensitive | keys: event.stats.sensitive.read @ event(:id)
+GET    /api/events/:id/manage/analytics/integrity/dismissals | gate: self | layers: eventAnalytics.requireSensitive | keys: event.stats.sensitive.read @ event(:id)
+POST   /api/events/:id/manage/analytics/integrity/dismissals | gate: self | layers: eventAnalytics.requireSensitive,eventAnalytics.requireWritable | keys: event.stats.sensitive.update @ event(:id)
+DELETE /api/events/:id/manage/analytics/integrity/dismissals/:dismissalID | gate: self | layers: eventAnalytics.requireSensitive,eventAnalytics.requireWritable | keys: event.stats.sensitive.update @ event(:id)
+GET    /api/events/:id/manage/analytics/integrity/export.csv | gate: self | layers: eventAnalytics.requireSensitive | keys: allOf(event.export,event.stats.sensitive.read) @ event(:id)
+GET    /api/events/:id/manage/analytics/integrity/flags | gate: self | layers: eventAnalytics.requireSensitive | keys: event.stats.sensitive.read @ event(:id)
+DELETE /api/events/:id/manage/analytics/integrity/solves/:teamChallengeID/review | gate: self | layers: eventAnalytics.requireSensitive,eventAnalytics.requireWritable | keys: event.stats.sensitive.update @ event(:id)
+PUT    /api/events/:id/manage/analytics/integrity/solves/:teamChallengeID/review | gate: self | layers: eventAnalytics.requireSensitive,eventAnalytics.requireWritable | keys: event.stats.sensitive.update @ event(:id)
+GET    /api/events/:id/manage/analytics/lab-telemetry | gate: self | layers: eventAnalytics.requireSections | keys: event.stats.read @ event(:id)
+GET    /api/events/:id/manage/analytics/lab-telemetry/transitions | gate: self | layers: eventAnalytics.requireSections | keys: event.stats.read @ event(:id)
+GET    /api/events/:id/manage/analytics/overview | gate: self | layers: eventAnalytics.requireSections | keys: event.stats.read @ event(:id)
+GET    /api/events/:id/manage/analytics/overview/export.csv | gate: self | layers: eventAnalytics.requireExport | keys: event.export @ event(:id)
+GET    /api/events/:id/manage/analytics/participants | gate: self | layers: eventAnalytics.requireSections | keys: event.stats.read @ event(:id)
+GET    /api/events/:id/manage/analytics/participants/export.csv | gate: self | layers: eventAnalytics.requireExport | keys: event.export @ event(:id)
+GET    /api/events/:id/manage/analytics/progress/heatmap | gate: self | layers: eventAnalytics.requireSections | keys: event.stats.read @ event(:id)
+GET    /api/events/:id/manage/analytics/progress/inactive | gate: self | layers: eventAnalytics.requireSections | keys: event.stats.read @ event(:id)
+GET    /api/events/:id/manage/analytics/progress/inactive/export.csv | gate: self | layers: eventAnalytics.requireExport | keys: event.export @ event(:id)
+GET    /api/events/:id/manage/analytics/progress/matrix | gate: self | layers: eventAnalytics.requireSections | keys: event.stats.read @ event(:id)
+GET    /api/events/:id/manage/analytics/progress/matrix/export.csv | gate: self | layers: eventAnalytics.requireExport | keys: event.export @ event(:id)
+GET    /api/events/:id/manage/analytics/progress/scores | gate: self | layers: eventAnalytics.requireSections | keys: event.stats.read @ event(:id)
+GET    /api/events/:id/manage/analytics/report | gate: self | layers: eventAnalytics.requireSections | keys: event.stats.read @ event(:id)
+GET    /api/events/:id/manage/analytics/report/export.zip | gate: self | layers: eventAnalytics.requireExport | keys: event.export @ event(:id)
+GET    /api/events/:id/manage/analytics/stands | gate: self | layers: eventAnalytics.requireSections | keys: event.stats.read @ event(:id)
+GET    /api/events/:id/manage/analytics/stands/export.csv | gate: self | layers: eventAnalytics.requireExport | keys: event.export @ event(:id)
+GET    /api/events/:id/manage/analytics/submissions | gate: self | layers: eventAnalytics.requireSections | keys: event.stats.read @ event(:id)
+GET    /api/events/:id/manage/analytics/submissions/export.csv | gate: self | layers: eventAnalytics.requireExport | keys: event.export @ event(:id)
+GET    /api/events/:id/manage/analytics/tasks | gate: self | layers: eventAnalytics.requireSections | keys: event.stats.read @ event(:id)
+GET    /api/events/:id/manage/analytics/tasks/:challengeID | gate: self | layers: eventAnalytics.requireSections | keys: event.stats.read @ event(:id)
+GET    /api/events/:id/manage/analytics/tasks/:challengeID/wrong-answers | gate: self | layers: eventAnalytics.requireSensitive | keys: event.stats.sensitive.read @ event(:id)
+GET    /api/events/:id/manage/analytics/tasks/export.csv | gate: self | layers: eventAnalytics.requireExport | keys: event.export @ event(:id)
+GET    /api/events/:id/manage/analytics/usage | gate: self | layers: eventAnalytics.requireSections | keys: event.stats.read @ event(:id)
+GET    /api/events/:id/manage/analytics/usage/export.csv | gate: self | layers: eventAnalytics.requireExport | keys: event.export @ event(:id)
+POST   /api/events/:id/manage/answer-files | gate: self | layers: event.requireManage | keys: anyOf(event.participants.update,event.teams.update) @ event(:id)
+GET    /api/events/:id/manage/answer-files/:fileID | gate: self | layers: event.requireRead | keys: anyOf(event.participants.read,event.teams.read) @ event(:id)
+PUT    /api/events/:id/manage/appearance | gate: self | layers: event.requireManage | keys: event.settings.update @ event(:id)
+GET    /api/events/:id/manage/banners | gate: self | layers: messaging.requireRead | keys: event.comms.read @ event(:id)
+POST   /api/events/:id/manage/banners | gate: self | layers: messaging.requireManage | keys: event.comms.update @ event(:id)
+DELETE /api/events/:id/manage/banners/:bannerID | gate: self | layers: messaging.requireManage | keys: event.comms.delete @ event(:id)
+PUT    /api/events/:id/manage/banners/:bannerID | gate: self | layers: messaging.requireManage | keys: event.comms.update @ event(:id)
+POST   /api/events/:id/manage/brand-drafts/:kind | gate: self | layers: event.requireManage | keys: event.settings.update @ event(:id)
+GET    /api/events/:id/manage/broadcasts | gate: self | layers: messaging.requireRead | keys: event.comms.read @ event(:id)
+POST   /api/events/:id/manage/broadcasts | gate: self | layers: messaging.requireManage | keys: event.comms.update @ event(:id)
+GET    /api/events/:id/manage/broadcasts/:broadcastID | gate: self | layers: messaging.requireRead | keys: event.comms.read @ event(:id)
+POST   /api/events/:id/manage/broadcasts/:broadcastID/cancel | gate: self | layers: messaging.requireManage | keys: event.comms.update @ event(:id)
+GET    /api/events/:id/manage/broadcasts/:broadcastID/deliveries | gate: self | layers: messaging.requireRead | keys: event.comms.read @ event(:id)
+GET    /api/events/:id/manage/broadcasts/:broadcastID/deliveries/export | gate: self | layers: messaging.requireRead | keys: allOf(event.comms.read,event.export) @ event(:id)
+POST   /api/events/:id/manage/broadcasts/audience-count | gate: self | layers: messaging.requireManage | keys: event.comms.update @ event(:id)
+GET    /api/events/:id/manage/challenge-groups | gate: self | layers: event.requireRead | keys: event.tasks.list @ event(:id)
+POST   /api/events/:id/manage/challenge-groups | gate: self | layers: event.requireManage | keys: event.tasks.update @ event(:id)
+DELETE /api/events/:id/manage/challenge-groups/:groupID | gate: self | layers: event.requireManage | keys: event.tasks.delete @ event(:id)
+PUT    /api/events/:id/manage/challenge-groups/:groupID | gate: self | layers: event.requireManage | keys: event.tasks.update @ event(:id)
+PUT    /api/events/:id/manage/challenge-groups/order | gate: self | layers: event.requireManage | keys: event.tasks.update @ event(:id)
+PUT    /api/events/:id/manage/challenge-order | gate: self | layers: event.requireManage | keys: event.tasks.update @ event(:id)
+GET    /api/events/:id/manage/config | gate: self | layers: event.requireRead | keys: event.settings.read @ event(:id)
+PUT    /api/events/:id/manage/config | gate: self | layers: event.requireManage | keys: event.settings.update @ event(:id)
+GET    /api/events/:id/manage/content | gate: self | layers: event.requireRead | keys: event.pages.read @ event(:id)
+POST   /api/events/:id/manage/content-images | gate: self | layers: event.requireManage | keys: event.pages.update @ event(:id)
+PUT    /api/events/:id/manage/content/landing | gate: self | layers: event.requireManage | keys: event.pages.update @ event(:id)
+DELETE /api/events/:id/manage/content/landing/draft | gate: self | layers: event.requireManage | keys: event.pages.update @ event(:id)
+POST   /api/events/:id/manage/content/landing/publish | gate: self | layers: event.requireManage | keys: event.pages.update @ event(:id)
+GET    /api/events/:id/manage/content/live | gate: self | layers: event.requireRead | keys: event.pages.read @ event(:id)
+PUT    /api/events/:id/manage/content/live | gate: self | layers: event.requireManage | keys: event.pages.update @ event(:id)
+POST   /api/events/:id/manage/content/live/logos | gate: self | layers: event.requireManage | keys: event.pages.update @ event(:id)
+POST   /api/events/:id/manage/content/live/publish | gate: self | layers: event.requireManage | keys: event.pages.update @ event(:id)
+DELETE /api/events/:id/manage/content/live/screen-link | gate: self | layers: event.requireManage | keys: event.pages.delete @ event(:id)
+GET    /api/events/:id/manage/content/live/screen-link | gate: self | layers: event.requireManage | keys: event.pages.update @ event(:id)
+POST   /api/events/:id/manage/content/live/screen-link | gate: self | layers: event.requireManage | keys: event.pages.update @ event(:id)
+POST   /api/events/:id/manage/content/live/screen-link/regenerate | gate: self | layers: event.requireManage | keys: event.pages.update @ event(:id)
+PUT    /api/events/:id/manage/content/live/screen-order | gate: self | layers: event.requireManage | keys: event.pages.update @ event(:id)
+GET    /api/events/:id/manage/content/live/screens | gate: self | layers: event.requireRead | keys: event.pages.read @ event(:id)
+POST   /api/events/:id/manage/content/live/screens | gate: self | layers: event.requireManage | keys: event.pages.update @ event(:id)
+DELETE /api/events/:id/manage/content/live/screens/:screenID | gate: self | layers: event.requireManage | keys: event.pages.delete @ event(:id)
+GET    /api/events/:id/manage/content/live/screens/:screenID | gate: self | layers: event.requireRead | keys: event.pages.read @ event(:id)
+PATCH  /api/events/:id/manage/content/live/screens/:screenID | gate: self | layers: event.requireManage | keys: event.pages.update @ event(:id)
+PUT    /api/events/:id/manage/content/live/screens/:screenID/draft | gate: self | layers: event.requireManage | keys: event.pages.update @ event(:id)
+POST   /api/events/:id/manage/content/live/screens/:screenID/duplicate | gate: self | layers: event.requireManage | keys: event.pages.update @ event(:id)
+DELETE /api/events/:id/manage/content/live/screens/:screenID/link | gate: self | layers: event.requireManage | keys: event.pages.delete @ event(:id)
+GET    /api/events/:id/manage/content/live/screens/:screenID/link | gate: self | layers: event.requireManage | keys: event.pages.update @ event(:id)
+POST   /api/events/:id/manage/content/live/screens/:screenID/link | gate: self | layers: event.requireManage | keys: event.pages.update @ event(:id)
+POST   /api/events/:id/manage/content/live/screens/:screenID/link/regenerate | gate: self | layers: event.requireManage | keys: event.pages.update @ event(:id)
+POST   /api/events/:id/manage/content/live/screens/:screenID/publish | gate: self | layers: event.requireManage | keys: event.pages.update @ event(:id)
+GET    /api/events/:id/manage/content/live/screens/:screenID/version | gate: self | layers: event.requireRead | keys: event.pages.read @ event(:id)
+GET    /api/events/:id/manage/content/live/version | gate: self | layers: event.requireRead | keys: event.pages.read @ event(:id)
+GET    /api/events/:id/manage/content/variables | gate: self | layers: event.requireRead | keys: event.pages.read @ event(:id)
+GET    /api/events/:id/manage/exercise-catalog | gate: self | layers: event.requireRead | keys: event.exercises.list @ event(:id)
+GET    /api/events/:id/manage/exercise-catalog/:versionID | gate: self | layers: event.requireRead | keys: event.exercises.list @ event(:id)
+GET    /api/events/:id/manage/exercise-catalog/tags | gate: self | layers: event.requireRead | keys: event.exercises.list @ event(:id)
+GET    /api/events/:id/manage/exercises | gate: self | layers: event.requireRead | keys: event.tasks.list @ event(:id)
+POST   /api/events/:id/manage/exercises | gate: self | layers: event.requireManage | keys: event.tasks.update @ event(:id)
+DELETE /api/events/:id/manage/exercises/:exerciseID | gate: self | layers: event.requireManage | keys: event.tasks.delete @ event(:id)
+GET    /api/events/:id/manage/exercises/:exerciseID/challenges | gate: self | layers: event.requireRead | keys: event.tasks.read @ event(:id)
+PUT    /api/events/:id/manage/exercises/:exerciseID/challenges/:challengeID | gate: self | layers: event.requireManage | keys: event.tasks.update @ event(:id)
+PUT    /api/events/:id/manage/exercises/:exerciseID/challenges/:challengeID/hints | gate: self | layers: event.requireManage | keys: event.tasks.update @ event(:id)
+PUT    /api/events/:id/manage/exercises/:exerciseID/challenges/:challengeID/relations | gate: self | layers: event.requireManage | keys: event.tasks.update @ event(:id)
+PUT    /api/events/:id/manage/exercises/:exerciseID/challenges/order | gate: self | layers: event.requireManage | keys: event.tasks.update @ event(:id)
+PUT    /api/events/:id/manage/exercises/:exerciseID/challenges/scoring | gate: self | layers: event.requireManage | keys: event.tasks.update @ event(:id)
+POST   /api/events/:id/manage/exercises/:exerciseID/fork | gate: self | layers: event.requireManage | keys: event.tasks.update @ event(:id)
+POST   /api/events/:id/manage/exercises/:exerciseID/replace | gate: self | layers: event.requireManage | keys: event.tasks.update @ event(:id)
+POST   /api/events/:id/manage/exercises/:exerciseID/revert | gate: self | layers: event.requireManage | keys: event.tasks.update @ event(:id)
+PUT    /api/events/:id/manage/exercises/:exerciseID/stage | gate: self | layers: event.requireManage | keys: event.tasks.update @ event(:id)
+GET    /api/events/:id/manage/exercises/:exerciseID/team-copies | gate: self | layers: event.requireRead | keys: event.tasks.read @ event(:id)
+POST   /api/events/:id/manage/exercises/:exerciseID/team-copies/sync | gate: self | layers: event.requireManage | keys: event.tasks.update @ event(:id)
+POST   /api/events/:id/manage/exercises/:exerciseID/update | gate: self | layers: event.requireManage | keys: event.tasks.update @ event(:id)
+POST   /api/events/:id/manage/exercises/:exerciseID/update/preview | gate: self | layers: event.requireManage | keys: event.tasks.update @ event(:id)
+PUT    /api/events/:id/manage/exercises/:exerciseID/visibility | gate: self | layers: event.requireManage | keys: event.tasks.update @ event(:id)
+POST   /api/events/:id/manage/exercises/bulk/detach | gate: self | layers: event.requireManage | keys: event.tasks.update @ event(:id)
+PUT    /api/events/:id/manage/exercises/bulk/scoring | gate: self | layers: event.requireManage | keys: event.tasks.update @ event(:id)
+PUT    /api/events/:id/manage/exercises/bulk/visibility | gate: self | layers: event.requireManage | keys: event.tasks.update @ event(:id)
+GET    /api/events/:id/manage/forms | gate: self | layers: event.requireRead | keys: event.forms.read @ event(:id)
+POST   /api/events/:id/manage/forms | gate: self | layers: event.requireManage | keys: event.forms.update @ event(:id)
+GET    /api/events/:id/manage/forms/:formID | gate: self | layers: event.requireRead | keys: event.forms.read @ event(:id)
+PUT    /api/events/:id/manage/forms/:formID | gate: self | layers: event.requireManage | keys: event.forms.update @ event(:id)
+GET    /api/events/:id/manage/forms/:formID/answers | gate: self | layers: event.requireRead | keys: event.participants.read @ event(:id)
+GET    /api/events/:id/manage/forms/:formID/deliveries | gate: self | layers: event.requireRead | keys: event.forms.read @ event(:id)
+POST   /api/events/:id/manage/forms/:formID/deliveries | gate: self | layers: event.requireManage | keys: event.forms.update @ event(:id)
+PUT    /api/events/:id/manage/general | gate: self | layers: event.requireManage | keys: event.settings.update @ event(:id)
+GET    /api/events/:id/manage/hint-unlocks | gate: self | layers: event.requireRead | keys: event.attempts.read @ event(:id)
+GET    /api/events/:id/manage/images/availability | gate: self | layers: imageRegistry.requireRead | keys: event.registry.images.read @ event(:id)
+GET    /api/events/:id/manage/labs | gate: self | layers: event.requireRead | keys: event.labs.read @ event(:id)
+POST   /api/events/:id/manage/labs/:teamID/challenges/:challengeID/devices/:device/rescue | gate: self | layers: event.requireManage | keys: event.labs.update @ event(:id)
+POST   /api/events/:id/manage/labs/:teamID/challenges/:challengeID/devices/:device/reset | gate: self | layers: event.requireManage | keys: event.labs.update @ event(:id)
+GET    /api/events/:id/manage/labs/:teamID/detail | gate: self | layers: event.requireRead | keys: event.labs.read @ event(:id)
+POST   /api/events/:id/manage/labs/:teamID/recreate | gate: self | layers: event.requireManage | keys: event.labs.update @ event(:id)
+GET    /api/events/:id/manage/labs/moderators/board | gate: self | layers: event.requireManage | keys: event.labs.moderator-team.use @ event(:id)
+GET    /api/events/:id/manage/labs/moderators/challenges | gate: self | layers: event.requireManage | keys: event.labs.moderator-team.use @ event(:id)
+GET    /api/events/:id/manage/labs/moderators/challenges/:challengeID/files/:fileID | gate: self | layers: event.requireManage | keys: event.labs.moderator-team.use @ event(:id)
+GET    /api/events/:id/manage/labs/moderators/challenges/:challengeID/lab | gate: self | layers: event.requireManage | keys: event.labs.moderator-team.use @ event(:id)
+POST   /api/events/:id/manage/labs/moderators/challenges/:challengeID/lab/link | gate: self | layers: event.requireManage | keys: event.labs.moderator-team.use @ event(:id)
+GET    /api/events/:id/manage/labs/moderators/challenges/:challengeID/solves | gate: self | layers: event.requireManage | keys: event.labs.moderator-team.use @ event(:id)
+POST   /api/events/:id/manage/labs/moderators/challenges/:challengeID/submit | gate: self | layers: event.requireManage,middleware.ReceivedAfterBody | keys: event.labs.moderator-team.use @ event(:id)
+GET    /api/events/:id/manage/labs/moderators/team | gate: self | layers: event.requireManage | keys: event.labs.moderator-team.use @ event(:id)
+GET    /api/events/:id/manage/labs/moderators/vpn | gate: self | layers: event.requireManage | keys: event.labs.moderator-team.use @ event(:id)
+GET    /api/events/:id/manage/labs/moderators/vpn/status | gate: self | layers: event.requireManage | keys: event.labs.moderator-team.use @ event(:id)
+PUT    /api/events/:id/manage/labs/settings | gate: self | layers: event.requireManage | keys: event.labs.update @ event(:id)
+GET    /api/events/:id/manage/lifecycle | gate: self | layers: event.requireRead | keys: event.settings.read @ event(:id)
+PUT    /api/events/:id/manage/lifecycle | gate: self | layers: event.requireManage | keys: event.settings.update @ event(:id)
+GET    /api/events/:id/manage/lifecycle/changes | gate: self | layers: event.requireRead | keys: event.settings.read @ event(:id)
+GET    /api/events/:id/manage/list-columns/:list | gate: self | layers: event.requireRead | keys: event.settings.read @ event(:id)
+PUT    /api/events/:id/manage/list-columns/:list | gate: self | layers: event.requireManage | keys: event.settings.update @ event(:id)
+DELETE /api/events/:id/manage/logo | gate: self | layers: event.requireManage | keys: event.settings.update @ event(:id)
+POST   /api/events/:id/manage/logo | gate: self | layers: event.requireManage | keys: event.settings.update @ event(:id)
+GET    /api/events/:id/manage/mail | gate: self | layers: mail.requireRead | keys: event.comms.read @ event(:id)
+PUT    /api/events/:id/manage/mail/identity | gate: self | layers: mail.requireManage | keys: event.comms.update @ event(:id)
+GET    /api/events/:id/manage/mail/journal | gate: self | layers: mail.requireRead | keys: event.comms.read @ event(:id)
+DELETE /api/events/:id/manage/mail/smtp | gate: self | layers: mail.requireManage | keys: event.comms.update @ event(:id)
+PUT    /api/events/:id/manage/mail/smtp | gate: self | layers: mail.requireManage | keys: event.comms.update @ event(:id)
+POST   /api/events/:id/manage/mail/smtp/test | gate: self | layers: mail.requireManage | keys: event.comms.update @ event(:id)
+GET    /api/events/:id/manage/name | gate: self | layers: event.requireRead | keys: event.read @ event(:id)
+PUT    /api/events/:id/manage/name | gate: self | layers: event.requireManage | keys: event.settings.update @ event(:id)
+GET    /api/events/:id/manage/notification-subscriptions | gate: self | layers: event.requireRead | keys: event.comms.read @ event(:id)
+PUT    /api/events/:id/manage/notification-subscriptions | gate: self | layers: event.requireManage | keys: event.comms.update @ event(:id)
+DELETE /api/events/:id/manage/notification-subscriptions/:signalType/:channel | gate: self | layers: event.requireManage | keys: event.comms.update @ event(:id)
+GET    /api/events/:id/manage/notification-templates/custom | gate: self | layers: messaging.requireRead | keys: event.comms.read @ event(:id)
+POST   /api/events/:id/manage/notification-templates/custom | gate: self | layers: messaging.requireManage | keys: event.comms.update @ event(:id)
+DELETE /api/events/:id/manage/notification-templates/custom/:templateID | gate: self | layers: messaging.requireManage | keys: event.comms.delete @ event(:id)
+GET    /api/events/:id/manage/notification-templates/custom/:templateID | gate: self | layers: messaging.requireRead | keys: event.comms.read @ event(:id)
+PUT    /api/events/:id/manage/notification-templates/custom/:templateID | gate: self | layers: messaging.requireManage | keys: event.comms.update @ event(:id)
+GET    /api/events/:id/manage/notification-templates/email | gate: self | layers: event.requireRead | keys: event.comms.read @ event(:id)
+POST   /api/events/:id/manage/notification-templates/email | gate: self | layers: event.requireManage | keys: event.comms.update @ event(:id)
+DELETE /api/events/:id/manage/notification-templates/email/:templateID | gate: self | layers: event.requireManage | keys: event.comms.delete @ event(:id)
+GET    /api/events/:id/manage/notification-templates/email/:templateID | gate: self | layers: event.requireRead | keys: event.comms.read @ event(:id)
+PUT    /api/events/:id/manage/notification-templates/email/:templateID | gate: self | layers: event.requireManage | keys: event.comms.update @ event(:id)
+POST   /api/events/:id/manage/notification-templates/email/:templateID/customize | gate: self | layers: event.requireManage | keys: event.comms.update @ event(:id)
+POST   /api/events/:id/manage/notification-templates/email/:templateID/images | gate: self | layers: event.requireManage | keys: event.comms.update @ event(:id)
+POST   /api/events/:id/manage/notification-templates/email/:templateID/publish | gate: self | layers: event.requireManage | keys: event.comms.update @ event(:id)
+POST   /api/events/:id/manage/notification-templates/email/:templateID/rollback | gate: self | layers: event.requireManage | keys: event.comms.update @ event(:id)
+POST   /api/events/:id/manage/notification-templates/email/:templateID/test | gate: self | layers: event.requireManage | keys: event.comms.update @ event(:id)
+GET    /api/events/:id/manage/notification-templates/email/brand/logo | gate: self | layers: event.requireRead,middleware.SameSiteResource | keys: event.comms.read @ event(:id)
+GET    /api/events/:id/manage/notification-templates/email/images/:fileID | gate: self | layers: event.requireRead,middleware.SameSiteResource | keys: event.comms.read @ event(:id)
+GET    /api/events/:id/manage/notification-templates/email/presets | gate: self | layers: event.requireRead | keys: event.comms.read @ event(:id)
+POST   /api/events/:id/manage/notification-templates/email/preview | gate: self | layers: event.requireRead,middleware.RateLimitPerUser.func | keys: event.comms.read @ event(:id)
+DELETE /api/events/:id/manage/notification-templates/email/type/:notificationType | gate: self | layers: event.requireManage | keys: event.comms.update @ event(:id)
+GET    /api/events/:id/manage/notification-templates/in-app | gate: self | layers: event.requireRead | keys: event.comms.read @ event(:id)
+POST   /api/events/:id/manage/notification-templates/in-app | gate: self | layers: event.requireManage | keys: event.comms.update @ event(:id)
+DELETE /api/events/:id/manage/notification-templates/in-app/:templateID | gate: self | layers: event.requireManage | keys: event.comms.delete @ event(:id)
+GET    /api/events/:id/manage/notification-templates/in-app/:templateID | gate: self | layers: event.requireRead | keys: event.comms.read @ event(:id)
+PUT    /api/events/:id/manage/notification-templates/in-app/:templateID | gate: self | layers: event.requireManage | keys: event.comms.update @ event(:id)
+POST   /api/events/:id/manage/notification-templates/in-app/:templateID/customize | gate: self | layers: event.requireManage | keys: event.comms.update @ event(:id)
+POST   /api/events/:id/manage/notification-templates/in-app/:templateID/publish | gate: self | layers: event.requireManage | keys: event.comms.update @ event(:id)
+POST   /api/events/:id/manage/notification-templates/in-app/:templateID/rollback | gate: self | layers: event.requireManage | keys: event.comms.update @ event(:id)
+DELETE /api/events/:id/manage/notification-templates/in-app/type/:notificationType | gate: self | layers: event.requireManage | keys: event.comms.update @ event(:id)
+GET    /api/events/:id/manage/notification-types | gate: self | layers: event.requireRead | keys: event.comms.read @ event(:id)
+GET    /api/events/:id/manage/pages | gate: self | layers: event.requireRead | keys: event.pages.read @ event(:id)
+POST   /api/events/:id/manage/pages | gate: self | layers: event.requireManage | keys: event.pages.update @ event(:id)
+DELETE /api/events/:id/manage/pages/:pageID | gate: self | layers: event.requireManage | keys: event.pages.delete @ event(:id)
+PUT    /api/events/:id/manage/pages/:pageID | gate: self | layers: event.requireManage | keys: event.pages.update @ event(:id)
+DELETE /api/events/:id/manage/pages/:pageID/draft | gate: self | layers: event.requireManage | keys: event.pages.update @ event(:id)
+POST   /api/events/:id/manage/pages/:pageID/publish | gate: self | layers: event.requireManage | keys: event.pages.update @ event(:id)
+GET    /api/events/:id/manage/pages/:slug | gate: self | layers: event.requireRead | keys: event.pages.read @ event(:id)
+GET    /api/events/:id/manage/participant-form | gate: self | layers: event.requireRead | keys: event.forms.read @ event(:id)
+PUT    /api/events/:id/manage/participant-form | gate: self | layers: event.requireManage | keys: event.forms.update @ event(:id)
+GET    /api/events/:id/manage/participant-form/answers | gate: self | layers: event.requireRead | keys: event.participants.read @ event(:id)
+GET    /api/events/:id/manage/participant-preview/board | gate: self | layers: event.requireManage | keys: event.preview.participant @ event(:id)
+GET    /api/events/:id/manage/participant-preview/catalog | gate: self | layers: event.requireManage | keys: event.preview.participant @ event(:id)
+DELETE /api/events/:id/manage/participant-preview/labs/:deployID | gate: self | layers: event.requireManage | keys: event.preview.participant @ event(:id)
+DELETE /api/events/:id/manage/participant-preview/runs | gate: self | layers: event.requirePreviewCleanup | keys: event.preview.participant @ event(:id)
+GET    /api/events/:id/manage/participant-preview/selections/:selectionID/lab | gate: self | layers: event.requireManage | keys: event.preview.participant @ event(:id)
+POST   /api/events/:id/manage/participant-preview/selections/:selectionID/proxy | gate: self | layers: event.requireManage | keys: event.preview.participant @ event(:id)
+DELETE /api/events/:id/manage/participant-preview/selections/:selectionID/run | gate: self | layers: event.requirePreviewCleanup | keys: event.preview.participant @ event(:id)
+POST   /api/events/:id/manage/participant-preview/selections/:selectionID/start | gate: self | layers: event.requireManage | keys: event.preview.participant @ event(:id)
+GET    /api/events/:id/manage/participant-preview/selections/:selectionID/tasks/:taskID/files/:fileID | gate: self | layers: event.requireManage | keys: event.preview.participant @ event(:id)
+POST   /api/events/:id/manage/participant-preview/selections/:selectionID/tasks/:taskID/hints/:hintID/unlock | gate: self | layers: event.requireManage | keys: event.preview.participant @ event(:id)
+GET    /api/events/:id/manage/participant-preview/selections/:selectionID/tasks/:taskID/solves | gate: self | layers: event.requireManage | keys: event.preview.participant @ event(:id)
+POST   /api/events/:id/manage/participant-preview/selections/:selectionID/tasks/:taskID/submit | gate: self | layers: event.requireManage | keys: event.preview.participant @ event(:id)
+GET    /api/events/:id/manage/participant-preview/selections/:selectionID/vpn | gate: self | layers: event.requireManage | keys: event.preview.participant @ event(:id)
+GET    /api/events/:id/manage/participant-preview/settings | gate: self | layers: event.requireManage | keys: event.preview.participant @ event(:id)
+PUT    /api/events/:id/manage/participant-preview/settings | gate: self | layers: event.requireManage | keys: event.settings.update @ event(:id)
+GET    /api/events/:id/manage/participants | gate: self | layers: event.requireRead | keys: event.participants.list @ event(:id)
+GET    /api/events/:id/manage/participants/:userID | gate: self | layers: event.requireRead | keys: event.participants.read @ event(:id)
+POST   /api/events/:id/manage/participants/:userID/approve | gate: self | layers: event.requireManage | keys: event.participants.update @ event(:id)
+DELETE /api/events/:id/manage/participants/:userID/invitation | gate: self | layers: event.requireManage | keys: event.participants.delete @ event(:id)
+POST   /api/events/:id/manage/participants/:userID/invitation/accept | gate: self | layers: event.requireManage | keys: event.participants.update @ event(:id)
+PUT    /api/events/:id/manage/participants/:userID/invitation/email | gate: self | layers: event.requireManage | keys: event.participants.update @ event(:id)
+POST   /api/events/:id/manage/participants/:userID/invitation/resend | gate: self | layers: event.requireManage | keys: event.participants.update @ event(:id)
+POST   /api/events/:id/manage/participants/:userID/reject | gate: self | layers: event.requireManage | keys: event.participants.delete @ event(:id)
+GET    /api/events/:id/manage/participants/:userID/staff-fields | gate: self | layers: event.requireRead | keys: event.participants.read @ event(:id)
+PUT    /api/events/:id/manage/participants/:userID/staff-fields | gate: self | layers: event.requireManage | keys: event.participants.update @ event(:id)
+PUT    /api/events/:id/manage/participants/:userID/team/:teamID | gate: self | layers: event.requireManage | keys: event.participants.update @ event(:id)
+PUT    /api/events/:id/manage/participants/:userID/visibility | gate: self | layers: event.requireManage | keys: event.participants.update @ event(:id)
+POST   /api/events/:id/manage/participants/invitations | gate: self | layers: event.requireManage | keys: event.participants.update @ event(:id)
+DELETE /api/events/:id/manage/preview-picture | gate: self | layers: event.requireManage | keys: event.settings.update @ event(:id)
+POST   /api/events/:id/manage/preview-picture | gate: self | layers: event.requireManage | keys: event.settings.update @ event(:id)
+GET    /api/events/:id/manage/readiness | gate: self | layers: event.requireRead | keys: event.read @ event(:id)
+GET    /api/events/:id/manage/registry-secrets | gate: self | layers: imageRegistry.requireManageAccess | keys: event.registry.read @ event(:id)
+POST   /api/events/:id/manage/registry-secrets | gate: self | layers: imageRegistry.requireManage | keys: event.registry.update @ event(:id)
+DELETE /api/events/:id/manage/registry-secrets/:secretId | gate: self | layers: imageRegistry.requireManage | keys: event.registry.delete @ event(:id)
+PUT    /api/events/:id/manage/registry-secrets/:secretId | gate: self | layers: imageRegistry.requireManage | keys: event.registry.update @ event(:id)
+POST   /api/events/:id/manage/registry-secrets/:secretId/check | gate: self | layers: imageRegistry.requireManage | keys: event.registry.update @ event(:id)
+GET    /api/events/:id/manage/resource-plan | gate: self | layers: event.requireRead | keys: event.labs.read @ event(:id)
+GET    /api/events/:id/manage/resources | gate: self | layers: resourceCalendar.requireRead | keys: event.labs.read @ event(:id)
+POST   /api/events/:id/manage/resources/change-requests | gate: self | layers: resourceCalendar.requireManage | keys: event.labs.update @ event(:id)
+GET    /api/events/:id/manage/results | gate: self | layers: event.requireRead | keys: event.scoreboard.read @ event(:id)
+GET    /api/events/:id/manage/results-settings | gate: self | layers: event.requireRead | keys: event.scoreboard.read @ event(:id)
+PUT    /api/events/:id/manage/results-settings | gate: self | layers: event.requireManage | keys: event.scoreboard.update @ event(:id)
+GET    /api/events/:id/manage/results/export.csv | gate: self | layers: event.requireExport | keys: event.export @ event(:id)
+PUT    /api/events/:id/manage/results/opened | gate: self | layers: event.requireManage | keys: event.scoreboard.update @ event(:id)
+GET    /api/events/:id/manage/scoring | gate: self | layers: event.requireRead | keys: event.settings.read @ event(:id)
+PUT    /api/events/:id/manage/scoring | gate: self | layers: event.requireManage | keys: event.settings.update @ event(:id)
+GET    /api/events/:id/manage/solution-attempts | gate: self | layers: event.requireRead | keys: event.attempts.read @ event(:id)
+PATCH  /api/events/:id/manage/solution-attempts/:attemptID/decision | gate: self | layers: event.requireManage | keys: event.attempts.update @ event(:id)
+POST   /api/events/:id/manage/solution-attempts/annul | gate: self | layers: event.requireManage | keys: event.attempts.update @ event(:id)
+GET    /api/events/:id/manage/solution-attempts/export.csv | gate: self | layers: event.requireExport | keys: event.export @ event(:id)
+GET    /api/events/:id/manage/solution-attempts/live | gate: self | layers: event.requireRead | keys: event.attempts.read @ event(:id)
+GET    /api/events/:id/manage/stages | gate: self | layers: event.requireRead | keys: event.read @ event(:id)
+POST   /api/events/:id/manage/stages | gate: self | layers: event.requireManage | keys: event.tasks.update @ event(:id)
+DELETE /api/events/:id/manage/stages/:stageID | gate: self | layers: event.requireManage | keys: event.tasks.delete @ event(:id)
+PUT    /api/events/:id/manage/stages/:stageID | gate: self | layers: event.requireManage | keys: event.tasks.update @ event(:id)
+GET    /api/events/:id/manage/team-fields | gate: self | layers: event.requireRead | keys: event.forms.read @ event(:id)
+PUT    /api/events/:id/manage/team-fields | gate: self | layers: event.requireManage | keys: event.forms.update @ event(:id)
+GET    /api/events/:id/manage/teams | gate: self | layers: event.requireRead | keys: event.teams.read @ event(:id)
+POST   /api/events/:id/manage/teams | gate: self | layers: event.requireManage | keys: event.teams.update @ event(:id)
+DELETE /api/events/:id/manage/teams/:teamID | gate: self | layers: event.requireManage | keys: event.teams.delete @ event(:id)
+GET    /api/events/:id/manage/teams/:teamID | gate: self | layers: event.requireRead | keys: event.teams.read @ event(:id)
+PUT    /api/events/:id/manage/teams/:teamID | gate: self | layers: event.requireManage | keys: event.teams.update @ event(:id)
+PUT    /api/events/:id/manage/teams/:teamID/admission | gate: self | layers: event.requireManage | keys: event.teams.update @ event(:id)
+PUT    /api/events/:id/manage/teams/:teamID/captain/:userID | gate: self | layers: event.requireManage | keys: event.teams.update @ event(:id)
+POST   /api/events/:id/manage/teams/:teamID/form | gate: self | layers: event.requireManage | keys: event.teams.update @ event(:id)
+PUT    /api/events/:id/manage/teams/:teamID/hidden | gate: self | layers: event.requireManage | keys: event.teams.update @ event(:id)
+POST   /api/events/:id/manage/teams/:teamID/invitations | gate: self | layers: event.requireManage | keys: event.teams.update @ event(:id)
+DELETE /api/events/:id/manage/teams/:teamID/members/:userID | gate: self | layers: event.requireManage | keys: event.teams.delete @ event(:id)
+POST   /api/events/:id/manage/teams/:teamID/members/:userID | gate: self | layers: event.requireManage | keys: event.teams.update @ event(:id)
+GET    /api/events/:id/manage/teams/:teamID/staff-fields | gate: self | layers: event.requireRead | keys: event.teams.read @ event(:id)
+PUT    /api/events/:id/manage/teams/:teamID/staff-fields | gate: self | layers: event.requireManage | keys: event.teams.update @ event(:id)
+POST   /api/events/:id/manage/teams/batch | gate: self | layers: event.requireManage | keys: event.teams.update @ event(:id)
+POST   /api/events/:id/manage/teams/form | gate: self | layers: event.requireManage | keys: event.teams.update @ event(:id)
+PUT    /api/events/:id/manage/theme | gate: self | layers: event.requireManage | keys: event.settings.update @ event(:id)
+GET    /api/events/:id/managers | gate: events.read | layers: - | keys: anyOf(events.read,event.staff.read) @ event(:id)
+DELETE /api/events/:id/managers/:userID | gate: events.write | layers: - | keys: anyOf(events.staff.delete,event.staff.delete) @ event(:id)
+PUT    /api/events/:id/managers/:userID | gate: events.write | layers: - | keys: anyOf(events.staff.update,event.staff.update) @ event(:id)
 GET    /api/events/:id/participants | gate: events.read | layers: - | keys: ?
 POST   /api/events/:id/participants/:userID/approve | gate: events.write | layers: event.requireWritableEvent | keys: ?
 POST   /api/events/:id/participants/:userID/reject | gate: events.write | layers: - | keys: ?

@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	"github.com/cybericebox/backend/internal/model/rbac"
 	eventAnalyticsUseCase "github.com/cybericebox/backend/internal/useCase/eventAnalytics"
@@ -24,8 +25,8 @@ type LabTelemetryUseCase interface {
 // initLabTelemetry registers the lab telemetry routes on the analytics group.
 func (h *Handler) initLabTelemetry(router *gin.RouterGroup) {
 	analytics := router.Group("events/:id/manage/analytics", h.prot.RequirePermission(rbac.PermSelf))
-	analytics.GET("lab-telemetry", h.requireSections, h.labTelemetry)
-	analytics.GET("lab-telemetry/transitions", h.requireSections, h.labTransitions)
+	analytics.GET("lab-telemetry", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventStatsRead), nil), h.requireSections, h.labTelemetry)
+	analytics.GET("lab-telemetry/transitions", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventStatsRead), nil), h.requireSections, h.labTransitions)
 }
 
 type (

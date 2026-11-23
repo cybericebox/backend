@@ -9,13 +9,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
 	"io"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/handler/notification/stats"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	mailModel "github.com/cybericebox/backend/internal/model/mail"
 	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
@@ -31,6 +32,7 @@ type (
 
 	IProtection interface {
 		RequirePermission(required rbac.Permission) gin.HandlerFunc
+		Route(decl authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc
 	}
 
 	IUseCase interface {
@@ -161,12 +163,12 @@ func (h *Handler) Init(router *gin.RouterGroup) {
 	platform.POST("providers/:providerId/test", write, h.testProvider)
 
 	manage := router.Group("events/:id/manage/mail", h.prot.RequirePermission(rbac.PermSelf))
-	manage.GET("", h.requireRead, h.getEvent)
-	manage.PUT("identity", h.requireManage, h.updateEventIdentity)
-	manage.PUT("smtp", h.requireManage, h.updateEventSMTP)
-	manage.DELETE("smtp", h.requireManage, h.deleteEventSMTP)
-	manage.POST("smtp/test", h.requireManage, h.testEventSMTP)
-	manage.GET("journal", h.requireRead, h.eventJournal)
+	manage.GET("", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventCommsRead), nil), h.requireRead, h.getEvent)
+	manage.PUT("identity", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventCommsUpdate), nil), h.requireManage, h.updateEventIdentity)
+	manage.PUT("smtp", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventCommsUpdate), nil), h.requireManage, h.updateEventSMTP)
+	manage.DELETE("smtp", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventCommsUpdate), nil), h.requireManage, h.deleteEventSMTP)
+	manage.POST("smtp/test", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventCommsUpdate), nil), h.requireManage, h.testEventSMTP)
+	manage.GET("journal", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventCommsRead), nil), h.requireRead, h.eventJournal)
 }
 
 // getPlatform godoc

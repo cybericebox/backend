@@ -1,2 +1,5 @@
 # Declared routes whose keys differ from today's gate on purpose (TestDeclaredKeysMapToTheLegacyGate).
 # METHOD /api/path | A.3 row and the spec section that makes the change
+GET /api/events/:id/manage/analytics/access | A.3.7 #123: any-of event.stats.read, event.stats.sensitive.read; today the sections level only. The route reports which analytics keys the caller holds, so a holder of the sensitive key alone gets an answer too
+GET /api/events/:id/manage/analytics/integrity/export.csv | A.3.7 #130: all-of event.export, event.stats.sensitive.read; today the sensitive level only (A.4.1 item 3: the two sets coincide today, separate keys need both)
+GET /api/events/:id/manage/broadcasts/:broadcastID/deliveries/export | A.3.7 #171: all-of event.comms.read, event.export; today messaging.requireRead, so observers export (A.4.1 item 2: closed on purpose)

@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	"github.com/cybericebox/backend/internal/model/rbac"
 	imageRegistryUseCase "github.com/cybericebox/backend/internal/useCase/imageRegistry"
@@ -45,6 +46,7 @@ type (
 	// IProtection is the subset of the protection middleware this handler needs.
 	IProtection interface {
 		RequirePermission(required rbac.Permission) gin.HandlerFunc
+		Route(decl authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc
 	}
 )
 

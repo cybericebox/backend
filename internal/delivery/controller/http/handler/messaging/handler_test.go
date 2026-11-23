@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	eventManagerModel "github.com/cybericebox/backend/internal/model/eventManager"
 	broadcastModel "github.com/cybericebox/backend/internal/model/notification/broadcast"
@@ -387,6 +388,15 @@ func TestBroadcastHistoryAcceptsEveryColumnForSorting(t *testing.T) {
 		w := do(t, uc, http.MethodGet, "/api/notifications/broadcasts?page=1&sortBy="+column+"&sortDir=asc", string(rbac.PermNotificationsBroadcast), "")
 		if w.Code != http.StatusOK || uc.pageFilter.SortBy != column {
 			t.Errorf("sortBy=%s: %d (%s)", column, w.Code, uc.pageFilter.SortBy)
+		}
+	}
+}
+
+// Route mirrors protection.Route: the declaration decides nothing, the legacy gate runs unchanged.
+func (permProtection) Route(_ authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if legacy != nil {
+			legacy(c)
 		}
 	}
 }

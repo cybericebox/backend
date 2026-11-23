@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/download"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	"github.com/cybericebox/backend/internal/model/rbac"
@@ -30,10 +31,10 @@ type TasksUseCase interface {
 // answer texts are behind requireSensitive; nothing else is.
 func (h *Handler) initTasks(router *gin.RouterGroup) {
 	analytics := router.Group("events/:id/manage/analytics", h.prot.RequirePermission(rbac.PermSelf))
-	analytics.GET("tasks", h.requireSections, h.tasks)
-	analytics.GET("tasks/export.csv", h.requireExport, h.exportTasks)
-	analytics.GET("tasks/:challengeID", h.requireSections, h.taskDetail)
-	analytics.GET("tasks/:challengeID/wrong-answers", h.requireSensitive, h.taskWrongAnswers)
+	analytics.GET("tasks", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventStatsRead), nil), h.requireSections, h.tasks)
+	analytics.GET("tasks/export.csv", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventExport), nil), h.requireExport, h.exportTasks)
+	analytics.GET("tasks/:challengeID", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventStatsRead), nil), h.requireSections, h.taskDetail)
+	analytics.GET("tasks/:challengeID/wrong-answers", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventStatsSensitiveRead), nil), h.requireSensitive, h.taskWrongAnswers)
 }
 
 type (

@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	eventAnalyticsModel "github.com/cybericebox/backend/internal/model/eventAnalytics"
 	"github.com/cybericebox/backend/internal/model/rbac"
@@ -25,6 +26,7 @@ type (
 
 	IProtection interface {
 		RequirePermission(required rbac.Permission) gin.HandlerFunc
+		Route(decl authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc
 	}
 
 	IUseCase interface {
@@ -49,9 +51,9 @@ func NewEventAnalyticsAPIHandler(useCase IUseCase, prot IProtection) *Handler {
 func (h *Handler) Init(router *gin.RouterGroup) {
 	analytics := router.Group("events/:id/manage/analytics", h.prot.RequirePermission(rbac.PermSelf))
 	{
-		analytics.GET("access", h.requireSections, h.access)
-		analytics.GET("overview", h.requireSections, h.overview)
-		analytics.GET("overview/export.csv", h.requireExport, h.exportOverview)
+		analytics.GET("access", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventStatsRead, authz.EventStatsSensitiveRead), nil), h.requireSections, h.access)
+		analytics.GET("overview", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventStatsRead), nil), h.requireSections, h.overview)
+		analytics.GET("overview/export.csv", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventExport), nil), h.requireExport, h.exportOverview)
 		h.initTasks(router)
 		h.initStands(router)
 		h.initLabTelemetry(router)

@@ -30,7 +30,7 @@ const (
 	// maxUndeclared is the number of routes in testdata/routes.undeclared. It only goes down: a PR that declares
 	// routes removes them from the list and lowers it by as many; a new route declares from the start. It is 0 at the
 	// end of P1b.
-	maxUndeclared = 637
+	maxUndeclared = 364
 )
 
 // readRouteList reads a list of routes with their reasons, one "METHOD /api/path | reason" per line; # starts a
@@ -264,6 +264,16 @@ func mapsToGate(k authz.Key, gates []rbac.Permission, layers []string) bool {
 	return false
 }
 
+// layerChecks names the legacy check of a layer whose name does not end in it (spec §2.5): the analytics levels of
+// model/eventAnalytics.ResolveAccess, and manage checks under another name.
+var layerChecks = map[string]authz.LegacyCheck{
+	"eventAnalytics.requireSections":    authz.CheckAnalyticsSections,
+	"eventAnalytics.requireSensitive":   authz.CheckAnalyticsSensitive,
+	"eventAnalytics.requirePeople":      authz.CheckAnalyticsPeople,
+	"event.requirePreviewCleanup":       authz.CheckRequireManage,
+	"imageRegistry.requireManageAccess": authz.CheckRequireManage,
+}
+
 // mapsToLayer: the named legacy check of k is one of the route's layers (event.requireManage → requireManage).
 func mapsToLayer(k authz.Key, layers []string) bool {
 	l, ok := authz.LegacyOf(k)
@@ -271,7 +281,7 @@ func mapsToLayer(k authz.Key, layers []string) bool {
 		return false
 	}
 	for _, layer := range layers {
-		if strings.HasSuffix(layer, "."+string(l.Check)) || layer == string(l.Check) {
+		if layerChecks[layer] == l.Check || strings.HasSuffix(layer, "."+string(l.Check)) || layer == string(l.Check) {
 			return true
 		}
 	}
