@@ -1,59 +1,5 @@
 # Routes that declare no keys yet (TestEveryRouteDeclaresKeys). The list only shrinks.
 # METHOD /api/path | P1b area and A.3 row; "open:" when the row is not settled in the spec
-# area 5: participant routes
-DELETE /api/events/:id/teams/:teamID | area 5, A.3 #401
-GET /api/events/:id/forms/:formID | area 5, A.3 #395
-GET /api/events/:id/forms/pending | area 5, A.3 #397
-GET /api/events/:id/results/participation | area 5, A.3 #398
-GET /api/events/:id/results/team | area 5, A.3 #399
-GET /api/events/:id/teams/challenges/:challengeID/files/:fileID | area 5, A.3 #407
-GET /api/events/:id/teams/challenges/:challengeID/lab | area 5, A.3 #409
-GET /api/events/:id/teams/challenges/:challengeID/solves | area 5, A.3 #413
-GET /api/events/:id/teams/challenges/mine | area 5, A.3 #415
-GET /api/events/:id/teams/labs/:labID | area 5, A.3 #417
-GET /api/events/:id/teams/labs/stand | area 5, A.3 #420
-GET /api/events/:id/teams/labs/vpn | area 5, A.3 #421
-GET /api/events/:id/teams/labs/vpn/status | area 5, A.3 #422
-GET /api/events/:id/teams/mine | area 5, A.3 #423 open: scope "own team (relation)" is not a scope source of the plan
-GET /api/events/:id/teams/mine/members | area 5, A.3 #426 open: scope "own team (relation)" is not a scope source of the plan
-GET /api/events/self/answer-files/:fileID | area 5, A.3 #428
-GET /api/events/self/info | area 5, A.3 #429
-GET /api/events/self/join/info | area 5, A.3 #433
-GET /api/events/self/live-screen | area 5, A.3 #435 open: keys cell not in a declarable form
-GET /api/events/self/live-screen/results | area 5, A.3 #436 open: keys cell not in a declarable form
-GET /api/events/self/live-screen/results/live | area 5, A.3 #437 open: keys cell not in a declarable form
-GET /api/events/self/live-screen/version | area 5, A.3 #438 open: keys cell not in a declarable form
-GET /api/events/self/participant-answers | area 5, A.3 #439
-GET /api/events/self/participant-form | area 5, A.3 #441
-GET /api/events/self/participant-info | area 5, A.3 #443
-GET /api/events/self/public-info | area 5, A.3 #445
-GET /api/events/self/team-fields | area 5, A.3 #447
-POST /api/events/:id/forms/:formID/response | area 5, A.3 #396
-POST /api/events/:id/teams | area 5, A.3 #400
-POST /api/events/:id/teams/:teamID/captain | area 5, A.3 #403
-POST /api/events/:id/teams/:teamID/join-code | area 5, A.3 #405
-POST /api/events/:id/teams/:teamID/members/:userID/kick | area 5, A.3 #406
-POST /api/events/:id/teams/challenges/:challengeID/hints/:hintID/unlock | area 5, A.3 #408
-POST /api/events/:id/teams/challenges/:challengeID/lab/link | area 5, A.3 #410
-POST /api/events/:id/teams/challenges/:challengeID/open | area 5, A.3 #411
-POST /api/events/:id/teams/challenges/:challengeID/run-checks | area 5, A.3 #412
-POST /api/events/:id/teams/challenges/:challengeID/submit | area 5, A.3 #414
-POST /api/events/:id/teams/join | area 5, A.3 #416
-POST /api/events/:id/teams/labs/:labID/restart | area 5, A.3 #418
-POST /api/events/:id/teams/labs/:labID/stop | area 5, A.3 #419
-POST /api/events/:id/teams/mine/form | area 5, A.3 #424 open: scope "own team (relation)" is not a scope source of the plan
-POST /api/events/:id/teams/mine/leave | area 5, A.3 #425 open: scope "own team (lookup)" is not a scope source of the plan
-POST /api/events/self/answer-files | area 5, A.3 #427 open: keys cell not in a declarable form
-POST /api/events/self/invitation/accept | area 5, A.3 #430
-POST /api/events/self/invitation/decline | area 5, A.3 #431
-POST /api/events/self/join | area 5, A.3 #432
-POST /api/events/self/join/invitation/accept | area 5, A.3 #434
-POST /api/events/self/participant-form | area 5, A.3 #442
-POST /api/events/self/render-grant | area 5, A.3 #446
-PUT /api/events/:id/teams/:teamID | area 5, A.3 #402
-PUT /api/events/:id/teams/:teamID/fields | area 5, A.3 #404
-PUT /api/events/self/participant-answers | area 5, A.3 #440
-PUT /api/events/self/pseudonym | area 5, A.3 #444
 # area 6: exercises, runs, assistant
 DELETE /api/assistant/sessions/:id | area 6, A.3 #83
 DELETE /api/assistant/sessions/:id/attachments/:aid | area 6, A.3 #86

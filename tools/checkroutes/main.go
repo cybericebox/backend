@@ -269,8 +269,15 @@ func main() {
 		fmt.Fprintln(os.Stderr, "checkroutes:", err)
 		os.Exit(2)
 	}
-	exceptions, declared := parseExceptions(exceptionsText)
-	declared = append(declared, declarationViolations(golden, exceptions)...)
+	relationText, err := readTestdata(root, "routes.relation-exceptions")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "checkroutes:", err)
+		os.Exit(2)
+	}
+	exceptions, declared := parseExceptions("routes.delete-exceptions", exceptionsText)
+	relationExceptions, problems := parseExceptions("routes.relation-exceptions", relationText)
+	declared = append(declared, problems...)
+	declared = append(declared, declarationViolations(golden, exceptions, relationExceptions)...)
 	if len(declared) > 0 {
 		fmt.Fprintln(os.Stderr, "route declarations (keys @ scope in routes.golden) that break the access rules:")
 		for _, v := range declared {

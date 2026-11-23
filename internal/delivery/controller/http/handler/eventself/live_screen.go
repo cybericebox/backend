@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	"github.com/cybericebox/backend/internal/limits"
@@ -24,10 +25,10 @@ func (h *Handler) initLiveScreen(router *gin.RouterGroup, resolveTenant gin.Hand
 		return h.useCase.IsActiveLiveScreenToken(ctx, token, now)
 	}
 	screen := router.Group("events/self/live-screen", h.prot.RequirePermission(rbac.PermEventContentRead), liveScreenNoStore, newLiveScreenLimiter(known).middleware, h.liveScreenGate, resolveTenant)
-	screen.GET("", h.liveScreen)
-	screen.GET("version", h.liveScreenVersion)
-	screen.GET("results", h.liveScreenAccess, h.resultsSnapshot)
-	screen.GET("results/live", h.liveScreenAccess, h.liveResults)
+	screen.GET("", h.prot.Route(authz.BearerRoute(authz.BearerLiveScreen), nil), h.liveScreen)
+	screen.GET("version", h.prot.Route(authz.BearerRoute(authz.BearerLiveScreen), nil), h.liveScreenVersion)
+	screen.GET("results", h.prot.Route(authz.BearerRoute(authz.BearerLiveScreen), nil), h.liveScreenAccess, h.resultsSnapshot)
+	screen.GET("results/live", h.prot.Route(authz.BearerRoute(authz.BearerLiveScreen), nil), h.liveScreenAccess, h.liveResults)
 }
 
 // LiveScreenTokenHeader carries the screen link token: the event site's
@@ -59,7 +60,11 @@ func liveScreenNoStore(ctx *gin.Context) {
 func (h *Handler) liveScreenGate(ctx *gin.Context) {
 	token := liveScreenToken(ctx)
 	gate := func(c context.Context, eventID uuid.UUID) bool {
-		return token != "" && h.useCase.ResolveLiveScreenToken(c, eventID, token) == nil
+		if token == "" || h.useCase.ResolveLiveScreenToken(c, eventID, token) != nil {
+			return false
+		}
+		middleware.MarkCredentialChecked(ctx, liveScreenCredential)
+		return true
 	}
 	ctx.Request = ctx.Request.WithContext(middleware.ContextWithPrivateEventGate(ctx.Request.Context(), gate))
 	ctx.Next()
@@ -161,6 +166,7 @@ func (h *Handler) liveScreenAccess(ctx *gin.Context) {
 		response.AbortWithError(ctx, err)
 		return
 	}
+	middleware.MarkCredentialChecked(ctx, liveScreenCredential)
 	ctx.Params = append(ctx.Params, gin.Param{Key: "id", Value: tenant.EventID.String()})
 	query.Del("token")
 	query.Set("view", "live")
@@ -172,6 +178,10 @@ func (h *Handler) liveScreenAccess(ctx *gin.Context) {
 	ctx.Request = ctx.Request.WithContext(context.WithValue(screenCtx, liveScreenTokenKey{}, token))
 	ctx.Next()
 }
+
+// liveScreenCredential is the scope source the live-screen token stands for (authz.BearerRoute): a layer marks it once
+// the token resolved to the event (middleware.MarkCredentialChecked).
+var liveScreenCredential = string(authz.SourceBearer(authz.BearerLiveScreen))
 
 type (
 	liveScreenEventKey struct{}

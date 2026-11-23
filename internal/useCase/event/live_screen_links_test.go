@@ -196,3 +196,24 @@ func TestResolveLiveScreenToken(t *testing.T) {
 		t.Fatalf("malformed token = %v", err)
 	}
 }
+
+// The screen and its version open only with a working link: an empty or a wrong token is refused before anything is
+// read (review of the P1b declarations: bearer(live-screen) routes).
+func TestLiveScreenAndItsVersionRefuseAnEmptyOrWrongToken(t *testing.T) {
+	eventID := uuid.Must(uuid.NewV7())
+	_, wrong, _ := eventContentModel.NewLiveScreenLink(eventID, uuid.Must(uuid.NewV7()), uuid.Nil, time.Now().UTC(), eventContentModel.LiveScreenExpiryDay, nil)
+	for name, token := range map[string]string{"empty": "", "malformed": "x", "unknown": wrong} {
+		t.Run(name, func(t *testing.T) {
+			uc, q := liveScreenUseCase(t)
+			if name == "unknown" {
+				q.EXPECT().GetEventLiveScreenLinkByTokenHash(gomock.Any(), gomock.Any()).Return(postgres.EventLiveScreenLink{}, pgx.ErrNoRows).Times(2)
+			}
+			if _, err := uc.GetLiveScreen(context.Background(), eventID, token); !errors.Is(err, eventContentModel.ErrLiveScreenTokenInvalid.Err()) {
+				t.Errorf("GetLiveScreen = %v", err)
+			}
+			if _, err := uc.GetLiveScreenVersion(context.Background(), eventID, token); !errors.Is(err, eventContentModel.ErrLiveScreenTokenInvalid.Err()) {
+				t.Errorf("GetLiveScreenVersion = %v", err)
+			}
+		})
+	}
+}
