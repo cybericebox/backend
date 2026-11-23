@@ -14,7 +14,7 @@ import (
 // TestRoutePolicy keeps equal to the router): every declared key is in the catalogue and can be checked at the
 // route's scope source (authz.Decl.Problems); an event(:param) source names a parameter of the path; a delete-shaped
 // route (DELETE, or a reject, revoke, remove, detach or delete action) declares its area's .delete key, and a .delete
-// key stands only on a delete-shaped route; a service route sits under /api/render/ behind its secret layer; the event
+// key stands only on a delete-shaped route; a service or bearer route sits under its prefix behind its credential layer; the event
 // manage area, the catalog and the assistant never stand on a bare self. A route still marked "?" is not declared yet
 // (TestEveryRouteDeclaresKeys holds that list).
 //
@@ -29,9 +29,10 @@ var bareSelfForbidden = []string{"/api/events/:id/manage", "/api/exercises", "/a
 // deleteActions are the last path segments that remove something although the method is not DELETE.
 var deleteActions = []string{"reject", "revoke", "remove", "detach", "delete"}
 
-// serviceRoutes: where a service source may stand, and the layer that checks the service's credential.
-var serviceRoutes = map[string]struct{ prefix, layer string }{
-	authz.ServiceRender: {prefix: "/api/render/", layer: "requireSecret"},
+// credentialRoutes: where a service or bearer source may stand, and the layer that checks its credential.
+var credentialRoutes = map[string]struct{ prefix, layer string }{
+	"service(" + authz.ServiceRender + ")":   {prefix: "/api/render/", layer: "requireSecret"},
+	"bearer(" + authz.BearerLiveScreen + ")": {prefix: "/api/events/self/live-screen", layer: "liveScreenGate"},
 }
 
 func testdataPath(handlerRoot, name string) string {
@@ -142,20 +143,19 @@ func declarationViolations(golden string, exceptions map[string]string) []string
 }
 
 func serviceViolations(id, route string, d authz.Decl, layers []string) []string {
-	if d.Scope.Kind() != "service" {
+	if kind := d.Scope.Kind(); kind != "service" && kind != "bearer" {
 		return nil
 	}
-	name := strings.TrimSuffix(strings.TrimPrefix(string(d.Scope), "service("), ")")
-	where, ok := serviceRoutes[name]
+	where, ok := credentialRoutes[string(d.Scope)]
 	if !ok {
-		return []string{fmt.Sprintf("%s: no route rule for service %q", id, name)}
+		return []string{fmt.Sprintf("%s: no route rule for %s", id, d.Scope)}
 	}
 	var out []string
-	if !strings.HasPrefix(route, where.prefix) {
-		out = append(out, fmt.Sprintf("%s: service(%s) only under %s", id, name, where.prefix))
+	if route != where.prefix && !strings.HasPrefix(route, strings.TrimSuffix(where.prefix, "/")+"/") {
+		out = append(out, fmt.Sprintf("%s: %s only under %s", id, d.Scope, where.prefix))
 	}
 	if !slices.ContainsFunc(layers, func(l string) bool { return strings.HasSuffix(l, "."+where.layer) || l == where.layer }) {
-		out = append(out, fmt.Sprintf("%s: service(%s) without its credential layer %s", id, name, where.layer))
+		out = append(out, fmt.Sprintf("%s: %s without its credential layer %s", id, d.Scope, where.layer))
 	}
 	return out
 }
