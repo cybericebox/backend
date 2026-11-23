@@ -18,6 +18,7 @@ import (
 	"github.com/cybericebox/backend/internal/model"
 	eventModel "github.com/cybericebox/backend/internal/model/event"
 	eventFormModel "github.com/cybericebox/backend/internal/model/eventForm"
+	participantModel "github.com/cybericebox/backend/internal/model/participant"
 )
 
 const maxAnswerFileNameLength = 200
@@ -109,6 +110,27 @@ func (u *EventUseCase) UploadAnswerFile(ctx context.Context, eventID, actorID uu
 		return AnswerFileView{}, model.ErrPlatform.WithError(err).WithMessage("Failed to record answer file").Err()
 	}
 	return toAnswerFileView(answerFile), nil
+}
+
+// UploadOwnAnswerFile is UploadAnswerFile for a participant (the event site), under the rules of saving the
+// answers: the participant form is part of applying, so it refuses only a rejected person (as SubmitParticipantForm);
+// team fields are filled by an approved participant only (creating a team, or its captain editing them; the team
+// itself is checked when the answer that references the file is saved).
+func (u *EventUseCase) UploadOwnAnswerFile(ctx context.Context, eventID, userID uuid.UUID, scope eventFormModel.AnswerScope, fieldKey, name string, r io.Reader) (AnswerFileView, error) {
+	p, err := u.participants.Get(ctx, eventID, userID)
+	if err != nil && !repositoryTools.IsObjectNotFoundError(err) && err != pgx.ErrNoRows {
+		return AnswerFileView{}, model.ErrPlatform.WithError(err).WithMessage("Failed to get event participant").Err()
+	}
+	found := err == nil
+	switch {
+	case scope == eventFormModel.AnswerScopeTeam && !found:
+		return AnswerFileView{}, participantModel.ErrParticipantNotFound.Err()
+	case scope == eventFormModel.AnswerScopeTeam && p.Status != participantModel.StatusApproved:
+		return AnswerFileView{}, participantModel.ErrParticipantNotApproved.Err()
+	case found && p.Status == participantModel.StatusRejected:
+		return AnswerFileView{}, participantModel.ErrParticipantAccessForbidden.Err()
+	}
+	return u.UploadAnswerFile(ctx, eventID, userID, scope, fieldKey, name, r)
 }
 
 // boundAnswers are answers whose file references were checked and replaced

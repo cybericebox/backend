@@ -4,7 +4,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
 	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 )
 
@@ -54,5 +56,30 @@ func (h *Handler) getParticipantDetail(ctx *gin.Context) {
 		response.AbortWithError(ctx, err)
 		return
 	}
-	response.AbortWithData(ctx, toParticipantDetailResponse(v))
+	out := toParticipantDetailResponse(v)
+	private, err := middleware.SeesEventPersonalData(ctx, eventID, h.useCase.RequireManageEvent)
+	if err != nil {
+		response.AbortWithError(ctx, err)
+		return
+	}
+	if !private {
+		out.Email = dispatchModel.MaskEmail(out.Email)
+	}
+	response.AbortWithData(ctx, out)
+}
+
+// maskParticipantEmails masks the participants' addresses for a caller who does not see the event's personal data
+// in full (a read-only moderator; owner decision 2026-10-19, as in mail and broadcasts). false: the error is sent.
+func (h *Handler) maskParticipantEmails(ctx *gin.Context, eventID uuid.UUID, items []participantResponse) bool {
+	private, err := middleware.SeesEventPersonalData(ctx, eventID, h.useCase.RequireManageEvent)
+	if err != nil {
+		response.AbortWithError(ctx, err)
+		return false
+	}
+	if !private {
+		for i := range items {
+			items[i].Email = dispatchModel.MaskEmail(items[i].Email)
+		}
+	}
+	return true
 }

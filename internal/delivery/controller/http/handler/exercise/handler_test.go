@@ -461,8 +461,9 @@ func TestListVersions_SerializesLabel(t *testing.T) {
 }
 
 // W4: event managers edit exercises too, so capabilities and the flag policy
-// are available to every authenticated caller (PermSelf); the deploy itself
-// stays authorized per exercise.
+// are available to every author (exercises.write or an event owner/manager, as
+// TestAuthoringSettingsAreForAuthorsOnly checks); the deploy itself stays
+// authorized per exercise.
 func TestExerciseCapabilities_OnlyExposesLaboratoryAvailability(t *testing.T) {
 	for _, tc := range []struct {
 		role      rbac.Role
@@ -477,7 +478,7 @@ func TestExerciseCapabilities_OnlyExposesLaboratoryAvailability(t *testing.T) {
 		gin.SetMode(gin.TestMode)
 		r := gin.New()
 		r.Use(response.WithErrorHandler)
-		exerciseHandler.NewExerciseAPIHandler(&fakeUC{laboratoriesAvailable: tc.available}, roleProt{role: tc.role}).Init(r.Group("api"))
+		exerciseHandler.NewExerciseAPIHandler(&fakeUC{laboratoriesAvailable: tc.available, managedEvent: uuid.Must(uuid.NewV7())}, roleProt{role: tc.role}).Init(r.Group("api"))
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/exercises/capabilities", nil))
 		if w.Code != tc.want {
@@ -507,14 +508,14 @@ func TestExerciseCapabilities_OnlyExposesLaboratoryAvailability(t *testing.T) {
 	}
 }
 
-func TestExerciseFlagPolicy_ReturnsRuntimeValuesToAuthenticatedCallers(t *testing.T) {
+func TestExerciseFlagPolicy_ReturnsRuntimeValuesToAuthors(t *testing.T) {
 	for _, tc := range []struct {
 		role rbac.Role
 		want int
 	}{
 		{rbac.RoleAdmin, http.StatusOK},
-		{rbac.RoleAdminViewer, http.StatusOK},
-		{rbac.RoleUser, http.StatusOK},
+		{rbac.RoleAdminViewer, http.StatusForbidden},
+		{rbac.RoleUser, http.StatusForbidden}, // manages no event; an event manager passes (TestAuthoringSettingsAreForAuthorsOnly)
 		{rbac.RolePublic, http.StatusForbidden},
 	} {
 		gin.SetMode(gin.TestMode)
@@ -2161,7 +2162,7 @@ func TestExerciseCapabilitiesCarryThePlatformResourceSettings(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.Use(response.WithErrorHandler)
-	exerciseHandler.NewExerciseAPIHandler(&fakeUC{}, roleProt{role: rbac.RoleUser}).Init(r.Group("api"))
+	exerciseHandler.NewExerciseAPIHandler(&fakeUC{managedEvent: uuid.Must(uuid.NewV7())}, roleProt{role: rbac.RoleUser}).Init(r.Group("api"))
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/exercises/capabilities", nil))
 	if w.Code != http.StatusOK {

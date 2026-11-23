@@ -87,7 +87,7 @@ type fakeUseCase struct {
 	answerFile   func() (io.ReadCloser, eventUseCase.AnswerFileView, error)
 }
 
-func (f fakeUseCase) UploadAnswerFile(context.Context, uuid.UUID, uuid.UUID, eventFormModel.AnswerScope, string, string, io.Reader) (eventUseCase.AnswerFileView, error) {
+func (f fakeUseCase) UploadOwnAnswerFile(context.Context, uuid.UUID, uuid.UUID, eventFormModel.AnswerScope, string, string, io.Reader) (eventUseCase.AnswerFileView, error) {
 	return eventUseCase.AnswerFileView{}, f.readErr
 }
 

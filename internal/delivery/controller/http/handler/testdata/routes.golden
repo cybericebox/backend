@@ -485,7 +485,7 @@ GET    /api/exercises/authors | gate: self | layers: -
 PUT    /api/exercises/bulk/access | gate: exercises.write | layers: -
 POST   /api/exercises/bulk/archive | gate: self | layers: -
 POST   /api/exercises/bulk/unarchive | gate: self | layers: -
-GET    /api/exercises/capabilities | gate: self | layers: -
+GET    /api/exercises/capabilities | gate: self | layers: exercise.requireAuthor
 GET    /api/exercises/deploys | gate: self | layers: -
 DELETE /api/exercises/deploys/:deployID | gate: self | layers: -
 GET    /api/exercises/deploys/:deployID | gate: self | layers: -
@@ -507,7 +507,7 @@ POST   /api/exercises/files | gate: self | layers: -
 GET    /api/exercises/files/:fileID | gate: self | layers: -
 GET    /api/exercises/files/:fileID/chunks/:index | gate: self | layers: -
 GET    /api/exercises/files/:fileID/meta | gate: self | layers: -
-GET    /api/exercises/flag-policy | gate: self | layers: -
+GET    /api/exercises/flag-policy | gate: self | layers: exercise.requireAuthor
 POST   /api/exercises/import | gate: self | layers: download.LongOperation.func
 GET    /api/exercises/import/example | gate: self | layers: -
 GET    /api/exercises/import/example/document | gate: self | layers: -
@@ -528,7 +528,7 @@ GET    /api/exercises/test-labs/bookings | gate: self | layers: resourceCalendar
 POST   /api/exercises/test-labs/bookings | gate: self | layers: resourceCalendar.requireTestLabAuthor
 DELETE /api/exercises/test-labs/bookings/:bookingID | gate: self | layers: resourceCalendar.requireTestLabAuthor
 GET    /api/exercises/test-labs/room | gate: self | layers: resourceCalendar.requireTestLabAuthor
-GET    /api/exercises/test-runs/lengths | gate: self | layers: -
+GET    /api/exercises/test-runs/lengths | gate: self | layers: exercise.requireAuthor
 POST   /api/exercises/uploads | gate: self | layers: -
 DELETE /api/exercises/uploads/:uploadID | gate: self | layers: -
 GET    /api/exercises/uploads/:uploadID | gate: self | layers: -

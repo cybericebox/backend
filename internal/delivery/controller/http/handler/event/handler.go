@@ -2031,6 +2031,9 @@ func (h *Handler) listParticipants(ctx *gin.Context) {
 	for _, p := range res.Participants {
 		items = append(items, toParticipantResponse(p))
 	}
+	if !h.maskParticipantEmails(ctx, id, items) {
+		return
+	}
 	response.AbortWithData(ctx, participantsPageResponse{
 		CursorPage: pagination.NewCursorPage(items, res.HasMore, res.NextCursor, res.Total),
 		Counts:     participantCountsResponse{Participants: res.Counts.Participants, Applications: res.Counts.Applications, Invitations: res.Counts.Invitations},

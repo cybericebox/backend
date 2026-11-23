@@ -57,7 +57,7 @@ type (
 		GetParticipantForm(ctx context.Context, eventID uuid.UUID) (eventUseCase.ParticipantFormView, error)
 		SubmitParticipantForm(ctx context.Context, eventID, userID uuid.UUID, in eventUseCase.SubmitParticipantFormInput) (eventUseCase.ParticipantFormAnswerView, error)
 		GetOwnParticipantFormAnswers(ctx context.Context, eventID, userID uuid.UUID) (map[string]any, error)
-		UploadAnswerFile(ctx context.Context, eventID, actorID uuid.UUID, scope eventFormModel.AnswerScope, fieldKey, name string, r io.Reader) (eventUseCase.AnswerFileView, error)
+		UploadOwnAnswerFile(ctx context.Context, eventID, actorID uuid.UUID, scope eventFormModel.AnswerScope, fieldKey, name string, r io.Reader) (eventUseCase.AnswerFileView, error)
 		StreamOwnAnswerFile(ctx context.Context, eventID, userID, fileID uuid.UUID) (io.ReadCloser, eventUseCase.AnswerFileView, error)
 		ListPendingEventForms(ctx context.Context, eventID, userID uuid.UUID) ([]eventUseCase.PendingEventFormView, error)
 		GetOwnEventForm(ctx context.Context, eventID, formID, userID uuid.UUID) (eventUseCase.EventFormView, error)
