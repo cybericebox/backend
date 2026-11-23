@@ -31,3 +31,8 @@ DELETE /api/assistant/sessions/:id/attachments/:aid | A.3 #86: an attachment of 
 DELETE /api/exercises/:id/draft | A.3 #456: discards the task draft (undo), the update keys or authorship
 POST /api/exercises/elevations/:elevationID/reject | A.3 #509: deciding a request, exercises.elevations.update ("approve or reject them", A.2)
 POST /api/exercises/proposals/:proposalID/reject | A.3 #532: deciding a proposal, exercises.publish ("review catalog proposals", A.2; round 3)
+DELETE /api/settings/archive-limits | A.3 #603: reset to the default, platform.settings.update
+DELETE /api/settings/image-registry | A.3 #606: clears the image registry settings (a setting, clearSettings), platform.settings.update
+DELETE /api/settings/node-profiles | A.3 #611: reset to the default, platform.settings.update
+DELETE /api/settings/retention | A.3 #617: reset to the default, platform.settings.update
+DELETE /api/settings/test-runs | A.3 #620: reset to the default, platform.settings.update

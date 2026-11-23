@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/audit"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	platformSettingsModel "github.com/cybericebox/backend/internal/model/platformSettings"
@@ -328,4 +329,13 @@ func TestUpsertingAGenericSettingRecordsNoValues(t *testing.T) {
 		assert.NotContains(t, string(raw), leaked)
 	}
 	assert.Contains(t, string(raw), `"Value.color"`, "the name of the changed field is kept")
+}
+
+// Route mirrors protection.Route: the declaration decides nothing, the legacy gate runs unchanged.
+func (p grantProt) Route(_ authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if legacy != nil {
+			legacy(c)
+		}
+	}
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
 	"github.com/cybericebox/backend/internal/model/rbac"
@@ -26,6 +27,7 @@ type (
 
 	IProtection interface {
 		RequirePermission(required rbac.Permission) gin.HandlerFunc
+		Route(decl authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc
 	}
 
 	IUseCase interface {
@@ -105,17 +107,17 @@ func NewStatsAPIHandler(useCase IUseCase, prot IProtection) *Handler {
 }
 
 func (h *Handler) Init(router *gin.RouterGroup) {
-	router.GET("stats", h.prot.RequirePermission(rbac.PermNotificationsTemplatesRead), h.getStats)
+	router.GET("stats", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsTemplatesRead), h.prot.RequirePermission(rbac.PermNotificationsTemplatesRead)), h.getStats)
 	dispatches := router.Group(
 		"dispatches",
 		h.prot.RequirePermission(rbac.PermNotificationsTemplatesRead),
 	)
-	dispatches.GET("", h.listDispatches)
-	dispatches.GET("facets", h.dispatchFacets)
-	dispatches.GET(":id", h.getDispatch)
+	dispatches.GET("", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsTemplatesRead), nil), h.listDispatches)
+	dispatches.GET("facets", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsTemplatesRead), nil), h.dispatchFacets)
+	dispatches.GET(":id", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsTemplatesRead), nil), h.getDispatch)
 	router.POST(
 		"dispatches/resend",
-		h.prot.RequirePermission(rbac.PermNotificationsBroadcast),
+		h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsBroadcast), h.prot.RequirePermission(rbac.PermNotificationsBroadcast)),
 		h.resendDispatches,
 	)
 }

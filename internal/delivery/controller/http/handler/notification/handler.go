@@ -3,6 +3,7 @@ package notification
 import (
 	"github.com/gin-gonic/gin"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/handler/notification/catalog"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/handler/notification/inbox"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/handler/notification/pulse"
@@ -38,6 +39,7 @@ type (
 	// IProtection is the subset of the protection middleware this handler needs.
 	IProtection interface {
 		RequirePermission(required rbac.Permission) gin.HandlerFunc
+		Route(decl authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc
 	}
 )
 

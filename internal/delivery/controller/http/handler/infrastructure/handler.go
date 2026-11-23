@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/audit"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/handler/labview"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
@@ -32,6 +33,7 @@ type (
 
 	IProtection interface {
 		RequirePermission(required rbac.Permission) gin.HandlerFunc
+		Route(decl authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc
 	}
 
 	IUseCase interface {
@@ -292,69 +294,69 @@ func NewInfrastructureAPIHandler(useCase IUseCase, prot IProtection) *Handler {
 
 func (h *Handler) Init(router *gin.RouterGroup) {
 	read := h.prot.RequirePermission(rbac.PermInfrastructureRead)
-	router.GET("infrastructure/status", read, h.getStatus)
-	router.GET("infrastructure/summary", read, h.getSummary)
-	router.GET("infrastructure/monitoring/current", read, h.currentLabMonitoring)
-	router.GET("infrastructure/monitoring/observations", read, h.listLabMonitoring)
-	router.GET("infrastructure/monitoring/capacity/current", read, h.currentCapacityMonitoring)
-	router.GET("infrastructure/monitoring/capacity/observations", read, h.listCapacityMonitoring)
-	router.GET("infrastructure/agents", read, h.listAgents)
-	router.POST("infrastructure/agents", h.prot.RequirePermission(rbac.PermInfrastructureWrite), h.createAgent)
-	router.PUT("infrastructure/agents/:agentID", h.prot.RequirePermission(rbac.PermInfrastructureWrite), h.updateAgent)
-	router.DELETE("infrastructure/agents/:agentID", h.prot.RequirePermission(rbac.PermInfrastructureWrite), h.deleteAgent)
-	router.POST("infrastructure/agents/:agentID/check", read, h.checkAgent)
-	router.GET("infrastructure/agents/:agentID/delete-preview", read, h.previewAgentDelete)
-	router.POST("infrastructure/agents/:agentID/reconnect", h.prot.RequirePermission(rbac.PermInfrastructureWrite), h.reconnectAgent)
-	router.POST("infrastructure/agents/:agentID/renew-certificate", h.prot.RequirePermission(rbac.PermInfrastructureWrite), h.renewAgentCertificate)
-	router.POST("infrastructure/agents/:agentID/rotate-access-key", h.prot.RequirePermission(rbac.PermInfrastructureWrite), h.rotateAgentAccessKey)
-	router.GET("infrastructure/stands", read, h.listStands)
+	router.GET("infrastructure/status", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureRead), read), h.getStatus)
+	router.GET("infrastructure/summary", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureRead), read), h.getSummary)
+	router.GET("infrastructure/monitoring/current", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureRead), read), h.currentLabMonitoring)
+	router.GET("infrastructure/monitoring/observations", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureRead), read), h.listLabMonitoring)
+	router.GET("infrastructure/monitoring/capacity/current", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureRead), read), h.currentCapacityMonitoring)
+	router.GET("infrastructure/monitoring/capacity/observations", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureRead), read), h.listCapacityMonitoring)
+	router.GET("infrastructure/agents", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureRead), read), h.listAgents)
+	router.POST("infrastructure/agents", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureUpdate), h.prot.RequirePermission(rbac.PermInfrastructureWrite)), h.createAgent)
+	router.PUT("infrastructure/agents/:agentID", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureUpdate), h.prot.RequirePermission(rbac.PermInfrastructureWrite)), h.updateAgent)
+	router.DELETE("infrastructure/agents/:agentID", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureDelete), h.prot.RequirePermission(rbac.PermInfrastructureWrite)), h.deleteAgent)
+	router.POST("infrastructure/agents/:agentID/check", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureRead), read), h.checkAgent)
+	router.GET("infrastructure/agents/:agentID/delete-preview", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureRead), read), h.previewAgentDelete)
+	router.POST("infrastructure/agents/:agentID/reconnect", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureUpdate), h.prot.RequirePermission(rbac.PermInfrastructureWrite)), h.reconnectAgent)
+	router.POST("infrastructure/agents/:agentID/renew-certificate", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureUpdate), h.prot.RequirePermission(rbac.PermInfrastructureWrite)), h.renewAgentCertificate)
+	router.POST("infrastructure/agents/:agentID/rotate-access-key", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureUpdate), h.prot.RequirePermission(rbac.PermInfrastructureWrite)), h.rotateAgentAccessKey)
+	router.GET("infrastructure/stands", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureRead), read), h.listStands)
 	router.POST(
 		"infrastructure/stands/bulk/recreate",
-		h.prot.RequirePermission(rbac.PermInfrastructureWrite),
+		h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureUpdate), h.prot.RequirePermission(rbac.PermInfrastructureWrite)),
 		h.bulkRecreateStands,
 	)
 	router.POST(
 		"infrastructure/test-labs/bulk/terminate",
-		h.prot.RequirePermission(rbac.PermInfrastructureWrite),
+		h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureUpdate), h.prot.RequirePermission(rbac.PermInfrastructureWrite)),
 		h.bulkTerminateTestLabs,
 	)
-	router.GET("infrastructure/stands/events", read, h.listStandEvents)
-	router.GET("infrastructure/stands/facets", read, h.standFacets)
-	router.GET("infrastructure/test-labs/facets", read, h.testLabFacets)
+	router.GET("infrastructure/stands/events", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureRead), read), h.listStandEvents)
+	router.GET("infrastructure/stands/facets", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureRead), read), h.standFacets)
+	router.GET("infrastructure/test-labs/facets", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureRead), read), h.testLabFacets)
 	// The target ids live in the route so the audit entry names the stand.
 	router.POST(
 		"infrastructure/stands/:eventID/:teamID/recreate",
-		h.prot.RequirePermission(rbac.PermInfrastructureWrite),
+		h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureUpdate), h.prot.RequirePermission(rbac.PermInfrastructureWrite)),
 		h.recreateStand,
 	)
-	router.GET("infrastructure/stands/:eventID/:teamID/detail", read, h.getStandDetail)
+	router.GET("infrastructure/stands/:eventID/:teamID/detail", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureRead), read), h.getStandDetail)
 	// The stand, lab and device live in the route so the audit entry names what was touched.
 	router.POST(
 		"infrastructure/stands/:eventID/:teamID/challenges/:challengeID/devices/:device/reset",
-		h.prot.RequirePermission(rbac.PermInfrastructureWrite),
+		h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureUpdate), h.prot.RequirePermission(rbac.PermInfrastructureWrite)),
 		h.resetStandDevice,
 	)
 	router.POST(
 		"infrastructure/stands/:eventID/:teamID/challenges/:challengeID/devices/:device/rescue",
-		h.prot.RequirePermission(rbac.PermInfrastructureWrite),
+		h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureUpdate), h.prot.RequirePermission(rbac.PermInfrastructureWrite)),
 		h.rescueStandDevice,
 	)
-	router.GET("infrastructure/test-labs", read, h.listTestLabs)
-	router.GET("infrastructure/test-labs/:labID/detail", read, h.getTestLabDetail)
+	router.GET("infrastructure/test-labs", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureRead), read), h.listTestLabs)
+	router.GET("infrastructure/test-labs/:labID/detail", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureRead), read), h.getTestLabDetail)
 	router.POST(
 		"infrastructure/test-labs/:labID/devices/:device/reset",
-		h.prot.RequirePermission(rbac.PermInfrastructureWrite),
+		h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureUpdate), h.prot.RequirePermission(rbac.PermInfrastructureWrite)),
 		h.resetTestLabDevice,
 	)
 	router.POST(
 		"infrastructure/test-labs/:labID/devices/:device/rescue",
-		h.prot.RequirePermission(rbac.PermInfrastructureWrite),
+		h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureUpdate), h.prot.RequirePermission(rbac.PermInfrastructureWrite)),
 		h.rescueTestLabDevice,
 	)
 	// The lab id lives in the route so the audit entry names the lab.
 	router.POST(
 		"infrastructure/test-labs/:labID/terminate",
-		h.prot.RequirePermission(rbac.PermInfrastructureWrite),
+		h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureUpdate), h.prot.RequirePermission(rbac.PermInfrastructureWrite)),
 		h.terminateTestLab,
 	)
 }

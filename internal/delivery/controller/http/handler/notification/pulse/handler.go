@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	"github.com/cybericebox/backend/internal/model/rbac"
@@ -37,6 +38,7 @@ type (
 
 	IProtection interface {
 		RequirePermission(required rbac.Permission) gin.HandlerFunc
+		Route(decl authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc
 	}
 )
 
@@ -81,7 +83,7 @@ func NewPulseAPIHandler(useCase IUseCase, prot IProtection, site gin.HandlerFunc
 func (h *Handler) Init(router *gin.RouterGroup) {
 	router.GET("pulse", h.prot.RequirePermission(rbac.PermBannersView), h.site, h.pulse)
 	router.GET("banners", h.prot.RequirePermission(rbac.PermBannersView), h.site, h.banners)
-	router.PATCH("banners/:id/dismiss", h.prot.RequirePermission(rbac.PermNotificationsSelf), h.dismissBanner)
+	router.PATCH("banners/:id/dismiss", h.prot.Route(authz.AnyOf(authz.SourceSelf, authz.NotificationsSelf), h.prot.RequirePermission(rbac.PermNotificationsSelf)), h.dismissBanner)
 }
 
 // viewer is who asks; a guest has no UserID.

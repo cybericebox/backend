@@ -51,9 +51,9 @@ type previewUseCase interface {
 
 func (h *Handler) initPreviewAPI(router *gin.RouterGroup) {
 	defaults := router.Group("settings/participant-preview")
-	defaults.GET("", h.prot.RequirePermission(rbac.PermPlatformSettingsRead), h.getPreviewDefaults)
-	defaults.PUT("", h.prot.RequirePermission(rbac.PermPlatformSettingsWrite), h.putPreviewDefaults)
-	defaults.GET("catalog", h.prot.RequirePermission(rbac.PermPlatformSettingsRead), h.previewCatalog)
+	defaults.GET("", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsRead), h.prot.RequirePermission(rbac.PermPlatformSettingsRead)), h.getPreviewDefaults)
+	defaults.PUT("", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsUpdate), h.prot.RequirePermission(rbac.PermPlatformSettingsWrite)), h.putPreviewDefaults)
+	defaults.GET("catalog", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsRead), h.prot.RequirePermission(rbac.PermPlatformSettingsRead)), h.previewCatalog)
 	preview := router.Group("events/:id/manage/participant-preview", h.prot.RequirePermission(rbac.PermSelf))
 	// Preview reads also require manage access; observer/read roles cannot enter participant simulation.
 	preview.GET("settings", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventPreviewParticipant), nil), h.requireManage, h.getPreviewSettings)

@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/audit"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	"github.com/cybericebox/backend/internal/delivery/infrastructure/agentfleet"
@@ -714,5 +715,14 @@ func TestAgentCapacityArchiveAndDeleteFlow(t *testing.T) {
 	}
 	if prot.gates["POST /api/infrastructure/agents/:agentID/reconnect"] != rbac.PermInfrastructureWrite || prot.gates["GET /api/infrastructure/agents/:agentID/delete-preview"] != rbac.PermInfrastructureRead {
 		t.Fatalf("gates = %v", prot.gates)
+	}
+}
+
+// Route mirrors protection.Route: the declaration decides nothing, the legacy gate runs unchanged.
+func (p *recordingProtection) Route(_ authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if legacy != nil {
+			legacy(c)
+		}
 	}
 }

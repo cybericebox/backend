@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	mediaModel "github.com/cybericebox/backend/internal/model/media"
@@ -27,6 +28,7 @@ type (
 	// IProtection is the subset of the protection middleware this handler needs.
 	IProtection interface {
 		RequirePermission(required rbac.Permission) gin.HandlerFunc
+		Route(decl authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc
 	}
 
 	IUseCase interface {
@@ -283,95 +285,95 @@ func NewTemplateAPIHandler(useCase IUseCase, prot IProtection) *Handler {
 func (h *Handler) Init(router *gin.RouterGroup) {
 	inapp := router.Group("templates/inapp")
 	{
-		inapp.GET("", h.prot.RequirePermission(rbac.PermNotificationsTemplatesRead), h.listInApp)
+		inapp.GET("", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsTemplatesRead), h.prot.RequirePermission(rbac.PermNotificationsTemplatesRead)), h.listInApp)
 		inapp.GET(
 			"latest",
-			h.prot.RequirePermission(rbac.PermNotificationsTemplatesRead),
+			h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsTemplatesRead), h.prot.RequirePermission(rbac.PermNotificationsTemplatesRead)),
 			h.latestInApp,
 		)
-		inapp.GET(":id", h.prot.RequirePermission(rbac.PermNotificationsTemplatesRead), h.getInApp)
+		inapp.GET(":id", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsTemplatesRead), h.prot.RequirePermission(rbac.PermNotificationsTemplatesRead)), h.getInApp)
 		inapp.POST(
 			"",
-			h.prot.RequirePermission(rbac.PermNotificationsTemplatesWrite),
+			h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsTemplatesUpdate), h.prot.RequirePermission(rbac.PermNotificationsTemplatesWrite)),
 			h.createInApp,
 		)
 		inapp.PUT(
 			":id",
-			h.prot.RequirePermission(rbac.PermNotificationsTemplatesWrite),
+			h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsTemplatesUpdate), h.prot.RequirePermission(rbac.PermNotificationsTemplatesWrite)),
 			h.updateInApp,
 		)
 		inapp.DELETE(
 			":id",
-			h.prot.RequirePermission(rbac.PermNotificationsTemplatesWrite),
+			h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsTemplatesDelete), h.prot.RequirePermission(rbac.PermNotificationsTemplatesWrite)),
 			h.deleteInApp,
 		)
 		inapp.POST(
 			":id/publish",
-			h.prot.RequirePermission(rbac.PermNotificationsTemplatesWrite),
+			h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsTemplatesUpdate), h.prot.RequirePermission(rbac.PermNotificationsTemplatesWrite)),
 			h.publishInApp,
 		)
 		inapp.POST(
 			":id/rollback",
-			h.prot.RequirePermission(rbac.PermNotificationsTemplatesWrite),
+			h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsTemplatesUpdate), h.prot.RequirePermission(rbac.PermNotificationsTemplatesWrite)),
 			h.rollbackInApp,
 		)
 	}
 	emailG := router.Group("templates/email")
 	{
-		emailG.GET("", h.prot.RequirePermission(rbac.PermNotificationsTemplatesRead), h.listEmail)
+		emailG.GET("", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsTemplatesRead), h.prot.RequirePermission(rbac.PermNotificationsTemplatesRead)), h.listEmail)
 		emailG.GET(
 			"latest",
-			h.prot.RequirePermission(rbac.PermNotificationsTemplatesRead),
+			h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsTemplatesRead), h.prot.RequirePermission(rbac.PermNotificationsTemplatesRead)),
 			h.latestEmail,
 		)
 		// Static image/brand segments are registered before the ":id" param
 		// routes (see the exercise "files" routes).
 		emailG.POST(
 			"images",
-			h.prot.RequirePermission(rbac.PermNotificationsTemplatesWrite),
+			h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsTemplatesUpdate), h.prot.RequirePermission(rbac.PermNotificationsTemplatesWrite)),
 			h.uploadEmailImage,
 		)
 		emailG.GET(
 			"images/:fileID",
-			h.prot.RequirePermission(rbac.PermNotificationsTemplatesRead),
+			h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsTemplatesRead), h.prot.RequirePermission(rbac.PermNotificationsTemplatesRead)),
 			middleware.SameSiteResource,
 			h.streamEmailImage,
 		)
 		emailG.GET(
 			"brand/logo",
-			h.prot.RequirePermission(rbac.PermNotificationsTemplatesRead),
+			h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsTemplatesRead), h.prot.RequirePermission(rbac.PermNotificationsTemplatesRead)),
 			middleware.SameSiteResource,
 			h.brandLogo,
 		)
 		emailG.POST(
 			"preview",
-			h.prot.RequirePermission(rbac.PermNotificationsTemplatesRead),
+			h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsTemplatesRead), h.prot.RequirePermission(rbac.PermNotificationsTemplatesRead)),
 			h.previewEmail,
 		)
-		emailG.GET(":id", h.prot.RequirePermission(rbac.PermNotificationsTemplatesRead), h.getEmail)
+		emailG.GET(":id", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsTemplatesRead), h.prot.RequirePermission(rbac.PermNotificationsTemplatesRead)), h.getEmail)
 		emailG.POST(
 			"",
-			h.prot.RequirePermission(rbac.PermNotificationsTemplatesWrite),
+			h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsTemplatesUpdate), h.prot.RequirePermission(rbac.PermNotificationsTemplatesWrite)),
 			h.createEmail,
 		)
 		emailG.PUT(
 			":id",
-			h.prot.RequirePermission(rbac.PermNotificationsTemplatesWrite),
+			h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsTemplatesUpdate), h.prot.RequirePermission(rbac.PermNotificationsTemplatesWrite)),
 			h.updateEmail,
 		)
 		emailG.DELETE(
 			":id",
-			h.prot.RequirePermission(rbac.PermNotificationsTemplatesWrite),
+			h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsTemplatesDelete), h.prot.RequirePermission(rbac.PermNotificationsTemplatesWrite)),
 			h.deleteEmail,
 		)
 		emailG.POST(
 			":id/publish",
-			h.prot.RequirePermission(rbac.PermNotificationsTemplatesWrite),
+			h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsTemplatesUpdate), h.prot.RequirePermission(rbac.PermNotificationsTemplatesWrite)),
 			h.publishEmail,
 		)
 		emailG.POST(
 			":id/rollback",
-			h.prot.RequirePermission(rbac.PermNotificationsTemplatesWrite),
+			h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsTemplatesUpdate), h.prot.RequirePermission(rbac.PermNotificationsTemplatesWrite)),
 			h.rollbackEmail,
 		)
 
@@ -379,27 +381,27 @@ func (h *Handler) Init(router *gin.RouterGroup) {
 		{
 			presets.GET(
 				"",
-				h.prot.RequirePermission(rbac.PermNotificationsTemplatesRead),
+				h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsTemplatesRead), h.prot.RequirePermission(rbac.PermNotificationsTemplatesRead)),
 				h.listPresets,
 			)
 			presets.POST(
 				"",
-				h.prot.RequirePermission(rbac.PermNotificationsTemplatesWrite),
+				h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsTemplatesUpdate), h.prot.RequirePermission(rbac.PermNotificationsTemplatesWrite)),
 				h.createPreset,
 			)
 			presets.GET(
 				":id",
-				h.prot.RequirePermission(rbac.PermNotificationsTemplatesRead),
+				h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsTemplatesRead), h.prot.RequirePermission(rbac.PermNotificationsTemplatesRead)),
 				h.getPreset,
 			)
 			presets.PUT(
 				":id",
-				h.prot.RequirePermission(rbac.PermNotificationsTemplatesWrite),
+				h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsTemplatesUpdate), h.prot.RequirePermission(rbac.PermNotificationsTemplatesWrite)),
 				h.updatePreset,
 			)
 			presets.DELETE(
 				":id",
-				h.prot.RequirePermission(rbac.PermNotificationsTemplatesWrite),
+				h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsTemplatesDelete), h.prot.RequirePermission(rbac.PermNotificationsTemplatesWrite)),
 				h.deletePreset,
 			)
 		}

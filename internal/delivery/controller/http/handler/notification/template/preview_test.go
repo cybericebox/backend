@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/cybericebox/backend/internal/authz"
 	notificationModel "github.com/cybericebox/backend/internal/model/notification"
 	emailModel "github.com/cybericebox/backend/internal/model/notification/email"
 	"github.com/cybericebox/backend/internal/model/rbac"
@@ -125,4 +126,13 @@ func TestPreviewEmail_InlinesImagesAsDataURIs(t *testing.T) {
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	assert.Contains(t, resp.Data.HTML, `src="data:image/png;base64,`)
 	assert.NotContains(t, resp.Data.HTML, "/api/")
+}
+
+// Route mirrors protection.Route: the declaration decides nothing, the legacy gate runs unchanged.
+func (p onlyProt) Route(_ authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if legacy != nil {
+			legacy(c)
+		}
+	}
 }

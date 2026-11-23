@@ -121,11 +121,11 @@ func New(useCase IUseCase, prot IProtection) *Handler {
 func (h *Handler) Init(router *gin.RouterGroup) {
 	api := router.Group("settings/image-registry")
 	{
-		api.GET("", h.prot.RequirePermission(rbac.PermPlatformSettingsRead), h.getSettings)
-		api.PUT("", h.prot.RequirePermission(rbac.PermPlatformSettingsWrite), h.saveSettings)
-		api.DELETE("", h.prot.RequirePermission(rbac.PermPlatformSettingsWrite), h.clearSettings)
-		api.POST("repositories", h.prot.RequirePermission(rbac.PermPlatformSettingsWrite), h.listRepositories)
-		api.POST("check", h.prot.RequirePermission(rbac.PermPlatformSettingsWrite), h.checkNow)
+		api.GET("", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsRead), h.prot.RequirePermission(rbac.PermPlatformSettingsRead)), h.getSettings)
+		api.PUT("", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsUpdate), h.prot.RequirePermission(rbac.PermPlatformSettingsWrite)), h.saveSettings)
+		api.DELETE("", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsUpdate), h.prot.RequirePermission(rbac.PermPlatformSettingsWrite)), h.clearSettings)
+		api.POST("repositories", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsUpdate), h.prot.RequirePermission(rbac.PermPlatformSettingsWrite)), h.listRepositories)
+		api.POST("check", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsUpdate), h.prot.RequirePermission(rbac.PermPlatformSettingsWrite)), h.checkNow)
 	}
 	h.initEventSecrets(router)
 	h.initEventImages(router)

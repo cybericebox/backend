@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	notificationModel "github.com/cybericebox/backend/internal/model/notification"
 	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
@@ -315,6 +316,15 @@ func TestDispatchFacetsReadTheLogFilters(t *testing.T) {
 	for _, bad := range []string{"?field=bogus", "?field=status&from=yesterday"} {
 		if w = get("/api/notifications/dispatches/facets" + bad); w.Code != http.StatusBadRequest {
 			t.Errorf("%s must be refused: %d", bad, w.Code)
+		}
+	}
+}
+
+// Route mirrors protection.Route: the declaration decides nothing, the legacy gate runs unchanged.
+func (passThroughProtection) Route(_ authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if legacy != nil {
+			legacy(c)
 		}
 	}
 }

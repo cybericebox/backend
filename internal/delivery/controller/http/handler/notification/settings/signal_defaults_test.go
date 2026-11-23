@@ -12,6 +12,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/cybericebox/backend/internal/authz"
 	settingsModel "github.com/cybericebox/backend/internal/model/notification/settings"
 	"github.com/cybericebox/backend/internal/model/rbac"
 )
@@ -102,4 +103,13 @@ func TestUpsertSignalDefault_DeniedByProt_403(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	engine.ServeHTTP(w, req)
 	require.Equal(t, http.StatusForbidden, w.Code)
+}
+
+// Route mirrors protection.Route: the declaration decides nothing, the legacy gate runs unchanged.
+func (p *recordingProt) Route(_ authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if legacy != nil {
+			legacy(c)
+		}
+	}
 }
