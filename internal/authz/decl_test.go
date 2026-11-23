@@ -18,6 +18,10 @@ func TestDeclStringRoundTrip(t *testing.T) {
 		{PublicRoute(PublicPages), "- @ public(pages)"},
 		{PublicRoute(PublicScoreboard, PublicResults), "- @ public(scoreboard,results)"},
 		{ServiceRoute(ServiceRender), "- @ service(render)"},
+		{BearerRoute(BearerLiveScreen), "- @ bearer(live-screen)"},
+		{Related(SourceOwnTeam("id"), RelTeamMember), "(team-member) @ own-team(:id)"},
+		{AnyOf(SourceEventParam("id"), EventParticipantsList).WithData(EventPersonalDataRead), "event.participants.list @ event(:id) data(event.personal-data.read)"},
+		{PublicRoute(PublicScoreboard, PublicResults).WithData(EventScoreboardRead), "- @ public(scoreboard,results) data(event.scoreboard.read)"},
 		{Related(SourceTenant, RelParticipant), "(participant) @ tenant"},
 		{AnyOf(SourceEventParam("id"), EventLabsModeratorTeamUse).Or(RelParticipant), "anyOf(event.labs.moderator-team.use,(participant)) @ event(:id)"},
 		{AnyOf(SourceObject("exercise"), ExercisesUpdate, EventExercisesUpdate).Or(RelAuthor).And(ExercisesTestlabStart),
@@ -40,7 +44,7 @@ func TestDeclStringRoundTrip(t *testing.T) {
 }
 
 func TestParseDeclRejectsMalformed(t *testing.T) {
-	for _, s := range []string{"", "users.list", "users.list @ ", "users.list @ galaxy", "anyOf(users.list @ platform", "(boss) @ tenant", "event(:) @ platform", "- @ public(gallery)", "- @ public(pages,pages)", "- @ public()", "- @ service(mailer)", "- @ service()"} {
+	for _, s := range []string{"", "users.list", "users.list @ ", "users.list @ galaxy", "anyOf(users.list @ platform", "(boss) @ tenant", "event(:) @ platform", "- @ public(gallery)", "- @ public(pages,pages)", "- @ public()", "- @ service(mailer)", "- @ service()", "- @ bearer(webhook)", "self @ self data()", "self @ self data(users.list", "(captain) @ own-team(id)"} {
 		if _, err := ParseDecl(s); err == nil {
 			t.Errorf("ParseDecl(%q) accepted a malformed declaration", s)
 		}
@@ -61,6 +65,10 @@ func TestDeclProblems(t *testing.T) {
 		Related(SourceTenant, RelParticipant),
 		AnyOf(SourceTenant, Self),
 		ServiceRoute(ServiceRender),
+		BearerRoute(BearerLiveScreen),
+		Related(SourceOwnTeam("id"), RelCaptain),
+		AnyOf(SourceOwnTeam("id"), Self),
+		AnyOf(SourcePlatform, EventsList).WithData(EventsRead, EventsArchivedRead),
 	}
 	for _, d := range ok {
 		if p := d.Problems(); len(p) != 0 {
@@ -80,6 +88,10 @@ func TestDeclProblems(t *testing.T) {
 		"unknown relation":                  Related(SourceTenant, Relation("boss")),
 		"key on a service route":            AnyOf(SourceService(ServiceRender), EventsRead),
 		"relation on a service route":       Related(SourceService(ServiceRender), RelParticipant),
+		"key on a bearer route":             AnyOf(SourceBearer(BearerLiveScreen), EventsRead),
+		"data key not in the catalogue":     AnyOf(SourcePlatform, UsersList).WithData(Key("users.teleport")),
+		"data key named twice":              AnyOf(SourcePlatform, UsersList).WithData(UsersRead, UsersRead),
+		"wildcard data key":                 AnyOf(SourcePlatform, UsersList).WithData(All),
 		"duplicate key":                     AnyOf(SourcePlatform, UsersList, UsersList),
 	}
 	for name, d := range bad {
@@ -116,5 +128,14 @@ func TestScopeSourceParts(t *testing.T) {
 	}
 	if got := SourcePublic().PublicObjects(); got != nil {
 		t.Errorf("bare public PublicObjects() = %v", got)
+	}
+}
+
+func TestOwnTeamSourceNamesItsEventParameter(t *testing.T) {
+	if got := SourceOwnTeam("id").Param(); got != "id" {
+		t.Errorf("own-team Param() = %q", got)
+	}
+	if got := SourceOwnTeam("id").Kind(); got != "own-team" {
+		t.Errorf("own-team Kind() = %q", got)
 	}
 }

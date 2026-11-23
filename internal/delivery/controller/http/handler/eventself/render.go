@@ -94,6 +94,7 @@ func (h *EventRenderHandler) requireSecret(ctx *gin.Context) {
 		response.AbortWithTooManyRequests(ctx, time.Second)
 		return
 	}
+	middleware.MarkCredentialChecked(ctx, string(authz.SourceService(authz.ServiceRender)))
 	ctx.Next()
 }
 

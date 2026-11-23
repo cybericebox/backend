@@ -176,7 +176,7 @@ func (h *Handler) Init(router *gin.RouterGroup, resolveTenant gin.HandlerFunc) {
 
 	// Public standings: the scoreboard while the event runs, the results after it (Appendix A.3.6 #110-112, §4.5).
 	results := router.Group("events/:id/results", h.prot.Route(
-		authz.PublicRoute(authz.PublicScoreboard, authz.PublicResults),
+		authz.PublicRoute(authz.PublicScoreboard, authz.PublicResults).WithData(authz.EventScoreboardRead),
 		h.prot.RequirePermission(rbac.PermEventResultsRead),
 	))
 	{
