@@ -249,20 +249,20 @@ const reserveUserTOTPAttempt = `-- name: ReserveUserTOTPAttempt :one
 UPDATE user_totp
 SET failures        = (CASE
                            WHEN last_failure_at IS NULL OR
-                                last_failure_at <= $1::timestamptz - make_interval(secs => $2::float8)
+                                GREATEST(last_failure_at, locked_until) < $1::timestamptz - make_interval(secs => $2::float8)
                                THEN 0
                            ELSE LEAST(failures, 1000000) END) + 1,
     locked_until    = CASE
                           WHEN (CASE
                            WHEN last_failure_at IS NULL OR
-                                last_failure_at <= $1::timestamptz - make_interval(secs => $2::float8)
+                                GREATEST(last_failure_at, locked_until) < $1::timestamptz - make_interval(secs => $2::float8)
                                THEN 0
                            ELSE LEAST(failures, 1000000) END) + 1 >= $3::integer THEN
                               $1::timestamptz + make_interval(secs => LEAST($4::float8,
                                   $5::float8 *
                                   power(2, LEAST((CASE
                            WHEN last_failure_at IS NULL OR
-                                last_failure_at <= $1::timestamptz - make_interval(secs => $2::float8)
+                                GREATEST(last_failure_at, locked_until) < $1::timestamptz - make_interval(secs => $2::float8)
                                THEN 0
                            ELSE LEAST(failures, 1000000) END) + 1 - $3::integer, 20))))
                           ELSE locked_until END,
@@ -283,8 +283,9 @@ type ReserveUserTOTPAttemptParams struct {
 
 // Reserves one code check before the code is compared: counted up front, in one statement that reads the latest row
 // (parallel guesses cannot all pass a lockout that is read first and counted later). No row while the checks are
-// locked. The count starts again when the last check is older than window_secs, so a guesser who stopped does not keep
-// the owner locked for good, and it is capped so it cannot overflow. The max_failures-th check locks the checks for
+// locked. The count starts again only when both the last check and the end of the last lock are older than
+// window_secs (longer than the longest lock): a guesser who stopped does not keep the owner locked for good, and one who
+// guesses each time a lock ends never falls back to the shortest lock. The count is capped so it cannot overflow. The max_failures-th check locks the checks for
 // lock_base_secs, doubling with every further check (the exponent capped at 20) up to lock_max_secs; a right code
 // resets all of it (UseUserTOTPStep, ConfirmUserTOTP).
 func (q *Queries) ReserveUserTOTPAttempt(ctx context.Context, arg ReserveUserTOTPAttemptParams) (int32, error) {

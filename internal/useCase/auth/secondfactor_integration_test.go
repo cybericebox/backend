@@ -604,12 +604,13 @@ func TestAHugeFailureCountKeepsTheLockWithinItsMaximum(t *testing.T) {
 	wantErr(t, e.totpStepUp(enrolment, 1), authModel.ErrAuthTooManyRequests)
 }
 
-// Failures older than the window are forgotten: a guesser who stopped does not keep the owner locked for good.
+// Failures are forgotten once both the last check and the end of the last lock are older than the quiet window (twice
+// the longest lock, 30 minutes here): a guesser who stopped does not keep the owner locked for good.
 func TestOldFailuresDecay(t *testing.T) {
 	e := newFactorEnv(t, true)
 	enrolment, _ := e.enrol(e.ctx(), factorPass)
 	_, err := e.db.Pool.Exec(context.Background(), `UPDATE user_totp
-SET failures = 1000, last_failure_at = now() - interval '1 hour', locked_until = now() - interval '1 minute'
+SET failures = 1000, last_failure_at = now() - interval '1 hour', locked_until = now() - interval '31 minutes'
 WHERE user_id = $1`, e.userID)
 	require.NoError(t, err)
 
@@ -618,4 +619,35 @@ WHERE user_id = $1`, e.userID)
 	require.Zero(t, e.count(`SELECT count(*) FROM user_totp WHERE user_id = $1 AND locked_until > now()`), "no new lock")
 	require.NoError(t, e.totpStepUp(enrolment, 1))
 	require.Zero(t, e.count(`SELECT failures FROM user_totp WHERE user_id = $1`))
+}
+
+// An attacker who guesses once each time the lock ends stays at the longest lock: waiting out a lock never resets the
+// escalation back to the one-minute lock.
+func TestGuessingAtEveryLockEndKeepsTheLongestLock(t *testing.T) {
+	e := newFactorEnv(t, true)
+	enrolment, _ := e.enrol(e.ctx(), factorPass)
+	lockSecs := func() float64 {
+		var s float64
+		require.NoError(t, e.db.Pool.QueryRow(context.Background(),
+			`SELECT extract(epoch FROM locked_until - now()) FROM user_totp WHERE user_id = $1`, e.userID).Scan(&s))
+		return s
+	}
+	// Reach the longest lock: five checks lock for 1 min, each further one doubles up to 15 min.
+	for range 5 {
+		wantErr(t, e.totpStepUp(enrolment, 4), secondFactorModel.ErrStepUpFailed)
+	}
+	for range 5 {
+		// The lock has just ended; the last check was when it began (15 minutes ago at the longest lock).
+		_, err := e.db.Pool.Exec(context.Background(), `UPDATE user_totp
+SET last_failure_at = now() - interval '15 minutes', locked_until = now() - interval '1 second' WHERE user_id = $1`, e.userID)
+		require.NoError(t, err)
+		wantErr(t, e.totpStepUp(enrolment, 4), secondFactorModel.ErrStepUpFailed)
+	}
+	for range 3 {
+		_, err := e.db.Pool.Exec(context.Background(), `UPDATE user_totp
+SET last_failure_at = now() - interval '15 minutes', locked_until = now() - interval '1 second' WHERE user_id = $1`, e.userID)
+		require.NoError(t, err)
+		wantErr(t, e.totpStepUp(enrolment, 4), secondFactorModel.ErrStepUpFailed)
+		require.Greater(t, lockSecs(), (14 * time.Minute).Seconds(), "still the longest lock, never back to one minute")
+	}
 }
