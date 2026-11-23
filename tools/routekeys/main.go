@@ -6,7 +6,8 @@
 // are written as "?" with the reason, and stay undeclared until the spec or overrides.txt settles them.
 //
 // overrides.txt records owner and review decisions that the spec does not show yet, one per line:
-// "METHOD /api/path | keys: <declaration> | data: <key,key> | reason" (keys: and data: optional, the reason not).
+// "METHOD /api/path | keys: <declaration> | data: <key,key> | reason" (keys: and data: optional, the reason not); a line
+// that starts with "+" adds a mounted route the spec does not list yet (keys: required).
 //
 // Usage (from the repository root, after a change of the spec or of overrides.txt):
 //
@@ -105,13 +106,13 @@ type expected struct {
 }
 
 var (
-	rowPattern   = regexp.MustCompile("^\\| (\\d+) \\| `([A-Z]+) ([^`]+)` \\|")
+	rowPattern   = regexp.MustCompile("^\\| (N?\\d+) \\| `([A-Z]+) ([^`]+)` \\|")
 	keyPattern   = regexp.MustCompile("`([a-z][a-z0-9_.\\-]*)`")
 	eventPattern = regexp.MustCompile("^path :(\\w+) → event")
 )
 
-// readAppendix reads the route tables of Appendix A.3 (A.3.2 to A.3.13; A.3.1 is outside the API registry and A.3.14
-// lists routes not built yet).
+// readAppendix reads the route tables of Appendix A.3: A.3.2 to A.3.13, and the new routes of A.3.14 (N1…) that name
+// one route each, so a new route declares what the spec gives it once it is built. A.3.1 is outside the API registry.
 func readAppendix(r io.Reader) (map[string]*expected, error) {
 	out := map[string]*expected{}
 	inRoutes := false
@@ -120,7 +121,7 @@ func readAppendix(r io.Reader) (map[string]*expected, error) {
 	for scanner.Scan() {
 		line := scanner.Text()
 		switch {
-		case strings.HasPrefix(line, "#### A.3.1 "), strings.HasPrefix(line, "#### A.3.14 "), strings.HasPrefix(line, "### A.4"):
+		case strings.HasPrefix(line, "#### A.3.1 "), strings.HasPrefix(line, "### A.4"):
 			inRoutes = false
 			continue
 		case strings.HasPrefix(line, "#### A.3."):
@@ -324,9 +325,20 @@ func applyOverrides(routes map[string]*expected, text string) error {
 			continue
 		}
 		parts := strings.Split(line, " | ")
-		id := strings.Join(strings.Fields(parts[0]), " ")
+		added := strings.HasPrefix(parts[0], "+")
+		id := strings.Join(strings.Fields(strings.TrimPrefix(parts[0], "+")), " ")
 		e, ok := routes[id]
-		if !ok {
+		switch {
+		case added && ok:
+			return fmt.Errorf("overrides.txt:%d: %s is in Appendix A.3 already: drop the +", n+1, id)
+		case added:
+			fields := strings.Fields(id)
+			if len(fields) != 2 || !strings.HasPrefix(fields[1], "/api/") || !strings.HasPrefix(parts[1], "keys: ") {
+				return fmt.Errorf("overrides.txt:%d: an added route needs \"+METHOD /api/path | keys: … | reason\"", n+1)
+			}
+			e = &expected{method: fields[0], path: fields[1], row: "-", decl: "?"}
+			routes[id] = e
+		case !ok:
 			return fmt.Errorf("overrides.txt:%d: %s is not a route of Appendix A.3", n+1, id)
 		}
 		if len(parts) < 3 {
@@ -387,6 +399,9 @@ func render(routes map[string]*expected, sha string) string {
 			data = strings.Join(parts, ",")
 		}
 		source := "A.3 #" + e.row
+		if e.row == "-" {
+			source = "not in A.3"
+		}
 		if e.note != "" {
 			source += "; " + e.note
 		}
