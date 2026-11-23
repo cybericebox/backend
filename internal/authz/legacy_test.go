@@ -178,3 +178,18 @@ func TestKeysForLegacyPermission(t *testing.T) {
 		t.Errorf("an unknown permission maps to %v", got)
 	}
 }
+
+// Publishing a task is decided today by AuthorizeExercise with ActionPublish, which publishing, proposals, rollback
+// and discarding a draft share; the publish keys map to that check, and no update key does.
+func TestPublishKeysMapToThePublishActionOfTheExercisePolicy(t *testing.T) {
+	for _, k := range []Key{ExercisesPublish, EventExercisesPublish} {
+		if l, _ := LegacyOf(k); l.Check != CheckAuthorizeExercisePublish {
+			t.Errorf("%s maps to %q, want %q", k, l.Check, CheckAuthorizeExercisePublish)
+		}
+	}
+	for _, k := range []Key{ExercisesUpdate, EventExercisesUpdate} {
+		if l, _ := LegacyOf(k); l.Check == CheckAuthorizeExercisePublish {
+			t.Errorf("%s maps to the publish check", k)
+		}
+	}
+}

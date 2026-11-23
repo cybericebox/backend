@@ -395,6 +395,7 @@ var layerChecks = map[string][]authz.LegacyCheck{
 	"resourceCalendar.requireTestLabAuthor":              {authz.CheckRequireTestLabAuthor},
 	"exercise.authorize.func": {
 		authz.CheckAuthorizeExerciseRead, authz.CheckAuthorizeExerciseManage, authz.CheckAuthorizeExerciseFlags,
+		authz.CheckAuthorizeExercisePublish,
 	},
 }
 
