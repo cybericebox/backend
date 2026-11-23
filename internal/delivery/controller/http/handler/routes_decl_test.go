@@ -293,8 +293,9 @@ func legacyMismatch(s routeSummary, pin []string) (problem string, used bool) {
 	var pinnedChecks []string
 	pinnedRelation := ""
 	for _, p := range pin {
-		if slices.Contains(pinRelations, p) {
-			pinnedRelation = p
+		// "author(new)": the relation is new in the spec (§5.4) and no use case checks it today; pinning it says so.
+		if slices.Contains(pinRelations, strings.TrimSuffix(p, "(new)")) {
+			pinnedRelation = strings.TrimSuffix(p, "(new)")
 		} else {
 			pinnedChecks = append(pinnedChecks, p)
 		}
@@ -443,6 +444,7 @@ func TestLegacyMismatchCatchesDisagreement(t *testing.T) {
 		{"policy closure pinned to a check it never runs", routeSummary{gates: []rbac.Permission{rbac.PermSelf}, layers: []string{"exercise.authorize.func"}, decl: decl(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesRead))}, []string{"requireRead"}, false},
 		{"pin a route does not need", routeSummary{gates: []rbac.Permission{rbac.PermUsersRead}, decl: decl(authz.AnyOf(authz.SourcePlatform, authz.UsersList))}, []string{"requireRead"}, false},
 		{"relation behind self without a pin", routeSummary{gates: []rbac.Permission{rbac.PermSelf}, decl: decl(authz.Related(authz.SourceTenant, authz.RelParticipant))}, nil, false},
+		{"new relation pinned as new", routeSummary{path: "/api/exercises/:id", gates: []rbac.Permission{rbac.PermSelf}, decl: decl(authz.AnyOf(authz.SourceObject("exercise"), authz.ExercisesUpdate).Or(authz.RelAuthor))}, []string{"AuthorizeExercise.Manage", "author(new)"}, true},
 		{"relation pinned", routeSummary{gates: []rbac.Permission{rbac.PermSelf}, decl: decl(authz.Related(authz.SourceTenant, authz.RelParticipant))}, []string{"participant"}, true},
 		{"relation other than the use case's", routeSummary{gates: []rbac.Permission{rbac.PermSelf}, decl: decl(authz.Related(authz.SourceObject("team"), authz.RelParticipant))}, []string{"captain"}, false},
 		{"bearer route without a user gate", routeSummary{decl: decl(authz.BearerRoute(authz.BearerLiveScreen))}, nil, true},
