@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/encoding/protowire"
 
 	labpb "github.com/cybericebox/laboratory/pkg/agent/protobuf"
 
@@ -27,25 +26,10 @@ func kernelLogOffered() *infraModel.AgentFeatures {
 	return f
 }
 
-// withKernelLogField is a console feature whose kernel_log (field 4, contract 3.2) arrives as the agent sends it on the wire:
-// an SDK older than the field keeps it among the unknown fields. When the laboratory pin moves to an SDK that declares field 4,
-// replace this helper with the field itself (ConsoleCablesFeature{..., KernelLog: true}) and kernelLogOf with GetKernelLog().
-func withKernelLogField(c *labpb.ConsoleCablesFeature, on bool) *labpb.ConsoleCablesFeature {
-	v := uint64(0)
-	if on {
-		v = 1
-	}
-	b := protowire.AppendTag(nil, 4, protowire.VarintType)
-	c.ProtoReflect().SetUnknown(protowire.AppendVarint(b, v))
-	return c
-}
-
 func TestFeaturesOfReadsTheKernelLogOfContract32(t *testing.T) {
-	on := FeaturesOf(&labpb.FeaturesResponse{ConsoleCables: withKernelLogField(&labpb.ConsoleCablesFeature{Enabled: true, MaxCablesPerLab: 64}, true)})
+	on := FeaturesOf(&labpb.FeaturesResponse{ConsoleCables: &labpb.ConsoleCablesFeature{Enabled: true, MaxCablesPerLab: 64, KernelLog: true}})
 	require.True(t, on.ConsoleCables.KernelLog)
 	require.True(t, on.ServesKernelLog())
-	off := FeaturesOf(&labpb.FeaturesResponse{ConsoleCables: withKernelLogField(&labpb.ConsoleCablesFeature{Enabled: true}, false)})
-	require.False(t, off.ConsoleCables.KernelLog)
 	old := FeaturesOf(&labpb.FeaturesResponse{ConsoleCables: &labpb.ConsoleCablesFeature{Enabled: true}})
 	require.False(t, old.ConsoleCables.KernelLog, "a 3.1 agent reports no kernel log")
 }
@@ -102,7 +86,7 @@ func TestTheKernelLogRefreshesAStaleReportBeforeRefusing(t *testing.T) {
 	f.bm.Features = NewFeatureCell(allOptions())
 	f.a.features = &labpb.FeaturesResponse{
 		ContractVersion: "3.2", Checks: &labpb.ChecksFeature{Enabled: true}, Access: &labpb.AccessFeature{Http: true, Terminal: true},
-		Bootstrap: &labpb.BootstrapFeature{}, ConsoleCables: withKernelLogField(&labpb.ConsoleCablesFeature{Enabled: true, MaxCablesPerLab: 64}, true),
+		Bootstrap: &labpb.BootstrapFeature{}, ConsoleCables: &labpb.ConsoleCablesFeature{Enabled: true, MaxCablesPerLab: 64, KernelLog: true},
 	}
 	require.NoError(t, f.fleet.DeployLab(t.Context(), "e-1-t-1", "c-1", infraModel.LabMeta{}, kernelLogLab()))
 	require.NotNil(t, f.a.createLabs, "the agent switched on since its last report takes the lab")
