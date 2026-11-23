@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	"github.com/cybericebox/backend/internal/model/rbac"
 	platformAnalyticsUseCase "github.com/cybericebox/backend/internal/useCase/platformAnalytics"
@@ -315,6 +316,15 @@ func TestCompareTrueIsTheSameAsPrevious(t *testing.T) {
 		w := serveCatalog(t, uc, &catalogProt{}, base+"&compare="+compare)
 		if got := strings.Contains(w.Body.String(), `"PreviousPeriod"`); got != wrapped {
 			t.Errorf("compare=%q: envelope = %v, want %v (%s)", compare, got, wrapped, w.Body)
+		}
+	}
+}
+
+// Route mirrors protection.Route: the declaration decides nothing, the legacy gate runs unchanged.
+func (p *catalogProt) Route(_ authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if legacy != nil {
+			legacy(c)
 		}
 	}
 }

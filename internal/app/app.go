@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"github.com/cybericebox/backend/internal/delivery/repository/secondFactorRepo"
 	"github.com/cybericebox/backend/internal/useCase/keyrotation"
 	"github.com/cybericebox/backend/internal/useCase/notification/startupdefaults"
 	"os"
@@ -77,6 +78,10 @@ func Run(cfg *config.Config) {
 		Platform: cls.platformCipher, VPN: cls.vpnCipher, Exercise: cls.exerciseCipher, Files: cls.filesCipher,
 	})); err != nil {
 		log.Fatal().Err(err).Msg("Secrets guard: refusing to start")
+	}
+	// Stored authenticator secrets cannot be opened without the platform key: every step-up with an app would fail.
+	if err := guardTOTPKey(ctx, secondFactorRepo.New(repo), cls.platformCipher); err != nil {
+		log.Fatal().Err(err).Msg("Second factor: refusing to start")
 	}
 
 	// job worker client

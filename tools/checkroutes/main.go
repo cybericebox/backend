@@ -44,6 +44,7 @@ var pathArg = map[string]int{
 // authorization — so recaptcha-only routes are listed here too.
 var publicRoutes = map[string]bool{
 	"POST pub/sign-in":                   true, // recaptcha-gated credential entry
+	"POST pub/sign-in/recovery":          true, // recaptcha-gated recovery-code sign-in (password when set, per-account lockout)
 	"POST pub/sign-up":                   true, // recaptcha-gated registration entry
 	"GET pub/last-email":                 true, // the browser's own cookie, nothing else
 	"DELETE pub/last-email":              true, // clears the browser's own cookie

@@ -89,6 +89,10 @@ func DraftKey(userID uuid.UUID, keyID string) []byte {
 	return []byte("draft-key:" + userID.String() + ":" + keyID)
 }
 
+// TOTPSecret binds the sealed secret of the authenticator app of a person to that person: a secret copied to another
+// person's row does not open there.
+func TOTPSecret(userID uuid.UUID) []byte { return []byte("user-totp:" + userID.String()) }
+
 // SessionTicket is the context of the session cookie. A cookie is opened before anyone is signed in, so there is no row to
 // bind it to: the context only keeps a ticket from opening as any other value.
 func SessionTicket() []byte { return []byte("cybericebox/session-ticket/v1") }

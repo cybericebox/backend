@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	platformAnalyticsModel "github.com/cybericebox/backend/internal/model/platformAnalytics"
 	"github.com/cybericebox/backend/internal/model/rbac"
@@ -258,5 +259,14 @@ func TestMailCSVTables(t *testing.T) {
 	uc.calls = 0
 	if w := imServe(t, uc, imStaff(), "/api/analytics/mail/export.csv?table=nope"); w.Code != http.StatusBadRequest || uc.calls != 0 {
 		t.Fatalf("unknown table: status = %d", w.Code)
+	}
+}
+
+// Route mirrors protection.Route: the declaration decides nothing, the legacy gate runs unchanged.
+func (p *imProtection) Route(_ authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if legacy != nil {
+			legacy(c)
+		}
 	}
 }

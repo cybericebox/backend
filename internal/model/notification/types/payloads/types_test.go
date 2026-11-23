@@ -55,3 +55,16 @@ func TestAccountInactivityWarningPayload(t *testing.T) {
 	assert.NoError(t, err)
 	assert.JSONEq(t, `{"Name":"Jane","DeletionDate":"29.10.2026","SignInURL":"https://id.example.org/sign-in/"}`, string(raw))
 }
+
+func TestRecoveryCodeUsedPayload(t *testing.T) {
+	p := notificationPayloads.RecoveryCodeUsedPayload{Name: "Jane", CodesLeft: "9", SecurityURL: "https://id.example.org/profile/"}
+	assert.Equal(t, notificationTypes.NotificationTypeRecoveryCodeUsed, p.NotificationType())
+	assert.Equal(
+		t,
+		[]notificationTypes.NotificationChannel{notificationTypes.NotificationChannelEmail},
+		p.NotificationChannels(),
+	)
+	raw, err := p.Marshal()
+	assert.NoError(t, err)
+	assert.JSONEq(t, `{"Name":"Jane","CodesLeft":"9","SecurityURL":"https://id.example.org/profile/"}`, string(raw))
+}

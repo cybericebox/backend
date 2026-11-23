@@ -29,7 +29,8 @@ type authLimits struct {
 	mail             *ratelimit.Recipient
 	mailRequests     *ratelimit.Recipient // by normalized address, every kind of sign-in mail together
 	emailChangeUsers *ratelimit.Window
-	dataExport       *ratelimit.Window // by user id
+	dataExport       *ratelimit.Window  // by user id
+	secondFactor     *ratelimit.Lockout // by user id: authenticator codes and step-up confirmations
 }
 
 func newAuthLimits() *authLimits {
@@ -51,6 +52,12 @@ func newAuthLimits() *authLimits {
 		mailRequests:     ratelimit.NewRecipient(c.AccountMailGap, c.AccountMailPerHour),
 		emailChangeUsers: ratelimit.NewWindow(c.EmailChangesPerHour, time.Hour),
 		dataExport:       ratelimit.NewWindow(1, dataExportInterval),
+		secondFactor: ratelimit.NewLockout(
+			c.SignInMaxFailures,
+			c.SignInFailureWindow,
+			c.SignInLockBase,
+			c.SignInLockMax,
+		),
 	}
 }
 

@@ -84,6 +84,11 @@ const recentSignInWindow = 15 * time.Minute
 // reauthenticate re-confirms the owner before an action that cannot be undone or that gives the
 // account away. A stolen session alone must not be enough.
 func (u *AuthUseCase) reauthenticate(ctx context.Context, userID uuid.UUID, currentPassword string) error {
+	return u.reauthenticateWithin(ctx, userID, currentPassword, recentSignInWindow)
+}
+
+// reauthenticateWithin is reauthenticate with its own window for the sign-in that stands in for a missing password.
+func (u *AuthUseCase) reauthenticateWithin(ctx context.Context, userID uuid.UUID, currentPassword string, window time.Duration) error {
 	user, err := u.users.GetByID(ctx, userID)
 	if err != nil {
 		return model.ErrPlatform.WithError(err).WithMessage("Failed to get user").Err()
@@ -96,7 +101,7 @@ func (u *AuthUseCase) reauthenticate(ctx context.Context, userID uuid.UUID, curr
 		return authModel.ErrAuthReauthRequired.Err()
 	}
 	// SignedInAt comes from the session cookie: the moment of the sign-in, which a re-issue keeps.
-	if claims.SignedInAt.IsZero() || time.Since(claims.SignedInAt) > recentSignInWindow {
+	if claims.SignedInAt.IsZero() || time.Since(claims.SignedInAt) > window {
 		return authModel.ErrAuthReauthRequired.Err()
 	}
 	return nil

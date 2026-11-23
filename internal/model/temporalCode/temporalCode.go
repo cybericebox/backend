@@ -69,6 +69,8 @@ const (
 	PasskeyRegistrationCodeType
 	// PasskeyLoginCodeType keeps the server half of a passkey sign-in ceremony (the challenge).
 	PasskeyLoginCodeType
+	// PasskeyStepUpCodeType keeps the server half of a passkey step-up (challenge, person, session).
+	PasskeyStepUpCodeType
 )
 
 // Error-code convention: see internal/model/auth/errors.go. Enforced by

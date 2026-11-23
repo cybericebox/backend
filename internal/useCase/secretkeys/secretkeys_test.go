@@ -62,6 +62,7 @@ type fakeStore struct {
 	variants              []exerciseModel.Variant
 	fileKeys              map[string]string    // content hash -> wrapped key
 	uploadKeys            map[uuid.UUID]string // upload id -> wrapped key
+	totp                  map[uuid.UUID]string // user id -> sealed authenticator secret
 }
 
 func (s *fakeStore) SMTPPasswords(_ context.Context, visit func(uuid.UUID, string) error) error {
@@ -102,6 +103,34 @@ func (s *fakeStore) UploadKeys(_ context.Context, visit func(uuid.UUID, string) 
 		}
 	}
 	return nil
+}
+
+func (s *fakeStore) TOTPSecrets(_ context.Context, visit func(uuid.UUID, string) error) error {
+	for id, ct := range s.totp {
+		if err := visit(id, ct); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// The authenticator secrets are platform-key values bound to their person: counted per key, and one copied to another
+// person's row is found by the full check.
+func TestAuthenticatorSecretsAreCheckedWithTheirPerson(t *testing.T) {
+	current := ring(t, "k2:"+hexNew)
+	store := sealedBy(t, current, current, current)
+	other := uuid.FromStringOrNil("88888888-8888-7888-8888-888888888888")
+	store.totp = map[uuid.UUID]string{
+		idUser: seal(t, current, "secret", secretctx.TOTPSecret(idUser)),
+		other:  seal(t, current, "secret", secretctx.TOTPSecret(idUser)),
+	}
+	uc := New(store, Ciphers{Platform: current, VPN: current, Exercise: current})
+
+	rep, err := uc.Check(context.Background(), true)
+	require.NoError(t, err)
+	col := column(t, rep, "user_totp.secret_ciphertext")
+	require.Equal(t, map[string]int{"k2": 2}, col.ByKey)
+	require.Equal(t, []Problem{{Kind: CannotOpen, KeyID: "k2", Ref: other.String()}}, col.ProblemRefs)
 }
 
 func exerciseVariant(sealed string) []exerciseModel.Variant {

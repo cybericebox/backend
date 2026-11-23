@@ -10,6 +10,7 @@ DELETE /api/auth/last-email | A.3 #26: public flow; clears the browser's own coo
 DELETE /api/auth/passkeys/:id | A.3 #30: own passkey (self)
 DELETE /api/auth/sessions | A.3 #39: own other sessions (self)
 DELETE /api/auth/sessions/:id | A.3 #41: own session (self)
+DELETE /api/auth/totp | A.3 #N27: own TOTP factor (self)
 PATCH /api/users/:userID/role | A.3 #690: a role change revokes and grants, all-of access.grants.create and access.grants.delete
 DELETE /api/events/:id/manage/analytics/integrity/dismissals/:dismissalID | A.3 #129: undoes a dismissal (a review decision), event.stats.sensitive.update
 DELETE /api/events/:id/manage/analytics/integrity/solves/:teamChallengeID/review | A.3 #132: undoes a solve review, event.stats.sensitive.update

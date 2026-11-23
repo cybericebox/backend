@@ -1,36 +1,36 @@
-GET    /api/admin/assistant/statistics | gate: platform.settings.read | layers: - | keys: ?
-PUT    /api/admin/assistant/statistics/defaults/:source | gate: platform.settings.write | layers: - | keys: ?
-GET    /api/admin/assistant/statistics/events/:eventID | gate: platform.settings.read | layers: - | keys: ?
-PUT    /api/admin/assistant/statistics/events/:eventID | gate: platform.settings.write | layers: - | keys: ?
-GET    /api/admin/audit-log | gate: platform.audit.read | layers: - | keys: ?
-GET    /api/admin/audit-log/export | gate: platform.audit.read | layers: - | keys: ?
-GET    /api/admin/dashboard | gate: self | layers: dashboard.requireAdminTier | keys: ?
-GET    /api/admin/errors | gate: platform.errors.read | layers: - | keys: ?
-GET    /api/admin/errors/:groupID | gate: platform.errors.read | layers: - | keys: ?
-PATCH  /api/admin/errors/:groupID/status | gate: platform.errors.write | layers: - | keys: ?
-POST   /api/admin/errors/bulk/ignore | gate: platform.errors.write | layers: - | keys: ?
-POST   /api/admin/errors/bulk/reopen | gate: platform.errors.write | layers: - | keys: ?
-POST   /api/admin/errors/bulk/resolve | gate: platform.errors.write | layers: - | keys: ?
-GET    /api/admin/errors/not-found | gate: platform.errors.read | layers: - | keys: ?
-GET    /api/admin/errors/settings | gate: platform.errors.read | layers: - | keys: ?
-PUT    /api/admin/errors/settings | gate: platform.errors.write | layers: - | keys: ?
-POST   /api/admin/errors/settings/test | gate: platform.errors.write | layers: - | keys: ?
-GET    /api/admin/errors/stream | gate: platform.errors.read | layers: - | keys: ?
-GET    /api/analytics/events | gate: analytics.read | layers: - | keys: ?
-GET    /api/analytics/events/export.csv | gate: analytics.read | layers: - | keys: ?
-GET    /api/analytics/events/table | gate: analytics.read | layers: - | keys: ?
-GET    /api/analytics/infrastructure | gate: analytics.read | layers: - | keys: ?
-GET    /api/analytics/infrastructure/export.csv | gate: analytics.read | layers: - | keys: ?
-GET    /api/analytics/mail | gate: analytics.read | layers: - | keys: ?
-GET    /api/analytics/mail/export.csv | gate: analytics.read | layers: - | keys: ?
-GET    /api/analytics/overview | gate: analytics.read | layers: - | keys: ?
-GET    /api/analytics/overview/export.csv | gate: analytics.read | layers: - | keys: ?
-GET    /api/analytics/tasks | gate: analytics.read | layers: - | keys: ?
-GET    /api/analytics/tasks/export.csv | gate: analytics.read | layers: - | keys: ?
-GET    /api/analytics/tasks/table | gate: analytics.read | layers: - | keys: ?
-GET    /api/analytics/users | gate: analytics.read | layers: - | keys: ?
-GET    /api/analytics/users/export.csv | gate: analytics.read | layers: - | keys: ?
-GET    /api/analytics/users/people | gate: analytics.users.read | layers: - | keys: ?
+GET    /api/admin/assistant/statistics | gate: platform.settings.read | layers: - | keys: cyberbrain.stats.read @ platform
+PUT    /api/admin/assistant/statistics/defaults/:source | gate: platform.settings.write | layers: - | keys: cyberbrain.stats.update @ platform
+GET    /api/admin/assistant/statistics/events/:eventID | gate: platform.settings.read | layers: - | keys: anyOf(cyberbrain.stats.read,events.read) @ platform
+PUT    /api/admin/assistant/statistics/events/:eventID | gate: platform.settings.write | layers: - | keys: anyOf(cyberbrain.stats.update,events.stats_source.update) @ platform
+GET    /api/admin/audit-log | gate: platform.audit.read | layers: - | keys: platform.audit.read @ platform
+GET    /api/admin/audit-log/export | gate: platform.audit.read | layers: - | keys: platform.audit.read @ platform
+GET    /api/admin/dashboard | gate: self | layers: dashboard.requireAdminTier | keys: anyOf(events.list,infrastructure.read,exercises.elevations.read,platform.errors.read,analytics.read,users.list) @ platform data(events.list,infrastructure.read,exercises.elevations.read,platform.errors.read,analytics.read,users.list)
+GET    /api/admin/errors | gate: platform.errors.read | layers: - | keys: platform.errors.read @ platform
+GET    /api/admin/errors/:groupID | gate: platform.errors.read | layers: - | keys: platform.errors.read @ platform
+PATCH  /api/admin/errors/:groupID/status | gate: platform.errors.write | layers: - | keys: platform.errors.update @ platform
+POST   /api/admin/errors/bulk/ignore | gate: platform.errors.write | layers: - | keys: platform.errors.update @ platform
+POST   /api/admin/errors/bulk/reopen | gate: platform.errors.write | layers: - | keys: platform.errors.update @ platform
+POST   /api/admin/errors/bulk/resolve | gate: platform.errors.write | layers: - | keys: platform.errors.update @ platform
+GET    /api/admin/errors/not-found | gate: platform.errors.read | layers: - | keys: platform.errors.read @ platform
+GET    /api/admin/errors/settings | gate: platform.errors.read | layers: - | keys: platform.errors.read @ platform
+PUT    /api/admin/errors/settings | gate: platform.errors.write | layers: - | keys: platform.errors.update @ platform
+POST   /api/admin/errors/settings/test | gate: platform.errors.write | layers: - | keys: platform.errors.update @ platform
+GET    /api/admin/errors/stream | gate: platform.errors.read | layers: - | keys: platform.errors.read @ platform
+GET    /api/analytics/events | gate: analytics.read | layers: - | keys: analytics.read @ platform
+GET    /api/analytics/events/export.csv | gate: analytics.read | layers: - | keys: analytics.read @ platform
+GET    /api/analytics/events/table | gate: analytics.read | layers: - | keys: analytics.read @ platform
+GET    /api/analytics/infrastructure | gate: analytics.read | layers: - | keys: analytics.read @ platform
+GET    /api/analytics/infrastructure/export.csv | gate: analytics.read | layers: - | keys: analytics.read @ platform
+GET    /api/analytics/mail | gate: analytics.read | layers: - | keys: analytics.read @ platform
+GET    /api/analytics/mail/export.csv | gate: analytics.read | layers: - | keys: analytics.read @ platform
+GET    /api/analytics/overview | gate: analytics.read | layers: - | keys: analytics.read @ platform
+GET    /api/analytics/overview/export.csv | gate: analytics.read | layers: - | keys: analytics.read @ platform
+GET    /api/analytics/tasks | gate: analytics.read | layers: - | keys: analytics.read @ platform
+GET    /api/analytics/tasks/export.csv | gate: analytics.read | layers: - | keys: analytics.read @ platform
+GET    /api/analytics/tasks/table | gate: analytics.read | layers: - | keys: analytics.read @ platform
+GET    /api/analytics/users | gate: analytics.read | layers: - | keys: analytics.read @ platform
+GET    /api/analytics/users/export.csv | gate: analytics.read | layers: - | keys: analytics.read @ platform
+GET    /api/analytics/users/people | gate: analytics.users.read | layers: - | keys: analytics.users.read @ platform
 GET    /api/assistant/ideas | gate: self | layers: assistant.author | keys: ?
 POST   /api/assistant/sessions | gate: self | layers: assistant.author | keys: ?
 DELETE /api/assistant/sessions/:id | gate: self | layers: assistant.author | keys: ?
@@ -77,31 +77,39 @@ POST   /api/auth/password/change | gate: self | layers: middleware.RateLimitPerU
 GET    /api/auth/password/policy | gate: - | layers: - | keys: - @ public
 POST   /api/auth/password/reset | gate: - | layers: - | keys: - @ public
 POST   /api/auth/password/reset-request | gate: - | layers: recaptcha | keys: - @ public
+POST   /api/auth/recovery-codes | gate: self | layers: middleware.RateLimitPerUser.func | keys: self @ self
+GET    /api/auth/second-factor | gate: self | layers: - | keys: self @ self
 DELETE /api/auth/sessions | gate: self | layers: - | keys: self @ self
 GET    /api/auth/sessions | gate: self | layers: - | keys: self @ self
 DELETE /api/auth/sessions/:id | gate: self | layers: - | keys: self @ self
 GET    /api/auth/setup | gate: - | layers: - | keys: - @ public
 POST   /api/auth/setup | gate: - | layers: - | keys: - @ public
 POST   /api/auth/sign-in | gate: - | layers: recaptcha | keys: - @ public
+POST   /api/auth/sign-in/recovery | gate: - | layers: recaptcha | keys: - @ public
 POST   /api/auth/sign-out | gate: self | layers: auth.forgetDraftKey | keys: self @ self
 POST   /api/auth/sign-up | gate: - | layers: recaptcha | keys: - @ public
-GET    /api/events | gate: events.read | layers: - | keys: ?
-POST   /api/events | gate: events.write | layers: - | keys: ?
-DELETE /api/events/:id | gate: events.write | layers: - | keys: ?
-GET    /api/events/:id | gate: events.read | layers: - | keys: ?
-PUT    /api/events/:id | gate: events.write | layers: - | keys: ?
-POST   /api/events/:id/archive | gate: events.write | layers: - | keys: ?
-GET    /api/events/:id/config | gate: events.read | layers: - | keys: ?
-PUT    /api/events/:id/config | gate: events.write | layers: event.requireWritableEvent | keys: ?
-GET    /api/events/:id/content-images/:fileID | gate: events.content.read(public) | layers: middleware.PublicMedia | keys: ?
-GET    /api/events/:id/content/pages | gate: events.content.read(public) | layers: - | keys: ?
-GET    /api/events/:id/content/pages/:slug | gate: events.content.read(public) | layers: - | keys: ?
-GET    /api/events/:id/favicon/:fileID | gate: events.content.read(public) | layers: middleware.PublicMedia | keys: ?
+POST   /api/auth/step-up | gate: self | layers: middleware.RateLimitPerUser.func | keys: self @ self
+POST   /api/auth/step-up/passkey/begin | gate: self | layers: middleware.RateLimitPerUser.func | keys: self @ self
+DELETE /api/auth/totp | gate: self | layers: - | keys: self @ self
+POST   /api/auth/totp/begin | gate: self | layers: middleware.RateLimitPerUser.func | keys: self @ self
+POST   /api/auth/totp/finish | gate: self | layers: middleware.RateLimitPerUser.func | keys: self @ self
+GET    /api/events | gate: events.read | layers: - | keys: events.list @ platform data(events.read,events.archived.read)
+POST   /api/events | gate: events.write | layers: - | keys: events.create @ platform
+DELETE /api/events/:id | gate: events.write | layers: - | keys: events.delete @ event(:id) data(events.archived.read)
+GET    /api/events/:id | gate: events.read | layers: - | keys: events.read @ event(:id) data(events.archived.read)
+PUT    /api/events/:id | gate: events.write | layers: - | keys: events.settings.update @ event(:id)
+POST   /api/events/:id/archive | gate: events.write | layers: - | keys: events.archive @ event(:id)
+GET    /api/events/:id/config | gate: events.read | layers: - | keys: anyOf(events.read,event.settings.read) @ event(:id)
+PUT    /api/events/:id/config | gate: events.write | layers: event.requireWritableEvent | keys: events.settings.update @ event(:id)
+GET    /api/events/:id/content-images/:fileID | gate: events.content.read(public) | layers: middleware.PublicMedia | keys: - @ public(pages)
+GET    /api/events/:id/content/pages | gate: events.content.read(public) | layers: - | keys: - @ public(pages)
+GET    /api/events/:id/content/pages/:slug | gate: events.content.read(public) | layers: - | keys: - @ public(pages)
+GET    /api/events/:id/favicon/:fileID | gate: events.content.read(public) | layers: middleware.PublicMedia | keys: - @ public(pages)
 GET    /api/events/:id/forms/:formID | gate: self | layers: eventself.touchPresence | keys: ?
 POST   /api/events/:id/forms/:formID/response | gate: self | layers: eventself.touchPresence | keys: ?
 GET    /api/events/:id/forms/pending | gate: self | layers: eventself.touchPresence | keys: ?
-PUT    /api/events/:id/infrastructure | gate: events.write | layers: event.requireWritableEvent | keys: ?
-GET    /api/events/:id/logo/:fileID | gate: events.content.read(public) | layers: middleware.PublicMedia | keys: ?
+PUT    /api/events/:id/infrastructure | gate: events.write | layers: event.requireWritableEvent | keys: events.settings.update @ event(:id)
+GET    /api/events/:id/logo/:fileID | gate: events.content.read(public) | layers: middleware.PublicMedia | keys: - @ public(pages)
 GET    /api/events/:id/manage/access | gate: self | layers: event.requireRead | keys: event.read @ event(:id)
 GET    /api/events/:id/manage/analytics/access | gate: self | layers: eventAnalytics.requireSections | keys: anyOf(event.stats.read,event.stats.sensitive.read) @ event(:id)
 GET    /api/events/:id/manage/analytics/communications | gate: self | layers: eventAnalytics.requireSections | keys: event.stats.read @ event(:id)
@@ -375,17 +383,17 @@ PUT    /api/events/:id/manage/theme | gate: self | layers: event.requireManage |
 GET    /api/events/:id/managers | gate: events.read | layers: - | keys: anyOf(events.read,event.staff.read) @ event(:id)
 DELETE /api/events/:id/managers/:userID | gate: events.write | layers: - | keys: anyOf(events.staff.delete,event.staff.delete) @ event(:id)
 PUT    /api/events/:id/managers/:userID | gate: events.write | layers: - | keys: anyOf(events.staff.update,event.staff.update) @ event(:id)
-GET    /api/events/:id/participants | gate: events.read | layers: - | keys: ?
-POST   /api/events/:id/participants/:userID/approve | gate: events.write | layers: event.requireWritableEvent | keys: ?
-POST   /api/events/:id/participants/:userID/reject | gate: events.write | layers: - | keys: ?
-GET    /api/events/:id/preview-picture/:fileID | gate: events.content.read(public) | layers: middleware.PublicMedia | keys: ?
-GET    /api/events/:id/results | gate: events.results.read(public) | layers: - | keys: ?
-GET    /api/events/:id/results/changes | gate: events.results.read(public) | layers: - | keys: ?
-GET    /api/events/:id/results/live | gate: events.results.read(public) | layers: - | keys: ?
+GET    /api/events/:id/participants | gate: events.read | layers: - | keys: event.participants.list @ event(:id) data(event.personal-data.read)
+POST   /api/events/:id/participants/:userID/approve | gate: events.write | layers: event.requireWritableEvent | keys: event.participants.update @ event(:id)
+POST   /api/events/:id/participants/:userID/reject | gate: events.write | layers: - | keys: event.participants.delete @ event(:id)
+GET    /api/events/:id/preview-picture/:fileID | gate: events.content.read(public) | layers: middleware.PublicMedia | keys: - @ public(pages)
+GET    /api/events/:id/results | gate: events.results.read(public) | layers: - | keys: - @ public(scoreboard,results) data(event.scoreboard.read)
+GET    /api/events/:id/results/changes | gate: events.results.read(public) | layers: - | keys: - @ public(scoreboard,results) data(event.scoreboard.read)
+GET    /api/events/:id/results/live | gate: events.results.read(public) | layers: - | keys: - @ public(scoreboard,results) data(event.scoreboard.read)
 GET    /api/events/:id/results/participation | gate: self | layers: eventself.touchPresence | keys: ?
 GET    /api/events/:id/results/team | gate: self | layers: eventself.touchPresence | keys: ?
-GET    /api/events/:id/solution-attempts | gate: events.solution-attempts.read | layers: - | keys: ?
-PATCH  /api/events/:id/solution-attempts/:attemptID/decision | gate: events.solution-attempts.write | layers: - | keys: ?
+GET    /api/events/:id/solution-attempts | gate: events.solution-attempts.read | layers: - | keys: event.attempts.read @ event(:id) data(event.attempts.answers.read)
+PATCH  /api/events/:id/solution-attempts/:attemptID/decision | gate: events.solution-attempts.write | layers: - | keys: event.attempts.update @ event(:id)
 POST   /api/events/:id/teams | gate: self | layers: eventself.touchPresence | keys: ?
 DELETE /api/events/:id/teams/:teamID | gate: self | layers: eventself.touchPresence | keys: ?
 PUT    /api/events/:id/teams/:teamID | gate: self | layers: eventself.touchPresence | keys: ?
@@ -413,10 +421,10 @@ GET    /api/events/:id/teams/mine | gate: self | layers: eventself.touchPresence
 POST   /api/events/:id/teams/mine/form | gate: self | layers: eventself.touchPresence | keys: ?
 POST   /api/events/:id/teams/mine/leave | gate: self | layers: eventself.touchPresence | keys: ?
 GET    /api/events/:id/teams/mine/members | gate: self | layers: eventself.touchPresence | keys: ?
-PUT    /api/events/:id/theme | gate: events.write | layers: event.requireWritableEvent | keys: ?
-POST   /api/events/bulk/archive | gate: events.write | layers: - | keys: ?
-GET    /api/events/facets | gate: events.read | layers: - | keys: ?
-GET    /api/events/organizers | gate: events.read | layers: - | keys: ?
+PUT    /api/events/:id/theme | gate: events.write | layers: event.requireWritableEvent | keys: events.settings.update @ event(:id)
+POST   /api/events/bulk/archive | gate: events.write | layers: - | keys: events.archive @ platform
+GET    /api/events/facets | gate: events.read | layers: - | keys: events.list @ platform
+GET    /api/events/organizers | gate: events.read | layers: - | keys: events.list @ platform
 POST   /api/events/self/answer-files | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence,middleware.RateLimitPerUser.func | keys: ?
 GET    /api/events/self/answer-files/:fileID | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence | keys: ?
 GET    /api/events/self/info | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence | keys: ?
@@ -652,9 +660,9 @@ GET    /api/notifications/templates/inapp/latest | gate: notifications.templates
 POST   /api/notifications/test | gate: notifications.test | layers: - | keys: ?
 GET    /api/notifications/types | gate: notifications.templates.read | layers: - | keys: ?
 GET    /api/notifications/types/:type | gate: notifications.templates.read | layers: - | keys: ?
-GET    /api/render/events/:tag/manifest | gate: - | layers: eventself.(*EventRenderHandler).requireSecret | keys: ?
-GET    /api/render/events/:tag/page | gate: - | layers: eventself.(*EventRenderHandler).requireSecret | keys: ?
-GET    /api/render/key | gate: - | layers: eventself.(*EventRenderHandler).requireSecret | keys: ?
+GET    /api/render/events/:tag/manifest | gate: - | layers: eventself.(*EventRenderHandler).requireSecret | keys: - @ service(render)
+GET    /api/render/events/:tag/page | gate: - | layers: eventself.(*EventRenderHandler).requireSecret | keys: - @ service(render)
+GET    /api/render/key | gate: - | layers: eventself.(*EventRenderHandler).requireSecret | keys: - @ service(render)
 GET    /api/settings | gate: platform.settings.read | layers: - | keys: ?
 GET    /api/settings/:key | gate: platform.settings.read | layers: - | keys: ?
 PUT    /api/settings/:key | gate: platform.settings.write | layers: - | keys: ?
