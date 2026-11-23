@@ -60,6 +60,9 @@ const (
 	ReasonInternetUnavailable = "INTERNET_UNAVAILABLE"
 	ReasonAccessUnavailable   = "ACCESS_UNAVAILABLE"
 	ReasonChecksUnavailable   = "CHECKS_UNAVAILABLE"
+	// ReasonConsoleCablesUnavailable: the lab has console or serial ports or console cables and the laboratory serves no console
+	// lines (contract 3.1).
+	ReasonConsoleCablesUnavailable = "CONSOLE_CABLES_UNAVAILABLE"
 )
 
 // The agent's refusals of an item, by reason.
@@ -112,6 +115,8 @@ func ReasonError(reason string) error {
 		return optionUnavailable("access")
 	case ReasonChecksUnavailable:
 		return optionUnavailable("checks")
+	case ReasonConsoleCablesUnavailable:
+		return exerciseModel.ErrConsoleUnavailable.Err()
 	case ReasonProfileUnsupported, ReasonProfileUnavailable:
 		return exerciseModel.ErrNodeProfileUnavailable.Err()
 	}
@@ -122,7 +127,7 @@ func ReasonError(reason string) error {
 // So is a feature the cluster does not serve (VPN_UNAVAILABLE, ...): the laboratory is set up without it, a retry changes nothing.
 func IsPlanningError(err error) bool {
 	return errors.Is(err, ErrGroupVPNOff) || errors.Is(err, ErrGroupInternetOff) || errors.Is(err, ErrGroupServerInUse) ||
-		errors.Is(err, exerciseModel.ErrLabOptionUnavailable.Err())
+		errors.Is(err, exerciseModel.ErrLabOptionUnavailable.Err()) || errors.Is(err, exerciseModel.ErrConsoleUnavailable.Err())
 }
 
 // optionUnavailable is the refusal of something the laboratory does not serve, named for the admin as an option of the lab.

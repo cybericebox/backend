@@ -126,6 +126,26 @@ type (
 		Removing bool `json:"Removing"`
 		// EndingAt is when the run's reservation deletes the lab unless it is extended (its ending notice); null before.
 		EndingAt *time.Time `json:"EndingAt"`
+		// ConsoleCables are the console lines of the lab, one per console cable the laboratory made (devices by their topology
+		// name); absent for a lab without cables.
+		ConsoleCables []deployConsoleCableResponse `json:"ConsoleCables,omitempty"`
+	}
+
+	// deployConsoleCableResponse is one console line: its serial end and its console end, whether the line is up (both ends
+	// attached, bytes flow) and, while it is down, why: WaitingForDevice (a device of the line is not running yet), PortDown (a
+	// port keeper does not answer), PeerUnreachable (the far node cannot be reached), NodeLineLimit (the node runs the most lines it
+	// may) or Unknown. Reason is empty while the line is up. The editor shows a cable that is down in the warning colour.
+	deployConsoleCableResponse struct {
+		Serial  deployPortRefResponse `json:"Serial"`
+		Console deployPortRefResponse `json:"Console"`
+		LineUp  bool                  `json:"LineUp"`
+		Reason  string                `json:"Reason"`
+	}
+
+	// deployPortRefResponse names one port of one device of the lab (the device by its topology name, the port as declared).
+	deployPortRefResponse struct {
+		Device string `json:"Device"`
+		Port   string `json:"Port"`
 	}
 
 	// deployRequest is the optional body of a test deploy.
@@ -215,6 +235,13 @@ func deployStatusToResponse(s exerciseModel.LabDeployStatus) deployStatusRespons
 	}
 	for _, a := range s.Access {
 		out.Access = append(out.Access, deployAccessResponse{Device: a.Device, Port: a.Port, Protocol: a.Protocol, URL: a.URL})
+	}
+	for _, c := range s.ConsoleCables {
+		out.ConsoleCables = append(out.ConsoleCables, deployConsoleCableResponse{
+			Serial:  deployPortRefResponse{Device: c.SerialDevice, Port: c.SerialPort},
+			Console: deployPortRefResponse{Device: c.ConsoleDevice, Port: c.ConsolePort},
+			LineUp:  c.LineUp, Reason: c.Reason,
+		})
 	}
 	return out
 }

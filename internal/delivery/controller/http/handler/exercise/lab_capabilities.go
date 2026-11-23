@@ -25,6 +25,8 @@ type labCapabilitiesResponse struct {
 	Checks string `json:"Checks"`
 	// VPNReverse: reverse_connections of a VPN gateway can be enforced.
 	VPNReverse string `json:"VPNReverse"`
+	// ConsoleCables: console ports, serial ports and console cables are served (a test lab with them starts only where they are).
+	ConsoleCables string `json:"ConsoleCables"`
 }
 
 func toLabCapabilities(v exerciseUseCase.LabCapabilitiesView) labCapabilitiesResponse {
@@ -37,6 +39,6 @@ func toLabCapabilities(v exerciseUseCase.LabCapabilitiesView) labCapabilitiesRes
 	}
 	return labCapabilitiesResponse{
 		Known: v.Known, Observations: words(v.Observations), Access: words(v.Access), Profiles: words(v.Profiles),
-		Bootstrap: string(v.Bootstrap), Checks: string(v.Checks), VPNReverse: string(v.VPNReverse),
+		Bootstrap: string(v.Bootstrap), Checks: string(v.Checks), VPNReverse: string(v.VPNReverse), ConsoleCables: string(v.ConsoleCables),
 	}
 }

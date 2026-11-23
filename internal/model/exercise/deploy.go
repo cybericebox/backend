@@ -110,6 +110,8 @@ type LabDeployStatus struct {
 	Gateways []LabDeployedGateway
 	Devices  []LabDeployedDevice
 	Access   []LabAccess
+	// ConsoleCables are the console lines of the lab (the laboratory's status.console_cables, contract 3.1), one per cable it made.
+	ConsoleCables []LabConsoleCable
 	// VPNConfig is the author's WireGuard config, present once a VPN-enabled lab
 	// has provisioned its client. Empty for labs without VPN or before it is ready.
 	VPNConfig string
@@ -143,6 +145,24 @@ type LabDeployStatus struct {
 	// EndingAt is when the run's reservation deletes the lab (its ending notice); nil until the notice.
 	EndingAt *time.Time
 }
+
+// LabConsoleCable is the state of one console line of a lab: its ends by device and port name as in the lab, whether the line is
+// up and, while it is down, why (ConsoleCable* reasons).
+type LabConsoleCable struct {
+	SerialDevice, SerialPort   string
+	ConsoleDevice, ConsolePort string
+	LineUp                     bool
+	Reason                     string
+}
+
+// Reasons a console line is down, as the laboratory reports them; ConsoleCableUnknown stands for any other text.
+const (
+	ConsoleCableWaitingForDevice = "WaitingForDevice"
+	ConsoleCablePortDown         = "PortDown"
+	ConsoleCablePeerUnreachable  = "PeerUnreachable"
+	ConsoleCableNodeLineLimit    = "NodeLineLimit"
+	ConsoleCableUnknown          = "Unknown"
+)
 
 // LabDeployedDevice is one materialised device's readiness. Reason is the
 // container waiting/termination reason reported by the agent (for example

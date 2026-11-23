@@ -327,7 +327,6 @@ func mustJSON(t *testing.T, value any) string {
 	return string(data)
 }
 
-
 // The guard of every save: a network connection on a name of a port that is no interface of the node (the editor dropped
 // the ports and the kind), an unknown kind; a NIC named like a port is a NIC.
 func TestValidateConsoleLines(t *testing.T) {
@@ -372,4 +371,29 @@ func TestValidateConsoleLines(t *testing.T) {
 		Connections: []exerciseModel.Connection{cable(devEP(pc1, "serial0"), devEP(rc, "console0"))},
 	}}
 	require.NoError(t, exerciseModel.ValidateConsoleLines([]exerciseModel.Variant{fine}))
+}
+
+// A device with ports always starts through the launcher, so the laboratory is told its service; the needs of the lab name the
+// console lines and count the cables.
+func TestConsoleLines_ServiceAndNeeds(t *testing.T) {
+	r1 := router("r1", exerciseModel.ConsolePort{Name: "console0"})
+	p := pc("p", exerciseModel.SerialPort{Name: "serial0"})
+	plain := dev("web", exerciseModel.DeviceTypeContainer, "eth0")
+	assert.True(t, r1.NeedsServiceCommand())
+	assert.True(t, p.NeedsServiceCommand())
+	assert.False(t, plain.NeedsServiceCommand())
+	assert.True(t, r1.HasPorts())
+	assert.False(t, plain.HasPorts())
+
+	topo := exerciseModel.Topology{Devices: []exerciseModel.Device{r1, p, plain}, Connections: []exerciseModel.Connection{
+		cable(exerciseModel.Endpoint{Kind: exerciseModel.EndpointDevice, DeviceID: p.ID, Interface: "serial0"},
+			exerciseModel.Endpoint{Kind: exerciseModel.EndpointDevice, DeviceID: r1.ID, Interface: "console0"}),
+	}}
+	needs := exerciseModel.NeedsOf(topo, nil)
+	assert.True(t, needs.ConsoleLines)
+	assert.Equal(t, 1, needs.ConsoleCables)
+	assert.True(t, needs.Bootstrap, "the service command needs the launcher of contract 1.5")
+	none := exerciseModel.NeedsOf(exerciseModel.Topology{Devices: []exerciseModel.Device{plain}}, nil)
+	assert.False(t, none.ConsoleLines)
+	assert.Zero(t, none.ConsoleCables)
 }

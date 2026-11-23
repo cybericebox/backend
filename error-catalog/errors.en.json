@@ -309,6 +309,7 @@
   "23708": "The port already has a console cable",
   "23709": "The lab has too many console cables",
   "23712": "A network connection ends on a console or serial port, or on a port name the device has no interface for",
+  "23713": "The laboratory refused the console ports or console cables of the lab",
   "30101": "Setting not found",
   "30201": "Notification dispatch not found",
   "30202": "Notification template not found",

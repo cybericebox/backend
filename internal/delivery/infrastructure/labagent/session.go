@@ -31,12 +31,24 @@ func (s SessionIssuer) warnLimits(member *Member, sk labaccess.SigningKey) {
 	}
 }
 
-// contractAccepts says whether an agent that reported `reported` takes the grants of this build (contract 3.x:
-// the grant fields and ProxyFeature.grant_max_ttl_seconds). A report that is not readable is not accepted.
-func contractAccepts(reported string) bool {
-	ok, err := labclient.Compatible(labclient.ContractVersion, reported)
+// The contract each feature of this build needs from an agent: a feature is pinned to the contract that brought it, never to
+// the contract the SDK was built against (a newer SDK must not take a working feature away from an older agent).
+const (
+	// grantsContract: the grant fields and ProxyFeature.grant_max_ttl_seconds (contract 3.0).
+	grantsContract = "3.0"
+	// consoleLinesContract: console ports, serial ports and console cables (FeaturesResponse.console_cables, contract 3.1).
+	consoleLinesContract = "3.1"
+)
+
+// contractAtLeast says whether an agent that reported `reported` has every call of contract `needed` (same major, minor not
+// below). A report that is not readable has none.
+func contractAtLeast(needed, reported string) bool {
+	ok, err := labclient.Compatible(needed, reported)
 	return err == nil && ok
 }
+
+// contractAccepts says whether an agent that reported `reported` takes the grants of this build (contract 3.0 or a later 3.x).
+func contractAccepts(reported string) bool { return contractAtLeast(grantsContract, reported) }
 
 // Issue signs a grant for one device of a lab group.
 func (s SessionIssuer) Issue(ctx context.Context, session labaccess.Session, now time.Time) (labaccess.Link, error) {
@@ -51,7 +63,7 @@ func (s SessionIssuer) Issue(ctx context.Context, session labaccess.Session, now
 	if f := member.Features.Get(); f != nil {
 		if !contractAccepts(f.ContractVersion) {
 			if _, warned := s.Fleet.limitWarned.LoadOrStore(member.ID.String()+"/contract", true); !warned {
-				log.Warn().Str("agent", member.Name).Str("reported", f.ContractVersion).Str("built", labclient.ContractVersion).
+				log.Warn().Str("agent", member.Name).Str("reported", f.ContractVersion).Str("needed", grantsContract).
 					Msg("the agent's contract does not take the access grants of this build: no web or console link is issued")
 			}
 			return labaccess.Link{}, infraModel.ErrInfrastructureUnavailable.Err()

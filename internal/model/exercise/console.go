@@ -117,6 +117,21 @@ func (d Device) PortOf(name string) PortKind {
 	return PortNone
 }
 
+// HasPorts reports whether the device declares a console port or a serial port. Such a device always starts through the
+// launcher of the laboratory (its port keeper is started there), so it always gets a service block.
+func (d Device) HasPorts() bool { return len(d.ConsolePorts) > 0 || len(d.SerialPorts) > 0 }
+
+// ConsoleCables counts the console cables of the topology.
+func (t Topology) ConsoleCables() int {
+	n := 0
+	for _, c := range t.Connections {
+		if c.IsConsole() {
+			n++
+		}
+	}
+	return n
+}
+
 // IsConsole reports whether the connection is a console cable.
 func (c Connection) IsConsole() bool { return c.Kind == ConnectionConsole }
 
@@ -124,16 +139,11 @@ func (c Connection) IsConsole() bool { return c.Kind == ConnectionConsole }
 // the document schema 1.1. (UsesConsole, of variants, is the browser terminal: another thing.)
 func (t Topology) UsesConsoleLines() bool {
 	for _, d := range t.Devices {
-		if len(d.ConsolePorts) > 0 || len(d.SerialPorts) > 0 {
+		if d.HasPorts() {
 			return true
 		}
 	}
-	for _, c := range t.Connections {
-		if c.IsConsole() {
-			return true
-		}
-	}
-	return false
+	return t.ConsoleCables() > 0
 }
 
 // DevicePath is the character device of the serial port inside its device.

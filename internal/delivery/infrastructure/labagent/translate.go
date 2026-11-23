@@ -27,6 +27,39 @@ type (
 		Gateways    []labGateway         `json:"gateways,omitempty"`
 		Devices     []labDevice          `json:"devices,omitempty"`
 		Connections []labConnection      `json:"connections,omitempty"`
+		// ConsoleCables are the console cables of the lab (contract 3.1): never connections, so a cable never reaches the lab
+		// network.
+		ConsoleCables []labConsoleCable `json:"consoleCables,omitempty"`
+	}
+
+	// labConsoleCable joins a serial port of one device to a console port of another (Lab.spec.consoleCables).
+	labConsoleCable struct {
+		Serial  labPortRef `json:"serial"`
+		Console labPortRef `json:"console"`
+	}
+
+	labPortRef struct {
+		Device string `json:"device"`
+		Port   string `json:"port"`
+	}
+
+	// labConsolePort is a management line of a device: a command (empty: the laboratory's /bin/login as root) or a native source.
+	labConsolePort struct {
+		Name    string           `json:"name"`
+		Command []string         `json:"command,omitempty"`
+		User    string           `json:"user,omitempty"`
+		Native  *labNativeSource `json:"native,omitempty"`
+	}
+
+	labNativeSource struct {
+		Kind string `json:"kind"`
+		Port int32  `json:"port,omitempty"`
+	}
+
+	// labSerialPort is a terminal line of a device (empty path: /dev/ttyCON<n>, filled by the laboratory).
+	labSerialPort struct {
+		Name string `json:"name"`
+		Path string `json:"path,omitempty"`
 	}
 
 	// labGateway is one entry of spec.gateways: a VPN entry or an Internet exit, named like the gateway device of the task.
@@ -69,8 +102,11 @@ type (
 		// WaitReadyFile: the device is Ready only once /run/ready exists inside the container.
 		WaitReadyFile bool `json:"waitReadyFile,omitempty"`
 		// Service is what the launcher runs after the bootstrap (contract 1.5); only for a device that has a bootstrap
-		// list or a command of its own.
+		// list, console or serial ports, or a command of its own.
 		Service *labService `json:"service,omitempty"`
+		// ConsolePorts and SerialPorts are the console lines of the device (contract 3.1).
+		ConsolePorts []labConsolePort `json:"consolePorts,omitempty"`
+		SerialPorts  []labSerialPort  `json:"serialPorts,omitempty"`
 	}
 
 	labService struct {
@@ -186,10 +222,12 @@ func BuildLabFor(t exerciseModel.Topology, checks []exerciseModel.LabCheck, enfo
 	var build LabBuild
 
 	nameByID := make(map[string]string, len(t.Devices))
+	byID := make(map[string]exerciseModel.Device, len(t.Devices))
 	labNames := exerciseModel.LabDeviceNames(t.Devices)
 	for i, d := range t.Devices {
 		labName := labNames[i]
 		nameByID[d.ID.String()] = labName
+		byID[d.ID.String()] = d
 		if d.Type.IsGateway() {
 			gateway := buildGateway(d, enforcesVPNReverse)
 			spec.Gateways = append(spec.Gateways, gateway)
@@ -215,6 +253,10 @@ func BuildLabFor(t exerciseModel.Topology, checks []exerciseModel.LabCheck, enfo
 	}
 
 	for _, c := range t.Connections {
+		if c.IsConsole() {
+			spec.ConsoleCables = append(spec.ConsoleCables, buildConsoleCable(c, byID, nameByID))
+			continue
+		}
 		conn := labConnection{}
 		for _, ep := range c.Endpoints {
 			conn.Endpoints = append(conn.Endpoints, buildEndpoint(ep, nameByID))
@@ -279,6 +321,31 @@ func buildDevice(d exerciseModel.Device, labName string) labDevice {
 		out.Persistence = &labPersistence{Enabled: d.Persistence.Enabled, Debounce: d.Persistence.Debounce}
 	}
 	out.Access = buildAccess(d)
+	for _, p := range d.ConsolePorts {
+		port := labConsolePort{Name: p.Name, Command: p.Command, User: p.User}
+		if p.Native != nil {
+			port.Native = &labNativeSource{Kind: string(p.Native.Kind), Port: p.Native.Port}
+		}
+		out.ConsolePorts = append(out.ConsolePorts, port)
+	}
+	for _, p := range d.SerialPorts {
+		out.SerialPorts = append(out.SerialPorts, labSerialPort{Name: p.Name, Path: p.Path})
+	}
+	return out
+}
+
+// buildConsoleCable maps a console cable to its entry of spec.consoleCables: the end on a serial port is the serial end, whatever
+// the order of the endpoints (the topology was validated, so one end is a serial port and the other a console port).
+func buildConsoleCable(c exerciseModel.Connection, byID map[string]exerciseModel.Device, nameByID map[string]string) labConsoleCable {
+	var out labConsoleCable
+	for _, ep := range c.Endpoints {
+		ref := labPortRef{Device: nameByID[ep.DeviceID.String()], Port: ep.Interface}
+		if byID[ep.DeviceID.String()].PortOf(ep.Interface) == exerciseModel.PortSerial {
+			out.Serial = ref
+		} else {
+			out.Console = ref
+		}
+	}
 	return out
 }
 

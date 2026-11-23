@@ -422,9 +422,10 @@ func (h *Handler) capabilities(ctx *gin.Context) {
 		Resources resourceSettingsResponse `json:"Resources"`
 		// LabCapabilities is what the laboratories that are used can run, without naming any: see labCapabilitiesResponse.
 		LabCapabilities labCapabilitiesResponse `json:"LabCapabilities"`
-		// ConsoleCablesAvailable: a laboratory agent offers console ports and console cables, so a lab that uses them can be
-		// deployed. False until the laboratories report the feature; the editor may still show the ports (they save and
-		// publish), but a test lab with them is refused.
+		// ConsoleCablesAvailable: a laboratory agent that is used reports console ports and console cables (its feature
+		// report, agent contract 3.1), so a lab that uses them can be deployed. False when none does; the editor may still show
+		// the ports (they save and publish), but a test lab with them is refused (409, ErrConsoleUnavailable).
+		// LabCapabilities.ConsoleCables says the same as all/some/none/unknown.
 		ConsoleCablesAvailable bool `json:"ConsoleCablesAvailable"`
 	}{
 		Laboratories: h.useCase.InfrastructureAvailable(), MaxActiveTestDeploys: h.useCase.MaxActiveTestDeploys(), MaxLabGateways: exerciseModel.MaxLabGateways,

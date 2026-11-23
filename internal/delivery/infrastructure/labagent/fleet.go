@@ -238,6 +238,11 @@ func (f *Fleet) memberForCreate(ctx context.Context, group string) (*Member, err
 		return nil, runnersErr
 	}
 	enabled = runners
+	if need.ConsoleLines {
+		if enabled, err = consoleRunners(ctx, enabled); err != nil {
+			return nil, err
+		}
+	}
 	if need.Known() {
 		var fitting []*Member
 		var worst *infraModel.FitViolation
@@ -342,7 +347,8 @@ func (f *Fleet) Health(ctx context.Context) error {
 }
 
 func (f *Fleet) DeployLab(ctx context.Context, group, lab string, meta infraModel.LabMeta, topo exerciseModel.Topology) error {
-	if err := requireConsoleCables(topo); err != nil {
+	// Console lines first, before any agent work: no agent that is used serves them, or none takes this many cables.
+	if err := f.requireConsoleLinesFresh(ctx, topo); err != nil {
 		return err
 	}
 	// The need is read from the presets; then the agent gets explicit resources: requests equal limits, the
@@ -378,8 +384,12 @@ func (f *Fleet) DeployLab(ctx context.Context, group, lab string, meta infraMode
 			return infraModel.ErrDevicePersistenceUnavailable.Err()
 		}
 	}
-	// The same for the options of contract 1.5: checks, terminal, bootstrap and their sizes.
-	if err = f.requireLabOptions(ctx, m, exerciseModel.NeedsOf(topo, meta.Checks)); err != nil {
+	// The same for the options of contract 1.5: checks, terminal, bootstrap and their sizes; and the console lines of contract 3.1.
+	needs := exerciseModel.NeedsOf(topo, meta.Checks)
+	if err = f.requireLabOptions(ctx, m, needs); err != nil {
+		return err
+	}
+	if err = f.requireConsoleLines(ctx, m, needs); err != nil {
 		return err
 	}
 	if meta.GroupPartID, err = f.partOn(ctx, m, meta.GroupReservation); err != nil {
@@ -401,7 +411,7 @@ func (f *Fleet) DeployLab(ctx context.Context, group, lab string, meta infraMode
 		meta.AgentEnforcesVPNReverse = feat.EnforcesVPNReverse()
 	}
 	err = m.Client.DeployLab(f.withSizes(ctx, m), group, lab, meta, topo)
-	if errors.Is(err, infraModel.ErrDevicePersistenceUnavailable.Err()) {
+	if errors.Is(err, infraModel.ErrDevicePersistenceUnavailable.Err()) || errors.Is(err, exerciseModel.ErrConsoleUnavailable.Err()) {
 		// The agent itself refused: what it offers changed since the cached report; the next try sees the truth.
 		refreshOnRefusal(ctx, m.Features, time.Now(), featuresReader(m))
 	}

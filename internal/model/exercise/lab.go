@@ -89,9 +89,11 @@ func (d Device) HasBootstrapList() bool {
 }
 
 // NeedsServiceCommand reports whether the laboratory must be told what to run: the device has a bootstrap list (the
-// launcher replaces itself with the service) or the author set a command or arguments.
+// launcher replaces itself with the service), console or serial ports (the launcher starts the port keeper before the
+// service, and the laboratory refuses such a device without a service command and its user) or the author set a command or
+// arguments.
 func (d Device) NeedsServiceCommand() bool {
-	return d.IsNode() && (d.HasBootstrapList() || len(d.Command) > 0 || len(d.Args) > 0)
+	return d.IsNode() && (d.HasBootstrapList() || d.HasPorts() || len(d.Command) > 0 || len(d.Args) > 0)
 }
 
 // LabService resolves the service command of the device: the author's command and args when set, else the values of the
@@ -325,6 +327,10 @@ type LabNeeds struct {
 	// Registries are the registries the device images come from, canonical, sorted, without repeats; images of the platform itself
 	// ("platform:..." and the node's own forwarder) are not in it. The laboratory must allow each one.
 	Registries []string
+	// ConsoleLines: some device has a console or serial port, or the lab has a console cable; ConsoleCables counts the cables.
+	// The laboratory must serve console lines (FeaturesResponse.console_cables, contract 3.1).
+	ConsoleLines  bool
+	ConsoleCables int
 }
 
 // RegistryOf is the canonical registry an image reference is pulled from: docker.io for a reference that names none (and for
@@ -388,6 +394,7 @@ func NeedsOf(t Topology, checks []LabCheck) LabNeeds {
 		}
 	}
 	slices.Sort(n.Registries)
+	n.ConsoleLines, n.ConsoleCables = t.UsesConsoleLines(), t.ConsoleCables()
 	n.Checks = len(checks) > 0
 	n.ChecksPerLab = len(checks)
 	kinds := map[string]struct{}{}
