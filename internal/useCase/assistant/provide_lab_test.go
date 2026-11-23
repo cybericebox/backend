@@ -419,6 +419,9 @@ func TestALabAnswerTheBrainNeverGotIsSentAgainWhenItAsksAgain(t *testing.T) {
 	p.serve(t)
 	p.drive(t)
 	eventually(t, "the answer to be sent (and lost)", func() bool { return p.runs.LabCount() == 1 && p.lab(t).Answered })
+	// Answered only says the platform sent it. Drop the stream only after the brain has taken the answer off the stream and
+	// lost it: otherwise the drop can overtake the answer, the loss is spent on the answer sent again, and that never arrives.
+	eventually(t, "the brain to lose the first answer", func() bool { return p.brain.fake.Outbox.Lost() == 1 })
 	if len(p.brain.answered("r1")) != 0 {
 		t.Fatal("the brain lost the first answer")
 	}

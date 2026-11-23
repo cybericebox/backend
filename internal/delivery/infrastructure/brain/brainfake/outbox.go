@@ -26,6 +26,7 @@ type Outbox struct {
 	current     chan struct{} // closed when the current stream is superseded or dropped
 	resend      int           // bumped to send every pending request again on the open stream
 	lose        int           // how many of the next answers are lost (neither recorded nor taken)
+	lost        int           // how many answers were lost so far
 	wake        chan struct{}
 }
 
@@ -63,6 +64,9 @@ func (o *Outbox) Resend() {
 
 // LoseAnswers makes the next n answers get lost on the way (the brain never sees them; their requests stay unanswered).
 func (o *Outbox) LoseAnswers(n int) { o.mu.Lock(); defer o.mu.Unlock(); o.lose = n }
+
+// Lost is how many answers were lost on the way so far (the brain has taken them off the stream and thrown them away).
+func (o *Outbox) Lost() int { o.mu.Lock(); defer o.mu.Unlock(); return o.lost }
 
 // DropStream ends the open stream (a network blip); the platform reconnects and gets the unanswered requests again.
 func (o *Outbox) DropStream() {
@@ -155,6 +159,7 @@ func (o *Outbox) serve(stream grpc.BidiStreamingServer[brainapiv1.RequestAnswer,
 			o.mu.Lock()
 			if o.lose > 0 {
 				o.lose--
+				o.lost++
 				o.mu.Unlock()
 				continue
 			}
