@@ -349,6 +349,8 @@ type (
 		Recaptcha           RecaptchaConfig `                                            envPrefix:"RECAPTCHA_"`
 		Turnstile           TurnstileConfig `                                            envPrefix:"TURNSTILE_"`
 		Password            PasswordConfig  `                                            envPrefix:"PASSWORD_"`
+		// Authz are the switches of the access-control rollout (AUTHZ_*).
+		Authz AuthzConfig `envPrefix:"AUTHZ_"`
 	}
 
 	// PasswordConfig is the password complexity policy enforced on
@@ -361,6 +363,18 @@ type (
 		MinSmallLetters      int `env:"MIN_SMALL_LETTERS"      envDefault:"1"`
 		MinDigits            int `env:"MIN_DIGITS"             envDefault:"1"`
 		MinSpecialCharacters int `env:"MIN_SPECIAL_CHARACTERS" envDefault:"0"`
+	}
+
+	// AuthzConfig switches parts of the access-control model on one at a time (access-control plan, "Flags"). Every
+	// switch is off by default: nothing changes until it is turned on, and turning it off again loses no data.
+	AuthzConfig struct {
+		// StepUpRequired (AUTHZ_STEP_UP_REQUIRED): grant, role, group and owner changes need a step-up made on the
+		// session in the last 5 minutes (protection.RequireStepUp). Off: those routes do not ask for one.
+		StepUpRequired bool `env:"STEP_UP_REQUIRED" envDefault:"false"`
+		// SecondFactorRequired (AUTHZ_SECOND_FACTOR_REQUIRED): keys with the second_factor flag are effective only for a
+		// person with a second factor (a passkey or an authenticator app). Read by the access evaluator; off until the
+		// holders were notified and enrolled.
+		SecondFactorRequired bool `env:"SECOND_FACTOR_REQUIRED" envDefault:"false"`
 	}
 
 	// OAuthConfig keeps the historical flat env names (GOOGLE_CLIENT_ID,

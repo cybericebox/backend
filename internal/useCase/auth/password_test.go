@@ -141,6 +141,7 @@ func TestResetPassword_Success(t *testing.T) {
 		repo.EXPECT().DeleteTemporalCodesForUser(gomock.Any(), postgres.DeleteTemporalCodesForUserParams{Type: codeType, UserID: uid.String()}).Return(int64(1), nil)
 	}
 	repo.EXPECT().RevokeUserSessions(gomock.Any(), gomock.Any()).Return(revokedRows(2), nil)
+	repo.EXPECT().ClearUserStepUps(gomock.Any(), gomock.Any()).Return(int64(0), nil)
 	// The browsers it signs out lose their draft keys.
 	repo.EXPECT().DeleteAllUserDraftKeys(gomock.Any(), uid).Return(int64(2), nil)
 
@@ -194,6 +195,7 @@ func TestSetAccountPassword_FirstPassword(t *testing.T) {
 	repo.EXPECT().GetUserByID(gomock.Any(), uid).Return(postgres.User{ID: uid, Status: "active", HashedPassword: pgtype.Text{}}, nil).AnyTimes()
 	repo.EXPECT().UpdateUser(gomock.Any(), gomock.Any()).Return(int64(1), nil)
 	repo.EXPECT().RevokeUserSessionsExcept(gomock.Any(), gomock.Any()).Return(revokedExceptRows(0), nil)
+	repo.EXPECT().ClearUserStepUps(gomock.Any(), gomock.Any()).Return(int64(0), nil)
 	allowCodeRevocation(repo)
 
 	if err := uc.SetAccountPassword(recentSession(repo, uid, time.Minute), uid, "", "New!1pass"); err != nil {
@@ -224,6 +226,7 @@ func TestSetAccountPassword_RevokesPendingCodes(t *testing.T) {
 	repo.EXPECT().GetUserByID(gomock.Any(), uid).Return(postgres.User{ID: uid, Status: "active", HashedPassword: pgtype.Text{String: hashed, Valid: true}}, nil).AnyTimes()
 	repo.EXPECT().UpdateUser(gomock.Any(), gomock.Any()).Return(int64(1), nil)
 	repo.EXPECT().RevokeUserSessions(gomock.Any(), gomock.Any()).Return(revokedRows(0), nil)
+	repo.EXPECT().ClearUserStepUps(gomock.Any(), gomock.Any()).Return(int64(0), nil)
 	repo.EXPECT().DeleteAllUserDraftKeys(gomock.Any(), uid).Return(int64(0), nil)
 	for _, codeType := range []int32{temporalCodeModel.PasswordResettingCodeType, temporalCodeModel.EmailChangeCodeType} {
 		repo.EXPECT().DeleteTemporalCodesForUser(gomock.Any(), postgres.DeleteTemporalCodesForUserParams{Type: codeType, UserID: uid.String()}).Return(int64(1), nil)
@@ -243,6 +246,7 @@ func TestSetAccountPassword_RevokesOtherSessions(t *testing.T) {
 		Return(postgres.User{ID: uid, Status: "active", HashedPassword: pgtype.Text{String: hashed, Valid: true}}, nil).Times(2)
 	repo.EXPECT().UpdateUser(gomock.Any(), gomock.Any()).Return(int64(1), nil)
 	repo.EXPECT().RevokeUserSessionsExcept(gomock.Any(), gomock.Any()).Return(revokedExceptRows(3), nil)
+	repo.EXPECT().ClearUserStepUps(gomock.Any(), gomock.Any()).Return(int64(0), nil)
 	allowCodeRevocation(repo)
 
 	ctx := rbac.ContextWithCurrentUserSession(context.Background(), rbac.Claims{UserID: uid, SessionID: current, Role: rbac.RoleUser})

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
+	"github.com/cybericebox/backend/internal/delivery/repository/secondFactorRepo"
 	"github.com/cybericebox/backend/internal/delivery/repository/temporalCodeRepo"
 	repositoryTools "github.com/cybericebox/backend/internal/delivery/repository/tools"
 	"github.com/cybericebox/backend/internal/delivery/repository/userRepo"
@@ -47,7 +48,7 @@ func (u *AuthUseCase) InviteUser(ctx context.Context, emailAddr string, role rba
 }
 
 func (u *AuthUseCase) inviteWithRepository(ctx context.Context, repo IRepository, emailAddr string, role rbac.Role, firstName, lastName string) error {
-	bound := &AuthUseCase{users: userRepo.New(repo), codes: temporalCodeRepo.New(repo), token: u.token, notifier: u.notifier, cfg: u.cfg, limits: u.limits, setupTokens: NewSetupTokenStore(repo, u.token)}
+	bound := &AuthUseCase{users: userRepo.New(repo), codes: temporalCodeRepo.New(repo), factors: secondFactorRepo.New(repo), token: u.token, notifier: u.notifier, cfg: u.cfg, limits: u.limits, setupTokens: NewSetupTokenStore(repo, u.token)}
 	return bound.inviteUser(ctx, emailAddr, role, firstName, lastName)
 }
 

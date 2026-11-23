@@ -17,7 +17,10 @@ type Decl struct {
 	Relation Relation
 	Scope    ScopeSource
 	// Data are the keys that decide fields or rows of the answer (Appendix A.3, "data-level keys"): the route passes
-	// without them, the answer is masked or filtered. They are recorded so the enforcement (P2, P4) keeps them.
+	// without them, the answer is masked or filtered. They are recorded so the enforcement (P2, P4) keeps them. Some
+	// act as a gate on the request's object, not as masking, and P2 must refuse without them: the authoring keys of the
+	// save target of POST /assistant/sessions/:id/save (A.3 #89) and events.archived.read for an archived event on
+	// DELETE /events/:id (A.3 #94).
 	Data []Key
 }
 

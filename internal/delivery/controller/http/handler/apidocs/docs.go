@@ -2919,6 +2919,86 @@ const docTemplate = `{
                 }
             }
         },
+        "/auth/recovery-codes": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Replace the recovery codes with 10 new ones, shown once (N28); needs a second factor and a step-up made with it",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/auth.recoveryCodesResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/second-factor": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "The second factor of the current user: authenticator app, passkeys, recovery codes left, step-up of this session",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/auth.secondFactorStatusResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/sessions": {
             "get": {
                 "produces": [
@@ -3168,6 +3248,64 @@ const docTemplate = `{
                 }
             }
         },
+        "/auth/sign-in/recovery": {
+            "post": {
+                "description": "Only for an account with a password and a second factor: the password is always checked, the code stands in for the lost factor. The session may then replace the factor and get new codes; the use is journaled and mailed to the owner.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Sign in with a one-time recovery code when the second factor is lost",
+                "parameters": [
+                    {
+                        "description": "credentials and code",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/auth.recoverySignInRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/sign-up": {
             "post": {
                 "consumes": [
@@ -3197,6 +3335,264 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/step-up": {
+            "post": {
+                "description": "Method passkey (CeremonyID and Credential from /auth/step-up/passkey/begin), totp (Code), or password (Password; only for an account without a second factor, and an account without a password needs a recent sign-in). Google sign-in, email codes and SMS are not methods.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Confirm the current user on this session for 5 minutes (N29)",
+                "parameters": [
+                    {
+                        "description": "the confirmation",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/auth.stepUpRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/auth.stepUpResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/step-up/passkey/begin": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Begin a passkey confirmation of the current user (user verification required)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/auth.passkeyCeremonyResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/totp": {
+            "delete": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Remove the authenticator app (N27); needs a step-up with a second factor or a recovery code, refused for the last factor of a holder of a second-factor key",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/totp/begin": {
+            "post": {
+                "description": "An account with a second factor confirms with a step-up made with it in the last 5 minutes. For the first factor: a fresh step-up, or the current password (a sign-in of the last 5 minutes for an account without one).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Start adding an authenticator app: a new secret and its otpauth:// URI for the QR code (N25)",
+                "parameters": [
+                    {
+                        "description": "current password",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/auth.reauthRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/auth.totpBeginResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/totp/finish": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Confirm the authenticator app with its first code (N26); as the first factor it issues the 10 recovery codes, shown once (a further factor returns none and needs a step-up with an existing one)",
+                "parameters": [
+                    {
+                        "description": "the first code of the app",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/auth.totpFinishRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/auth.recoveryCodesResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
                         "schema": {
                             "$ref": "#/definitions/response.Response"
                         }
@@ -30355,6 +30751,39 @@ const docTemplate = `{
                 }
             }
         },
+        "auth.recoveryCodesResponse": {
+            "type": "object",
+            "properties": {
+                "RecoveryCodes": {
+                    "description": "RecoveryCodes are shown this once; only their hashes are stored.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "auth.recoverySignInRequest": {
+            "type": "object",
+            "properties": {
+                "Code": {
+                    "type": "string"
+                },
+                "Email": {
+                    "type": "string"
+                },
+                "Password": {
+                    "description": "Password is always required: the code stands in for the second factor only, never for the password.",
+                    "type": "string"
+                },
+                "RecaptchaToken": {
+                    "type": "string"
+                },
+                "Redirect": {
+                    "type": "string"
+                }
+            }
+        },
         "auth.requestEmailChangeRequest": {
             "type": "object",
             "properties": {
@@ -30386,6 +30815,33 @@ const docTemplate = `{
                 },
                 "Password": {
                     "type": "string"
+                }
+            }
+        },
+        "auth.secondFactorStatusResponse": {
+            "type": "object",
+            "properties": {
+                "HasSecondFactor": {
+                    "type": "boolean"
+                },
+                "Passkeys": {
+                    "type": "integer"
+                },
+                "RecoveryCodesLeft": {
+                    "type": "integer"
+                },
+                "StepUpExpiresAt": {
+                    "type": "string"
+                },
+                "StepUpMethod": {
+                    "description": "StepUpMethod and StepUpExpiresAt describe the last step-up of this session; null without one.",
+                    "type": "string"
+                },
+                "TOTPConfirmedAt": {
+                    "type": "string"
+                },
+                "TOTPEnabled": {
+                    "type": "boolean"
                 }
             }
         },
@@ -30457,6 +30913,64 @@ const docTemplate = `{
                 },
                 "Redirect": {
                     "description": "Redirect is the optional post-registration landing URL; a trusted one is\ncarried on the emailed setup link as return_to.",
+                    "type": "string"
+                }
+            }
+        },
+        "auth.stepUpRequest": {
+            "type": "object",
+            "properties": {
+                "CeremonyID": {
+                    "type": "string"
+                },
+                "Code": {
+                    "type": "string"
+                },
+                "Credential": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "Method": {
+                    "description": "Method is passkey, totp or password (the password only for an account without a second factor).",
+                    "type": "string"
+                },
+                "Password": {
+                    "type": "string"
+                }
+            }
+        },
+        "auth.stepUpResponse": {
+            "type": "object",
+            "properties": {
+                "At": {
+                    "type": "string"
+                },
+                "ExpiresAt": {
+                    "type": "string"
+                },
+                "Method": {
+                    "type": "string"
+                }
+            }
+        },
+        "auth.totpBeginResponse": {
+            "type": "object",
+            "properties": {
+                "Secret": {
+                    "description": "Secret is the base32 secret for typing into an app; URI is the otpauth:// URI the QR code shows.",
+                    "type": "string"
+                },
+                "URI": {
+                    "type": "string"
+                }
+            }
+        },
+        "auth.totpFinishRequest": {
+            "type": "object",
+            "properties": {
+                "Code": {
                     "type": "string"
                 }
             }

@@ -77,14 +77,22 @@ POST   /api/auth/password/change | gate: self | layers: middleware.RateLimitPerU
 GET    /api/auth/password/policy | gate: - | layers: - | keys: - @ public
 POST   /api/auth/password/reset | gate: - | layers: - | keys: - @ public
 POST   /api/auth/password/reset-request | gate: - | layers: recaptcha | keys: - @ public
+POST   /api/auth/recovery-codes | gate: self | layers: middleware.RateLimitPerUser.func | keys: self @ self
+GET    /api/auth/second-factor | gate: self | layers: - | keys: self @ self
 DELETE /api/auth/sessions | gate: self | layers: - | keys: self @ self
 GET    /api/auth/sessions | gate: self | layers: - | keys: self @ self
 DELETE /api/auth/sessions/:id | gate: self | layers: - | keys: self @ self
 GET    /api/auth/setup | gate: - | layers: - | keys: - @ public
 POST   /api/auth/setup | gate: - | layers: - | keys: - @ public
 POST   /api/auth/sign-in | gate: - | layers: recaptcha | keys: - @ public
+POST   /api/auth/sign-in/recovery | gate: - | layers: recaptcha | keys: - @ public
 POST   /api/auth/sign-out | gate: self | layers: auth.forgetDraftKey | keys: self @ self
 POST   /api/auth/sign-up | gate: - | layers: recaptcha | keys: - @ public
+POST   /api/auth/step-up | gate: self | layers: middleware.RateLimitPerUser.func | keys: self @ self
+POST   /api/auth/step-up/passkey/begin | gate: self | layers: middleware.RateLimitPerUser.func | keys: self @ self
+DELETE /api/auth/totp | gate: self | layers: - | keys: self @ self
+POST   /api/auth/totp/begin | gate: self | layers: middleware.RateLimitPerUser.func | keys: self @ self
+POST   /api/auth/totp/finish | gate: self | layers: middleware.RateLimitPerUser.func | keys: self @ self
 GET    /api/events | gate: events.read | layers: - | keys: ?
 POST   /api/events | gate: events.write | layers: - | keys: ?
 DELETE /api/events/:id | gate: events.write | layers: - | keys: ?

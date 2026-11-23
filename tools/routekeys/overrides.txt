@@ -1,12 +1,7 @@
 # Owner and review decisions the access spec does not show yet (tools/routekeys reads them over Appendix A.3).
-# METHOD /api/path | keys: <declaration> | data: <key,key> | reason
+# METHOD /api/path | keys: <declaration> | data: <key,key> | reason; "+METHOD /api/path" adds a mounted route A.3 lacks.
 # The spec commit these overrides were last read against; routes.expected-keys must name the same one.
-# spec: 762e821cbc18564be449928a61ce474eb3db5cb7
-POST /api/me/draft-key | keys: self @ self | owner decision 2026-11-23: own data; the editor-origin check stays a layer (spec fix: A.3 #47)
-POST /api/events/bulk/archive | keys: events.archive @ platform | review 2026-11-23: the events come from the body, the bulk route is checked at platform scope
-DELETE /api/events/:id | data: events.archived.read | A.3 #94: an archived event also needs events.archived.read (state rule, kept for P2)
-GET /api/events/:id | data: events.archived.read | the card of an archived event needs events.archived.read (A.2, round 4; kept for P2)
-POST /api/events/:id/manage/exercises/bulk/detach | keys: event.tasks.delete @ event(:id) | owner decision 2026-11-23: detaching removes, and delete is always its own key (spec fix: A.3 #231)
-POST /api/events/self/render-grant | keys: event.read @ tenant | review 2026-11-23: staff only as today (RequireReadEvent); participant access waits for an owner decision (A.3 #446)
-POST /api/events/self/answer-files | keys: (participant) @ tenant | review 2026-11-23: the participation relation; today any signed-in user can store files (A.4.1 item 5), a change on purpose listed for P2 (A.3 #427)
-POST /api/assistant/sessions/:id/save | keys: cyberbrain.chat.use @ platform | data: exercises.create,exercises.update,event.exercises.create,event.exercises.update | review 2026-11-23: the authoring right for the save target is checked on the body target by the use case (§6.2), recorded as data keys (A.3 #89)
+# spec: 0c35e45f05f72f5b501d112c5566fda35b751407
++POST /api/auth/sign-in/recovery | keys: - @ public | built with P7 (second factor): a recovery code signs in instead of a lost factor, behind the captcha and the sign-in lockout; not in A.3 yet
++GET /api/auth/second-factor | keys: self @ self | built with P7: the caller's own second-factor status; not in A.3 yet
++POST /api/auth/step-up/passkey/begin | keys: self @ self | built with P7: the passkey challenge of the caller's own step-up (N29); not in A.3 yet
