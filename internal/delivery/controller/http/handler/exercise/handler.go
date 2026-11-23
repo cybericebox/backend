@@ -235,8 +235,9 @@ func (h *Handler) Init(router *gin.RouterGroup) {
 		// the background export's state, for the user who started it only (the use case scopes it to them)
 		ex.GET("export/jobs/:jobID", self, h.exportJob)
 		ex.POST("import", long, self, h.importArchive)
-		ex.GET("capabilities", self, h.capabilities)
-		ex.GET("flag-policy", self, h.flagPolicy)
+		// the editor settings: for who may author tasks somewhere (RequireAuthor), as the example archive
+		ex.GET("capabilities", self, h.requireAuthor, h.capabilities)
+		ex.GET("flag-policy", self, h.requireAuthor, h.flagPolicy)
 
 		// catalog proposals (admin review)
 		ex.GET("proposals", h.prot.RequirePermission(rbac.PermExercisesRead), h.listProposals)
@@ -275,7 +276,7 @@ func (h *Handler) Init(router *gin.RouterGroup) {
 		// extend and destroy are owner-scoped in the use case; creating one
 		// is authorized per exercise (h.deploy).
 		ex.GET("deploys", self, h.listDeploys)
-		ex.GET("test-runs/lengths", self, h.testRunLengths)
+		ex.GET("test-runs/lengths", self, h.requireAuthor, h.testRunLengths)
 		ex.GET("deploys/:deployID", self, h.deployStatus)
 		ex.GET("deploys/:deployID/dossier", self, h.deployDossier)
 		ex.POST("deploys/:deployID/extend", self, h.extendDeploy)

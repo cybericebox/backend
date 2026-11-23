@@ -26,6 +26,18 @@ func actorFrom(ctx *gin.Context) (exerciseUseCase.Actor, bool) {
 	return exerciseUseCase.Actor{UserID: claims.UserID, Role: claims.Role}, true
 }
 
+// requireAuthor lets through who may create tasks somewhere (RequireAuthor): exercises.write or an owner/manager of
+// an event. It guards the editor settings that are not about one task.
+func (h *Handler) requireAuthor(ctx *gin.Context) {
+	actor, ok := actorFrom(ctx)
+	if !ok {
+		return
+	}
+	if err := h.useCase.RequireAuthor(ctx, actor); err != nil {
+		response.AbortWithError(ctx, err)
+	}
+}
+
 // authorize applies the exercise policy for one action on the :id exercise
 // and keeps the outcome for the handler (published-only readers).
 func (h *Handler) authorize(action exerciseUseCase.Action) gin.HandlerFunc {
