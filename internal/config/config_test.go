@@ -115,6 +115,19 @@ func TestPasswordConfig_ParsedFromEnv(t *testing.T) {
 	}
 }
 
+// The access-control switches are off until they are turned on (plan P7: both ship off).
+func TestAuthzSwitches_OffByDefaultAndReadFromEnv(t *testing.T) {
+	t.Setenv("RECAPTCHA_SECRET", "rsecret")
+	if got := MustGetConfig().Auth.Authz; got != (AuthzConfig{}) {
+		t.Fatalf("Authz defaults: got %+v, want everything off", got)
+	}
+	t.Setenv("AUTHZ_STEP_UP_REQUIRED", "true")
+	t.Setenv("AUTHZ_SECOND_FACTOR_REQUIRED", "true")
+	if got := MustGetConfig().Auth.Authz; got != (AuthzConfig{StepUpRequired: true, SecondFactorRequired: true}) {
+		t.Fatalf("Authz from env: got %+v", got)
+	}
+}
+
 func TestExerciseFlagPolicy_DefaultsAndRejectsInvalidValues(t *testing.T) {
 	t.Setenv("RECAPTCHA_SECRET", "rsecret")
 	got := MustGetConfig().Exercise

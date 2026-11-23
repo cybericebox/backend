@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	eventAnalyticsModel "github.com/cybericebox/backend/internal/model/eventAnalytics"
@@ -32,15 +33,15 @@ type IntegrityUseCase interface {
 // (other teams' names): owner, write moderators and platform admins only (§7).
 func (h *Handler) initIntegrity(router *gin.RouterGroup) {
 	analytics := router.Group("events/:id/manage/analytics", h.prot.RequirePermission(rbac.PermSelf))
-	analytics.GET("integrity", h.requireSensitive, h.integrity)
-	analytics.GET("integrity/export.csv", h.requireSensitive, h.exportIntegrity)
-	analytics.GET("integrity/flags", h.requireSensitive, h.integrityFlags)
+	analytics.GET("integrity", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventStatsSensitiveRead), nil), h.requireSensitive, h.integrity)
+	analytics.GET("integrity/export.csv", h.prot.Route(authz.AllOf(authz.SourceEventParam("id"), authz.EventExport, authz.EventStatsSensitiveRead), nil), h.requireSensitive, h.exportIntegrity)
+	analytics.GET("integrity/flags", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventStatsSensitiveRead), nil), h.requireSensitive, h.integrityFlags)
 	// Marks and dismissals are writes: an archived event refuses them like every other manage write.
-	analytics.PUT("integrity/solves/:teamChallengeID/review", h.requireSensitive, h.requireWritable, h.reviewSolve)
-	analytics.DELETE("integrity/solves/:teamChallengeID/review", h.requireSensitive, h.requireWritable, h.unreviewSolve)
-	analytics.GET("integrity/dismissals", h.requireSensitive, h.integrityDismissals)
-	analytics.POST("integrity/dismissals", h.requireSensitive, h.requireWritable, h.dismissPattern)
-	analytics.DELETE("integrity/dismissals/:dismissalID", h.requireSensitive, h.requireWritable, h.removeDismissal)
+	analytics.PUT("integrity/solves/:teamChallengeID/review", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventStatsSensitiveUpdate), nil), h.requireSensitive, h.requireWritable, h.reviewSolve)
+	analytics.DELETE("integrity/solves/:teamChallengeID/review", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventStatsSensitiveUpdate), nil), h.requireSensitive, h.requireWritable, h.unreviewSolve)
+	analytics.GET("integrity/dismissals", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventStatsSensitiveRead), nil), h.requireSensitive, h.integrityDismissals)
+	analytics.POST("integrity/dismissals", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventStatsSensitiveUpdate), nil), h.requireSensitive, h.requireWritable, h.dismissPattern)
+	analytics.DELETE("integrity/dismissals/:dismissalID", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventStatsSensitiveUpdate), nil), h.requireSensitive, h.requireWritable, h.removeDismissal)
 }
 
 // requireWritable is the archived-event guard of the manage writes (middleware.CheckEventWritable).

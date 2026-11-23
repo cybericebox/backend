@@ -12,6 +12,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	authModel "github.com/cybericebox/backend/internal/model/auth"
 	eventManagerModel "github.com/cybericebox/backend/internal/model/eventManager"
@@ -313,4 +314,13 @@ func TestEventMail_PrivateDataPerRole(t *testing.T) {
 	}
 	// The stored view is not changed by the masking.
 	require.Equal(t, "mailer@uni.edu", settings.SMTP.Username)
+}
+
+// Route mirrors protection.Route: the declaration decides nothing, the legacy gate runs unchanged.
+func (passThrough) Route(_ authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if legacy != nil {
+			legacy(c)
+		}
+	}
 }

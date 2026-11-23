@@ -12,6 +12,7 @@ laboratory, while the laboratory also works on its own.
 - [Requirements](#requirements)
 - [Run locally](#run-locally)
 - [Configuration](#configuration)
+- [Second factor and key rotation](#second-factor-and-key-rotation)
 - [Development](#development)
 - [Releases](#releases)
 - [License](#license)
@@ -103,6 +104,20 @@ required value.
 
 Everything else is optional with a default: HTTP and TLS listeners, SMTP, object storage, Google sign-in, laboratory
 agent bootstrap, rate limits and data retention periods.
+
+## Second factor and key rotation
+
+An authenticator app (TOTP, `user_totp`) and recovery codes (`user_recovery_codes`) back the step-up of the access model.
+Both depend on the platform key (`PLATFORM_SECRETS_KEY`, or derived from `SECRETS_MASTER_KEY`):
+
+- The TOTP secrets are sealed with it. `keys check` counts them (`user_totp.secret_ciphertext`), a secret sealed by an older
+  key is sealed again on its next use, and the daemon does not start while secrets exist and no platform key is set.
+- The recovery codes are stored as HMACs with a key derived from each key of the ring; a code is checked against every key,
+  so a rotation keeps them working. **Dropping a key from the ring invalidates every recovery code hashed under it**, and
+  `keys check` cannot see that (a hash names no key). Before retiring a platform key, let the people with a second factor
+  make new codes (`POST /api/auth/recovery-codes`, which hashes under the current key), or accept that their old codes stop
+  working.
+- `AUTHZ_STEP_UP_REQUIRED` and `AUTHZ_SECOND_FACTOR_REQUIRED` (both default `false`) switch the enforcement on.
 
 ## Files bucket encryption
 

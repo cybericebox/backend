@@ -20,6 +20,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	assistantHandler "github.com/cybericebox/backend/internal/delivery/controller/http/handler/assistant"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/sse"
@@ -804,6 +805,15 @@ func TestErrorsAreOurEnvelopeWithTheCatalogCodeAndNeverTheBrainsBody(t *testing.
 		}
 		if strings.Contains(raw, "secret_code") || strings.Contains(raw, "brain private text") || strings.Contains(raw, "leak") {
 			t.Errorf("brain %d: the brain's body reached the page: %s", brainStatus, raw)
+		}
+	}
+}
+
+// Route mirrors protection.Route: the declaration decides nothing, the legacy gate runs unchanged.
+func (protector) Route(_ authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if legacy != nil {
+			legacy(c)
 		}
 	}
 }

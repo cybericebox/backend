@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	errorJournalModel "github.com/cybericebox/backend/internal/model/errorJournal"
 	"github.com/cybericebox/backend/internal/model/rbac"
@@ -307,6 +308,15 @@ func TestSampleCarriesTheDispatchOfAMailFailure(t *testing.T) {
 	for _, details := range []map[string]string{nil, {"dispatch_id": "not-a-uuid"}, {"other": "x"}} {
 		if got := sampleOf(errorJournalModel.Sample{Details: details}); got.DispatchID != nil {
 			t.Fatalf("no dispatch for %v: %v", details, got.DispatchID)
+		}
+	}
+}
+
+// Route mirrors protection.Route: the declaration decides nothing, the legacy gate runs unchanged.
+func (g *gateRecorder) Route(_ authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if legacy != nil {
+			legacy(c)
 		}
 	}
 }
