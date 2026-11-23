@@ -11,3 +11,8 @@ DELETE /api/auth/passkeys/:id | A.3 #30: own passkey (self)
 DELETE /api/auth/sessions | A.3 #39: own other sessions (self)
 DELETE /api/auth/sessions/:id | A.3 #41: own session (self)
 PATCH /api/users/:userID/role | A.3 #690: a role change revokes and grants, all-of access.grants.create and access.grants.delete
+DELETE /api/settings/archive-limits | A.3 #603: reset to the default, platform.settings.update
+DELETE /api/settings/image-registry | A.3 #606: clears the image registry settings (a setting, clearSettings), platform.settings.update
+DELETE /api/settings/node-profiles | A.3 #611: reset to the default, platform.settings.update
+DELETE /api/settings/retention | A.3 #617: reset to the default, platform.settings.update
+DELETE /api/settings/test-runs | A.3 #620: reset to the default, platform.settings.update

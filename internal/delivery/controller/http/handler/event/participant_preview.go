@@ -3,20 +3,22 @@ package event
 import (
 	"context"
 	"fmt"
-	"github.com/cybericebox/backend/internal/delivery/controller/http/download"
 	"io"
 	"mime"
 	"net/http"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/gofrs/uuid"
+
+	"github.com/cybericebox/backend/internal/authz"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/download"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 	mediaModel "github.com/cybericebox/backend/internal/model/media"
 	"github.com/cybericebox/backend/internal/model/rbac"
 	eventUseCase "github.com/cybericebox/backend/internal/useCase/event"
 	"github.com/cybericebox/backend/pkg/labaccess"
-	"github.com/gin-gonic/gin"
-	"github.com/gofrs/uuid"
 )
 
 type previewFlagRequest struct {
@@ -49,9 +51,9 @@ type previewUseCase interface {
 
 func (h *Handler) initPreviewAPI(router *gin.RouterGroup) {
 	defaults := router.Group("settings/participant-preview")
-	defaults.GET("", h.prot.RequirePermission(rbac.PermPlatformSettingsRead), h.getPreviewDefaults)
-	defaults.PUT("", h.prot.RequirePermission(rbac.PermPlatformSettingsWrite), h.putPreviewDefaults)
-	defaults.GET("catalog", h.prot.RequirePermission(rbac.PermPlatformSettingsRead), h.previewCatalog)
+	defaults.GET("", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsRead), h.prot.RequirePermission(rbac.PermPlatformSettingsRead)), h.getPreviewDefaults)
+	defaults.PUT("", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsUpdate), h.prot.RequirePermission(rbac.PermPlatformSettingsWrite)), h.putPreviewDefaults)
+	defaults.GET("catalog", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsRead), h.prot.RequirePermission(rbac.PermPlatformSettingsRead)), h.previewCatalog)
 	preview := router.Group("events/:id/manage/participant-preview", h.prot.RequirePermission(rbac.PermSelf))
 	// Preview reads also require manage access; observer/read roles cannot enter participant simulation.
 	preview.GET("settings", h.requireManage, h.getPreviewSettings)

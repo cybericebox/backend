@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	platformSettingsModel "github.com/cybericebox/backend/internal/model/platformSettings"
 	"github.com/cybericebox/backend/internal/model/rbac"
@@ -167,6 +168,15 @@ func TestGetSetting_CarriesTheDescriptionOfAKnownKey(t *testing.T) {
 				assert.NotEmpty(t, body.Data.Description.Uk)
 				assert.NotEmpty(t, body.Data.Description.En)
 			}
+		}
+	}
+}
+
+// Route mirrors protection.Route: the declaration decides nothing, the legacy gate runs unchanged.
+func (fp *fakeProt) Route(_ authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if legacy != nil {
+			legacy(c)
 		}
 	}
 }

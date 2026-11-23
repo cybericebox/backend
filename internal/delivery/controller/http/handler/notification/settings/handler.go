@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	settingsModel "github.com/cybericebox/backend/internal/model/notification/settings"
 	"github.com/cybericebox/backend/internal/model/rbac"
@@ -21,6 +22,7 @@ type (
 	// IProtection is the subset of the protection middleware this handler needs.
 	IProtection interface {
 		RequirePermission(required rbac.Permission) gin.HandlerFunc
+		Route(decl authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc
 	}
 
 	IUseCase interface {
@@ -106,17 +108,17 @@ func NewSettingsAPIHandler(useCase IUseCase, prot IProtection) *Handler {
 func (h *Handler) Init(router *gin.RouterGroup) {
 	g := router.Group("settings")
 	{
-		g.GET("global", h.prot.RequirePermission(rbac.PermNotificationsSettingsRead), h.listGlobal)
+		g.GET("global", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsSettingsRead), h.prot.RequirePermission(rbac.PermNotificationsSettingsRead)), h.listGlobal)
 		g.PUT(
 			"global",
-			h.prot.RequirePermission(rbac.PermNotificationsSettingsWrite),
+			h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsSettingsUpdate), h.prot.RequirePermission(rbac.PermNotificationsSettingsWrite)),
 			h.upsertGlobal,
 		)
-		g.GET("user", h.prot.RequirePermission(rbac.PermNotificationsSelf), h.listUser)
-		g.PUT("user", h.prot.RequirePermission(rbac.PermNotificationsSelf), h.upsertUser)
+		g.GET("user", h.prot.Route(authz.AnyOf(authz.SourceSelf, authz.NotificationsSelf), h.prot.RequirePermission(rbac.PermNotificationsSelf)), h.listUser)
+		g.PUT("user", h.prot.Route(authz.AnyOf(authz.SourceSelf, authz.NotificationsSelf), h.prot.RequirePermission(rbac.PermNotificationsSelf)), h.upsertUser)
 	}
-	router.GET("signal-defaults", h.prot.RequirePermission(rbac.PermNotificationsSettingsRead), h.listSignalDefaults)
-	router.PUT("signal-defaults", h.prot.RequirePermission(rbac.PermNotificationsSettingsWrite), h.upsertSignalDefault)
+	router.GET("signal-defaults", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsSettingsRead), h.prot.RequirePermission(rbac.PermNotificationsSettingsRead)), h.listSignalDefaults)
+	router.PUT("signal-defaults", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsSettingsUpdate), h.prot.RequirePermission(rbac.PermNotificationsSettingsWrite)), h.upsertSignalDefault)
 }
 
 // listGlobal godoc

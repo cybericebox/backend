@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/audit"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	platformSettingsModel "github.com/cybericebox/backend/internal/model/platformSettings"
@@ -56,6 +57,7 @@ type (
 	// IProtection is the subset of the protection middleware this handler needs.
 	IProtection interface {
 		RequirePermission(required rbac.Permission) gin.HandlerFunc
+		Route(decl authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc
 	}
 )
 
@@ -112,11 +114,11 @@ func NewSettingAPIHandler(useCase IUseCase, prot IProtection) *Handler {
 func (h *Handler) Init(router *gin.RouterGroup) {
 	settingsAPI := router.Group("settings")
 	{
-		settingsAPI.GET("", h.prot.RequirePermission(rbac.PermPlatformSettingsRead), h.listSettings)
-		settingsAPI.GET(":key", h.prot.RequirePermission(rbac.PermPlatformSettingsRead), h.getSetting)
-		settingsAPI.PUT(":key", h.prot.RequirePermission(rbac.PermPlatformSettingsWrite), h.upsertSetting)
+		settingsAPI.GET("", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsRead), h.prot.RequirePermission(rbac.PermPlatformSettingsRead)), h.listSettings)
+		settingsAPI.GET(":key", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsRead), h.prot.RequirePermission(rbac.PermPlatformSettingsRead)), h.getSetting)
+		settingsAPI.PUT(":key", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsUpdate), h.prot.RequirePermission(rbac.PermPlatformSettingsWrite)), h.upsertSetting)
 		// No public site reads platform settings: every route, the bare value included, is for platform administrators.
-		settingsAPI.GET(":key/value", h.prot.RequirePermission(rbac.PermPlatformSettingsRead), h.getSettingValue)
+		settingsAPI.GET(":key/value", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsRead), h.prot.RequirePermission(rbac.PermPlatformSettingsRead)), h.getSettingValue)
 	}
 	h.initTyped(settingsAPI)
 }

@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
 	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
@@ -22,6 +23,7 @@ type (
 	// IProtection is the subset of the protection middleware this handler needs.
 	IProtection interface {
 		RequirePermission(required rbac.Permission) gin.HandlerFunc
+		Route(decl authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc
 	}
 
 	IUseCase interface {
@@ -50,7 +52,7 @@ func NewTestAPIHandler(useCase IUseCase, prot IProtection) *Handler {
 }
 
 func (h *Handler) Init(router *gin.RouterGroup) {
-	router.POST("test", h.prot.RequirePermission(rbac.PermNotificationsTest), h.testSend)
+	router.POST("test", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsTest), h.prot.RequirePermission(rbac.PermNotificationsTest)), h.testSend)
 }
 
 // testSend godoc

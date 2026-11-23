@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	"github.com/cybericebox/backend/internal/model/rbac"
 	imageRegistryUseCase "github.com/cybericebox/backend/internal/useCase/imageRegistry"
@@ -45,6 +46,7 @@ type (
 	// IProtection is the subset of the protection middleware this handler needs.
 	IProtection interface {
 		RequirePermission(required rbac.Permission) gin.HandlerFunc
+		Route(decl authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc
 	}
 )
 
@@ -119,11 +121,11 @@ func New(useCase IUseCase, prot IProtection) *Handler {
 func (h *Handler) Init(router *gin.RouterGroup) {
 	api := router.Group("settings/image-registry")
 	{
-		api.GET("", h.prot.RequirePermission(rbac.PermPlatformSettingsRead), h.getSettings)
-		api.PUT("", h.prot.RequirePermission(rbac.PermPlatformSettingsWrite), h.saveSettings)
-		api.DELETE("", h.prot.RequirePermission(rbac.PermPlatformSettingsWrite), h.clearSettings)
-		api.POST("repositories", h.prot.RequirePermission(rbac.PermPlatformSettingsWrite), h.listRepositories)
-		api.POST("check", h.prot.RequirePermission(rbac.PermPlatformSettingsWrite), h.checkNow)
+		api.GET("", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsRead), h.prot.RequirePermission(rbac.PermPlatformSettingsRead)), h.getSettings)
+		api.PUT("", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsUpdate), h.prot.RequirePermission(rbac.PermPlatformSettingsWrite)), h.saveSettings)
+		api.DELETE("", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsUpdate), h.prot.RequirePermission(rbac.PermPlatformSettingsWrite)), h.clearSettings)
+		api.POST("repositories", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsUpdate), h.prot.RequirePermission(rbac.PermPlatformSettingsWrite)), h.listRepositories)
+		api.POST("check", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsUpdate), h.prot.RequirePermission(rbac.PermPlatformSettingsWrite)), h.checkNow)
 	}
 	h.initEventSecrets(router)
 	h.initEventImages(router)

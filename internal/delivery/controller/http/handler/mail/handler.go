@@ -9,13 +9,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
 	"io"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/handler/notification/stats"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	mailModel "github.com/cybericebox/backend/internal/model/mail"
 	dispatchModel "github.com/cybericebox/backend/internal/model/notification/dispatch"
@@ -31,6 +32,7 @@ type (
 
 	IProtection interface {
 		RequirePermission(required rbac.Permission) gin.HandlerFunc
+		Route(decl authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc
 	}
 
 	IUseCase interface {
@@ -147,18 +149,18 @@ func NewMailAPIHandler(useCase IUseCase, prot IProtection) *Handler {
 
 func (h *Handler) Init(router *gin.RouterGroup) {
 	platform := router.Group("mail/settings")
-	platform.GET("", h.prot.RequirePermission(rbac.PermPlatformSettingsRead), h.getPlatform)
-	platform.PUT("identity", h.prot.RequirePermission(rbac.PermPlatformSettingsWrite), h.updatePlatformIdentity)
-	platform.PUT("footer", h.prot.RequirePermission(rbac.PermPlatformSettingsWrite), h.updatePlatformFooter)
-	platform.POST("footer/preview", h.prot.RequirePermission(rbac.PermPlatformSettingsWrite), h.previewPlatformFooter)
+	platform.GET("", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsRead), h.prot.RequirePermission(rbac.PermPlatformSettingsRead)), h.getPlatform)
+	platform.PUT("identity", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsUpdate), h.prot.RequirePermission(rbac.PermPlatformSettingsWrite)), h.updatePlatformIdentity)
+	platform.PUT("footer", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsUpdate), h.prot.RequirePermission(rbac.PermPlatformSettingsWrite)), h.updatePlatformFooter)
+	platform.POST("footer/preview", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsUpdate), h.prot.RequirePermission(rbac.PermPlatformSettingsWrite)), h.previewPlatformFooter)
 	write := h.prot.RequirePermission(rbac.PermPlatformSettingsWrite)
-	platform.POST("providers", write, h.createProvider)
-	platform.PUT("providers/order", write, h.reorderProviders)
-	platform.POST("providers/test", write, h.testProviderForm)
-	platform.PUT("providers/:providerId", write, h.updateProvider)
-	platform.PATCH("providers/:providerId/enabled", write, h.setProviderEnabled)
-	platform.DELETE("providers/:providerId", write, h.deleteProvider)
-	platform.POST("providers/:providerId/test", write, h.testProvider)
+	platform.POST("providers", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsUpdate), write), h.createProvider)
+	platform.PUT("providers/order", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsUpdate), write), h.reorderProviders)
+	platform.POST("providers/test", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsUpdate), write), h.testProviderForm)
+	platform.PUT("providers/:providerId", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsUpdate), write), h.updateProvider)
+	platform.PATCH("providers/:providerId/enabled", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsUpdate), write), h.setProviderEnabled)
+	platform.DELETE("providers/:providerId", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsDelete), write), h.deleteProvider)
+	platform.POST("providers/:providerId/test", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsUpdate), write), h.testProvider)
 
 	manage := router.Group("events/:id/manage/mail", h.prot.RequirePermission(rbac.PermSelf))
 	manage.GET("", h.requireRead, h.getEvent)

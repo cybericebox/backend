@@ -534,151 +534,151 @@ DELETE /api/exercises/uploads/:uploadID | gate: self | layers: - | keys: ?
 GET    /api/exercises/uploads/:uploadID | gate: self | layers: - | keys: ?
 PUT    /api/exercises/uploads/:uploadID/chunks/:index | gate: self | layers: middleware.RawBody | keys: ?
 POST   /api/exercises/uploads/:uploadID/complete | gate: self | layers: download.LongOperation.func | keys: ?
-GET    /api/infrastructure/agents | gate: infrastructure.read | layers: - | keys: ?
-POST   /api/infrastructure/agents | gate: infrastructure.write | layers: - | keys: ?
-DELETE /api/infrastructure/agents/:agentID | gate: infrastructure.write | layers: - | keys: ?
-PUT    /api/infrastructure/agents/:agentID | gate: infrastructure.write | layers: - | keys: ?
-POST   /api/infrastructure/agents/:agentID/check | gate: infrastructure.read | layers: - | keys: ?
-GET    /api/infrastructure/agents/:agentID/delete-preview | gate: infrastructure.read | layers: - | keys: ?
-POST   /api/infrastructure/agents/:agentID/reconnect | gate: infrastructure.write | layers: - | keys: ?
-POST   /api/infrastructure/agents/:agentID/renew-certificate | gate: infrastructure.write | layers: - | keys: ?
-POST   /api/infrastructure/agents/:agentID/rotate-access-key | gate: infrastructure.write | layers: - | keys: ?
-GET    /api/infrastructure/calendar/alarms | gate: infrastructure.read | layers: - | keys: ?
-POST   /api/infrastructure/calendar/alarms/:alarmID/acknowledge | gate: infrastructure.write | layers: - | keys: ?
-GET    /api/infrastructure/calendar/capacity | gate: infrastructure.read | layers: - | keys: ?
-GET    /api/infrastructure/calendar/change-requests | gate: infrastructure.read | layers: - | keys: ?
-POST   /api/infrastructure/calendar/change-requests/:requestID/decision | gate: infrastructure.write | layers: - | keys: ?
-DELETE /api/infrastructure/calendar/events/:eventID/reservation | gate: infrastructure.write | layers: - | keys: ?
-GET    /api/infrastructure/calendar/events/:eventID/reservation | gate: infrastructure.read | layers: - | keys: ?
-PUT    /api/infrastructure/calendar/events/:eventID/reservation | gate: infrastructure.write | layers: - | keys: ?
-POST   /api/infrastructure/calendar/recheck | gate: infrastructure.write | layers: - | keys: ?
-POST   /api/infrastructure/calendar/reservations/:reservationID/replan | gate: infrastructure.write | layers: - | keys: ?
-GET    /api/infrastructure/calendar/settings | gate: infrastructure.read | layers: - | keys: ?
-PUT    /api/infrastructure/calendar/settings | gate: infrastructure.write | layers: - | keys: ?
-GET    /api/infrastructure/calendar/stats | gate: infrastructure.read | layers: - | keys: ?
-GET    /api/infrastructure/calendar/timeline | gate: infrastructure.read | layers: - | keys: ?
-GET    /api/infrastructure/monitoring/capacity/current | gate: infrastructure.read | layers: - | keys: ?
-GET    /api/infrastructure/monitoring/capacity/observations | gate: infrastructure.read | layers: - | keys: ?
-GET    /api/infrastructure/monitoring/current | gate: infrastructure.read | layers: - | keys: ?
-GET    /api/infrastructure/monitoring/observations | gate: infrastructure.read | layers: - | keys: ?
-GET    /api/infrastructure/stands | gate: infrastructure.read | layers: - | keys: ?
-POST   /api/infrastructure/stands/:eventID/:teamID/challenges/:challengeID/devices/:device/rescue | gate: infrastructure.write | layers: - | keys: ?
-POST   /api/infrastructure/stands/:eventID/:teamID/challenges/:challengeID/devices/:device/reset | gate: infrastructure.write | layers: - | keys: ?
-GET    /api/infrastructure/stands/:eventID/:teamID/detail | gate: infrastructure.read | layers: - | keys: ?
-POST   /api/infrastructure/stands/:eventID/:teamID/recreate | gate: infrastructure.write | layers: - | keys: ?
-POST   /api/infrastructure/stands/bulk/recreate | gate: infrastructure.write | layers: - | keys: ?
-GET    /api/infrastructure/stands/events | gate: infrastructure.read | layers: - | keys: ?
-GET    /api/infrastructure/stands/facets | gate: infrastructure.read | layers: - | keys: ?
-GET    /api/infrastructure/status | gate: infrastructure.read | layers: - | keys: ?
-GET    /api/infrastructure/summary | gate: infrastructure.read | layers: - | keys: ?
-GET    /api/infrastructure/test-labs | gate: infrastructure.read | layers: - | keys: ?
-GET    /api/infrastructure/test-labs/:labID/detail | gate: infrastructure.read | layers: - | keys: ?
-POST   /api/infrastructure/test-labs/:labID/devices/:device/rescue | gate: infrastructure.write | layers: - | keys: ?
-POST   /api/infrastructure/test-labs/:labID/devices/:device/reset | gate: infrastructure.write | layers: - | keys: ?
-POST   /api/infrastructure/test-labs/:labID/terminate | gate: infrastructure.write | layers: - | keys: ?
-POST   /api/infrastructure/test-labs/bulk/terminate | gate: infrastructure.write | layers: - | keys: ?
-GET    /api/infrastructure/test-labs/facets | gate: infrastructure.read | layers: - | keys: ?
-GET    /api/mail/settings | gate: platform.settings.read | layers: - | keys: ?
-PUT    /api/mail/settings/footer | gate: platform.settings.write | layers: - | keys: ?
-POST   /api/mail/settings/footer/preview | gate: platform.settings.write | layers: - | keys: ?
-PUT    /api/mail/settings/identity | gate: platform.settings.write | layers: - | keys: ?
-POST   /api/mail/settings/providers | gate: platform.settings.write | layers: - | keys: ?
-DELETE /api/mail/settings/providers/:providerId | gate: platform.settings.write | layers: - | keys: ?
-PUT    /api/mail/settings/providers/:providerId | gate: platform.settings.write | layers: - | keys: ?
-PATCH  /api/mail/settings/providers/:providerId/enabled | gate: platform.settings.write | layers: - | keys: ?
-POST   /api/mail/settings/providers/:providerId/test | gate: platform.settings.write | layers: - | keys: ?
-PUT    /api/mail/settings/providers/order | gate: platform.settings.write | layers: - | keys: ?
-POST   /api/mail/settings/providers/test | gate: platform.settings.write | layers: - | keys: ?
+GET    /api/infrastructure/agents | gate: infrastructure.read | layers: - | keys: infrastructure.read @ platform
+POST   /api/infrastructure/agents | gate: infrastructure.write | layers: - | keys: infrastructure.update @ platform
+DELETE /api/infrastructure/agents/:agentID | gate: infrastructure.write | layers: - | keys: infrastructure.delete @ platform
+PUT    /api/infrastructure/agents/:agentID | gate: infrastructure.write | layers: - | keys: infrastructure.update @ platform
+POST   /api/infrastructure/agents/:agentID/check | gate: infrastructure.read | layers: - | keys: infrastructure.read @ platform
+GET    /api/infrastructure/agents/:agentID/delete-preview | gate: infrastructure.read | layers: - | keys: infrastructure.read @ platform
+POST   /api/infrastructure/agents/:agentID/reconnect | gate: infrastructure.write | layers: - | keys: infrastructure.update @ platform
+POST   /api/infrastructure/agents/:agentID/renew-certificate | gate: infrastructure.write | layers: - | keys: infrastructure.update @ platform
+POST   /api/infrastructure/agents/:agentID/rotate-access-key | gate: infrastructure.write | layers: - | keys: infrastructure.update @ platform
+GET    /api/infrastructure/calendar/alarms | gate: infrastructure.read | layers: - | keys: infrastructure.read @ platform
+POST   /api/infrastructure/calendar/alarms/:alarmID/acknowledge | gate: infrastructure.write | layers: - | keys: infrastructure.update @ platform
+GET    /api/infrastructure/calendar/capacity | gate: infrastructure.read | layers: - | keys: infrastructure.read @ platform
+GET    /api/infrastructure/calendar/change-requests | gate: infrastructure.read | layers: - | keys: infrastructure.read @ platform
+POST   /api/infrastructure/calendar/change-requests/:requestID/decision | gate: infrastructure.write | layers: - | keys: infrastructure.update @ platform
+DELETE /api/infrastructure/calendar/events/:eventID/reservation | gate: infrastructure.write | layers: - | keys: infrastructure.delete @ platform
+GET    /api/infrastructure/calendar/events/:eventID/reservation | gate: infrastructure.read | layers: - | keys: infrastructure.read @ platform
+PUT    /api/infrastructure/calendar/events/:eventID/reservation | gate: infrastructure.write | layers: - | keys: infrastructure.update @ platform
+POST   /api/infrastructure/calendar/recheck | gate: infrastructure.write | layers: - | keys: infrastructure.update @ platform
+POST   /api/infrastructure/calendar/reservations/:reservationID/replan | gate: infrastructure.write | layers: - | keys: infrastructure.update @ platform
+GET    /api/infrastructure/calendar/settings | gate: infrastructure.read | layers: - | keys: infrastructure.read @ platform
+PUT    /api/infrastructure/calendar/settings | gate: infrastructure.write | layers: - | keys: infrastructure.update @ platform
+GET    /api/infrastructure/calendar/stats | gate: infrastructure.read | layers: - | keys: infrastructure.read @ platform
+GET    /api/infrastructure/calendar/timeline | gate: infrastructure.read | layers: - | keys: infrastructure.read @ platform
+GET    /api/infrastructure/monitoring/capacity/current | gate: infrastructure.read | layers: - | keys: infrastructure.read @ platform
+GET    /api/infrastructure/monitoring/capacity/observations | gate: infrastructure.read | layers: - | keys: infrastructure.read @ platform
+GET    /api/infrastructure/monitoring/current | gate: infrastructure.read | layers: - | keys: infrastructure.read @ platform
+GET    /api/infrastructure/monitoring/observations | gate: infrastructure.read | layers: - | keys: infrastructure.read @ platform
+GET    /api/infrastructure/stands | gate: infrastructure.read | layers: - | keys: infrastructure.read @ platform
+POST   /api/infrastructure/stands/:eventID/:teamID/challenges/:challengeID/devices/:device/rescue | gate: infrastructure.write | layers: - | keys: infrastructure.update @ platform
+POST   /api/infrastructure/stands/:eventID/:teamID/challenges/:challengeID/devices/:device/reset | gate: infrastructure.write | layers: - | keys: infrastructure.update @ platform
+GET    /api/infrastructure/stands/:eventID/:teamID/detail | gate: infrastructure.read | layers: - | keys: infrastructure.read @ platform
+POST   /api/infrastructure/stands/:eventID/:teamID/recreate | gate: infrastructure.write | layers: - | keys: infrastructure.update @ platform
+POST   /api/infrastructure/stands/bulk/recreate | gate: infrastructure.write | layers: - | keys: infrastructure.update @ platform
+GET    /api/infrastructure/stands/events | gate: infrastructure.read | layers: - | keys: infrastructure.read @ platform
+GET    /api/infrastructure/stands/facets | gate: infrastructure.read | layers: - | keys: infrastructure.read @ platform
+GET    /api/infrastructure/status | gate: infrastructure.read | layers: - | keys: infrastructure.read @ platform
+GET    /api/infrastructure/summary | gate: infrastructure.read | layers: - | keys: infrastructure.read @ platform
+GET    /api/infrastructure/test-labs | gate: infrastructure.read | layers: - | keys: infrastructure.read @ platform
+GET    /api/infrastructure/test-labs/:labID/detail | gate: infrastructure.read | layers: - | keys: infrastructure.read @ platform
+POST   /api/infrastructure/test-labs/:labID/devices/:device/rescue | gate: infrastructure.write | layers: - | keys: infrastructure.update @ platform
+POST   /api/infrastructure/test-labs/:labID/devices/:device/reset | gate: infrastructure.write | layers: - | keys: infrastructure.update @ platform
+POST   /api/infrastructure/test-labs/:labID/terminate | gate: infrastructure.write | layers: - | keys: infrastructure.update @ platform
+POST   /api/infrastructure/test-labs/bulk/terminate | gate: infrastructure.write | layers: - | keys: infrastructure.update @ platform
+GET    /api/infrastructure/test-labs/facets | gate: infrastructure.read | layers: - | keys: infrastructure.read @ platform
+GET    /api/mail/settings | gate: platform.settings.read | layers: - | keys: platform.settings.read @ platform
+PUT    /api/mail/settings/footer | gate: platform.settings.write | layers: - | keys: platform.settings.update @ platform
+POST   /api/mail/settings/footer/preview | gate: platform.settings.write | layers: - | keys: platform.settings.update @ platform
+PUT    /api/mail/settings/identity | gate: platform.settings.write | layers: - | keys: platform.settings.update @ platform
+POST   /api/mail/settings/providers | gate: platform.settings.write | layers: - | keys: platform.settings.update @ platform
+DELETE /api/mail/settings/providers/:providerId | gate: platform.settings.write | layers: - | keys: platform.settings.delete @ platform
+PUT    /api/mail/settings/providers/:providerId | gate: platform.settings.write | layers: - | keys: platform.settings.update @ platform
+PATCH  /api/mail/settings/providers/:providerId/enabled | gate: platform.settings.write | layers: - | keys: platform.settings.update @ platform
+POST   /api/mail/settings/providers/:providerId/test | gate: platform.settings.write | layers: - | keys: platform.settings.update @ platform
+PUT    /api/mail/settings/providers/order | gate: platform.settings.write | layers: - | keys: platform.settings.update @ platform
+POST   /api/mail/settings/providers/test | gate: platform.settings.write | layers: - | keys: platform.settings.update @ platform
 POST   /api/me/draft-key | gate: self | layers: auth.requireEditorOrigin,middleware.RateLimitPerUser.func | keys: self @ self
 GET    /api/notifications/banners | gate: banners.view(public) | layers: middleware.(*SiteResolver).ResolveSite.func | keys: ?
-PATCH  /api/notifications/banners/:id/dismiss | gate: notifications.self | layers: - | keys: ?
-GET    /api/notifications/broadcasts | gate: notifications.broadcast | layers: - | keys: ?
-POST   /api/notifications/broadcasts | gate: notifications.broadcast | layers: - | keys: ?
-GET    /api/notifications/broadcasts/:broadcastID | gate: notifications.broadcast | layers: - | keys: ?
-POST   /api/notifications/broadcasts/:broadcastID/cancel | gate: notifications.broadcast | layers: - | keys: ?
-GET    /api/notifications/broadcasts/:broadcastID/deliveries | gate: notifications.broadcast | layers: - | keys: ?
-GET    /api/notifications/broadcasts/:broadcastID/deliveries/export | gate: notifications.broadcast | layers: - | keys: ?
-POST   /api/notifications/broadcasts/audience-count | gate: notifications.broadcast | layers: - | keys: ?
-GET    /api/notifications/dispatches | gate: notifications.templates.read | layers: - | keys: ?
-GET    /api/notifications/dispatches/:id | gate: notifications.templates.read | layers: - | keys: ?
-GET    /api/notifications/dispatches/facets | gate: notifications.templates.read | layers: - | keys: ?
-POST   /api/notifications/dispatches/resend | gate: notifications.broadcast | layers: - | keys: ?
-GET    /api/notifications/inbox | gate: notifications.self | layers: middleware.(*SiteResolver).ResolveSite.func | keys: ?
-PATCH  /api/notifications/inbox/:id/read | gate: notifications.self | layers: - | keys: ?
-POST   /api/notifications/inbox/:id/resolve | gate: notifications.self | layers: - | keys: ?
-PATCH  /api/notifications/inbox/read-all | gate: notifications.self | layers: middleware.(*SiteResolver).ResolveSite.func | keys: ?
+PATCH  /api/notifications/banners/:id/dismiss | gate: notifications.self | layers: - | keys: notifications.self @ self
+GET    /api/notifications/broadcasts | gate: notifications.broadcast | layers: - | keys: notifications.broadcast @ platform
+POST   /api/notifications/broadcasts | gate: notifications.broadcast | layers: - | keys: notifications.broadcast @ platform
+GET    /api/notifications/broadcasts/:broadcastID | gate: notifications.broadcast | layers: - | keys: notifications.broadcast @ platform
+POST   /api/notifications/broadcasts/:broadcastID/cancel | gate: notifications.broadcast | layers: - | keys: notifications.broadcast @ platform
+GET    /api/notifications/broadcasts/:broadcastID/deliveries | gate: notifications.broadcast | layers: - | keys: notifications.broadcast @ platform
+GET    /api/notifications/broadcasts/:broadcastID/deliveries/export | gate: notifications.broadcast | layers: - | keys: notifications.broadcast @ platform
+POST   /api/notifications/broadcasts/audience-count | gate: notifications.broadcast | layers: - | keys: notifications.broadcast @ platform
+GET    /api/notifications/dispatches | gate: notifications.templates.read | layers: - | keys: notifications.templates.read @ platform
+GET    /api/notifications/dispatches/:id | gate: notifications.templates.read | layers: - | keys: notifications.templates.read @ platform
+GET    /api/notifications/dispatches/facets | gate: notifications.templates.read | layers: - | keys: notifications.templates.read @ platform
+POST   /api/notifications/dispatches/resend | gate: notifications.broadcast | layers: - | keys: notifications.broadcast @ platform
+GET    /api/notifications/inbox | gate: notifications.self | layers: middleware.(*SiteResolver).ResolveSite.func | keys: notifications.self @ self
+PATCH  /api/notifications/inbox/:id/read | gate: notifications.self | layers: - | keys: notifications.self @ self
+POST   /api/notifications/inbox/:id/resolve | gate: notifications.self | layers: - | keys: notifications.self @ self
+PATCH  /api/notifications/inbox/read-all | gate: notifications.self | layers: middleware.(*SiteResolver).ResolveSite.func | keys: notifications.self @ self
 GET    /api/notifications/pulse | gate: banners.view(public) | layers: middleware.(*SiteResolver).ResolveSite.func | keys: ?
-GET    /api/notifications/settings/global | gate: notifications.settings.read | layers: - | keys: ?
-PUT    /api/notifications/settings/global | gate: notifications.settings.write | layers: - | keys: ?
-GET    /api/notifications/settings/user | gate: notifications.self | layers: - | keys: ?
-PUT    /api/notifications/settings/user | gate: notifications.self | layers: - | keys: ?
-GET    /api/notifications/signal-defaults | gate: notifications.settings.read | layers: - | keys: ?
-PUT    /api/notifications/signal-defaults | gate: notifications.settings.write | layers: - | keys: ?
-GET    /api/notifications/site-banners | gate: notifications.banners.read | layers: - | keys: ?
-POST   /api/notifications/site-banners | gate: notifications.banners.write | layers: - | keys: ?
-DELETE /api/notifications/site-banners/:bannerID | gate: notifications.banners.write | layers: - | keys: ?
-PUT    /api/notifications/site-banners/:bannerID | gate: notifications.banners.write | layers: - | keys: ?
-GET    /api/notifications/stats | gate: notifications.templates.read | layers: - | keys: ?
-GET    /api/notifications/templates/custom | gate: notifications.broadcast | layers: - | keys: ?
-POST   /api/notifications/templates/custom | gate: notifications.broadcast | layers: - | keys: ?
-DELETE /api/notifications/templates/custom/:templateID | gate: notifications.broadcast | layers: - | keys: ?
-GET    /api/notifications/templates/custom/:templateID | gate: notifications.broadcast | layers: - | keys: ?
-PUT    /api/notifications/templates/custom/:templateID | gate: notifications.broadcast | layers: - | keys: ?
-GET    /api/notifications/templates/email | gate: notifications.templates.read | layers: - | keys: ?
-POST   /api/notifications/templates/email | gate: notifications.templates.write | layers: - | keys: ?
-DELETE /api/notifications/templates/email/:id | gate: notifications.templates.write | layers: - | keys: ?
-GET    /api/notifications/templates/email/:id | gate: notifications.templates.read | layers: - | keys: ?
-PUT    /api/notifications/templates/email/:id | gate: notifications.templates.write | layers: - | keys: ?
-POST   /api/notifications/templates/email/:id/publish | gate: notifications.templates.write | layers: - | keys: ?
-POST   /api/notifications/templates/email/:id/rollback | gate: notifications.templates.write | layers: - | keys: ?
-GET    /api/notifications/templates/email/block-presets | gate: notifications.templates.read | layers: - | keys: ?
-POST   /api/notifications/templates/email/block-presets | gate: notifications.templates.write | layers: - | keys: ?
-DELETE /api/notifications/templates/email/block-presets/:id | gate: notifications.templates.write | layers: - | keys: ?
-GET    /api/notifications/templates/email/block-presets/:id | gate: notifications.templates.read | layers: - | keys: ?
-PUT    /api/notifications/templates/email/block-presets/:id | gate: notifications.templates.write | layers: - | keys: ?
-GET    /api/notifications/templates/email/brand/logo | gate: notifications.templates.read | layers: middleware.SameSiteResource | keys: ?
-POST   /api/notifications/templates/email/images | gate: notifications.templates.write | layers: - | keys: ?
-GET    /api/notifications/templates/email/images/:fileID | gate: notifications.templates.read | layers: middleware.SameSiteResource | keys: ?
-GET    /api/notifications/templates/email/latest | gate: notifications.templates.read | layers: - | keys: ?
-POST   /api/notifications/templates/email/preview | gate: notifications.templates.read | layers: - | keys: ?
-GET    /api/notifications/templates/inapp | gate: notifications.templates.read | layers: - | keys: ?
-POST   /api/notifications/templates/inapp | gate: notifications.templates.write | layers: - | keys: ?
-DELETE /api/notifications/templates/inapp/:id | gate: notifications.templates.write | layers: - | keys: ?
-GET    /api/notifications/templates/inapp/:id | gate: notifications.templates.read | layers: - | keys: ?
-PUT    /api/notifications/templates/inapp/:id | gate: notifications.templates.write | layers: - | keys: ?
-POST   /api/notifications/templates/inapp/:id/publish | gate: notifications.templates.write | layers: - | keys: ?
-POST   /api/notifications/templates/inapp/:id/rollback | gate: notifications.templates.write | layers: - | keys: ?
-GET    /api/notifications/templates/inapp/latest | gate: notifications.templates.read | layers: - | keys: ?
-POST   /api/notifications/test | gate: notifications.test | layers: - | keys: ?
-GET    /api/notifications/types | gate: notifications.templates.read | layers: - | keys: ?
-GET    /api/notifications/types/:type | gate: notifications.templates.read | layers: - | keys: ?
+GET    /api/notifications/settings/global | gate: notifications.settings.read | layers: - | keys: notifications.settings.read @ platform
+PUT    /api/notifications/settings/global | gate: notifications.settings.write | layers: - | keys: notifications.settings.update @ platform
+GET    /api/notifications/settings/user | gate: notifications.self | layers: - | keys: notifications.self @ self
+PUT    /api/notifications/settings/user | gate: notifications.self | layers: - | keys: notifications.self @ self
+GET    /api/notifications/signal-defaults | gate: notifications.settings.read | layers: - | keys: notifications.settings.read @ platform
+PUT    /api/notifications/signal-defaults | gate: notifications.settings.write | layers: - | keys: notifications.settings.update @ platform
+GET    /api/notifications/site-banners | gate: notifications.banners.read | layers: - | keys: notifications.banners.read @ platform
+POST   /api/notifications/site-banners | gate: notifications.banners.write | layers: - | keys: notifications.banners.update @ platform
+DELETE /api/notifications/site-banners/:bannerID | gate: notifications.banners.write | layers: - | keys: notifications.banners.delete @ platform
+PUT    /api/notifications/site-banners/:bannerID | gate: notifications.banners.write | layers: - | keys: notifications.banners.update @ platform
+GET    /api/notifications/stats | gate: notifications.templates.read | layers: - | keys: notifications.templates.read @ platform
+GET    /api/notifications/templates/custom | gate: notifications.broadcast | layers: - | keys: notifications.broadcast @ platform
+POST   /api/notifications/templates/custom | gate: notifications.broadcast | layers: - | keys: notifications.broadcast @ platform
+DELETE /api/notifications/templates/custom/:templateID | gate: notifications.broadcast | layers: - | keys: notifications.broadcast.delete @ platform
+GET    /api/notifications/templates/custom/:templateID | gate: notifications.broadcast | layers: - | keys: notifications.broadcast @ platform
+PUT    /api/notifications/templates/custom/:templateID | gate: notifications.broadcast | layers: - | keys: notifications.broadcast @ platform
+GET    /api/notifications/templates/email | gate: notifications.templates.read | layers: - | keys: notifications.templates.read @ platform
+POST   /api/notifications/templates/email | gate: notifications.templates.write | layers: - | keys: notifications.templates.update @ platform
+DELETE /api/notifications/templates/email/:id | gate: notifications.templates.write | layers: - | keys: notifications.templates.delete @ platform
+GET    /api/notifications/templates/email/:id | gate: notifications.templates.read | layers: - | keys: notifications.templates.read @ platform
+PUT    /api/notifications/templates/email/:id | gate: notifications.templates.write | layers: - | keys: notifications.templates.update @ platform
+POST   /api/notifications/templates/email/:id/publish | gate: notifications.templates.write | layers: - | keys: notifications.templates.update @ platform
+POST   /api/notifications/templates/email/:id/rollback | gate: notifications.templates.write | layers: - | keys: notifications.templates.update @ platform
+GET    /api/notifications/templates/email/block-presets | gate: notifications.templates.read | layers: - | keys: notifications.templates.read @ platform
+POST   /api/notifications/templates/email/block-presets | gate: notifications.templates.write | layers: - | keys: notifications.templates.update @ platform
+DELETE /api/notifications/templates/email/block-presets/:id | gate: notifications.templates.write | layers: - | keys: notifications.templates.delete @ platform
+GET    /api/notifications/templates/email/block-presets/:id | gate: notifications.templates.read | layers: - | keys: notifications.templates.read @ platform
+PUT    /api/notifications/templates/email/block-presets/:id | gate: notifications.templates.write | layers: - | keys: notifications.templates.update @ platform
+GET    /api/notifications/templates/email/brand/logo | gate: notifications.templates.read | layers: middleware.SameSiteResource | keys: notifications.templates.read @ platform
+POST   /api/notifications/templates/email/images | gate: notifications.templates.write | layers: - | keys: notifications.templates.update @ platform
+GET    /api/notifications/templates/email/images/:fileID | gate: notifications.templates.read | layers: middleware.SameSiteResource | keys: notifications.templates.read @ platform
+GET    /api/notifications/templates/email/latest | gate: notifications.templates.read | layers: - | keys: notifications.templates.read @ platform
+POST   /api/notifications/templates/email/preview | gate: notifications.templates.read | layers: - | keys: notifications.templates.read @ platform
+GET    /api/notifications/templates/inapp | gate: notifications.templates.read | layers: - | keys: notifications.templates.read @ platform
+POST   /api/notifications/templates/inapp | gate: notifications.templates.write | layers: - | keys: notifications.templates.update @ platform
+DELETE /api/notifications/templates/inapp/:id | gate: notifications.templates.write | layers: - | keys: notifications.templates.delete @ platform
+GET    /api/notifications/templates/inapp/:id | gate: notifications.templates.read | layers: - | keys: notifications.templates.read @ platform
+PUT    /api/notifications/templates/inapp/:id | gate: notifications.templates.write | layers: - | keys: notifications.templates.update @ platform
+POST   /api/notifications/templates/inapp/:id/publish | gate: notifications.templates.write | layers: - | keys: notifications.templates.update @ platform
+POST   /api/notifications/templates/inapp/:id/rollback | gate: notifications.templates.write | layers: - | keys: notifications.templates.update @ platform
+GET    /api/notifications/templates/inapp/latest | gate: notifications.templates.read | layers: - | keys: notifications.templates.read @ platform
+POST   /api/notifications/test | gate: notifications.test | layers: - | keys: notifications.test @ platform
+GET    /api/notifications/types | gate: notifications.templates.read | layers: - | keys: notifications.templates.read @ platform
+GET    /api/notifications/types/:type | gate: notifications.templates.read | layers: - | keys: notifications.templates.read @ platform
 GET    /api/render/events/:tag/manifest | gate: - | layers: eventself.(*EventRenderHandler).requireSecret | keys: ?
 GET    /api/render/events/:tag/page | gate: - | layers: eventself.(*EventRenderHandler).requireSecret | keys: ?
 GET    /api/render/key | gate: - | layers: eventself.(*EventRenderHandler).requireSecret | keys: ?
-GET    /api/settings | gate: platform.settings.read | layers: - | keys: ?
-GET    /api/settings/:key | gate: platform.settings.read | layers: - | keys: ?
-PUT    /api/settings/:key | gate: platform.settings.write | layers: - | keys: ?
-GET    /api/settings/:key/value | gate: platform.settings.read | layers: - | keys: ?
-DELETE /api/settings/archive-limits | gate: platform.settings.write | layers: - | keys: ?
-GET    /api/settings/archive-limits | gate: platform.settings.read | layers: - | keys: ?
-PUT    /api/settings/archive-limits | gate: platform.settings.write | layers: - | keys: ?
-DELETE /api/settings/image-registry | gate: platform.settings.write | layers: - | keys: ?
-GET    /api/settings/image-registry | gate: platform.settings.read | layers: - | keys: ?
-PUT    /api/settings/image-registry | gate: platform.settings.write | layers: - | keys: ?
-POST   /api/settings/image-registry/check | gate: platform.settings.write | layers: - | keys: ?
-POST   /api/settings/image-registry/repositories | gate: platform.settings.write | layers: - | keys: ?
-DELETE /api/settings/node-profiles | gate: platform.settings.write | layers: - | keys: ?
-GET    /api/settings/node-profiles | gate: platform.settings.read | layers: - | keys: ?
-PUT    /api/settings/node-profiles | gate: platform.settings.write | layers: - | keys: ?
-GET    /api/settings/participant-preview | gate: platform.settings.read | layers: - | keys: ?
-PUT    /api/settings/participant-preview | gate: platform.settings.write | layers: - | keys: ?
-GET    /api/settings/participant-preview/catalog | gate: platform.settings.read | layers: - | keys: ?
-DELETE /api/settings/retention | gate: platform.settings.write | layers: - | keys: ?
-GET    /api/settings/retention | gate: platform.settings.read | layers: - | keys: ?
-PUT    /api/settings/retention | gate: platform.settings.write | layers: - | keys: ?
-DELETE /api/settings/test-runs | gate: platform.settings.write | layers: - | keys: ?
-GET    /api/settings/test-runs | gate: platform.settings.read | layers: - | keys: ?
-PUT    /api/settings/test-runs | gate: platform.settings.write | layers: - | keys: ?
+GET    /api/settings | gate: platform.settings.read | layers: - | keys: platform.settings.read @ platform
+GET    /api/settings/:key | gate: platform.settings.read | layers: - | keys: platform.settings.read @ platform
+PUT    /api/settings/:key | gate: platform.settings.write | layers: - | keys: platform.settings.update @ platform
+GET    /api/settings/:key/value | gate: platform.settings.read | layers: - | keys: platform.settings.read @ platform
+DELETE /api/settings/archive-limits | gate: platform.settings.write | layers: - | keys: platform.settings.update @ platform
+GET    /api/settings/archive-limits | gate: platform.settings.read | layers: - | keys: platform.settings.read @ platform
+PUT    /api/settings/archive-limits | gate: platform.settings.write | layers: - | keys: platform.settings.update @ platform
+DELETE /api/settings/image-registry | gate: platform.settings.write | layers: - | keys: platform.settings.update @ platform
+GET    /api/settings/image-registry | gate: platform.settings.read | layers: - | keys: platform.settings.read @ platform
+PUT    /api/settings/image-registry | gate: platform.settings.write | layers: - | keys: platform.settings.update @ platform
+POST   /api/settings/image-registry/check | gate: platform.settings.write | layers: - | keys: platform.settings.update @ platform
+POST   /api/settings/image-registry/repositories | gate: platform.settings.write | layers: - | keys: platform.settings.update @ platform
+DELETE /api/settings/node-profiles | gate: platform.settings.write | layers: - | keys: platform.settings.update @ platform
+GET    /api/settings/node-profiles | gate: platform.settings.read | layers: - | keys: platform.settings.read @ platform
+PUT    /api/settings/node-profiles | gate: platform.settings.write | layers: - | keys: platform.settings.update @ platform
+GET    /api/settings/participant-preview | gate: platform.settings.read | layers: - | keys: platform.settings.read @ platform
+PUT    /api/settings/participant-preview | gate: platform.settings.write | layers: - | keys: platform.settings.update @ platform
+GET    /api/settings/participant-preview/catalog | gate: platform.settings.read | layers: - | keys: platform.settings.read @ platform
+DELETE /api/settings/retention | gate: platform.settings.write | layers: - | keys: platform.settings.update @ platform
+GET    /api/settings/retention | gate: platform.settings.read | layers: - | keys: platform.settings.read @ platform
+PUT    /api/settings/retention | gate: platform.settings.write | layers: - | keys: platform.settings.update @ platform
+DELETE /api/settings/test-runs | gate: platform.settings.write | layers: - | keys: platform.settings.update @ platform
+GET    /api/settings/test-runs | gate: platform.settings.read | layers: - | keys: platform.settings.read @ platform
+PUT    /api/settings/test-runs | gate: platform.settings.write | layers: - | keys: platform.settings.update @ platform
 GET    /api/users | gate: users.read | layers: - | keys: users.list @ platform
 DELETE /api/users/:userID | gate: users.delete | layers: - | keys: users.delete @ platform
 GET    /api/users/:userID | gate: users.read | layers: - | keys: users.read @ platform

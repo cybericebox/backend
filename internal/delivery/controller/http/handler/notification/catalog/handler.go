@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
 	"github.com/cybericebox/backend/internal/model/rbac"
@@ -20,6 +21,7 @@ type Handler struct {
 // IProtection is the subset of the protection middleware this handler needs.
 type IProtection interface {
 	RequirePermission(required rbac.Permission) gin.HandlerFunc
+	Route(decl authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc
 }
 
 type variableResponse struct {
@@ -39,10 +41,10 @@ func NewCatalogAPIHandler(prot IProtection) *Handler {
 }
 
 func (h *Handler) Init(router *gin.RouterGroup) {
-	router.GET("types", h.prot.RequirePermission(rbac.PermNotificationsTemplatesRead), h.listTypes)
+	router.GET("types", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsTemplatesRead), h.prot.RequirePermission(rbac.PermNotificationsTemplatesRead)), h.listTypes)
 	router.GET(
 		"types/:type",
-		h.prot.RequirePermission(rbac.PermNotificationsTemplatesRead),
+		h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsTemplatesRead), h.prot.RequirePermission(rbac.PermNotificationsTemplatesRead)),
 		h.getType,
 	)
 }

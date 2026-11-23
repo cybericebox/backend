@@ -5,14 +5,15 @@ package resourceCalendar
 
 import (
 	"context"
-	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
 	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/audit"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	"github.com/cybericebox/backend/internal/model/rbac"
 	calModel "github.com/cybericebox/backend/internal/model/resourceCalendar"
@@ -28,6 +29,7 @@ type (
 
 	IProtection interface {
 		RequirePermission(required rbac.Permission) gin.HandlerFunc
+		Route(decl authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc
 	}
 
 	IUseCase interface {
@@ -69,20 +71,20 @@ func (h *Handler) Init(router *gin.RouterGroup) {
 	write := h.prot.RequirePermission(rbac.PermInfrastructureWrite)
 	cal := router.Group("infrastructure/calendar")
 	{
-		cal.GET("timeline", read, h.getTimeline)
-		cal.GET("capacity", read, h.getCapacity)
-		cal.GET("stats", read, h.getStats)
-		cal.GET("settings", read, h.getSettings)
-		cal.PUT("settings", write, h.setSettings)
-		cal.POST("recheck", write, h.recheck)
-		cal.GET("alarms", read, h.listAlarms)
-		cal.POST("alarms/:alarmID/acknowledge", write, h.acknowledgeAlarm)
-		cal.GET("change-requests", read, h.listChangeRequests)
-		cal.POST("change-requests/:requestID/decision", write, h.decideChangeRequest)
-		cal.GET("events/:eventID/reservation", read, h.getEventReservation)
-		cal.PUT("events/:eventID/reservation", write, h.setEventReservation)
-		cal.DELETE("events/:eventID/reservation", write, h.deleteEventReservation)
-		cal.POST("reservations/:reservationID/replan", write, h.replan)
+		cal.GET("timeline", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureRead), read), h.getTimeline)
+		cal.GET("capacity", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureRead), read), h.getCapacity)
+		cal.GET("stats", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureRead), read), h.getStats)
+		cal.GET("settings", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureRead), read), h.getSettings)
+		cal.PUT("settings", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureUpdate), write), h.setSettings)
+		cal.POST("recheck", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureUpdate), write), h.recheck)
+		cal.GET("alarms", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureRead), read), h.listAlarms)
+		cal.POST("alarms/:alarmID/acknowledge", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureUpdate), write), h.acknowledgeAlarm)
+		cal.GET("change-requests", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureRead), read), h.listChangeRequests)
+		cal.POST("change-requests/:requestID/decision", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureUpdate), write), h.decideChangeRequest)
+		cal.GET("events/:eventID/reservation", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureRead), read), h.getEventReservation)
+		cal.PUT("events/:eventID/reservation", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureUpdate), write), h.setEventReservation)
+		cal.DELETE("events/:eventID/reservation", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureDelete), write), h.deleteEventReservation)
+		cal.POST("reservations/:reservationID/replan", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.InfrastructureUpdate), write), h.replan)
 	}
 
 	self := h.prot.RequirePermission(rbac.PermSelf)

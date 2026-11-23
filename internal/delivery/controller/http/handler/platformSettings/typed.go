@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/audit"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	platformSettingsModel "github.com/cybericebox/backend/internal/model/platformSettings"
@@ -55,18 +56,18 @@ func toTypedResponse(v platformSettingsUseCase.TypedView) typedSettingResponse {
 }
 
 func (h *Handler) initTyped(settingsAPI *gin.RouterGroup) {
-	settingsAPI.GET("retention", h.prot.RequirePermission(rbac.PermPlatformSettingsRead), h.getRetentionSettings)
-	settingsAPI.PUT("retention", h.prot.RequirePermission(rbac.PermPlatformSettingsWrite), h.saveRetentionSettings)
-	settingsAPI.DELETE("retention", h.prot.RequirePermission(rbac.PermPlatformSettingsWrite), h.resetRetentionSettings)
-	settingsAPI.GET("archive-limits", h.prot.RequirePermission(rbac.PermPlatformSettingsRead), h.getArchiveLimitSettings)
-	settingsAPI.PUT("archive-limits", h.prot.RequirePermission(rbac.PermPlatformSettingsWrite), h.saveArchiveLimitSettings)
-	settingsAPI.DELETE("archive-limits", h.prot.RequirePermission(rbac.PermPlatformSettingsWrite), h.resetArchiveLimitSettings)
-	settingsAPI.GET("test-runs", h.prot.RequirePermission(rbac.PermPlatformSettingsRead), h.getTestRunSettings)
-	settingsAPI.PUT("test-runs", h.prot.RequirePermission(rbac.PermPlatformSettingsWrite), h.saveTestRunSettings)
-	settingsAPI.DELETE("test-runs", h.prot.RequirePermission(rbac.PermPlatformSettingsWrite), h.resetTestRunSettings)
-	settingsAPI.GET("node-profiles", h.prot.RequirePermission(rbac.PermPlatformSettingsRead), h.getNodeProfileSettings)
-	settingsAPI.PUT("node-profiles", h.prot.RequirePermission(rbac.PermPlatformSettingsWrite), h.saveNodeProfileSettings)
-	settingsAPI.DELETE("node-profiles", h.prot.RequirePermission(rbac.PermPlatformSettingsWrite), h.resetNodeProfileSettings)
+	settingsAPI.GET("retention", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsRead), h.prot.RequirePermission(rbac.PermPlatformSettingsRead)), h.getRetentionSettings)
+	settingsAPI.PUT("retention", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsUpdate), h.prot.RequirePermission(rbac.PermPlatformSettingsWrite)), h.saveRetentionSettings)
+	settingsAPI.DELETE("retention", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsUpdate), h.prot.RequirePermission(rbac.PermPlatformSettingsWrite)), h.resetRetentionSettings)
+	settingsAPI.GET("archive-limits", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsRead), h.prot.RequirePermission(rbac.PermPlatformSettingsRead)), h.getArchiveLimitSettings)
+	settingsAPI.PUT("archive-limits", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsUpdate), h.prot.RequirePermission(rbac.PermPlatformSettingsWrite)), h.saveArchiveLimitSettings)
+	settingsAPI.DELETE("archive-limits", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsUpdate), h.prot.RequirePermission(rbac.PermPlatformSettingsWrite)), h.resetArchiveLimitSettings)
+	settingsAPI.GET("test-runs", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsRead), h.prot.RequirePermission(rbac.PermPlatformSettingsRead)), h.getTestRunSettings)
+	settingsAPI.PUT("test-runs", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsUpdate), h.prot.RequirePermission(rbac.PermPlatformSettingsWrite)), h.saveTestRunSettings)
+	settingsAPI.DELETE("test-runs", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsUpdate), h.prot.RequirePermission(rbac.PermPlatformSettingsWrite)), h.resetTestRunSettings)
+	settingsAPI.GET("node-profiles", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsRead), h.prot.RequirePermission(rbac.PermPlatformSettingsRead)), h.getNodeProfileSettings)
+	settingsAPI.PUT("node-profiles", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsUpdate), h.prot.RequirePermission(rbac.PermPlatformSettingsWrite)), h.saveNodeProfileSettings)
+	settingsAPI.DELETE("node-profiles", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformSettingsUpdate), h.prot.RequirePermission(rbac.PermPlatformSettingsWrite)), h.resetNodeProfileSettings)
 }
 
 func respondTyped(ctx *gin.Context, v platformSettingsUseCase.TypedView, err error) {

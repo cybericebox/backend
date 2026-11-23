@@ -6,12 +6,13 @@ package messaging
 import (
 	"context"
 	"fmt"
-	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
+	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	broadcastModel "github.com/cybericebox/backend/internal/model/notification/broadcast"
 	notificationTypes "github.com/cybericebox/backend/internal/model/notification/types"
@@ -29,6 +30,7 @@ type (
 
 	IProtection interface {
 		RequirePermission(required rbac.Permission) gin.HandlerFunc
+		Route(decl authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc
 	}
 
 	IUseCase interface {
@@ -203,28 +205,28 @@ func (h *Handler) Init(api *gin.RouterGroup) {
 	platform := func(ctx *gin.Context) (*uuid.UUID, bool) { return nil, true }
 
 	bc := api.Group("notifications/broadcasts", h.prot.RequirePermission(rbac.PermNotificationsBroadcast))
-	bc.POST("audience-count", h.countAudience(platform))
-	bc.POST("", h.send(platform))
-	bc.GET("", h.listBroadcasts(platform))
-	bc.GET(":broadcastID", h.getBroadcast(platform))
-	bc.GET(":broadcastID/deliveries", h.listDeliveries(platform))
-	bc.GET(":broadcastID/deliveries/export", h.exportDeliveries(platform))
-	bc.POST(":broadcastID/cancel", h.cancelBroadcast(platform))
+	bc.POST("audience-count", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsBroadcast), nil), h.countAudience(platform))
+	bc.POST("", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsBroadcast), nil), h.send(platform))
+	bc.GET("", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsBroadcast), nil), h.listBroadcasts(platform))
+	bc.GET(":broadcastID", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsBroadcast), nil), h.getBroadcast(platform))
+	bc.GET(":broadcastID/deliveries", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsBroadcast), nil), h.listDeliveries(platform))
+	bc.GET(":broadcastID/deliveries/export", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsBroadcast), nil), h.exportDeliveries(platform))
+	bc.POST(":broadcastID/cancel", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsBroadcast), nil), h.cancelBroadcast(platform))
 
 	// Custom templates (saved broadcast messages, not bound to any platform action) sit beside the triggered
 	// templates under notifications/templates; whoever may send platform broadcasts manages them.
 	bt := api.Group("notifications/templates/custom", h.prot.RequirePermission(rbac.PermNotificationsBroadcast))
-	bt.GET("", h.listTemplates(platform))
-	bt.POST("", h.createTemplate(platform))
-	bt.GET(":templateID", h.getTemplate(platform))
-	bt.PUT(":templateID", h.updateTemplate(platform))
-	bt.DELETE(":templateID", h.deleteTemplate(platform))
+	bt.GET("", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsBroadcast), nil), h.listTemplates(platform))
+	bt.POST("", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsBroadcast), nil), h.createTemplate(platform))
+	bt.GET(":templateID", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsBroadcast), nil), h.getTemplate(platform))
+	bt.PUT(":templateID", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsBroadcast), nil), h.updateTemplate(platform))
+	bt.DELETE(":templateID", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsBroadcastDelete), nil), h.deleteTemplate(platform))
 
 	bn := api.Group("notifications/site-banners")
-	bn.GET("", h.prot.RequirePermission(rbac.PermNotificationsBannersRead), h.listBanners(platform))
-	bn.POST("", h.prot.RequirePermission(rbac.PermNotificationsBannersWrite), h.createBanner(platform))
-	bn.PUT(":bannerID", h.prot.RequirePermission(rbac.PermNotificationsBannersWrite), h.updateBanner(platform))
-	bn.DELETE(":bannerID", h.prot.RequirePermission(rbac.PermNotificationsBannersWrite), h.deleteBanner(platform))
+	bn.GET("", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsBannersRead), h.prot.RequirePermission(rbac.PermNotificationsBannersRead)), h.listBanners(platform))
+	bn.POST("", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsBannersUpdate), h.prot.RequirePermission(rbac.PermNotificationsBannersWrite)), h.createBanner(platform))
+	bn.PUT(":bannerID", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsBannersUpdate), h.prot.RequirePermission(rbac.PermNotificationsBannersWrite)), h.updateBanner(platform))
+	bn.DELETE(":bannerID", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.NotificationsBannersDelete), h.prot.RequirePermission(rbac.PermNotificationsBannersWrite)), h.deleteBanner(platform))
 
 	// Event scope: owners and write moderators send and edit; viewers read.
 	manage := api.Group("events/:id/manage", h.prot.RequirePermission(rbac.PermSelf))

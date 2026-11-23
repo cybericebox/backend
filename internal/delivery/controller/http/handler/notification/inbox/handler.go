@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	inboxModel "github.com/cybericebox/backend/internal/model/notification/inbox"
@@ -35,6 +36,7 @@ type (
 	// IProtection is the subset of the protection middleware this handler needs.
 	IProtection interface {
 		RequirePermission(required rbac.Permission) gin.HandlerFunc
+		Route(decl authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc
 	}
 )
 
@@ -162,12 +164,12 @@ func NewInboxAPIHandler(useCase IUseCase, prot IProtection, site gin.HandlerFunc
 func (h *Handler) Init(router *gin.RouterGroup) {
 	inboxAPI := router.Group("inbox")
 	{
-		inboxAPI.GET("", h.prot.RequirePermission(rbac.PermNotificationsSelf), h.site, h.listInbox)
-		inboxAPI.PATCH(":id/read", h.prot.RequirePermission(rbac.PermNotificationsSelf), h.markRead)
-		inboxAPI.POST(":id/resolve", h.prot.RequirePermission(rbac.PermNotificationsSelf), h.resolveRequest)
+		inboxAPI.GET("", h.prot.Route(authz.AnyOf(authz.SourceSelf, authz.NotificationsSelf), h.prot.RequirePermission(rbac.PermNotificationsSelf)), h.site, h.listInbox)
+		inboxAPI.PATCH(":id/read", h.prot.Route(authz.AnyOf(authz.SourceSelf, authz.NotificationsSelf), h.prot.RequirePermission(rbac.PermNotificationsSelf)), h.markRead)
+		inboxAPI.POST(":id/resolve", h.prot.Route(authz.AnyOf(authz.SourceSelf, authz.NotificationsSelf), h.prot.RequirePermission(rbac.PermNotificationsSelf)), h.resolveRequest)
 		inboxAPI.PATCH(
 			"read-all",
-			h.prot.RequirePermission(rbac.PermNotificationsSelf),
+			h.prot.Route(authz.AnyOf(authz.SourceSelf, authz.NotificationsSelf), h.prot.RequirePermission(rbac.PermNotificationsSelf)),
 			h.site,
 			h.markAllRead,
 		)
