@@ -1211,6 +1211,8 @@ func MustGetConfig() *Config {
 		return nil
 	}
 	instance := &cfg
+	// A host name is case-insensitive: compared and sent as SNI in lower case.
+	instance.Infrastructure.Agent.ServerName = strings.ToLower(strings.TrimSpace(instance.Infrastructure.Agent.ServerName))
 
 	if err = instance.Auth.Hosts.Validate(); err != nil {
 		log.Fatal().Err(err).Msg("Config: invalid host configuration")

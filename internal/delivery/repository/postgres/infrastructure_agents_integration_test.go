@@ -102,6 +102,13 @@ func TestInfrastructureAgents_EnrolledAgentsKeepKeysUntilRenewed(t *testing.T) {
 	if got, _ = repo.Get(ctx, fromEnv.ID); got.Source != infraModel.AgentSourceEnv || got.Name != "gamma2" || got.CertPEM != "x" {
 		t.Fatalf("env-source agent = %+v", got)
 	}
+	// Adopted at a new address (its Kubernetes Service): only the endpoint changes.
+	if ok, setErr := repo.SetEndpoint(ctx, fromEnv.ID, "laboratory-agent.laboratory-agent.svc:5454", now.Add(2*time.Minute)); setErr != nil || !ok {
+		t.Fatalf("set endpoint = %v, %v", ok, setErr)
+	}
+	if got, _ = repo.Get(ctx, fromEnv.ID); got.Endpoint != "laboratory-agent.laboratory-agent.svc:5454" || got.CertPEM != "x" || got.Tenant != "platform" {
+		t.Fatalf("moved agent = %+v", got)
+	}
 	if ok, err := repo.Delete(ctx, a.ID); err != nil || !ok {
 		t.Fatalf("delete admin = %v, %v", ok, err)
 	}

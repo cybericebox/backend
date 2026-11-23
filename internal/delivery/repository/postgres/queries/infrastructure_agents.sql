@@ -31,6 +31,15 @@ SET name       = sqlc.arg(name),
     updated_at = sqlc.arg(updated_at)
 WHERE id = sqlc.arg(id);
 
+-- name: SetInfrastructureAgentEndpoint :execrows
+-- The same agent (and certificate) reached at a new address: the deployment config dials its Kubernetes
+-- Service instead of its public name, which stays the name its certificate is verified against.
+UPDATE infrastructure_agents
+SET endpoint   = sqlc.arg(endpoint),
+    updated_at = sqlc.arg(updated_at)
+WHERE id = sqlc.arg(id)
+  AND archived_at IS NULL;
+
 -- name: SetInfrastructureAgentCertificate :execrows
 -- A renewed client certificate with its new key (the tenant is the certificate CN and stays).
 UPDATE infrastructure_agents

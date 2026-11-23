@@ -22,6 +22,7 @@ type Queries interface {
 	UpdateInfrastructureAgent(context.Context, postgres.UpdateInfrastructureAgentParams) (int64, error)
 	DeleteInfrastructureAgent(context.Context, uuid.UUID) (int64, error)
 	SetInfrastructureAgentCertificate(context.Context, postgres.SetInfrastructureAgentCertificateParams) (int64, error)
+	SetInfrastructureAgentEndpoint(context.Context, postgres.SetInfrastructureAgentEndpointParams) (int64, error)
 	SetInfrastructureAgentAccessKey(context.Context, postgres.SetInfrastructureAgentAccessKeyParams) (int64, error)
 	SetInfrastructureAgentRetiredKeys(context.Context, postgres.SetInfrastructureAgentRetiredKeysParams) (int64, error)
 	SetInfrastructureAgentCapacity(context.Context, postgres.SetInfrastructureAgentCapacityParams) (int64, error)
@@ -172,6 +173,12 @@ func (r *Repository) Update(ctx context.Context, a infraModel.AgentRecord) (bool
 	n, err := r.q.UpdateInfrastructureAgent(ctx, postgres.UpdateInfrastructureAgentParams{
 		ID: a.ID, Name: a.Name, CaPem: a.CAPEM, Enabled: a.Enabled, Priority: int32(a.Priority), UpdatedAt: a.UpdatedAt,
 	})
+	return n > 0, err
+}
+
+// SetEndpoint moves an agent that is in use to a new address.
+func (r *Repository) SetEndpoint(ctx context.Context, id uuid.UUID, endpoint string, now time.Time) (bool, error) {
+	n, err := r.q.SetInfrastructureAgentEndpoint(ctx, postgres.SetInfrastructureAgentEndpointParams{ID: id, Endpoint: endpoint, UpdatedAt: now})
 	return n > 0, err
 }
 

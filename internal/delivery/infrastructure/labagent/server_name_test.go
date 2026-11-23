@@ -15,9 +15,12 @@ const agentCertName = "ctl.example.test"
 
 func TestEnrollVerifiesTheAgentAgainstTheServerName(t *testing.T) {
 	agent := &enrollServer{}
-	endpoint, ca := startAgentFor(t, agent, []string{agentCertName}, nil)
+	endpoint, ca, sni := startAgentFor(t, agent, []string{agentCertName}, nil)
 	if cert, err := Enroll(context.Background(), endpoint, agentCertName, ca, "good-token", "CSR", "PUB", "k"); err != nil || cert == "" {
 		t.Fatalf("enroll with the server name = %q, %v", cert, err)
+	}
+	if got := sni(); got != agentCertName {
+		t.Fatalf("ClientHello server name = %q, want %q (SNI pinned to the server name)", got, agentCertName)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -30,7 +33,7 @@ func TestEnrollVerifiesTheAgentAgainstTheServerName(t *testing.T) {
 }
 
 func TestDialVerifiesTheAgentAgainstTheServerName(t *testing.T) {
-	endpoint, ca := startAgentFor(t, &enrollServer{}, []string{agentCertName}, nil)
+	endpoint, ca, sni := startAgentFor(t, &enrollServer{}, []string{agentCertName}, nil)
 	cert, key := testKeyPair(t)
 	call := func(serverName string) error {
 		c, err := NewFromConnection(Connection{Endpoint: endpoint, ServerName: serverName, CertPEM: cert, KeyPEM: key, CAPEM: ca}, "prod")
@@ -45,6 +48,9 @@ func TestDialVerifiesTheAgentAgainstTheServerName(t *testing.T) {
 	}
 	if err := call(agentCertName); err != nil {
 		t.Fatalf("dial with the server name: %v", err)
+	}
+	if got := sni(); got != agentCertName {
+		t.Fatalf("ClientHello server name = %q, want %q (SNI pinned to the server name)", got, agentCertName)
 	}
 	if err := call(""); err == nil {
 		t.Fatal("without the server name the certificate does not name the address: the call must fail")

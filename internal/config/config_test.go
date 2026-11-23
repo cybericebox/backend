@@ -238,7 +238,7 @@ func TestAgentBootstrapConfig(t *testing.T) {
 		t.Fatalf("server name = %q, want empty by default (the host of AGENT_ENDPOINT)", agent.ServerName)
 	}
 	t.Setenv("AGENT_ENDPOINT", "laboratory-agent.laboratory-agent.svc:5454")
-	t.Setenv("AGENT_SERVER_NAME", "ctl.example.test")
+	t.Setenv("AGENT_SERVER_NAME", " CTL.Example.Test ")
 	if got := MustGetConfig().Infrastructure.Agent; got.ServerName != "ctl.example.test" || got.Endpoint != "laboratory-agent.laboratory-agent.svc:5454" {
 		t.Fatalf("agent = %+v", got)
 	}

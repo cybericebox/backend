@@ -12,6 +12,7 @@ import (
 	"errors"
 	"math/big"
 	"net"
+	"sync"
 	"testing"
 	"time"
 
@@ -44,12 +45,13 @@ func (s *enrollServer) Enroll(_ context.Context, in *labpb.EnrollRequest) (*labp
 // startAgent serves with a certificate for 127.0.0.1 signed by a fresh CA; it returns the endpoint and the CA PEM.
 func startAgent(t *testing.T, srv labpb.LabManagerServer) (endpoint string, caPEM []byte) {
 	t.Helper()
-	return startAgentFor(t, srv, nil, []net.IP{net.ParseIP("127.0.0.1")})
+	endpoint, caPEM, _ = startAgentFor(t, srv, nil, []net.IP{net.ParseIP("127.0.0.1")})
+	return endpoint, caPEM
 }
 
 // startAgentFor serves on 127.0.0.1 with a certificate for exactly the given names and addresses, signed by a fresh
-// CA; it returns the endpoint and the CA PEM.
-func startAgentFor(t *testing.T, srv labpb.LabManagerServer, dnsNames []string, ips []net.IP) (endpoint string, caPEM []byte) {
+// CA; it returns the endpoint, the CA PEM and a reader of the server name (SNI) of the last ClientHello.
+func startAgentFor(t *testing.T, srv labpb.LabManagerServer, dnsNames []string, ips []net.IP) (endpoint string, caPEM []byte, lastSNI func() string) {
 	t.Helper()
 	caKey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	caTpl := &x509.Certificate{SerialNumber: big.NewInt(1), Subject: pkix.Name{CommonName: "test-ca"}, NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(time.Hour), IsCA: true, BasicConstraintsValid: true, KeyUsage: x509.KeyUsageCertSign}
@@ -68,11 +70,26 @@ func startAgentFor(t *testing.T, srv labpb.LabManagerServer, dnsNames []string, 
 	if err != nil {
 		t.Fatal(err)
 	}
-	server := grpc.NewServer(grpc.Creds(credentials.NewTLS(&tls.Config{Certificates: []tls.Certificate{{Certificate: [][]byte{leafDER}, PrivateKey: leafKey}}, MinVersion: tls.VersionTLS12})))
+	var mu sync.Mutex
+	var sni string
+	server := grpc.NewServer(grpc.Creds(credentials.NewTLS(&tls.Config{
+		Certificates: []tls.Certificate{{Certificate: [][]byte{leafDER}, PrivateKey: leafKey}},
+		MinVersion:   tls.VersionTLS12,
+		GetConfigForClient: func(hello *tls.ClientHelloInfo) (*tls.Config, error) {
+			mu.Lock()
+			sni = hello.ServerName
+			mu.Unlock()
+			return nil, nil
+		},
+	})))
 	labpb.RegisterLabManagerServer(server, srv)
 	go func() { _ = server.Serve(listener) }()
 	t.Cleanup(server.Stop)
-	return listener.Addr().String(), pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: caDER})
+	return listener.Addr().String(), pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: caDER}), func() string {
+		mu.Lock()
+		defer mu.Unlock()
+		return sni
+	}
 }
 
 func TestEnrollSendsOnlyTheRequestAndThePublicKeyOverServerAuthTLS(t *testing.T) {

@@ -3,6 +3,7 @@ package infrastructure
 import (
 	"context"
 	"errors"
+	"net"
 	"slices"
 	"sort"
 	"strings"
@@ -40,6 +41,8 @@ type (
 		Get(ctx context.Context, id uuid.UUID) (infraModel.AgentRecord, error)
 		Create(ctx context.Context, a infraModel.AgentRecord) (infraModel.AgentRecord, error)
 		Update(ctx context.Context, a infraModel.AgentRecord) (bool, error)
+		// SetEndpoint moves an agent to a new address (the same agent and certificate, reached elsewhere).
+		SetEndpoint(ctx context.Context, id uuid.UUID, endpoint string, now time.Time) (bool, error)
 		SetCertificate(ctx context.Context, id uuid.UUID, certPEM, keyCiphertext, tenant string, notAfter, now time.Time) (bool, error)
 		SetAccessKey(ctx context.Context, id uuid.UUID, keyID, privateCiphertext, publicPEM string, retired []infraModel.RetiredKey, now time.Time) (bool, error)
 		SetRetiredKeys(ctx context.Context, id uuid.UUID, retired []infraModel.RetiredKey, now time.Time) (bool, error)
@@ -229,25 +232,75 @@ func (u *AgentsUseCase) EnrollAgent(ctx context.Context, in infraModel.AgentEnro
 
 // BootstrapAgent enrolls the agent named by the deployment config (AGENT_ENDPOINT with a one-time
 // token) when no live agent with that endpoint exists yet. Afterwards the token is not used again: the
-// agent lives in the database like any other. It reports whether it enrolled; an enrollment that fails
-// (a used or expired token) is returned for the caller to log, the daemon starts anyway.
-func (u *AgentsUseCase) BootstrapAgent(ctx context.Context, in infraModel.AgentEnrollment) (enrolled bool, err error) {
-	if strings.TrimSpace(in.Endpoint) == "" {
-		return false, nil
+// agent lives in the database like any other. With a server name (AGENT_SERVER_NAME) set, an agent
+// stored at that name is adopted first: it moves to the configured endpoint without an enrollment (see
+// adoptable). An enrollment that fails (a used or expired token) is returned for the caller to log, the
+// daemon starts anyway.
+func (u *AgentsUseCase) BootstrapAgent(ctx context.Context, in infraModel.AgentEnrollment) (infraModel.AgentBootstrapResult, error) {
+	endpoint := strings.TrimSpace(in.Endpoint)
+	if endpoint == "" {
+		return infraModel.AgentBootstrapNone, nil
 	}
 	records, err := u.store.ListRecords(ctx)
 	if err != nil {
-		return false, model.ErrPlatform.WithError(err).WithMessage("Failed to list infrastructure agents").Err()
+		return infraModel.AgentBootstrapNone, model.ErrPlatform.WithError(err).WithMessage("Failed to list infrastructure agents").Err()
 	}
 	for _, r := range records {
-		if r.Endpoint == strings.TrimSpace(in.Endpoint) {
-			return false, nil
+		if r.Endpoint == endpoint {
+			return infraModel.AgentBootstrapPresent, nil
+		}
+	}
+	if r, ok := adoptable(records, endpoint, in.ServerName); ok {
+		moved, setErr := u.store.SetEndpoint(ctx, r.ID, endpoint, u.now().UTC())
+		if setErr != nil {
+			return infraModel.AgentBootstrapNone, model.ErrPlatform.WithError(setErr).WithMessage("Failed to move the infrastructure agent to its new endpoint").Err()
+		}
+		if moved {
+			return infraModel.AgentBootstrapAdopted, u.reload(ctx)
 		}
 	}
 	if _, err = u.enroll(ctx, in, infraModel.AgentSourceEnv); err != nil {
-		return false, err
+		return infraModel.AgentBootstrapNone, err
 	}
-	return true, u.reload(ctx)
+	return infraModel.AgentBootstrapEnrolled, u.reload(ctx)
+}
+
+// adoptable finds the stored agent the deployment config now dials at another address: the agent was
+// enrolled at its public name (ctl.<domain>:<port>) and is now reached at its Kubernetes Service, verified
+// against that name (serverName). The candidate is the env-source agent, or, when there is none, an agent
+// whose endpoint host is the server name; it is adopted only when its endpoint host equals the server name,
+// its port equals the configured one and it holds an enrolled tenant. Never by name alone.
+func adoptable(records []infraModel.AgentRecord, endpoint, serverName string) (infraModel.AgentRecord, bool) {
+	serverName = strings.ToLower(strings.TrimSpace(serverName))
+	_, port, err := net.SplitHostPort(endpoint)
+	if serverName == "" || err != nil {
+		return infraModel.AgentRecord{}, false
+	}
+	matches := func(r infraModel.AgentRecord) bool {
+		host, p, splitErr := net.SplitHostPort(r.Endpoint)
+		return splitErr == nil && r.ArchivedAt == nil && r.Tenant != "" && strings.EqualFold(host, serverName) && p == port
+	}
+	var env, other []infraModel.AgentRecord
+	for _, r := range records {
+		if r.ArchivedAt != nil || r.Endpoint == "" {
+			continue
+		}
+		if r.Source == infraModel.AgentSourceEnv {
+			env = append(env, r)
+		} else {
+			other = append(other, r)
+		}
+	}
+	candidates := env
+	if len(env) == 0 {
+		candidates = other
+	}
+	for _, r := range candidates {
+		if matches(r) {
+			return r, true
+		}
+	}
+	return infraModel.AgentRecord{}, false
 }
 
 // enroll runs the enrollment and stores the agent; source says how it was added.
