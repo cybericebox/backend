@@ -417,3 +417,39 @@ func (sessionProtection) Route(_ authz.Decl, legacy gin.HandlerFunc) gin.Handler
 		}
 	}
 }
+
+// The bearer credential of the live screens is marked where its token is resolved before the handler: by the private
+// event gate (an unpublished event) and by the results access layer. The enforcement admits bearer(live-screen) only
+// with the mark (plan P2).
+func TestLiveScreenMarksTheBearerCredentialWhereTheTokenIsResolved(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	bearer := string(authz.SourceBearer(authz.BearerLiveScreen))
+	marked := false
+	router := screenRouter(NewEventSelfAPIHandler(fakeUseCase{}, nil), func(ctx *gin.Context) {
+		marked = middleware.CredentialChecked(ctx, bearer)
+		ctx.Status(http.StatusNoContent)
+	})
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/live-screen/results?token="+fakeScreenToken, nil))
+	if w.Code != http.StatusNoContent || !marked {
+		t.Fatalf("results with a valid link: status %d, marked %v", w.Code, marked)
+	}
+
+	h := NewEventSelfAPIHandler(fakeUseCase{}, nil)
+	r := gin.New()
+	resolve := middleware.ResolveEventTenant(unpublishedResolver{eventID: fakeScreenEvent}, config.HostsConfig{Root: "example.test", API: "api.example.test", ID: "id.example.test", Admin: "admin.example.test", Exercises: "exercises.example.test", EventDomain: "example.test"})
+	r.GET("/api/events/self/live-screen", h.liveScreenGate, resolve, func(ctx *gin.Context) {
+		marked = middleware.CredentialChecked(ctx, bearer)
+		ctx.Status(http.StatusNoContent)
+	})
+	for token, want := range map[string]bool{fakeScreenToken: true, "revoked-token": false} {
+		marked = false
+		req := httptest.NewRequest(http.MethodGet, "/api/events/self/live-screen?token="+token, nil)
+		req.Header.Set("Origin", "https://khctf.example.test")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		if marked != want {
+			t.Errorf("unpublished event, token %q: status %d, marked %v, want %v", token, w.Code, marked, want)
+		}
+	}
+}

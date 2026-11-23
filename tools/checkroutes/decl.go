@@ -40,8 +40,11 @@ var deleteActions = []string{"reject", "revoke", "remove", "detach", "delete"}
 
 // credentialRoutes: where a service or bearer source may stand, and the layer that checks its credential.
 var credentialRoutes = map[string]struct{ prefix, layer string }{
-	"service(" + authz.ServiceRender + ")":   {prefix: "/api/render/", layer: "requireSecret"},
-	"bearer(" + authz.BearerLiveScreen + ")": {prefix: "/api/events/self/live-screen", layer: "liveScreenGate"},
+	"service(" + authz.ServiceRender + ")": {prefix: "/api/render/", layer: "requireSecret"},
+	// The live-screen token is resolved by the tenant resolution (the private event gate liveScreenGate installs) and,
+	// on the results routes, by liveScreenAccess; both mark the credential. On a public event the screen and its version
+	// resolve the token in the use case only (an owner decision on a layer is open, #340).
+	"bearer(" + authz.BearerLiveScreen + ")": {prefix: "/api/events/self/live-screen", layer: "ResolveEventTenant.func"},
 }
 
 func testdataPath(handlerRoot, name string) string {

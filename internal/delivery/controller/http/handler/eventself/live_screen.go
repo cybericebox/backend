@@ -60,7 +60,11 @@ func liveScreenNoStore(ctx *gin.Context) {
 func (h *Handler) liveScreenGate(ctx *gin.Context) {
 	token := liveScreenToken(ctx)
 	gate := func(c context.Context, eventID uuid.UUID) bool {
-		return token != "" && h.useCase.ResolveLiveScreenToken(c, eventID, token) == nil
+		if token == "" || h.useCase.ResolveLiveScreenToken(c, eventID, token) != nil {
+			return false
+		}
+		middleware.MarkCredentialChecked(ctx, liveScreenCredential)
+		return true
 	}
 	ctx.Request = ctx.Request.WithContext(middleware.ContextWithPrivateEventGate(ctx.Request.Context(), gate))
 	ctx.Next()
@@ -162,6 +166,7 @@ func (h *Handler) liveScreenAccess(ctx *gin.Context) {
 		response.AbortWithError(ctx, err)
 		return
 	}
+	middleware.MarkCredentialChecked(ctx, liveScreenCredential)
 	ctx.Params = append(ctx.Params, gin.Param{Key: "id", Value: tenant.EventID.String()})
 	query.Del("token")
 	query.Set("view", "live")
@@ -173,6 +178,10 @@ func (h *Handler) liveScreenAccess(ctx *gin.Context) {
 	ctx.Request = ctx.Request.WithContext(context.WithValue(screenCtx, liveScreenTokenKey{}, token))
 	ctx.Next()
 }
+
+// liveScreenCredential is the scope source the live-screen token stands for (authz.BearerRoute): a layer marks it once
+// the token resolved to the event (middleware.MarkCredentialChecked).
+var liveScreenCredential = string(authz.SourceBearer(authz.BearerLiveScreen))
 
 type (
 	liveScreenEventKey struct{}
