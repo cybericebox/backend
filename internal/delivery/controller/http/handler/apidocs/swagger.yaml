@@ -7881,6 +7881,10 @@ definitions:
         items:
           $ref: '#/definitions/exercise.interfaceDTO'
         type: array
+      KernelLog:
+        description: 'KernelLog (a microvm node only): the guest kernel''s log goes
+          on the first console port that is not native. Absent when off.'
+        type: boolean
       Name:
         type: string
       Persistence:

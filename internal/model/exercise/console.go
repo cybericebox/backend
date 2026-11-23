@@ -158,6 +158,43 @@ func (p SerialPort) DevicePath() string {
 // ports only on a node that is not Windows, names of their pattern and unique among the device's ports and interfaces, the
 // limits, the console program or native line, the serial device path.
 func validateDevicePorts(d Device) error {
+	if err := validateDeviceLines(d); err != nil {
+		return err
+	}
+	return validateKernelLog(d)
+}
+
+// KernelLogPort is the name of the console port that carries the guest kernel's log: the first console port that is not
+// native, in declared order, when the device asks for the kernel log; "" otherwise.
+func (d Device) KernelLogPort() string {
+	if !d.KernelLog {
+		return ""
+	}
+	for _, p := range d.ConsolePorts {
+		if p.Native == nil {
+			return p.Name
+		}
+	}
+	return ""
+}
+
+// validateKernelLog checks the kernel_log flag of a device: only on a microvm node (a container shares the node's kernel, a
+// full vm has its own serial console), and only with a console port that is not native to carry it.
+func validateKernelLog(d Device) error {
+	if !d.KernelLog {
+		return nil
+	}
+	if !d.Type.IsNode() || d.EffectiveProfile() != NodeProfileMicroVM {
+		return consolePortInvalid(d, "kernel_log", "kernel_log_profile")
+	}
+	if d.KernelLogPort() == "" {
+		return consolePortInvalid(d, "kernel_log", "kernel_log_no_port")
+	}
+	return nil
+}
+
+// validateDeviceLines checks the console and serial ports themselves.
+func validateDeviceLines(d Device) error {
 	if len(d.ConsolePorts) == 0 && len(d.SerialPorts) == 0 {
 		return nil
 	}

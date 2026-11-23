@@ -101,6 +101,7 @@ type fakeUC struct {
 	// capture what the handler actually sent, so SaveDraft's "don't reuse the
 	// request DTO afterwards" contract can be asserted.
 	savedVariants []exerciseModel.Variant
+	kernelLog     bool
 	savedCopyOf   []uuid.NullUUID
 
 	// files
@@ -283,6 +284,7 @@ func (f *fakeUC) InfrastructureAvailable() bool                           { retu
 func (f *fakeUC) MaxActiveTestDeploys() int                               { return 2 }
 func (f *fakeUC) DevicePersistenceAllowed() bool                          { return true }
 func (f *fakeUC) ConsoleCablesAvailable() bool                            { return false }
+func (f *fakeUC) KernelLogAvailable() bool                                { return f.kernelLog }
 func (f *fakeUC) TestDeployDossier(context.Context, exerciseUseCase.Actor, uuid.UUID) (exerciseUseCase.DossierView, error) {
 	return exerciseUseCase.DossierView{}, nil
 }

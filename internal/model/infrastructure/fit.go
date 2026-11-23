@@ -161,6 +161,8 @@ type PlacementNeed struct {
 	// ConsoleLines: a lab of the group has console or serial ports or console cables, so the agent of the group must serve
 	// console lines.
 	ConsoleLines bool
+	// KernelLog: a lab of the group puts the kernel log on a console port, so the agent of the group must offer it (contract 3.2).
+	KernelLog bool
 }
 
 // Known is true when the need says anything about the labs.

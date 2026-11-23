@@ -49,6 +49,8 @@ type (
 		Command []string         `json:"command,omitempty"`
 		User    string           `json:"user,omitempty"`
 		Native  *labNativeSource `json:"native,omitempty"`
+		// KernelLog: the line also shows the guest kernel's log (contract 3.2); one port of a microvm device, never native.
+		KernelLog bool `json:"kernelLog,omitempty"`
 	}
 
 	labNativeSource struct {
@@ -321,8 +323,9 @@ func buildDevice(d exerciseModel.Device, labName string) labDevice {
 		out.Persistence = &labPersistence{Enabled: d.Persistence.Enabled, Debounce: d.Persistence.Debounce}
 	}
 	out.Access = buildAccess(d)
+	kernelLog := d.KernelLogPort()
 	for _, p := range d.ConsolePorts {
-		port := labConsolePort{Name: p.Name, Command: p.Command, User: p.User}
+		port := labConsolePort{Name: p.Name, Command: p.Command, User: p.User, KernelLog: kernelLog != "" && p.Name == kernelLog}
 		if p.Native != nil {
 			port.Native = &labNativeSource{Kind: string(p.Native.Kind), Port: p.Native.Port}
 		}

@@ -238,8 +238,8 @@ func (f *Fleet) memberForCreate(ctx context.Context, group string) (*Member, err
 		return nil, runnersErr
 	}
 	enabled = runners
-	if need.ConsoleLines {
-		if enabled, err = consoleRunners(ctx, enabled); err != nil {
+	if need.ConsoleLines || need.KernelLog {
+		if enabled, err = consoleRunners(ctx, enabled, exerciseModel.LabNeeds{ConsoleLines: true, KernelLog: need.KernelLog}); err != nil {
 			return nil, err
 		}
 	}
@@ -411,7 +411,8 @@ func (f *Fleet) DeployLab(ctx context.Context, group, lab string, meta infraMode
 		meta.AgentEnforcesVPNReverse = feat.EnforcesVPNReverse()
 	}
 	err = m.Client.DeployLab(f.withSizes(ctx, m), group, lab, meta, topo)
-	if errors.Is(err, infraModel.ErrDevicePersistenceUnavailable.Err()) || errors.Is(err, exerciseModel.ErrConsoleUnavailable.Err()) {
+	if errors.Is(err, infraModel.ErrDevicePersistenceUnavailable.Err()) || errors.Is(err, exerciseModel.ErrConsoleUnavailable.Err()) ||
+		errors.Is(err, exerciseModel.ErrKernelLogUnavailable.Err()) {
 		// The agent itself refused: what it offers changed since the cached report; the next try sees the truth.
 		refreshOnRefusal(ctx, m.Features, time.Now(), featuresReader(m))
 	}

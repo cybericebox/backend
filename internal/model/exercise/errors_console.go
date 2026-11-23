@@ -9,7 +9,9 @@ import (
 // by the version checks and the deploy) and device (its name) or connection (1-based position in the variant's connections),
 // and field where the editor marks a field (console_ports[2].command, serial_ports[1].path, kind).
 var (
-	// ErrConsolePortInvalid: a console port breaks its rules; reason is name, command, user, native or stdio_twice.
+	// ErrConsolePortInvalid: a console port breaks its rules; reason is name, command, user, native or stdio_twice. The
+	// kernel_log flag of a device uses it too, with field kernel_log and reason kernel_log_profile (the device is not a microvm
+	// node) or kernel_log_no_port (the device has no console port that is not native).
 	ErrConsolePortInvalid = err.ErrInvalidData.WithObjectCode(model.ConsoleObjectCode).
 				WithMessage("Invalid console port").WithDetailCode(1)
 	// ErrSerialPortInvalid: a serial port breaks its rules; reason is name or path.
@@ -59,4 +61,8 @@ var (
 	// to the log only.
 	ErrConsoleSpecRefused = err.ErrInvalidData.WithObjectCode(model.ConsoleObjectCode).
 				WithMessage("The laboratory refused the console ports or console cables of the lab").WithDetailCode(13)
+	// ErrKernelLogUnavailable: a device asks for the kernel log on a console port and no laboratory agent that is used offers
+	// it (contract 3.2, FeaturesResponse.console_cables.kernel_log). An older agent would drop the flag without a word.
+	ErrKernelLogUnavailable = err.ErrConflict.WithObjectCode(model.ConsoleObjectCode).
+				WithMessage("No connected laboratory agent offers the kernel log on a console port").WithDetailCode(14)
 )

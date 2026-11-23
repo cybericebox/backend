@@ -130,12 +130,31 @@ func servesConsoleLines(m *Member) bool {
 }
 
 // consoleRefusal is the refusal of a lab's console lines by an agent's report: the agent must speak contract 3.1 (the console
-// feature) and report the feature on, and take the lab's cables.
+// feature) and report the feature on, and take the lab's cables; for the kernel log on a console port it must speak contract 3.2
+// and report console_cables.kernel_log.
 func consoleRefusal(feat infraModel.AgentFeatures, needs exerciseModel.LabNeeds) error {
 	if needs.ConsoleLines && !contractAtLeast(consoleLinesContract, feat.ContractVersion) {
 		return exerciseModel.ErrConsoleUnavailable.Err()
 	}
-	return feat.RequireConsoleLines(needs)
+	if err := feat.RequireConsoleLines(needs); err != nil {
+		return err
+	}
+	if needs.KernelLog && !contractAtLeast(kernelLogContract, feat.ContractVersion) {
+		return exerciseModel.ErrKernelLogUnavailable.Err()
+	}
+	return nil
+}
+
+// servesKernelLog reports whether the member's last report says it puts the kernel log on a console port (contract 3.2).
+func servesKernelLog(m *Member) bool {
+	feat := m.Features.Get()
+	return feat != nil && consoleRefusal(*feat, exerciseModel.LabNeeds{ConsoleLines: true, KernelLog: true}) == nil
+}
+
+// KernelLogAvailable reports whether an agent that is used offers the kernel log on a console port (the editor's capability).
+// It reads the cached reports only.
+func (f *Fleet) KernelLogAvailable() bool {
+	return slices.ContainsFunc(f.eligible(), servesKernelLog)
 }
 
 // ConsoleCablesAvailable reports whether an agent that is used offers console ports and console cables (the editor's
@@ -192,11 +211,18 @@ func (f *Fleet) requireConsoleLines(ctx context.Context, m *Member, needs exerci
 	return err
 }
 
-// refreshConsoleReports reads again (once per window each) the report of every member whose cached one does not serve console
-// lines: the feature can be switched on after the agent started, so a refusal never stands on a stale report alone.
-func refreshConsoleReports(ctx context.Context, members []*Member) {
+// servesNeeds reports whether the member's last report takes the console lines (and the kernel log) the needs ask for.
+func servesNeeds(m *Member, needs exerciseModel.LabNeeds) bool {
+	feat := m.Features.Get()
+	return feat != nil && consoleRefusal(*feat, needs) == nil
+}
+
+// refreshConsoleReports reads again (once per window each) the report of every member whose cached one refuses the needs (the
+// console lines, their cables, the kernel log): a feature can be switched on after the agent started, so a refusal never stands
+// on a stale report alone.
+func refreshConsoleReports(ctx context.Context, members []*Member, needs exerciseModel.LabNeeds) {
 	for _, m := range members {
-		if !servesConsoleLines(m) {
+		if !servesNeeds(m, needs) {
 			refreshOnRefusal(ctx, m.Features, time.Now(), featuresReader(m))
 		}
 	}
@@ -207,23 +233,28 @@ func (f *Fleet) requireConsoleLinesFresh(ctx context.Context, topo exerciseModel
 	if err := f.RequireConsoleLines(topo); err == nil {
 		return nil
 	}
-	refreshConsoleReports(ctx, f.eligible())
+	refreshConsoleReports(ctx, f.eligible(), exerciseModel.NeedsOf(topo, nil))
 	return f.RequireConsoleLines(topo)
 }
 
-// consoleRunners keeps the members that serve console lines, for a new group whose labs have them (the reports are read again
-// once before none is left); none is ErrConsoleUnavailable.
-func consoleRunners(ctx context.Context, members []*Member) ([]*Member, error) {
-	if !slices.ContainsFunc(members, servesConsoleLines) {
-		refreshConsoleReports(ctx, members)
+// consoleRunners keeps the members that take the needs (console lines, and the kernel log when asked), for a new group whose labs
+// have them (the reports are read again once before none is left). None is ErrKernelLogUnavailable when some serve console lines
+// but not the kernel log, else ErrConsoleUnavailable.
+func consoleRunners(ctx context.Context, members []*Member, needs exerciseModel.LabNeeds) ([]*Member, error) {
+	serves := func(m *Member) bool { return servesNeeds(m, needs) }
+	if !slices.ContainsFunc(members, serves) {
+		refreshConsoleReports(ctx, members, needs)
 	}
 	var kept []*Member
 	for _, m := range members {
-		if servesConsoleLines(m) {
+		if serves(m) {
 			kept = append(kept, m)
 		}
 	}
 	if len(kept) == 0 {
+		if needs.KernelLog && slices.ContainsFunc(members, servesConsoleLines) {
+			return nil, exerciseModel.ErrKernelLogUnavailable.Err()
+		}
 		return nil, exerciseModel.ErrConsoleUnavailable.Err()
 	}
 	return kept, nil

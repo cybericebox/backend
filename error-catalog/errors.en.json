@@ -612,5 +612,6 @@
   "73623": "The brain gave an opponent the platform cannot deploy",
   "73624": "The task has a device named like a control gateway the platform adds for opponents",
   "73625": "The lab cannot hold a control gateway for every opponent: a lab has a limit of gateways",
-  "73710": "No connected laboratory agent offers console cables"
+  "73710": "No connected laboratory agent offers console cables",
+  "73714": "No connected laboratory agent offers the kernel log on a console port"
 }

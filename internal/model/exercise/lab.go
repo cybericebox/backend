@@ -331,6 +331,9 @@ type LabNeeds struct {
 	// The laboratory must serve console lines (FeaturesResponse.console_cables, contract 3.1).
 	ConsoleLines  bool
 	ConsoleCables int
+	// KernelLog: some device puts the guest kernel's log on a console port. The laboratory must offer it (contract 3.2,
+	// FeaturesResponse.console_cables.kernel_log).
+	KernelLog bool
 }
 
 // RegistryOf is the canonical registry an image reference is pulled from: docker.io for a reference that names none (and for
@@ -395,6 +398,7 @@ func NeedsOf(t Topology, checks []LabCheck) LabNeeds {
 	}
 	slices.Sort(n.Registries)
 	n.ConsoleLines, n.ConsoleCables = t.UsesConsoleLines(), t.ConsoleCables()
+	n.KernelLog = slices.ContainsFunc(t.Devices, func(d Device) bool { return d.KernelLogPort() != "" })
 	n.Checks = len(checks) > 0
 	n.ChecksPerLab = len(checks)
 	kinds := map[string]struct{}{}

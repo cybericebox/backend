@@ -201,6 +201,8 @@ type (
 		// The console and serial ports of a node.
 		ConsolePorts []exerciseModel.ConsolePort `json:"console_ports,omitempty"`
 		SerialPorts  []exerciseModel.SerialPort  `json:"serial_ports,omitempty"`
+		// KernelLog: the guest kernel's log on the first console port that is not native (a microvm node only).
+		KernelLog bool `json:"kernel_log,omitempty"`
 	}
 
 	// archiveEnvVarV2 is a bootstrap env var as the document writes it (the server-side origin of a secret is not).
@@ -1038,7 +1040,7 @@ func (t archiveTopologyV2) toDomain(
 
 			DHCP: device.DHCP, DHCPRanges: device.DHCPRanges, DNS: device.DNS, ReverseConnections: device.ReverseConnections,
 
-			ConsolePorts: device.ConsolePorts, SerialPorts: device.SerialPorts,
+			ConsolePorts: device.ConsolePorts, SerialPorts: device.SerialPorts, KernelLog: device.KernelLog,
 		}
 		domainDevice.Normalize() // the former type container is a node with the container profile
 		topology.Devices = append(topology.Devices, domainDevice)
@@ -1155,7 +1157,7 @@ func exportVariantV2(variant exerciseModel.Variant, paths map[uuid.UUID]string, 
 
 			DHCP: device.DHCP, DHCPRanges: device.DHCPRanges, DNS: device.DNS, ReverseConnections: device.ReverseConnections,
 
-			ConsolePorts: device.ConsolePorts, SerialPorts: device.SerialPorts,
+			ConsolePorts: device.ConsolePorts, SerialPorts: device.SerialPorts, KernelLog: device.KernelLog,
 		}
 		topology.Devices = append(topology.Devices, exported)
 	}

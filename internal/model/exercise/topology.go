@@ -200,6 +200,9 @@ type (
 		// console ports, a node only. A console cable joins one of each.
 		ConsolePorts []ConsolePort `json:"console_ports,omitempty"`
 		SerialPorts  []SerialPort  `json:"serial_ports,omitempty"`
+		// KernelLog (a microvm node only, default off) puts the guest kernel's log on the first console port that is not
+		// native, in declared order (see KernelLogPort); the device must have such a port. The laboratory needs contract 3.2.
+		KernelLog bool `json:"kernel_log,omitempty"`
 	}
 
 	// DevicePersistence is the state-persistence policy of a device, set at creation and

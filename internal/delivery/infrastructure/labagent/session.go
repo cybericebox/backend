@@ -38,6 +38,9 @@ const (
 	grantsContract = "3.0"
 	// consoleLinesContract: console ports, serial ports and console cables (FeaturesResponse.console_cables, contract 3.1).
 	consoleLinesContract = "3.1"
+	// kernelLogContract: the kernel log on a console port (ConsolePortSpec.kernelLog, FeaturesResponse.console_cables.kernel_log,
+	// contract 3.2). An older agent's API server drops the field without a word, so it is never sent to one.
+	kernelLogContract = "3.2"
 )
 
 // contractAtLeast says whether an agent that reported `reported` has every call of contract `needed` (same major, minor not

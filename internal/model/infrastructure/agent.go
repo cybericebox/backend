@@ -140,13 +140,24 @@ type ConsoleCablesFeature struct {
 	Enabled           bool  `json:"enabled"`
 	MaxCablesPerLab   int32 `json:"max_cables_per_lab"`
 	MaxBytesPerSecond int32 `json:"max_bytes_per_second"`
+	// KernelLog (contract 3.2): a console port may carry the guest kernel's log of a microvm device (the lines are on and the
+	// microvm profile is offered). False for an older agent.
+	KernelLog bool `json:"kernel_log"`
 }
 
 // ServesConsoleCables reports whether the laboratory serves console lines.
-func (f AgentFeatures) ServesConsoleCables() bool { return f.ConsoleCables != nil && f.ConsoleCables.Enabled }
+func (f AgentFeatures) ServesConsoleCables() bool {
+	return f.ConsoleCables != nil && f.ConsoleCables.Enabled
+}
+
+// ServesKernelLog reports whether the laboratory puts the guest kernel's log on a console port (it serves console lines too).
+func (f AgentFeatures) ServesKernelLog() bool {
+	return f.ServesConsoleCables() && f.ConsoleCables.KernelLog
+}
 
 // RequireConsoleLines refuses a lab with console lines the laboratory does not serve (ErrConsoleUnavailable), or with more cables
-// than it takes (ErrConsoleCableLimit with the limit). A lab without console lines passes.
+// than it takes (ErrConsoleCableLimit with the limit), or with the kernel log on a console port it does not offer
+// (ErrKernelLogUnavailable). A lab without console lines passes.
 func (f AgentFeatures) RequireConsoleLines(n exerciseModel.LabNeeds) error {
 	if !n.ConsoleLines {
 		return nil
@@ -156,6 +167,9 @@ func (f AgentFeatures) RequireConsoleLines(n exerciseModel.LabNeeds) error {
 	}
 	if limit := f.ConsoleCables.MaxCablesPerLab; limit > 0 && n.ConsoleCables > int(limit) {
 		return exerciseModel.ErrConsoleCableLimit.WithPublicContext("limit", limit).Err()
+	}
+	if n.KernelLog && !f.ServesKernelLog() {
+		return exerciseModel.ErrKernelLogUnavailable.Err()
 	}
 	return nil
 }

@@ -118,7 +118,10 @@ func consoleCablesFeatureOf(c *labpb.ConsoleCablesFeature) *infraModel.ConsoleCa
 	if c == nil {
 		return nil
 	}
-	return &infraModel.ConsoleCablesFeature{Enabled: c.GetEnabled(), MaxCablesPerLab: c.GetMaxCablesPerLab(), MaxBytesPerSecond: c.GetMaxBytesPerSecond()}
+	return &infraModel.ConsoleCablesFeature{
+		Enabled: c.GetEnabled(), MaxCablesPerLab: c.GetMaxCablesPerLab(), MaxBytesPerSecond: c.GetMaxBytesPerSecond(),
+		KernelLog: c.GetKernelLog(),
+	}
 }
 
 // The optional parts of contract 1.5 are nil when the report lacks them (an agent older than the fields).
@@ -381,6 +384,7 @@ func labNeed(p resourcesModel.Policy, topo exerciseModel.Topology) infraModel.Pl
 		need.Device = need.Device.Max(d.Amount)
 	}
 	need.ConsoleLines = topo.UsesConsoleLines()
+	need.KernelLog = exerciseModel.NeedsOf(topo, nil).KernelLog
 	return need
 }
 
@@ -390,6 +394,7 @@ func withLab(need, lab infraModel.PlacementNeed) infraModel.PlacementNeed {
 	need.Device = need.Device.Max(lab.Device)
 	need.LabDevices = max(need.LabDevices, lab.LabDevices)
 	need.ConsoleLines = need.ConsoleLines || lab.ConsoleLines
+	need.KernelLog = need.KernelLog || lab.KernelLog
 	return need
 }
 
@@ -440,7 +445,7 @@ func (c *Client) RequireLabLifecyclePreparation(ctx context.Context, _ string, p
 		if err != nil {
 			return agentErr("get console line features", err)
 		}
-		if err = FeaturesOf(response).RequireConsoleLines(exerciseModel.NeedsOf(topology, nil)); err != nil {
+		if err = consoleRefusal(FeaturesOf(response), exerciseModel.NeedsOf(topology, nil)); err != nil {
 			return err
 		}
 	}

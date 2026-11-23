@@ -760,6 +760,9 @@
           },
           "type": "array"
         },
+        "kernel_log": {
+          "type": "boolean"
+        },
         "name": {
           "type": "string"
         },
