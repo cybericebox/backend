@@ -31,6 +31,9 @@ const (
 	CheckAuthorizeExerciseRead   LegacyCheck = "AuthorizeExercise.Read"
 	CheckAuthorizeExerciseManage LegacyCheck = "AuthorizeExercise.Manage"
 	CheckAuthorizeExerciseFlags  LegacyCheck = "AuthorizeExercise.Flags"
+	// CheckAuthorizeExercisePublish: uc/exercise.AuthorizeExercise with ActionPublish: exercises.publish, or the owner
+	// or manager of the owner event (publishing, proposals, rollback, discarding a draft).
+	CheckAuthorizeExercisePublish LegacyCheck = "AuthorizeExercise.Publish"
 	// CheckExportExercise: uc/exercise export: exercises.export, or a task of an event the caller owns or manages.
 	CheckExportExercise LegacyCheck = "AuthorizeExport"
 	// CheckRequireTestLabAuthor: uc/exercise.RequireTestLabAuthor: exercises.write, or owner or manager of an event
@@ -49,7 +52,7 @@ func LegacyChecks() []LegacyCheck {
 	return []LegacyCheck{
 		CheckRequireRead, CheckRequireManage, CheckRequireExport, CheckAnalyticsSections, CheckAnalyticsSensitive,
 		CheckAnalyticsPeople, CheckPersonalData, CheckAuthorizeExerciseRead, CheckAuthorizeExerciseManage,
-		CheckAuthorizeExerciseFlags, CheckExportExercise, CheckRequireTestLabAuthor, CheckRequireAuthor,
+		CheckAuthorizeExerciseFlags, CheckAuthorizeExercisePublish, CheckExportExercise, CheckRequireTestLabAuthor, CheckRequireAuthor,
 		CheckAuthorizeTestDeploy, CheckNew,
 	}
 }
@@ -65,7 +68,8 @@ func (c LegacyCheck) EventRoles() []eventManagerModel.Role {
 	case CheckRequireRead, CheckAnalyticsSections, CheckAuthorizeExerciseRead:
 		return slices.Clone(anyEventMember)
 	case CheckRequireManage, CheckRequireExport, CheckAnalyticsSensitive, CheckAnalyticsPeople, CheckPersonalData,
-		CheckAuthorizeExerciseManage, CheckAuthorizeExerciseFlags, CheckExportExercise, CheckRequireTestLabAuthor:
+		CheckAuthorizeExerciseManage, CheckAuthorizeExerciseFlags, CheckAuthorizeExercisePublish, CheckExportExercise,
+		CheckRequireTestLabAuthor:
 		return slices.Clone(eventOwnerOrMod)
 	default:
 		return nil
@@ -154,7 +158,7 @@ var legacy = map[Key]Legacy{
 	ExercisesUpdate:  perm(CheckAuthorizeExerciseManage, rbac.PermExercisesWrite),
 	ExercisesDelete:  perm(CheckAuthorizeExerciseManage, rbac.PermExercisesDelete),
 	// exercises.read lists the proposal queue today (A.4.1 item 8); publishing and deciding need exercises.publish.
-	ExercisesPublish:          perm("", rbac.PermExercisesPublish, rbac.PermExercisesRead),
+	ExercisesPublish:          perm(CheckAuthorizeExercisePublish, rbac.PermExercisesPublish, rbac.PermExercisesRead),
 	ExercisesFlagsRead:        perm(CheckAuthorizeExerciseFlags, rbac.PermExercisesRead),
 	ExercisesExport:           perm(CheckExportExercise, rbac.PermExercisesExport),
 	ExercisesSecretsRead:      perm(CheckExportExercise, rbac.PermExercisesExport),
@@ -201,7 +205,7 @@ var legacy = map[Key]Legacy{
 	EventExercisesCreate:      perm(CheckAuthorizeExerciseManage, rbac.PermExercisesWrite).carriedBy(ExercisesCreate),
 	EventExercisesUpdate:      perm(CheckAuthorizeExerciseManage, rbac.PermExercisesWrite).carriedBy(ExercisesUpdate),
 	EventExercisesDelete:      perm(CheckAuthorizeExerciseManage, rbac.PermExercisesDelete).carriedBy(ExercisesDelete),
-	EventExercisesPublish:     perm(CheckAuthorizeExerciseManage, rbac.PermExercisesPublish).carriedBy(ExercisesPublish),
+	EventExercisesPublish:     perm(CheckAuthorizeExercisePublish, rbac.PermExercisesPublish).carriedBy(ExercisesPublish),
 	EventFlagsRead:            perm(CheckAuthorizeExerciseFlags, rbac.PermExercisesRead),
 	EventAttemptsRead:         perm(CheckRequireRead, rbac.PermEventsRead, rbac.PermEventsSolutionAttemptsRead),
 	EventAttemptsAnswersRead:  perm(CheckRequireManage, rbac.PermEventsSolutionAttemptsRead),

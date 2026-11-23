@@ -1,5 +1,6 @@
 # Pinned legacy checks (TestDeclaredKeysMapToTheLegacyGate): the check a use case runs behind a bare self gate, or the
-# one an ambiguous layer runs for the route, and the relation the use case checks. METHOD /api/path | check[,relation]
+# one an ambiguous layer runs for the route, and the relation the use case checks; "relation(new)" marks a relation the
+# spec adds that no use case checks today (authors, §5.4). METHOD /api/path | check[,relation]
 DELETE /api/events/:id/teams/:teamID | captain
 GET /api/events/:id/results/participation | requireManage,participant
 GET /api/events/:id/results/team | participant
