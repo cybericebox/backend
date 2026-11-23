@@ -239,7 +239,7 @@ func (f *Fleet) memberForCreate(ctx context.Context, group string) (*Member, err
 	}
 	enabled = runners
 	if need.ConsoleLines {
-		if enabled, err = consoleRunners(enabled); err != nil {
+		if enabled, err = consoleRunners(ctx, enabled); err != nil {
 			return nil, err
 		}
 	}
@@ -348,7 +348,7 @@ func (f *Fleet) Health(ctx context.Context) error {
 
 func (f *Fleet) DeployLab(ctx context.Context, group, lab string, meta infraModel.LabMeta, topo exerciseModel.Topology) error {
 	// Console lines first, before any agent work: no agent that is used serves them, or none takes this many cables.
-	if err := f.RequireConsoleLines(topo); err != nil {
+	if err := f.requireConsoleLinesFresh(ctx, topo); err != nil {
 		return err
 	}
 	// The need is read from the presets; then the agent gets explicit resources: requests equal limits, the

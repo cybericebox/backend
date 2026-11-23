@@ -126,7 +126,16 @@ func (f *Fleet) RunnableNodeProfiles(context.Context) map[exerciseModel.NodeProf
 // does not: a console port or cable sent to an agent older than contract 3.1 would be dropped from the lab, never refused.
 func servesConsoleLines(m *Member) bool {
 	feat := m.Features.Get()
-	return feat != nil && feat.ServesConsoleCables()
+	return feat != nil && consoleRefusal(*feat, exerciseModel.LabNeeds{ConsoleLines: true}) == nil
+}
+
+// consoleRefusal is the refusal of a lab's console lines by an agent's report: the agent must speak contract 3.1 (the console
+// feature) and report the feature on, and take the lab's cables.
+func consoleRefusal(feat infraModel.AgentFeatures, needs exerciseModel.LabNeeds) error {
+	if needs.ConsoleLines && !contractAtLeast(consoleLinesContract, feat.ContractVersion) {
+		return exerciseModel.ErrConsoleUnavailable.Err()
+	}
+	return feat.RequireConsoleLines(needs)
 }
 
 // ConsoleCablesAvailable reports whether an agent that is used offers console ports and console cables (the editor's
@@ -149,11 +158,11 @@ func (f *Fleet) RequireConsoleLines(topo exerciseModel.Topology) error {
 		if feat == nil {
 			continue
 		}
-		err := feat.RequireConsoleLines(needs)
+		err := consoleRefusal(*feat, needs)
 		if err == nil {
 			return nil
 		}
-		if feat.ServesConsoleCables() {
+		if contractAtLeast(consoleLinesContract, feat.ContractVersion) && feat.ServesConsoleCables() {
 			refusal = err // a limit is more telling than the absence
 		}
 	}
@@ -171,7 +180,7 @@ func (f *Fleet) requireConsoleLines(ctx context.Context, m *Member, needs exerci
 		if feat == nil {
 			return exerciseModel.ErrConsoleUnavailable.Err()
 		}
-		return feat.RequireConsoleLines(needs)
+		return consoleRefusal(*feat, needs)
 	}
 	err := refuse(m.Features.Get())
 	if err == nil {
@@ -183,8 +192,31 @@ func (f *Fleet) requireConsoleLines(ctx context.Context, m *Member, needs exerci
 	return err
 }
 
-// consoleRunners keeps the members that serve console lines, for a new group whose labs have them; none is ErrConsoleUnavailable.
-func consoleRunners(members []*Member) ([]*Member, error) {
+// refreshConsoleReports reads again (once per window each) the report of every member whose cached one does not serve console
+// lines: the feature can be switched on after the agent started, so a refusal never stands on a stale report alone.
+func refreshConsoleReports(ctx context.Context, members []*Member) {
+	for _, m := range members {
+		if !servesConsoleLines(m) {
+			refreshOnRefusal(ctx, m.Features, time.Now(), featuresReader(m))
+		}
+	}
+}
+
+// requireConsoleLinesFresh is RequireConsoleLines that reads the reports again once before a refusal stands.
+func (f *Fleet) requireConsoleLinesFresh(ctx context.Context, topo exerciseModel.Topology) error {
+	if err := f.RequireConsoleLines(topo); err == nil {
+		return nil
+	}
+	refreshConsoleReports(ctx, f.eligible())
+	return f.RequireConsoleLines(topo)
+}
+
+// consoleRunners keeps the members that serve console lines, for a new group whose labs have them (the reports are read again
+// once before none is left); none is ErrConsoleUnavailable.
+func consoleRunners(ctx context.Context, members []*Member) ([]*Member, error) {
+	if !slices.ContainsFunc(members, servesConsoleLines) {
+		refreshConsoleReports(ctx, members)
+	}
 	var kept []*Member
 	for _, m := range members {
 		if servesConsoleLines(m) {

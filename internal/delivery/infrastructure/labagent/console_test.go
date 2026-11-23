@@ -48,6 +48,7 @@ func cabledLab() exerciseModel.Topology {
 
 func consoleOffered(maxCables int32) *infraModel.AgentFeatures {
 	f := allOptions()
+	f.ContractVersion = "3.1"
 	f.ConsoleCables = &infraModel.ConsoleCablesFeature{Enabled: true, MaxCablesPerLab: maxCables, MaxBytesPerSecond: 65536}
 	return f
 }
@@ -128,7 +129,7 @@ func TestDeployLabNeedsAnAgentThatServesConsoleLines(t *testing.T) {
 			require.NoError(t, f.fleet.EnsureVPNGroup(ctx, "e-1-t-1"), "the group lives on agent a")
 			f.am.Features = NewFeatureCell(allOptions())
 			f.bm.Features = NewFeatureCell(consoleOffered(64))
-			f.a.features = &labpb.FeaturesResponse{ConsoleCables: &labpb.ConsoleCablesFeature{Enabled: enabled, MaxCablesPerLab: 64}}
+			f.a.features = &labpb.FeaturesResponse{ContractVersion: "3.1", ConsoleCables: &labpb.ConsoleCablesFeature{Enabled: enabled, MaxCablesPerLab: 64}}
 			err := f.fleet.DeployLab(ctx, "e-1-t-1", "c-1", infraModel.LabMeta{}, cabledLab())
 			if enabled {
 				require.NoError(t, err)
@@ -218,4 +219,31 @@ func TestBuildLabSpec_NoConsoleKeysWithoutPorts(t *testing.T) {
 	for _, key := range []string{"consoleCables", "consolePorts", "serialPorts", "service"} {
 		require.NotContains(t, string(encoded), key)
 	}
+}
+
+// Each feature is pinned to the contract that brought it: a 3.0 agent keeps its access grants (a lab without consoles is
+// unaffected) and is never sent console lines, even when its report would name the feature.
+func TestContractPinsPerFeature(t *testing.T) {
+	require.True(t, contractAccepts("3.0"), "grants need contract 3.0")
+	require.True(t, contractAccepts("3.1"))
+	require.False(t, contractAccepts("2.9"))
+	old := consoleOffered(64)
+	old.ContractVersion = "3.0"
+	m := &Member{Enabled: true, Features: NewFeatureCell(old)}
+	require.False(t, servesConsoleLines(m), "console lines need contract 3.1")
+	require.ErrorIs(t, NewFleet(nil, nil, m).RequireConsoleLines(cabledLab()), exerciseModel.ErrConsoleUnavailable.Err())
+}
+
+// A refusal never stands on a stale cached report: the reports are read again once, for the fleet-wide check and for the
+// placement of a new group.
+func TestConsoleLinesRefreshAStaleReportBeforeRefusing(t *testing.T) {
+	f := newFleetFixture(t)
+	f.am.Features = NewFeatureCell(allOptions())
+	f.bm.Features = NewFeatureCell(allOptions())
+	f.a.features = &labpb.FeaturesResponse{
+		ContractVersion: "3.1", Checks: &labpb.ChecksFeature{Enabled: true}, Access: &labpb.AccessFeature{Http: true, Terminal: true},
+		Bootstrap: &labpb.BootstrapFeature{}, ConsoleCables: &labpb.ConsoleCablesFeature{Enabled: true, MaxCablesPerLab: 64},
+	}
+	require.NoError(t, f.fleet.DeployLab(context.Background(), "e-1-t-1", "c-1", infraModel.LabMeta{}, cabledLab()))
+	require.NotNil(t, f.a.createLabs, "the agent switched on since its last report takes the lab")
 }

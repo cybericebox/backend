@@ -314,7 +314,7 @@ func TestSessionIssuerCapsByTheAgentLimitAndRefusesAnIncompatibleContract(t *tes
 	now := time.Date(2026, 11, 20, 12, 0, 0, 0, time.UTC)
 	session := labaccess.Session{Group: "e-1-t-2", Client: "p-1", Lab: "c-1", Device: "web", AccessURL: "https://web-abc.labs.example.com/"}
 
-	f.am.Features.Set(infraModel.AgentFeatures{ContractVersion: "3.1", Proxy: infraModel.ProxyFeature{GrantMaxTTLSeconds: 3600}})
+	f.am.Features.Set(infraModel.AgentFeatures{ContractVersion: "3.0", Proxy: infraModel.ProxyFeature{GrantMaxTTLSeconds: 3600}})
 	link, err := sessions.Issue(ctx, session, now)
 	if err != nil || !link.ExpiresAt.Equal(now.Add(time.Hour)) {
 		t.Fatalf("a grant is capped at the agent's limit: %v %v", link.ExpiresAt, err)
@@ -323,7 +323,7 @@ func TestSessionIssuerCapsByTheAgentLimitAndRefusesAnIncompatibleContract(t *tes
 	if _, err = sessions.Issue(ctx, session, now); err != nil {
 		t.Fatalf("a later minor of contract 3 takes the grant: %v", err)
 	}
-	for _, reported := range []string{"", "2.9", "3.0", "4.0", "x"} {
+	for _, reported := range []string{"", "2.9", "4.0", "x"} {
 		f.am.Features.Set(infraModel.AgentFeatures{ContractVersion: reported, Proxy: infraModel.ProxyFeature{GrantMaxTTLSeconds: 3600}})
 		if _, err = sessions.Issue(ctx, session, now); !errors.Is(err, infraModel.ErrInfrastructureUnavailable.Err()) {
 			t.Fatalf("contract %q must give no grant: %v", reported, err)
