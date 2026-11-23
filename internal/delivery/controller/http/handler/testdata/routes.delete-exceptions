@@ -26,3 +26,8 @@ DELETE /api/events/:id/manage/participant-preview/runs | A.3 #321: ends the call
 DELETE /api/events/:id/manage/participant-preview/selections/:selectionID/run | A.3 #324: ends the caller's own preview run, event.preview.participant
 DELETE /api/events/:id/manage/preview-picture | A.3 #346: clears the preview picture, a setting (event.settings.update)
 DELETE /api/events/:id/teams/:teamID | A.3 #401: the captain disbands the own team (captain relation, no key)
+DELETE /api/assistant/sessions/:id | A.3 #83: the caller's own brain session (sessions are the caller's own in the brain), cyberbrain.chat.use
+DELETE /api/assistant/sessions/:id/attachments/:aid | A.3 #86: an attachment of the caller's own brain session, cyberbrain.chat.use
+DELETE /api/exercises/:id/draft | A.3 #456: discards the task draft (undo), the update keys or authorship
+POST /api/exercises/elevations/:elevationID/reject | A.3 #509: deciding a request, exercises.elevations.update ("approve or reject them", A.2)
+POST /api/exercises/proposals/:proposalID/reject | A.3 #532: deciding a proposal, exercises.publish ("review catalog proposals", A.2; round 3)

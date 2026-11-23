@@ -24,6 +24,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/download"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
@@ -55,6 +56,7 @@ var sessionIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._~-]{0,127}$`)
 type (
 	IProtection interface {
 		RequirePermission(required rbac.Permission) gin.HandlerFunc
+		Route(decl authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc
 	}
 
 	IUseCase interface {
@@ -77,18 +79,18 @@ func (h *Handler) Init(r *gin.RouterGroup) {
 	// self: a signed-in person; author: one who may author tasks somewhere (the same rule as importing a task)
 	self := h.prot.RequirePermission(rbac.PermSelf)
 	long := download.LongOperation()
-	g.GET("ideas", self, h.author, h.passJSON(http.MethodGet, "/v1/assistant/ideas"))
-	g.POST("sessions", self, h.author, h.passJSON(http.MethodPost, "/v1/assistant/sessions"))
-	g.POST("sessions/:id/messages", self, h.author, h.passSessionJSON(http.MethodPost, "/messages"))
-	g.POST("sessions/:id/attachments", self, h.author, h.uploadAttachment)
-	g.DELETE("sessions/:id/attachments/:aid", self, h.author, h.deleteAttachment)
-	g.POST("sessions/:id/start", self, h.author, h.passSessionJSON(http.MethodPost, "/start"))
-	g.POST("sessions/:id/stop", self, h.author, h.passSessionJSON(http.MethodPost, "/stop"))
+	g.GET("ideas", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.CyberbrainChatUse), self), h.author, h.passJSON(http.MethodGet, "/v1/assistant/ideas"))
+	g.POST("sessions", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.CyberbrainChatUse), self), h.author, h.passJSON(http.MethodPost, "/v1/assistant/sessions"))
+	g.POST("sessions/:id/messages", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.CyberbrainChatUse), self), h.author, h.passSessionJSON(http.MethodPost, "/messages"))
+	g.POST("sessions/:id/attachments", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.CyberbrainChatUse), self), h.author, h.uploadAttachment)
+	g.DELETE("sessions/:id/attachments/:aid", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.CyberbrainChatUse), self), h.author, h.deleteAttachment)
+	g.POST("sessions/:id/start", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.CyberbrainChatUse), self), h.author, h.passSessionJSON(http.MethodPost, "/start"))
+	g.POST("sessions/:id/stop", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.CyberbrainChatUse), self), h.author, h.passSessionJSON(http.MethodPost, "/stop"))
 	// save imports the finished task (a background import waits for its images), then tells the brain
-	g.POST("sessions/:id/save", long, self, h.author, h.save)
-	g.GET("sessions/:id/archive", self, h.author, h.archive)
-	g.DELETE("sessions/:id", self, h.author, h.passSessionJSON(http.MethodDelete, ""))
-	g.GET("sessions/:id/events", self, h.author, h.events)
+	g.POST("sessions/:id/save", long, h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.CyberbrainChatUse).WithData(authz.ExercisesCreate, authz.ExercisesUpdate, authz.EventExercisesCreate, authz.EventExercisesUpdate), self), h.author, h.save)
+	g.GET("sessions/:id/archive", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.CyberbrainSessionsRead), self), h.author, h.archive)
+	g.DELETE("sessions/:id", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.CyberbrainChatUse), self), h.author, h.passSessionJSON(http.MethodDelete, ""))
+	g.GET("sessions/:id/events", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.CyberbrainSessionsRead), self), h.author, h.events)
 }
 
 const actorKey = "assistant.actor"
