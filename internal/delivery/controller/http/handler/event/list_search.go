@@ -85,6 +85,9 @@ func (h *Handler) listParticipantsTable(ctx *gin.Context, id uuid.UUID, status *
 	for _, p := range res.Participants {
 		items = append(items, toParticipantResponse(p))
 	}
+	if !h.maskParticipantEmails(ctx, id, items) {
+		return
+	}
 	response.AbortWithData(ctx, participantsTablePageResponse{
 		OffsetPage: pagination.NewOffsetPage(items, res.Total, res.Page, res.PageSize),
 		Counts:     participantCountsResponse{Participants: res.Counts.Participants, Applications: res.Counts.Applications, Invitations: res.Counts.Invitations},
