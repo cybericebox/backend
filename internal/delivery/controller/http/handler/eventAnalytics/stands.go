@@ -24,7 +24,7 @@ type StandsUseCase interface {
 func (h *Handler) initStands(router *gin.RouterGroup) {
 	analytics := router.Group("events/:id/manage/analytics", h.prot.RequirePermission(rbac.PermSelf))
 	analytics.GET("stands", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventStatsRead), nil), h.requireSections, h.stands)
-	analytics.GET("stands/export.csv", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventExport), nil), h.requireExport, h.exportStands)
+	analytics.GET("stands/export.csv", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventExport).WithData(authz.EventStatsPeopleRead), nil), h.requireExport, h.exportStands)
 }
 
 type (

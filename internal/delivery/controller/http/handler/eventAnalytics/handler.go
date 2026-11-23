@@ -53,7 +53,7 @@ func (h *Handler) Init(router *gin.RouterGroup) {
 	{
 		analytics.GET("access", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventStatsRead, authz.EventStatsSensitiveRead), nil), h.requireSections, h.access)
 		analytics.GET("overview", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventStatsRead), nil), h.requireSections, h.overview)
-		analytics.GET("overview/export.csv", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventExport), nil), h.requireExport, h.exportOverview)
+		analytics.GET("overview/export.csv", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventExport).WithData(authz.EventStatsPeopleRead), nil), h.requireExport, h.exportOverview)
 		h.initTasks(router)
 		h.initStands(router)
 		h.initLabTelemetry(router)

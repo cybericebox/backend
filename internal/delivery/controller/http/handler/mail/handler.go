@@ -163,12 +163,12 @@ func (h *Handler) Init(router *gin.RouterGroup) {
 	platform.POST("providers/:providerId/test", write, h.testProvider)
 
 	manage := router.Group("events/:id/manage/mail", h.prot.RequirePermission(rbac.PermSelf))
-	manage.GET("", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventCommsRead), nil), h.requireRead, h.getEvent)
+	manage.GET("", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventCommsRead).WithData(authz.EventPersonalDataRead), nil), h.requireRead, h.getEvent)
 	manage.PUT("identity", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventCommsUpdate), nil), h.requireManage, h.updateEventIdentity)
 	manage.PUT("smtp", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventCommsUpdate), nil), h.requireManage, h.updateEventSMTP)
 	manage.DELETE("smtp", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventCommsUpdate), nil), h.requireManage, h.deleteEventSMTP)
 	manage.POST("smtp/test", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventCommsUpdate), nil), h.requireManage, h.testEventSMTP)
-	manage.GET("journal", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventCommsRead), nil), h.requireRead, h.eventJournal)
+	manage.GET("journal", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventCommsRead).WithData(authz.EventPersonalDataRead), nil), h.requireRead, h.eventJournal)
 }
 
 // getPlatform godoc

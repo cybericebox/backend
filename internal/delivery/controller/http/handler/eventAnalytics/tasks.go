@@ -32,7 +32,7 @@ type TasksUseCase interface {
 func (h *Handler) initTasks(router *gin.RouterGroup) {
 	analytics := router.Group("events/:id/manage/analytics", h.prot.RequirePermission(rbac.PermSelf))
 	analytics.GET("tasks", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventStatsRead), nil), h.requireSections, h.tasks)
-	analytics.GET("tasks/export.csv", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventExport), nil), h.requireExport, h.exportTasks)
+	analytics.GET("tasks/export.csv", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventExport).WithData(authz.EventStatsPeopleRead), nil), h.requireExport, h.exportTasks)
 	analytics.GET("tasks/:challengeID", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventStatsRead), nil), h.requireSections, h.taskDetail)
 	analytics.GET("tasks/:challengeID/wrong-answers", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventStatsSensitiveRead), nil), h.requireSensitive, h.taskWrongAnswers)
 }

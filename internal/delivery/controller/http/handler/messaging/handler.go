@@ -234,10 +234,10 @@ func (h *Handler) Init(api *gin.RouterGroup) {
 	manage.POST("broadcasts", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventCommsUpdate), nil), h.requireManage, h.send(eventScope))
 	manage.GET("broadcasts", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventCommsRead), nil), h.requireRead, h.listBroadcasts(eventScope))
 	manage.GET("broadcasts/:broadcastID", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventCommsRead), nil), h.requireRead, h.getBroadcast(eventScope))
-	manage.GET("broadcasts/:broadcastID/deliveries", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventCommsRead), nil), h.requireRead, h.listDeliveries(eventScope))
+	manage.GET("broadcasts/:broadcastID/deliveries", h.prot.Route(authz.AnyOf(authz.SourceEventParam("id"), authz.EventCommsRead).WithData(authz.EventPersonalDataRead), nil), h.requireRead, h.listDeliveries(eventScope))
 	manage.GET(
 		"broadcasts/:broadcastID/deliveries/export",
-		h.prot.Route(authz.AllOf(authz.SourceEventParam("id"), authz.EventCommsRead, authz.EventExport), nil),
+		h.prot.Route(authz.AllOf(authz.SourceEventParam("id"), authz.EventCommsRead, authz.EventExport).WithData(authz.EventPersonalDataRead), nil),
 		h.requireRead,
 		h.exportDeliveries(eventScope),
 	)

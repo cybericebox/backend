@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
@@ -13,6 +14,7 @@ func TestConvert(t *testing.T) {
 		{"`public` (visibility: scoreboard during the event, results after it, §4.5)", "path :id → event", "- @ public(scoreboard,results)"},
 		{"service secret (X-Render-Secret)", "path :tag", "- @ service(render)"},
 		{"`users.list`", "none", "users.list @ platform"},
+		{"`events.archive`", "platform (bulk: body IDs)", "events.archive @ platform"},
 		{"all-of: `access.grants.create`, `access.grants.delete`", "none (delegation §6.4)", "allOf(access.grants.create,access.grants.delete) @ platform"},
 		{"any-of: `events.read`, `event.settings.read`", "path :id → event", "anyOf(events.read,event.settings.read) @ event(:id)"},
 		{"`events.delete`; an archived event: all-of `events.delete`, `events.archived.read`", "path :id → event (bulk: body IDs)", "events.delete @ event(:id)"},
@@ -20,6 +22,9 @@ func TestConvert(t *testing.T) {
 		{"all-of: `cyberbrain.runs.start` and (`exercises.update`, `event.exercises.update` or author)", "path :id → exercise (author, audiences, owner event)", "allOf(cyberbrain.runs.start) + anyOf(exercises.update,event.exercises.update,(author)) @ object(exercise)"},
 		{"`(participant)`", "tenant (Origin) → event", "(participant) @ tenant"},
 		{"`(captain)`", "path :teamID → the caller's team (relation)", "(captain) @ object(team)"},
+		{"`(team member)`", "own team (relation)", "(team-member) @ own-team(:id)"},
+		{"`self`", "own team (lookup)", "self @ own-team(:id)"},
+		{"bearer token (live-screen link)", "tenant (Origin) → event", "- @ bearer(live-screen)"},
 		{"any-of: `(participant)`, `event.labs.moderator-team.use`", "path :id → event", "anyOf(event.labs.moderator-team.use,(participant)) @ event(:id)"},
 	}
 	for _, c := range cases {
@@ -33,7 +38,6 @@ func TestConvert(t *testing.T) {
 		}
 	}
 	for _, c := range [][2]string{
-		{"bearer token (live-screen link)", "tenant (Origin) → event"},
 		{"any-of: `exercises.create`, `event.exercises.create`", "none (own upload)"},
 		{"`exercises.read`", "own job"},
 	} {
@@ -63,8 +67,9 @@ func TestReadAppendixAndOverrides(t *testing.T) {
 	if err := applyOverrides(routes, "DELETE /api/auth/account | data: users.delete | test\n"); err != nil {
 		t.Fatal(err)
 	}
-	out := render(routes)
+	out := render(routes, "abc123")
 	for _, want := range []string{
+		"# spec: abc123\n",
 		"DELETE /api/auth/account | keys: self @ self | data: users.delete | A.3 #4; override: test",
 		"GET    /api/events | keys: events.list @ platform | data: events.archived.read | A.3 #92",
 	} {
@@ -77,5 +82,31 @@ func TestReadAppendixAndOverrides(t *testing.T) {
 	}
 	if err := applyOverrides(routes, "GET /api/events | keys: users.teleport @ platform | x\n"); err == nil {
 		t.Error("an override with an unknown key passed")
+	}
+}
+
+// The committed routes.expected-keys and overrides.txt name the same spec commit: regenerating the file against a
+// newer spec changes its header, and this fails until overrides.txt has been read against that spec and its commit
+// line moved with it.
+func TestExpectedKeysAndOverridesNameTheSameSpecCommit(t *testing.T) {
+	commitOf := func(path string) string {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, line := range strings.Split(string(b), "\n") {
+			if strings.HasPrefix(line, SpecCommitLine) {
+				return strings.TrimPrefix(line, SpecCommitLine)
+			}
+		}
+		t.Fatalf("%s has no %q line", path, SpecCommitLine)
+		return ""
+	}
+	expected, overrides := commitOf("../../"+defaultOut), commitOf("overrides.txt")
+	if expected != overrides {
+		t.Errorf("routes.expected-keys was generated from spec %s, overrides.txt was read against %s: review the overrides against the new spec and update its commit line", expected, overrides)
+	}
+	if len(expected) != 40 {
+		t.Errorf("spec commit %q is not a full SHA", expected)
 	}
 }

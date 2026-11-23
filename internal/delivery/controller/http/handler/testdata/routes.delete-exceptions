@@ -24,4 +24,3 @@ DELETE /api/events/:id/manage/participant-preview/labs/:deployID | A.3 #320: sto
 DELETE /api/events/:id/manage/participant-preview/runs | A.3 #321: ends the caller's own preview runs, event.preview.participant
 DELETE /api/events/:id/manage/participant-preview/selections/:selectionID/run | A.3 #324: ends the caller's own preview run, event.preview.participant
 DELETE /api/events/:id/manage/preview-picture | A.3 #346: clears the preview picture, a setting (event.settings.update)
-POST /api/events/:id/manage/exercises/bulk/detach | A.3 #231 gives event.tasks.update, although A.2 puts detaching under event.tasks.delete: follows A.3, to be confirmed in the spec

@@ -58,6 +58,8 @@ func TestDeclarationViolations(t *testing.T) {
 		"DELETE /api/auth/last-email | gate: - | layers: - | keys: - @ public",
 		"GET    /api/admin/assistant/statistics/events/:eventID | gate: platform.settings.read | layers: - | keys: cyberbrain.stats.read @ event(:eventID)",
 		"GET    /api/render/events/:tag/page | gate: - | layers: eventself.requireSecret | keys: - @ service(render)",
+		"GET    /api/events/self/live-screen | gate: events.content.read(public) | layers: eventself.liveScreenGate,middleware.ResolveEventTenant.func | keys: - @ bearer(live-screen)",
+		"GET    /api/events/:id/teams/mine/members | gate: self | layers: eventself.touchPresence | keys: (team-member) @ own-team(:id)",
 	}, "\n")
 	if got := declarationViolations(golden, exceptions); len(got) != 0 {
 		t.Fatalf("want no violations, got %v", got)
@@ -79,6 +81,9 @@ func TestDeclarationViolations(t *testing.T) {
 		"event param missing":   "POST   /api/events/bulk/archive | gate: events.write | layers: - | keys: events.archive @ event(:id)",
 		"service elsewhere":     "GET    /api/events/:id | gate: - | layers: eventself.requireSecret | keys: - @ service(render)",
 		"service without layer": "GET    /api/render/key | gate: - | layers: - | keys: - @ service(render)",
+		"bearer elsewhere":      "GET    /api/events/:id/results | gate: - | layers: eventself.liveScreenGate | keys: - @ bearer(live-screen)",
+		"bearer without layer":  "GET    /api/events/self/live-screen | gate: - | layers: - | keys: - @ bearer(live-screen)",
+		"own team param":        "GET    /api/events/self/team | gate: self | layers: - | keys: (team-member) @ own-team(:id)",
 	}
 	for name, line := range bad {
 		if got := declarationViolations(line, nil); len(got) == 0 {

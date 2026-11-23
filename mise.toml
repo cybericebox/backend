@@ -80,6 +80,16 @@ run = "go run ./tools/checkroutes"
 description = "Regenerate testdata/routes.expected-keys from Appendix A.3 of the access spec (docs/internal-docs; -- -spec <path> to point elsewhere)"
 run = "go run ./tools/routekeys"
 
+[tasks."check:routekeys"]
+description = "Fail when testdata/routes.expected-keys differs from a fresh generation from the local internal-docs spec (SPEC=<path> to point elsewhere; CI holds no credential for internal-docs)"
+run = '''
+spec="${SPEC:-../../docs/internal-docs/platform/specs/access-control-design.md}"
+tmp="$(mktemp)"
+trap 'rm -f "$tmp"' EXIT
+go run ./tools/routekeys -spec "$spec" -out "$tmp"
+diff -u internal/delivery/controller/http/handler/testdata/routes.expected-keys "$tmp"
+'''
+
 [tasks."lint:secretctx"]
 description = "Fail when a secret context is built outside internal/secretctx or a seal has none"
 run = "go run ./tools/checksecretctx"
