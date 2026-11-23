@@ -15,6 +15,9 @@ import (
 	"github.com/cybericebox/backend/internal/model/rbac"
 )
 
+// draftKeyRequestsPerMinute bounds the draft-key requests of one person: the editor asks once per draft it opens.
+const draftKeyRequestsPerMinute = 60
+
 // draftKeyResponse is the draft key of this browser.
 type draftKeyResponse struct {
 	// ID names the key; the browser also holds it in the httpOnly cookie cib_draft_key.

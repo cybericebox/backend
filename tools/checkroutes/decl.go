@@ -12,29 +12,58 @@ import (
 
 // The declaration rules of plan P1b, checked over the keys column of routes.golden (the mounted tree, which
 // TestRoutePolicy keeps equal to the router): every declared key is in the catalogue and can be checked at the
-// route's scope source (authz.Decl.Problems); a DELETE route and every reject, revoke, remove or detach action
-// declares its area's .delete key; an event(:param) source names a parameter of the path; the event manage area, the
-// catalog and the assistant never stand on a bare self.
-// A route still marked "?" is not declared yet (TestEveryRouteDeclaresKeys holds that list).
-
-// deleteExceptions are the delete-shaped routes that keep an update key or a relation by Appendix A.3: resets to a
-// default, undo routes (discarding a draft) and the caller's own data. Keyed "METHOD /api/path".
-var deleteExceptions = map[string]string{}
+// route's scope source (authz.Decl.Problems); an event(:param) source names a parameter of the path; a delete-shaped
+// route (DELETE, or a reject, revoke, remove, detach or delete action) declares its area's .delete key, and a .delete
+// key stands only on a delete-shaped route; a service route sits under /api/render/ behind its secret layer; the event
+// manage area, the catalog and the assistant never stand on a bare self. A route still marked "?" is not declared yet
+// (TestEveryRouteDeclaresKeys holds that list).
+//
+// The delete-shaped routes that keep an update key, own data, a relation or a public flow (Appendix A.3: resets to a
+// default, undo routes, the caller's own data), and the routes that hold a .delete key without being delete-shaped,
+// are listed one by one with their reason in testdata/routes.delete-exceptions ("METHOD /api/path | reason").
 
 // bareSelfForbidden are the areas where self alone is never the declaration (staff work, the catalog, the
 // assistant): the real check is a key, a relation or an object scope.
 var bareSelfForbidden = []string{"/api/events/:id/manage", "/api/exercises", "/api/assistant"}
 
 // deleteActions are the last path segments that remove something although the method is not DELETE.
-var deleteActions = []string{"reject", "revoke", "remove", "detach"}
+var deleteActions = []string{"reject", "revoke", "remove", "detach", "delete"}
 
-func goldenPath(handlerRoot string) string {
-	return path.Join(handlerRoot, "testdata", "routes.golden")
+// serviceRoutes: where a service source may stand, and the layer that checks the service's credential.
+var serviceRoutes = map[string]struct{ prefix, layer string }{
+	authz.ServiceRender: {prefix: "/api/render/", layer: "requireSecret"},
 }
 
-func readGolden(handlerRoot string) (string, error) {
-	b, err := os.ReadFile(goldenPath(handlerRoot))
+func testdataPath(handlerRoot, name string) string {
+	return path.Join(handlerRoot, "testdata", name)
+}
+
+func readTestdata(handlerRoot, name string) (string, error) {
+	b, err := os.ReadFile(testdataPath(handlerRoot, name))
 	return string(b), err
+}
+
+// parseExceptions reads routes.delete-exceptions: one "METHOD /api/path | reason" per line; # starts a comment.
+func parseExceptions(text string) (map[string]string, []string) {
+	out := map[string]string{}
+	var problems []string
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		id, reason, ok := strings.Cut(line, " | ")
+		id = strings.Join(strings.Fields(id), " ")
+		if !ok || strings.TrimSpace(reason) == "" || len(strings.Fields(id)) != 2 {
+			problems = append(problems, fmt.Sprintf("routes.delete-exceptions: want \"METHOD /api/path | reason\", got %q", line))
+			continue
+		}
+		if _, dup := out[id]; dup {
+			problems = append(problems, fmt.Sprintf("routes.delete-exceptions lists %s twice", id))
+		}
+		out[id] = strings.TrimSpace(reason)
+	}
+	return out, problems
 }
 
 // declarationViolations checks every line of routes.golden; exceptions is the delete allowlist.
@@ -52,10 +81,14 @@ func declarationViolations(golden string, exceptions map[string]string) []string
 		}
 		method, route := fields[0], fields[1]
 		id := method + " " + route
-		_, keys, ok := strings.Cut(line, " | keys: ")
+		rest, keys, ok := strings.Cut(line, " | keys: ")
 		if !ok {
 			out = append(out, fmt.Sprintf("%s: routes.golden has no keys column", id))
 			continue
+		}
+		var layers []string
+		if _, l, ok := strings.Cut(rest, " | layers: "); ok && l != "-" {
+			layers = strings.Split(l, ",")
 		}
 		keys = strings.TrimSpace(keys)
 		if keys == "?" {
@@ -72,6 +105,7 @@ func declarationViolations(golden string, exceptions map[string]string) []string
 		if param := decl.Scope.Param(); param != "" && !slices.Contains(strings.Split(route, "/"), ":"+param) {
 			out = append(out, fmt.Sprintf("%s: scope %s names a path parameter the route does not have", id, decl.Scope))
 		}
+		out = append(out, serviceViolations(id, route, decl, layers)...)
 		if isBareSelf(decl) {
 			for _, prefix := range bareSelfForbidden {
 				if route == prefix || strings.HasPrefix(route, prefix+"/") {
@@ -79,26 +113,50 @@ func declarationViolations(golden string, exceptions map[string]string) []string
 				}
 			}
 		}
+		_, excepted := exceptions[id]
+		if excepted {
+			used[id] = true
+		}
+		var broken string
 		if isDeleteRoute(method, route) {
-			_, excepted := exceptions[id]
-			if excepted {
-				used[id] = true
+			if !hasDeleteKey(decl) {
+				broken = fmt.Sprintf("%s: a delete route declares no .delete key (%s)", id, decl)
 			}
-			missing := !hasDeleteKey(decl)
-			switch {
-			case missing && !excepted:
-				out = append(out, fmt.Sprintf("%s: a delete route declares no .delete key (%s); a reset, undo or own-data route goes on deleteExceptions with its A.3 row", id, decl))
-			case !missing && excepted:
-				out = append(out, fmt.Sprintf("%s: on deleteExceptions but declares a .delete key: drop the entry", id))
-			}
+		} else if k, ok := deleteKeyOf(decl); ok {
+			broken = fmt.Sprintf("%s: %s on a route that is not delete-shaped", id, k)
+		}
+		switch {
+		case broken != "" && !excepted:
+			out = append(out, broken+"; a reset, undo, own-data, relation or public route goes on routes.delete-exceptions with its A.3 row")
+		case broken == "" && excepted:
+			out = append(out, fmt.Sprintf("%s: on routes.delete-exceptions but follows the delete rule: drop the entry", id))
 		}
 	}
 	for id := range exceptions {
 		if !used[id] {
-			out = append(out, fmt.Sprintf("deleteExceptions lists %s, which is not a declared delete route", id))
+			out = append(out, fmt.Sprintf("routes.delete-exceptions lists %s, which is not a declared route", id))
 		}
 	}
 	slices.Sort(out)
+	return out
+}
+
+func serviceViolations(id, route string, d authz.Decl, layers []string) []string {
+	if d.Scope.Kind() != "service" {
+		return nil
+	}
+	name := strings.TrimSuffix(strings.TrimPrefix(string(d.Scope), "service("), ")")
+	where, ok := serviceRoutes[name]
+	if !ok {
+		return []string{fmt.Sprintf("%s: no route rule for service %q", id, name)}
+	}
+	var out []string
+	if !strings.HasPrefix(route, where.prefix) {
+		out = append(out, fmt.Sprintf("%s: service(%s) only under %s", id, name, where.prefix))
+	}
+	if !slices.ContainsFunc(layers, func(l string) bool { return strings.HasSuffix(l, "."+where.layer) || l == where.layer }) {
+		out = append(out, fmt.Sprintf("%s: service(%s) without its credential layer %s", id, name, where.layer))
+	}
 	return out
 }
 
@@ -113,31 +171,40 @@ func isDeleteRoute(method, route string) bool {
 	return slices.Contains(deleteActions, path.Base(route))
 }
 
-// hasDeleteKey: the grantable keys of the declaration remove something. Every any-of key is a .delete key, or,
-// without grantable any-of keys, one all-of key is. A declaration without grantable keys (own data, a relation,
-// a public flow) needs none.
-func hasDeleteKey(d authz.Decl) bool {
-	grantable := func(keys []authz.Key) []authz.Key {
-		var out []authz.Key
-		for _, k := range keys {
-			if spec, ok := authz.Lookup(k); ok && spec.Grantable() {
-				out = append(out, k)
-			}
+func isDeleteKey(k authz.Key) bool { return strings.HasSuffix(string(k), ".delete") }
+
+func grantable(keys []authz.Key) []authz.Key {
+	var out []authz.Key
+	for _, k := range keys {
+		if spec, ok := authz.Lookup(k); ok && spec.Grantable() {
+			out = append(out, k)
 		}
-		return out
 	}
-	isDelete := func(k authz.Key) bool { return strings.HasSuffix(string(k), ".delete") }
+	return out
+}
+
+// hasDeleteKey: the grantable keys of the declaration remove something. Every any-of key is a .delete key, or,
+// without grantable any-of keys, one all-of key is. A declaration without grantable keys (own data, a relation, a
+// public flow) has none: such a delete route is listed in routes.delete-exceptions.
+func hasDeleteKey(d authz.Decl) bool {
 	anyOf, allOf := grantable(d.AnyOf), grantable(d.AllOf)
 	if len(anyOf) > 0 {
 		for _, k := range anyOf {
-			if !isDelete(k) {
+			if !isDeleteKey(k) {
 				return false
 			}
 		}
 		return true
 	}
-	if len(allOf) == 0 {
-		return true
+	return slices.ContainsFunc(allOf, isDeleteKey)
+}
+
+// deleteKeyOf returns a .delete key the declaration names, if any.
+func deleteKeyOf(d authz.Decl) (authz.Key, bool) {
+	for _, k := range d.Keys() {
+		if isDeleteKey(k) {
+			return k, true
+		}
 	}
-	return slices.ContainsFunc(allOf, isDelete)
+	return "", false
 }

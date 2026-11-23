@@ -6,11 +6,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/cybericebox/backend/internal/authz"
-	"github.com/cybericebox/backend/internal/delivery/repository/participantRepo"
 	"io"
 	"strconv"
 	"time"
+
+	"github.com/cybericebox/backend/internal/authz"
+	"github.com/cybericebox/backend/internal/delivery/repository/participantRepo"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
@@ -295,7 +296,7 @@ func (h *Handler) Init(router *gin.RouterGroup) {
 		ev.GET(":id/preview-picture/:fileID", h.prot.Route(authz.PublicRoute(authz.PublicPages), h.prot.RequirePermission(rbac.PermEventContentRead)), middleware.PublicMedia, h.serveEventMedia(previewMedia))
 		ev.GET(":id/content-images/:fileID", h.prot.Route(authz.PublicRoute(authz.PublicPages), h.prot.RequirePermission(rbac.PermEventContentRead)), middleware.PublicMedia, h.serveEventMedia(contentMedia))
 		ev.POST("", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.EventsCreate), h.prot.RequirePermission(rbac.PermEventsWrite)), h.create)
-		ev.POST("bulk/archive", h.prot.Route(authz.AnyOf(authz.SourceObject("event"), authz.EventsArchive), h.prot.RequirePermission(rbac.PermEventsWrite)), h.bulkArchive)
+		ev.POST("bulk/archive", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.EventsArchive), h.prot.RequirePermission(rbac.PermEventsWrite)), h.bulkArchive)
 		ev.GET("facets", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.EventsList), h.prot.RequirePermission(rbac.PermEventsRead)), h.facets)
 		ev.GET("organizers", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.EventsList), h.prot.RequirePermission(rbac.PermEventsRead)), h.organizers)
 

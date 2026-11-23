@@ -414,7 +414,7 @@ POST   /api/events/:id/teams/mine/form | gate: self | layers: eventself.touchPre
 POST   /api/events/:id/teams/mine/leave | gate: self | layers: eventself.touchPresence | keys: ?
 GET    /api/events/:id/teams/mine/members | gate: self | layers: eventself.touchPresence | keys: ?
 PUT    /api/events/:id/theme | gate: events.write | layers: event.requireWritableEvent | keys: events.settings.update @ event(:id)
-POST   /api/events/bulk/archive | gate: events.write | layers: - | keys: events.archive @ object(event)
+POST   /api/events/bulk/archive | gate: events.write | layers: - | keys: events.archive @ platform
 GET    /api/events/facets | gate: events.read | layers: - | keys: events.list @ platform
 GET    /api/events/organizers | gate: events.read | layers: - | keys: events.list @ platform
 POST   /api/events/self/answer-files | gate: self | layers: middleware.ResolveEventTenant.func,eventself.touchPresence,middleware.RateLimitPerUser.func | keys: ?
@@ -589,7 +589,7 @@ PATCH  /api/mail/settings/providers/:providerId/enabled | gate: platform.setting
 POST   /api/mail/settings/providers/:providerId/test | gate: platform.settings.write | layers: - | keys: ?
 PUT    /api/mail/settings/providers/order | gate: platform.settings.write | layers: - | keys: ?
 POST   /api/mail/settings/providers/test | gate: platform.settings.write | layers: - | keys: ?
-POST   /api/me/draft-key | gate: self | layers: auth.requireEditorOrigin | keys: ?
+POST   /api/me/draft-key | gate: self | layers: auth.requireEditorOrigin,middleware.RateLimitPerUser.func | keys: self @ self
 GET    /api/notifications/banners | gate: banners.view(public) | layers: middleware.(*SiteResolver).ResolveSite.func | keys: ?
 PATCH  /api/notifications/banners/:id/dismiss | gate: notifications.self | layers: - | keys: ?
 GET    /api/notifications/broadcasts | gate: notifications.broadcast | layers: - | keys: ?
@@ -652,9 +652,9 @@ GET    /api/notifications/templates/inapp/latest | gate: notifications.templates
 POST   /api/notifications/test | gate: notifications.test | layers: - | keys: ?
 GET    /api/notifications/types | gate: notifications.templates.read | layers: - | keys: ?
 GET    /api/notifications/types/:type | gate: notifications.templates.read | layers: - | keys: ?
-GET    /api/render/events/:tag/manifest | gate: - | layers: eventself.(*EventRenderHandler).requireSecret | keys: ?
-GET    /api/render/events/:tag/page | gate: - | layers: eventself.(*EventRenderHandler).requireSecret | keys: ?
-GET    /api/render/key | gate: - | layers: eventself.(*EventRenderHandler).requireSecret | keys: ?
+GET    /api/render/events/:tag/manifest | gate: - | layers: eventself.(*EventRenderHandler).requireSecret | keys: - @ service(render)
+GET    /api/render/events/:tag/page | gate: - | layers: eventself.(*EventRenderHandler).requireSecret | keys: - @ service(render)
+GET    /api/render/key | gate: - | layers: eventself.(*EventRenderHandler).requireSecret | keys: - @ service(render)
 GET    /api/settings | gate: platform.settings.read | layers: - | keys: ?
 GET    /api/settings/:key | gate: platform.settings.read | layers: - | keys: ?
 PUT    /api/settings/:key | gate: platform.settings.write | layers: - | keys: ?

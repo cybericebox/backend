@@ -31,7 +31,7 @@ const (
 var relations = []Relation{RelParticipant, RelTeamMember, RelCaptain, RelAuthor}
 
 // ScopeSource is where a route takes the scope of its check from. It is written as it reads in routes.golden:
-// "platform", "event(:id)", "tenant", "object(exercise)", "self", "public" or "public(pages)".
+// "platform", "event(:id)", "tenant", "object(exercise)", "self", "public", "public(pages)" or "service(render)".
 type ScopeSource string
 
 const (
@@ -69,6 +69,18 @@ func SourcePublic(objects ...string) ScopeSource {
 	}
 	return ScopeSource("public(" + strings.Join(objects, ",") + ")")
 }
+
+// The services that call the API with a credential of their own instead of a user session (a fixed list).
+const (
+	// ServiceRender: the event-frontend server, with the render secret (X-Render-Secret).
+	ServiceRender = "render"
+)
+
+var services = []string{ServiceRender}
+
+// SourceService: a route for a service of the platform, authorized by the service's own credential, never by a user's
+// keys; the route carries the credential check as a layer.
+func SourceService(name string) ScopeSource { return ScopeSource("service(" + name + ")") }
 
 // PublicObjects returns the visibility objects a public source names.
 func (s ScopeSource) PublicObjects() []string {
@@ -110,6 +122,8 @@ func (s ScopeSource) valid() bool {
 		return len(arg) > 1 && arg[0] == ':' && isName(arg[1:])
 	case "object":
 		return isName(arg)
+	case "service":
+		return slices.Contains(services, arg)
 	case "public":
 		objects := strings.Split(arg, ",")
 		for i, o := range objects {
@@ -145,6 +159,9 @@ func OwnData() Decl { return AnyOf(SourceSelf, Self) }
 
 // PublicRoute declares a route open to everyone; objects as in SourcePublic.
 func PublicRoute(objects ...string) Decl { return Decl{Scope: SourcePublic(objects...)} }
+
+// ServiceRoute declares a route of a platform service (SourceService): no keys, no relation.
+func ServiceRoute(name string) Decl { return Decl{Scope: SourceService(name)} }
 
 // Related declares a route that admits the caller through a relation (participant, team member, captain, author).
 func Related(scope ScopeSource, rel Relation) Decl { return Decl{Relation: rel, Scope: scope} }
@@ -262,14 +279,17 @@ func (d Decl) Problems() []string {
 		return out
 	}
 	kind := d.Scope.Kind()
-	if len(d.AllOf) == 0 && len(d.AnyOf) == 0 && d.Relation == "" && kind != "public" {
+	if len(d.AllOf) == 0 && len(d.AnyOf) == 0 && d.Relation == "" && kind != "public" && kind != "service" {
 		out = append(out, "declares neither a key nor a relation")
+	}
+	if kind == "service" && (len(d.AllOf) > 0 || len(d.AnyOf) > 0 || d.Relation != "") {
+		out = append(out, fmt.Sprintf("%s is authorized by the service credential: it declares no keys and no relation", d.Scope))
 	}
 	if d.Relation != "" {
 		if !slices.Contains(relations, d.Relation) {
 			out = append(out, fmt.Sprintf("unknown relation %q", d.Relation))
 		}
-		if kind == "public" || kind == "self" || kind == "platform" {
+		if kind == "public" || kind == "self" || kind == "platform" || kind == "service" {
 			out = append(out, fmt.Sprintf("relation %q needs an object or an event, not %s", d.Relation, d.Scope))
 		}
 	}

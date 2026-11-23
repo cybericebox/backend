@@ -17,6 +17,7 @@ func TestDeclStringRoundTrip(t *testing.T) {
 		{PublicRoute(""), "- @ public"},
 		{PublicRoute(PublicPages), "- @ public(pages)"},
 		{PublicRoute(PublicScoreboard, PublicResults), "- @ public(scoreboard,results)"},
+		{ServiceRoute(ServiceRender), "- @ service(render)"},
 		{Related(SourceTenant, RelParticipant), "(participant) @ tenant"},
 		{AnyOf(SourceEventParam("id"), EventLabsModeratorTeamUse).Or(RelParticipant), "anyOf(event.labs.moderator-team.use,(participant)) @ event(:id)"},
 		{AnyOf(SourceObject("exercise"), ExercisesUpdate, EventExercisesUpdate).Or(RelAuthor).And(ExercisesTestlabStart),
@@ -39,7 +40,7 @@ func TestDeclStringRoundTrip(t *testing.T) {
 }
 
 func TestParseDeclRejectsMalformed(t *testing.T) {
-	for _, s := range []string{"", "users.list", "users.list @ ", "users.list @ galaxy", "anyOf(users.list @ platform", "(boss) @ tenant", "event(:) @ platform", "- @ public(gallery)", "- @ public(pages,pages)", "- @ public()"} {
+	for _, s := range []string{"", "users.list", "users.list @ ", "users.list @ galaxy", "anyOf(users.list @ platform", "(boss) @ tenant", "event(:) @ platform", "- @ public(gallery)", "- @ public(pages,pages)", "- @ public()", "- @ service(mailer)", "- @ service()"} {
 		if _, err := ParseDecl(s); err == nil {
 			t.Errorf("ParseDecl(%q) accepted a malformed declaration", s)
 		}
@@ -59,6 +60,7 @@ func TestDeclProblems(t *testing.T) {
 		AnyOf(SourcePublic(""), BannersView),
 		Related(SourceTenant, RelParticipant),
 		AnyOf(SourceTenant, Self),
+		ServiceRoute(ServiceRender),
 	}
 	for _, d := range ok {
 		if p := d.Problems(); len(p) != 0 {
@@ -76,6 +78,8 @@ func TestDeclProblems(t *testing.T) {
 		"nothing declared":                  {Scope: SourcePlatform},
 		"relation on a public route":        Related(SourcePublic(""), RelParticipant),
 		"unknown relation":                  Related(SourceTenant, Relation("boss")),
+		"key on a service route":            AnyOf(SourceService(ServiceRender), EventsRead),
+		"relation on a service route":       Related(SourceService(ServiceRender), RelParticipant),
 		"duplicate key":                     AnyOf(SourcePlatform, UsersList, UsersList),
 	}
 	for name, d := range bad {

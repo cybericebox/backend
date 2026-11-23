@@ -1,0 +1,2 @@
+# Declared routes whose keys differ from today's gate on purpose (TestDeclaredKeysMapToTheLegacyGate).
+# METHOD /api/path | A.3 row and the spec section that makes the change

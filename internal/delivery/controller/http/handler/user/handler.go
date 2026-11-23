@@ -4,13 +4,13 @@ import (
 	"context"
 	"time"
 
-	utils "github.com/cybericebox/backend/internal/delivery/controller/http/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
 	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/audit"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
+	utils "github.com/cybericebox/backend/internal/delivery/controller/http/utils"
 	"github.com/cybericebox/backend/internal/model/rbac"
 	userModel "github.com/cybericebox/backend/internal/model/user"
 	adminAuditUseCase "github.com/cybericebox/backend/internal/useCase/adminAudit"

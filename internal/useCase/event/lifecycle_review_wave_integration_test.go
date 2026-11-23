@@ -4,6 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/gofrs/uuid"
+	"github.com/stretchr/testify/require"
+
 	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/handler/eventself"
 	"github.com/cybericebox/backend/internal/delivery/repository/eventConfigRepo"
@@ -17,13 +26,6 @@ import (
 	"github.com/cybericebox/backend/internal/model/rbac"
 	calModel "github.com/cybericebox/backend/internal/model/resourceCalendar"
 	"github.com/cybericebox/backend/internal/useCase/event"
-	"github.com/gin-gonic/gin"
-	"github.com/gofrs/uuid"
-	"github.com/stretchr/testify/require"
-	"net/http"
-	"net/http/httptest"
-	"testing"
-	"time"
 )
 
 type waveProtection struct{}

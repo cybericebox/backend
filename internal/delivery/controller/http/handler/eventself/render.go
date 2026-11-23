@@ -11,6 +11,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/gofrs/uuid"
+
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/config"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
@@ -20,8 +24,6 @@ import (
 	eventManagerModel "github.com/cybericebox/backend/internal/model/eventManager"
 	"github.com/cybericebox/backend/internal/model/rbac"
 	eventUC "github.com/cybericebox/backend/internal/useCase/event"
-	"github.com/gin-gonic/gin"
-	"github.com/gofrs/uuid"
 )
 
 type EventRenderUseCase interface {
@@ -62,7 +64,7 @@ func (h *EventRenderHandler) Init(router *gin.RouterGroup) {
 	// whole gate (no permission, no Origin), and without it they do not exist (404). Grants are
 	// consumed only inside these handlers. They never inject rbac.Claims, so even a valid render
 	// token cannot authenticate any other route or mutation.
-	server := router.Group("render", h.requireSecret)
+	server := router.Group("render", h.prot.Route(authz.ServiceRoute(authz.ServiceRender), nil), h.requireSecret)
 	server.GET("key", h.key)
 	server.GET("events/:tag/manifest", h.manifest)
 	server.GET("events/:tag/page", h.page)
