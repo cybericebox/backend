@@ -110,22 +110,29 @@ var catalogKeys = []Key{
 }
 
 // adminViewerEventKeys are the platform-grantable event keys today's admin_viewer reaches in every event without
-// being staff (owner decision 2026-11-23: derived from the code of develop):
-//   - events.read: RequireRead (uc/eventManager/access.go) admits it to every /manage read, so event.read,
-//     participants, tasks, the task library, the attempts journal, results and an archived event;
-//     SeesEventPersonalData (http/middleware/personal_data.go) shows full emails; eventAnalytics.ResolveAccess
-//     (model/eventAnalytics/access.go) gives the per-person rows but not the sensitive sections;
+// being staff; at the switch nobody loses access (owner decisions 2026-11-23, derived from the code of develop):
+//   - events.read: RequireRead (uc/eventManager/access.go) admits it to every /manage read: the shell, settings,
+//     pages, participants, teams, forms, tasks, the task library, the attempts journal, results, stands, image
+//     availability, communications and an archived event; SeesEventPersonalData (http/middleware/personal_data.go)
+//     shows full emails; eventAnalytics.ResolveAccess (model/eventAnalytics/access.go) gives the sections and the
+//     per-person rows but not the sensitive sections;
 //   - events.solution-attempts.read: GET /events/:id/solution-attempts returns answers and expected flags;
 //   - exercises.read: AuthorizeExercise (uc/exercise/access.go) gives full access with flags to every task.
 var adminViewerEventKeys = []Key{
-	EventRead, EventParticipantsList, EventParticipantsRead, EventPersonalDataRead, EventTasksList, EventTasksRead,
-	EventExercisesList, EventExercisesRead, EventFlagsRead, EventAttemptsRead, EventAttemptsAnswersRead,
-	EventScoreboardRead, EventStatsPeopleRead, EventArchivedRead,
+	EventRead, EventSettingsRead, EventPagesRead, EventParticipantsList, EventParticipantsRead, EventPersonalDataRead,
+	EventTeamsRead, EventFormsRead, EventTasksList, EventTasksRead, EventExercisesList, EventExercisesRead,
+	EventFlagsRead, EventAttemptsRead, EventAttemptsAnswersRead, EventScoreboardRead, EventLabsRead,
+	EventRegistryImagesRead, EventCommsRead, EventStatsRead, EventStatsPeopleRead, EventArchivedRead,
 }
 
-// adminEventKeys adds what events.write reaches: the sensitive analytics (eventAnalytics.ResolveAccess). admin does not
-// hold event.archive: it archives through events.archive (A.2, owner 2026-11-23).
-var adminEventKeys = append(slices.Clone(adminViewerEventKeys), EventStatsSensitiveRead)
+// adminEventKeys adds what events.write and events.solution-attempts.write reach: approving and rejecting participants
+// (the admin event routes), deciding attempts, the CSV exports (requireExport), the sensitive analytics and the
+// integrity reviews (eventAnalytics.ResolveAccess, uc/eventAnalytics/integrity.go). admin does not hold event.archive:
+// it archives through events.archive (A.2, owner 2026-11-23).
+var adminEventKeys = append(slices.Clone(adminViewerEventKeys),
+	EventParticipantsUpdate, EventParticipantsDelete, EventAttemptsUpdate, EventStatsSensitiveRead,
+	EventStatsSensitiveUpdate, EventExport,
+)
 
 func concat(parts ...[]Key) []Key { return slices.Concat(parts...) }
 

@@ -47,23 +47,37 @@ var platformMigration = map[rbac.Role]RoleName{
 var intendedPlatformChanges = map[RoleName]map[Key]string{
 	Admin: {
 		EventsStatsSourceUpdate: "gained: the per-event statistics checkbox (§7.2, Q14)",
-		EventArchive:            "not held: admin archives through events.archive (A.2, owner 2026-11-23)",
 	},
 }
 
-// newRoleHolds: the built-in role, plus the implicit user role of every signed-in account (today's roles inherit
-// user) and the public role of everyone.
+// newRoleHolds: the key is effective for the built-in role at one of the key's scope types, or for the implicit user
+// role of every signed-in account (today's roles inherit user), or for the public role of everyone; or a platform
+// key the role holds carries today's reach on the same routes (Legacy.CarriedBy).
 func newRoleHolds(name RoleName, k Key) bool {
-	role, _ := BuiltinRole(name)
-	user, _ := BuiltinRole(User)
-	public, _ := BuiltinRole(Public)
-	return role.Covers(k) || (name != Public && user.Covers(k)) || public.Covers(k)
+	spec, _ := Lookup(k)
+	l, _ := LegacyOf(k)
+	roles := []RoleName{name, Public}
+	if name != Public {
+		roles = append(roles, User)
+	}
+	for _, n := range roles {
+		role, _ := BuiltinRole(n)
+		for _, s := range spec.Scopes {
+			if role.EffectiveAt(k, s) {
+				return true
+			}
+		}
+		if n == name && slices.ContainsFunc(l.CarriedBy, role.Covers) {
+			return true
+		}
+	}
+	return false
 }
 
-// For every key whose legacy is a platform permission and that a platform grant can carry (a platform key, an
-// implicit or public key, or a platform-grantable event key), the built-in role holds the key exactly when today's
-// role holds that permission. Keys with only a named check, or event keys a platform grant cannot carry, are
-// compared at the event roles or by the route parity test (P1b, P2).
+// At the switch nobody loses access (owner rule): for every key whose legacy is a platform permission, the built-in
+// role holds the key (or the platform key that carries it) exactly when today's role holds that permission, except the
+// changes made on purpose listed above. Keys decided only by a named check are compared at the event roles below and
+// by the route parity test (P1b, P2).
 func TestPlatformRolesKeepTodaysReach(t *testing.T) {
 	for old, name := range platformMigration {
 		for _, spec := range Catalogue() {
@@ -71,21 +85,27 @@ func TestPlatformRolesKeepTodaysReach(t *testing.T) {
 			if len(l.Permissions) == 0 {
 				continue
 			}
-			if spec.Allows(ScopeEvent) && !spec.Allows(ScopePlatform) && !spec.PlatformGrantable {
-				continue
-			}
 			today := slices.ContainsFunc(l.Permissions, old.HasPermission)
 			after := newRoleHolds(name, spec.Key)
-			if today == after {
-				if why, listed := intendedPlatformChanges[name][spec.Key]; listed {
-					t.Errorf("%s / %s: listed as an intended change (%s) but nothing changes", name, spec.Key, why)
-				}
-				continue
+			_, listed := intendedPlatformChanges[name][spec.Key]
+			switch {
+			case today == after && listed:
+				t.Errorf("%s / %s: listed as an intended change but nothing changes", name, spec.Key)
+			case today != after && !listed:
+				t.Errorf("%s / %s: today %v (legacy %v), after the switch %v", name, spec.Key, today, l.Permissions, after)
 			}
-			if _, listed := intendedPlatformChanges[name][spec.Key]; listed {
-				continue
+		}
+	}
+}
+
+func TestCarriedByNamesPlatformKeys(t *testing.T) {
+	for _, spec := range Catalogue() {
+		l, _ := LegacyOf(spec.Key)
+		for _, c := range l.CarriedBy {
+			carrier, ok := Lookup(c)
+			if !ok || !carrier.Allows(ScopePlatform) {
+				t.Errorf("%s: carried by %q, which is not a platform key", spec.Key, c)
 			}
-			t.Errorf("%s / %s: today %v (legacy %v), after the switch %v", name, spec.Key, today, l.Permissions, after)
 		}
 	}
 }

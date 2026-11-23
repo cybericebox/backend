@@ -77,10 +77,18 @@ func (c LegacyCheck) EventRoles() []eventManagerModel.Role {
 type Legacy struct {
 	Permissions []rbac.Permission
 	Check       LegacyCheck
+	// CarriedBy: platform keys that carry today's platform reach of an event key on the same routes (any-of in
+	// Appendix A.3), so the event key itself need not be platform-grantable.
+	CarriedBy []Key
 }
 
 func perm(check LegacyCheck, ps ...rbac.Permission) Legacy {
 	return Legacy{Permissions: ps, Check: check}
+}
+
+func (l Legacy) carriedBy(keys ...Key) Legacy {
+	l.CarriedBy = keys
+	return l
 }
 
 var legacy = map[Key]Legacy{
@@ -184,12 +192,12 @@ var legacy = map[Key]Legacy{
 	EventTasksRead:            perm(CheckRequireRead, rbac.PermEventsRead),
 	EventTasksUpdate:          perm(CheckRequireManage),
 	EventTasksDelete:          perm(CheckRequireManage),
-	EventTasksExport:          perm(CheckExportExercise, rbac.PermExercisesExport),
+	EventTasksExport:          perm(CheckExportExercise, rbac.PermExercisesExport).carriedBy(ExercisesExport),
 	EventExercisesList:        perm(CheckRequireRead, rbac.PermEventsRead),
 	EventExercisesRead:        perm(CheckRequireRead, rbac.PermEventsRead),
-	EventExercisesCreate:      perm(CheckAuthorizeExerciseManage, rbac.PermExercisesWrite),
-	EventExercisesUpdate:      perm(CheckAuthorizeExerciseManage, rbac.PermExercisesWrite),
-	EventExercisesDelete:      perm(CheckAuthorizeExerciseManage, rbac.PermExercisesDelete),
+	EventExercisesCreate:      perm(CheckAuthorizeExerciseManage, rbac.PermExercisesWrite).carriedBy(ExercisesCreate),
+	EventExercisesUpdate:      perm(CheckAuthorizeExerciseManage, rbac.PermExercisesWrite).carriedBy(ExercisesUpdate),
+	EventExercisesDelete:      perm(CheckAuthorizeExerciseManage, rbac.PermExercisesDelete).carriedBy(ExercisesDelete),
 	EventExercisesPublish:     perm(CheckAuthorizeExerciseManage),
 	EventFlagsRead:            perm(CheckAuthorizeExerciseFlags, rbac.PermExercisesRead),
 	EventAttemptsRead:         perm(CheckRequireRead, rbac.PermEventsRead, rbac.PermEventsSolutionAttemptsRead),
@@ -212,14 +220,14 @@ var legacy = map[Key]Legacy{
 	EventStatsSensitiveUpdate: perm(CheckAnalyticsSensitive, rbac.PermEventsWrite),
 	EventStatsPeopleRead:      perm(CheckAnalyticsPeople, rbac.PermEventsRead),
 	EventExport:               perm(CheckRequireExport, rbac.PermEventsWrite),
-	EventStaffRead:            perm("", rbac.PermEventsRead),
-	EventStaffUpdate:          perm("", rbac.PermEventsWrite),
-	EventStaffDelete:          perm("", rbac.PermEventsWrite),
+	EventStaffRead:            perm("", rbac.PermEventsRead).carriedBy(EventsRead),
+	EventStaffUpdate:          perm("", rbac.PermEventsWrite).carriedBy(EventsStaffUpdate),
+	EventStaffDelete:          perm("", rbac.PermEventsWrite).carriedBy(EventsStaffDelete),
 	EventOwnerTransfer:        perm(CheckNew),
 	EventPreviewParticipant:   perm(CheckRequireManage),
 	EventAccessAuditRead:      perm(CheckNew),
 	EventExercisesRequest:     perm(CheckNew),
-	EventArchive:              perm("", rbac.PermEventsWrite),
+	EventArchive:              perm("", rbac.PermEventsWrite).carriedBy(EventsArchive),
 	EventArchivedRead:         perm(CheckRequireRead, rbac.PermEventsRead),
 }
 
@@ -227,6 +235,7 @@ var legacy = map[Key]Legacy{
 func LegacyOf(k Key) (Legacy, bool) {
 	l, ok := legacy[k]
 	l.Permissions = slices.Clone(l.Permissions)
+	l.CarriedBy = slices.Clone(l.CarriedBy)
 	return l, ok
 }
 

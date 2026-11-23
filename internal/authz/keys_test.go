@@ -67,7 +67,7 @@ func TestEveryKeyHasADescriptionAndAScopeType(t *testing.T) {
 }
 
 func TestKeyFlagsFollowAppendixA2(t *testing.T) {
-	platformGrantable := []Key{"event.read", "event.participants.list", "event.participants.read", "event.personal-data.read", "event.tasks.list", "event.tasks.read", "event.exercises.list", "event.exercises.read", "event.flags.read", "event.attempts.read", "event.attempts.answers.read", "event.scoreboard.read", "event.stats.sensitive.read", "event.stats.people.read", "event.archive", "event.archived.read"}
+	platformGrantable := []Key{"event.read", "event.settings.read", "event.pages.read", "event.teams.read", "event.forms.read", "event.labs.read", "event.registry.images.read", "event.comms.read", "event.stats.read", "event.participants.update", "event.participants.delete", "event.attempts.update", "event.export", "event.stats.sensitive.update", "event.participants.list", "event.participants.read", "event.personal-data.read", "event.tasks.list", "event.tasks.read", "event.exercises.list", "event.exercises.read", "event.flags.read", "event.attempts.read", "event.attempts.answers.read", "event.scoreboard.read", "event.stats.sensitive.read", "event.stats.people.read", "event.archive", "event.archived.read"}
 	survivesEventEnd := []Key{"event.read", "event.scoreboard.read", "event.stats.read", "event.export", "event.staff.read", "event.access.audit.read", "event.archived.read"}
 	secondFactor := []Key{"roles.manage", "access.groups.manage", "access.grants.read", "access.grants.create", "access.grants.delete", "access.audit.read", "events.staff.update", "events.staff.delete", "event.staff.update", "event.staff.delete"}
 	for _, spec := range Catalogue() {

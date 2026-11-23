@@ -62,6 +62,21 @@ var wantRoleKeys = map[RoleName][]Key{
 		"event.stats.sensitive.read",
 		"event.stats.people.read",
 		"event.archived.read",
+		// Reached today through events.read (RequireRead, the analytics sections) and events.write /
+		// events.solution-attempts.write (the admin event routes, requireExport, the integrity reviews).
+		"event.settings.read",
+		"event.pages.read",
+		"event.teams.read",
+		"event.forms.read",
+		"event.labs.read",
+		"event.registry.images.read",
+		"event.comms.read",
+		"event.stats.read",
+		"event.participants.update",
+		"event.participants.delete",
+		"event.attempts.update",
+		"event.export",
+		"event.stats.sensitive.update",
 	},
 	"admin_viewer": {
 		"users.list",
@@ -87,6 +102,15 @@ var wantRoleKeys = map[RoleName][]Key{
 		"event.scoreboard.read",
 		"event.stats.people.read",
 		"event.archived.read",
+		// Reached today through events.read (RequireRead, the analytics sections).
+		"event.settings.read",
+		"event.pages.read",
+		"event.teams.read",
+		"event.forms.read",
+		"event.labs.read",
+		"event.registry.images.read",
+		"event.comms.read",
+		"event.stats.read",
 	},
 	"user": {
 		"self",
@@ -484,14 +508,15 @@ func TestRoleEffectiveAt(t *testing.T) {
 		{admin, EventFlagsRead, ScopePlatform, false}, // an event key never acts at platform
 		{admin, EventStatsSensitiveRead, ScopeEvent, true},
 		{viewer, EventStatsSensitiveRead, ScopeEvent, false},
-		{admin, EventArchive, ScopeEvent, false},      // admin archives through events.archive
-		{admin, EventSettingsRead, ScopeEvent, false}, // not platform-grantable
+		{admin, EventArchive, ScopeEvent, false},     // admin archives through events.archive
+		{admin, EventSettingsRead, ScopeEvent, true}, // reached today through events.read
+		{admin, EventPagesUpdate, ScopeEvent, false}, // not platform-grantable // not platform-grantable
 		{owner, EventSettingsRead, ScopeEvent, true},
 		{owner, EventArchive, ScopeEvent, false},
 		{owner, ExercisesTestlabStart, ScopeEvent, true},
 		{owner, ExercisesTestlabStart, ScopePlatform, false},
-		{super, EventSettingsRead, ScopeEvent, true}, // a grant holding * reaches every event (§5.2 rule 2)
-		{super, EventSettingsRead, ScopePlatform, false},
+		{super, EventPagesUpdate, ScopeEvent, true}, // a grant holding * reaches every event (§5.2 rule 2)
+		{super, EventPagesUpdate, ScopePlatform, false},
 		{super, UsersDelete, ScopePlatform, true},
 		{super, Self, ScopeImplicit, true},
 		{super, "events.write", ScopePlatform, false}, // not a key
