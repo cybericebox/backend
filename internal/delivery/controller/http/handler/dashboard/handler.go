@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	"github.com/cybericebox/backend/internal/model/rbac"
 	adminDashboard "github.com/cybericebox/backend/internal/useCase/adminDashboard"
@@ -20,6 +21,7 @@ type (
 
 	IProtection interface {
 		RequirePermission(required rbac.Permission) gin.HandlerFunc
+		Route(decl authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc
 	}
 
 	Handler struct {
@@ -93,10 +95,15 @@ func New(
 }
 
 func (h *Handler) Init(router *gin.RouterGroup) {
-	// The admin tier passes the gate; each block then checks its own permission.
+	// The admin tier passes the gate; each block then checks its own permission. Declared (Appendix A.3.3 #54 of the
+	// access spec) as any-of the block keys, which replaces the admin-tier check at the switch.
 	router.GET(
 		"admin/dashboard",
-		h.prot.RequirePermission(rbac.PermSelf),
+		h.prot.Route(
+			authz.AnyOf(authz.SourcePlatform, authz.EventsList, authz.InfrastructureRead, authz.ExercisesElevationsRead,
+				authz.PlatformErrorsRead, authz.AnalyticsRead, authz.UsersList).WithData(authz.EventsList, authz.InfrastructureRead, authz.ExercisesElevationsRead, authz.PlatformErrorsRead, authz.AnalyticsRead, authz.UsersList),
+			h.prot.RequirePermission(rbac.PermSelf),
+		),
 		h.requireAdminTier,
 		h.get,
 	)

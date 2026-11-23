@@ -16,6 +16,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/download"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	"github.com/cybericebox/backend/internal/delivery/repository/postgres"
@@ -36,6 +37,7 @@ type IUseCase interface {
 
 type IProtection interface {
 	RequirePermission(rbac.Permission) gin.HandlerFunc
+	Route(decl authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc
 }
 
 type Handler struct {
@@ -46,8 +48,10 @@ type Handler struct {
 func New(useCase IUseCase, prot IProtection) *Handler { return &Handler{useCase, prot} }
 
 func (h *Handler) Init(r *gin.RouterGroup) {
-	r.GET("admin/audit-log", h.prot.RequirePermission(rbac.PermPlatformAuditRead), h.list)
-	r.GET("admin/audit-log/export", h.prot.RequirePermission(rbac.PermPlatformAuditRead), h.export)
+	// Appendix A.3.3 #52, #53 of the access spec.
+	read := h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.PlatformAuditRead), h.prot.RequirePermission(rbac.PermPlatformAuditRead))
+	r.GET("admin/audit-log", read, h.list)
+	r.GET("admin/audit-log/export", read, h.export)
 }
 
 type auditItem struct {

@@ -1,39 +1,5 @@
 # Routes that declare no keys yet (TestEveryRouteDeclaresKeys). The list only shrinks.
 # METHOD /api/path | P1b area and A.3 row; "open:" when the row is not settled in the spec
-# area 2: admin, analytics, dashboard
-GET /api/admin/assistant/statistics | area 2, A.3 #48
-GET /api/admin/assistant/statistics/events/:eventID | area 2, A.3 #50
-GET /api/admin/audit-log | area 2, A.3 #52
-GET /api/admin/audit-log/export | area 2, A.3 #53
-GET /api/admin/dashboard | area 2, A.3 #54
-GET /api/admin/errors | area 2, A.3 #55
-GET /api/admin/errors/:groupID | area 2, A.3 #56
-GET /api/admin/errors/not-found | area 2, A.3 #61
-GET /api/admin/errors/settings | area 2, A.3 #62
-GET /api/admin/errors/stream | area 2, A.3 #65
-GET /api/analytics/events | area 2, A.3 #66
-GET /api/analytics/events/export.csv | area 2, A.3 #67
-GET /api/analytics/events/table | area 2, A.3 #68
-GET /api/analytics/infrastructure | area 2, A.3 #69
-GET /api/analytics/infrastructure/export.csv | area 2, A.3 #70
-GET /api/analytics/mail | area 2, A.3 #71
-GET /api/analytics/mail/export.csv | area 2, A.3 #72
-GET /api/analytics/overview | area 2, A.3 #73
-GET /api/analytics/overview/export.csv | area 2, A.3 #74
-GET /api/analytics/tasks | area 2, A.3 #75
-GET /api/analytics/tasks/export.csv | area 2, A.3 #76
-GET /api/analytics/tasks/table | area 2, A.3 #77
-GET /api/analytics/users | area 2, A.3 #78
-GET /api/analytics/users/export.csv | area 2, A.3 #79
-GET /api/analytics/users/people | area 2, A.3 #80
-PATCH /api/admin/errors/:groupID/status | area 2, A.3 #57
-POST /api/admin/errors/bulk/ignore | area 2, A.3 #58
-POST /api/admin/errors/bulk/reopen | area 2, A.3 #59
-POST /api/admin/errors/bulk/resolve | area 2, A.3 #60
-POST /api/admin/errors/settings/test | area 2, A.3 #64
-PUT /api/admin/assistant/statistics/defaults/:source | area 2, A.3 #49
-PUT /api/admin/assistant/statistics/events/:eventID | area 2, A.3 #51
-PUT /api/admin/errors/settings | area 2, A.3 #63
 # area 4: /events/:id/manage
 DELETE /api/events/:id/manage/analytics/integrity/dismissals/:dismissalID | area 4, A.3 #129
 DELETE /api/events/:id/manage/analytics/integrity/solves/:teamChallengeID/review | area 4, A.3 #132

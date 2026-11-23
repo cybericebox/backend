@@ -23,7 +23,7 @@ import (
 // contextPrefixes are the starts of the contexts the stored data was sealed with.
 var contextPrefixes = []string{
 	"mail.smtp:", "infra.agent:", "image-registry:", "event-registry:", "vpn-config:", "exercise-env:", "notify-payload:",
-	"auth-delivery:", "exercise-import:password:", "exercise-export:password:", "cybericebox/session-ticket/",
+	"auth-delivery:", "exercise-import:password:", "exercise-export:password:", "cybericebox/session-ticket/", "user-totp:",
 }
 
 // ignoreMarker, in a comment on the same line, says a string that looks like a context is something else (a lookup code).

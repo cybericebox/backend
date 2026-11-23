@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	assistantModel "github.com/cybericebox/backend/internal/model/assistant"
 	"github.com/cybericebox/backend/internal/model/rbac"
@@ -25,7 +26,13 @@ type (
 	// source, or of one event, go to the brain. Platform admins only; the collection is off unless set.
 	StatsHandler struct {
 		useCase IStatsUseCase
-		prot    IProtection
+		prot    IStatsProtection
+	}
+
+	// IStatsProtection is the protector of the statistics settings: the gate and its access declaration.
+	IStatsProtection interface {
+		IProtection
+		Route(decl authz.Decl, legacy gin.HandlerFunc) gin.HandlerFunc
 	}
 
 	sourceModeResponse struct {
@@ -49,7 +56,7 @@ type (
 	}
 )
 
-func NewStats(useCase IStatsUseCase, prot IProtection) *StatsHandler {
+func NewStats(useCase IStatsUseCase, prot IStatsProtection) *StatsHandler {
 	return &StatsHandler{useCase: useCase, prot: prot}
 }
 
@@ -57,10 +64,14 @@ func (h *StatsHandler) Init(r *gin.RouterGroup) {
 	g := r.Group("admin/assistant/statistics")
 	read := h.prot.RequirePermission(rbac.PermPlatformSettingsRead)
 	write := h.prot.RequirePermission(rbac.PermPlatformSettingsWrite)
-	g.GET("", read, h.defaults)
-	g.PUT("defaults/:source", write, h.setDefault)
-	g.GET("events/:eventID", read, h.eventMode)
-	g.PUT("events/:eventID", write, h.setEventMode)
+	// Appendix A.3.3 #48-51 of the access spec: the statistics keys; per event also the event card reader and the
+	// per-event source checkbox (§9 Q14).
+	g.GET("", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.CyberbrainStatsRead), read), h.defaults)
+	g.PUT("defaults/:source", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.CyberbrainStatsUpdate), write), h.setDefault)
+	g.GET("events/:eventID", h.prot.Route(authz.AnyOf(authz.SourcePlatform, authz.CyberbrainStatsRead, authz.EventsRead), read), h.eventMode)
+	g.PUT("events/:eventID", h.prot.Route(
+		authz.AnyOf(authz.SourcePlatform, authz.CyberbrainStatsUpdate, authz.EventsStatsSourceUpdate), write,
+	), h.setEventMode)
 }
 
 func (h *StatsHandler) defaults(c *gin.Context) {

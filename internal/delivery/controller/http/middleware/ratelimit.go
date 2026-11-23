@@ -179,6 +179,7 @@ func RateLimitExemptRoutes() []string {
 func UngatedPublicRoutes() []string {
 	return []string{
 		"POST /api/auth/sign-in",
+		"POST /api/auth/sign-in/recovery",
 		"POST /api/auth/sign-up",
 		"POST /api/auth/passkeys/sign-in/begin",
 		"POST /api/auth/passkeys/sign-in/finish",

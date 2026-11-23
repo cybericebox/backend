@@ -21,6 +21,7 @@ import (
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	authModel "github.com/cybericebox/backend/internal/model/auth"
 	"github.com/cybericebox/backend/internal/model/rbac"
+	secondFactorModel "github.com/cybericebox/backend/internal/model/secondFactor"
 	adminAuditUseCase "github.com/cybericebox/backend/internal/useCase/adminAudit"
 	authUseCase "github.com/cybericebox/backend/internal/useCase/auth"
 	appErr "github.com/cybericebox/backend/pkg/err"
@@ -36,6 +37,8 @@ type IUseCase interface {
 	ReissueCookie(pass authUseCase.SessionPass) (string, bool)
 	SignOut(ctx context.Context, sessionID uuid.UUID) error
 	RecordAdminAction(ctx context.Context, entry adminAuditUseCase.Entry) error
+	// StepUpState is the last step-up of a session (RequireStepUp); read only on the routes that need one.
+	StepUpState(ctx context.Context, sessionID uuid.UUID) (secondFactorModel.StepUp, error)
 }
 
 // Limiter is the general request limiter; the gate asks it once the caller is known. A request without
@@ -52,6 +55,8 @@ type Protection struct {
 	ttl       time.Duration
 	recaptcha config.RecaptchaConfig
 	captcha   CaptchaVerifier
+	// stepUpRequired is AUTHZ_STEP_UP_REQUIRED: off, RequireStepUp lets every request through.
+	stepUpRequired bool
 
 	recaptchaMu     sync.Mutex
 	recaptchaClient *recaptcha.Client
@@ -73,6 +78,8 @@ func New(deps Dependencies) *Protection {
 		hosts:     deps.Config.Hosts,
 		ttl:       cookieLifetime(deps.Config),
 		recaptcha: deps.Config.Recaptcha,
+
+		stepUpRequired: deps.Config.Authz.StepUpRequired,
 	}
 	p.captcha = deps.Captcha
 	if p.captcha == nil {
@@ -132,6 +139,37 @@ func (p *Protection) RequirePermission(required rbac.Permission) gin.HandlerFunc
 	}
 }
 
+// RequireStepUp gates a grant, role, group or owner change (access-control design §6.6): the session must have been
+// confirmed (POST /api/auth/step-up) within maxAge, else the answer is 401 with the step-up code
+// (secondFactorModel.ErrStepUpRequired), and the client confirms and repeats the request. It is not a dead session: the
+// cookie stays and no sign-in URL is advertised. With requireFactor the step-up must have been made with a second
+// factor (a passkey or an authenticator app): a password, a recent sign-in or a recovery code never pass (granting a
+// role that holds *, §6.6). It goes after RequirePermission, which puts the session in the context. With
+// AUTHZ_STEP_UP_REQUIRED off it lets every request through and reads nothing.
+func (p *Protection) RequireStepUp(maxAge time.Duration, requireFactor bool) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		if !p.stepUpRequired {
+			ctx.Next()
+			return
+		}
+		claims, ok := rbac.CurrentUserSessionFromContext(ctx.Request.Context())
+		if !ok || claims.SessionID == uuid.Nil {
+			response.AbortWithError(ctx, secondFactorModel.ErrStepUpRequired.Err())
+			return
+		}
+		s, err := p.useCase.StepUpState(ctx.Request.Context(), claims.SessionID)
+		if err != nil {
+			response.AbortWithError(ctx, err)
+			return
+		}
+		if !s.Fresh(time.Now(), maxAge) || (requireFactor && !s.Method.IsSecondFactor()) {
+			response.AbortWithError(ctx, secondFactorModel.ErrStepUpRequired.Err())
+			return
+		}
+		ctx.Next()
+	}
+}
+
 // auditRecordTimeout bounds writing one audit entry, detached from the request.
 const auditRecordTimeout = 10 * time.Second
 
@@ -166,8 +204,8 @@ func (p *Protection) recordAudit(ctx *gin.Context, required rbac.Permission, sta
 //     user's own inbox settings (notifications.self);
 //   - PermSelf writes only where PermSelf stands for staff work: the event
 //     manage area and the exercise catalog (the plain self-service writes —
-//     profile, sessions, flag submissions — are not administration), plus a user's own passkeys: adding
-//     and removing a sign-in method is an account-security event worth a line;
+//     profile, sessions, flag submissions — are not administration), plus a user's own passkeys, authenticator
+//     app and recovery codes: adding and removing a sign-in method or a factor is an account-security event worth a line;
 //   - GET exports (CSV/ZIP of people and results), which move PII out.
 func isAuditedAction(required rbac.Permission, ctx *gin.Context) bool {
 	path := ctx.FullPath()
@@ -183,7 +221,9 @@ func isAuditedAction(required rbac.Permission, ctx *gin.Context) bool {
 	return required != rbac.PermSelf ||
 		strings.Contains(path, "/manage/") ||
 		strings.Contains(path, "/exercises") ||
-		strings.Contains(path, "/auth/passkeys")
+		strings.Contains(path, "/auth/passkeys") ||
+		strings.Contains(path, "/auth/totp") ||
+		strings.Contains(path, "/auth/recovery-codes")
 }
 
 // routeTarget names the objects a request addressed from its route ids
