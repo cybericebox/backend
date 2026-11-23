@@ -81,7 +81,7 @@ type (
 		DeployVariantTest(ctx context.Context, userID, versionID, variantID uuid.UUID, length time.Duration) (exerciseModel.DeployHandle, error)
 		TestRunLengths(ctx context.Context) (allowed []int, defaultMinutes int)
 		DeployTestStatus(ctx context.Context, userID, deployID uuid.UUID) (exerciseModel.LabDeployStatus, error)
-		TestDeployDossier(ctx context.Context, ownerID, deployID uuid.UUID) (exerciseUseCase.DossierView, error)
+		TestDeployDossier(ctx context.Context, actor exerciseUseCase.Actor, deployID uuid.UUID) (exerciseUseCase.DossierView, error)
 		DestroyDeployTest(ctx context.Context, userID, deployID uuid.UUID) error
 		ResetTestDeployDevice(ctx context.Context, userID, deployID uuid.UUID, device string) error
 		RescueTestDeployDevice(ctx context.Context, userID, deployID uuid.UUID, device string, enable bool) error

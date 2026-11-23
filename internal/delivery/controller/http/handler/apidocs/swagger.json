@@ -18696,7 +18696,7 @@
         },
         "/exercises/deploys/{deployID}/dossier": {
             "get": {
-                "description": "The console map of the defender's seat, the forbidden devices, the operator credentials (with their values) and whether the topology is shown. The owner of the test lab only, once the lab is ready (409 otherwise). Declared false: the variant has no defender block. Never cached.",
+                "description": "The console map of the defender's seat, the forbidden devices, the operator credentials (with their values) and the topology mode (full, operates, none), as the lab was deployed. The owner of the test lab with author access to the exercise only (checked on every read), never an event preview, once the lab is ready (409 otherwise). Declared false: the lab was deployed without a defender block. Never cached.",
                 "produces": [
                     "application/json"
                 ],
@@ -41512,8 +41512,16 @@
                         "$ref": "#/definitions/exercise.dossierLinkResponse"
                     }
                 },
-                "ShowsTopology": {
-                    "type": "boolean"
+                "Operates": {
+                    "description": "Operates are the devices the defender operates (the subset of Topology operates).",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "Topology": {
+                    "description": "Topology is full (the schema view of the whole lab), operates (only Operates and their links) or none.",
+                    "type": "string"
                 }
             }
         },

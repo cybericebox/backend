@@ -67,6 +67,7 @@ var schemaRequired = map[string][]string{
 	"ConsolePort":            {"name"},
 	"NativeSource":           {"kind"},
 	"SerialPort":             {"name"},
+	"DefenderCredential":     {"device"},
 }
 
 // schemaEnums are the spellings of the named string types of the document, from the domain's own constants.
@@ -92,6 +93,10 @@ var schemaEnums = map[reflect.Type][]string{
 	reflect.TypeFor[exerciseModel.ConnectionKind](): {string(exerciseModel.ConnectionConsole)},
 	// vm-serial is the platform's (the vm profile): an author never writes it.
 	reflect.TypeFor[exerciseModel.NativeKind](): {string(exerciseModel.NativeStdio), string(exerciseModel.NativeTCP)},
+	// The topology the defender's dossier shows: a closed enum (confirmed with the brain session).
+	reflect.TypeFor[exerciseModel.DefenderTopology](): {
+		string(exerciseModel.DefenderTopologyFull), string(exerciseModel.DefenderTopologyOperates), string(exerciseModel.DefenderTopologyNone),
+	},
 	reflect.TypeFor[exerciseModel.VersionStatus](): {
 		string(exerciseModel.VersionStatusDraft), string(exerciseModel.VersionStatusPublished),
 		string(exerciseModel.VersionStatusUnpublished), string(exerciseModel.VersionStatusCheckpoint),

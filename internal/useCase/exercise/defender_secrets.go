@@ -10,19 +10,23 @@ import (
 	"github.com/cybericebox/backend/internal/secretctx"
 )
 
-// The secret operator credentials of a variant's defender block (console design 9a.1) are stored like secret env values: sealed
-// at rest, a blank secret on a save keeps the stored value, blank in every read model, plaintext only in a password-protected
-// archive and in the dossier of the moment. A credential is kept by (the variant it is sealed to, device, port, user); a linked
-// variant takes its base's block as it is, so its credentials are sealed to the base (Variant.SealVariant). A copy of a
-// variant does not take the values: they are missing on the copy until the author enters them (MissingSecrets).
+// The secret operator credentials of a variant's defender block (console design 9a.1) follow exactly the rules of a secret env
+// value on every path (confirmed with the brain session, which holds the exercisedoc): entered in the editor and sealed at rest
+// to their variant; a blank secret on a save keeps the stored value; a linked variant or a copy takes its source's value, sealed
+// under its own id (inheritSecrets); blank in every read model, in the edit export and in every export except a
+// password-protected archive; an import refuses a non-empty secret value except from a password-protected archive
+// (firstSecretValue); a missing value refuses publishing (MissingSecrets). A credential is kept by (variant, device, port,
+// user), which is unique in a variant (credential_repeated).
 
 // DefenderSecretContext binds the ciphertext of a secret credential to its variant, device, port and user.
 func DefenderSecretContext(variantID uuid.UUID, c exerciseModel.DefenderCredential) []byte {
 	return secretctx.ExerciseDefenderCredential(variantID, c.Device, c.Port, c.User)
 }
 
+// defenderKey is the key of a secret credential in the maps of a save (the same maps as the secret env values: the prefix keeps
+// the two key spaces apart).
 func defenderKey(variantID uuid.UUID, c exerciseModel.DefenderCredential) string {
-	return fmt.Sprintf("%s\x00%s\x00%s\x00%s", variantID, c.Device, c.Port, c.User)
+	return fmt.Sprintf("defender\x00%s\x00%s\x00%s\x00%s", variantID, c.Device, c.Port, c.User)
 }
 
 // eachSecretCredential calls fn for every secret credential of the variants, with the variant it is sealed to.
@@ -31,7 +35,7 @@ func eachSecretCredential(variants []exerciseModel.Variant, fn func(seal uuid.UU
 		if variants[vi].Defender == nil {
 			continue
 		}
-		seal := variants[vi].SealVariant()
+		seal := variants[vi].ID
 		for ci := range variants[vi].Defender.Credentials {
 			if c := &variants[vi].Defender.Credentials[ci]; c.Secret {
 				if err := fn(seal, c); err != nil {
@@ -70,6 +74,55 @@ func mergeKeptDefenderSecrets(incoming, current []exerciseModel.Variant) {
 		}
 		return nil
 	})
+}
+
+// inheritDefenderSecrets gives a linked variant or a copy its source's secret credentials, the rule of inheritVariantSecrets for
+// env values: a target credential still blank (or, for a linked variant, every one not typed in this save) takes the source's
+// value of the same (device, port, user) as plaintext and is marked submitted, so it is sealed under the target's id; a linked
+// variant keeps its own stored value while it opens to the base's, and is cleared when the base has none.
+func (u *ExerciseUseCase) inheritDefenderSecrets(target *exerciseModel.Variant, source exerciseModel.Variant, linked bool, submitted map[string]bool) error {
+	if target.Defender == nil {
+		return nil
+	}
+	for ci := range target.Defender.Credentials {
+		c := &target.Defender.Credentials[ci]
+		if !c.Secret {
+			continue
+		}
+		targetKey := defenderKey(target.ID, *c)
+		if c.Value != "" && (!linked || submitted[targetKey]) {
+			continue
+		}
+		sourceValue := ""
+		if source.Defender != nil {
+			for _, s := range source.Defender.Credentials {
+				if s.Secret && s.Device == c.Device && s.Port == c.Port && s.User == c.User {
+					sourceValue = s.Value
+				}
+			}
+		}
+		if sourceValue == "" {
+			if linked {
+				c.Value = ""
+			}
+			continue
+		}
+		plain := exerciseModel.DefenderCredential{Device: c.Device, Port: c.Port, User: c.User, Value: sourceValue}
+		if !submitted[defenderKey(source.ID, plain)] {
+			if err := u.openCredential(source.ID, &plain, "Failed to decrypt the secret credential of the source variant"); err != nil {
+				return err
+			}
+		}
+		if c.Value != "" && u.cipher != nil {
+			own := *c
+			if u.openCredential(target.ID, &own, "") == nil && own.Value == plain.Value {
+				continue
+			}
+		}
+		c.Value = plain.Value
+		submitted[targetKey] = true
+	}
+	return nil
 }
 
 // encryptDefenderSecrets seals the secret credentials submitted in this save; merged values are ciphertext already.
@@ -158,7 +211,7 @@ func (u *ExerciseUseCase) defenderCredentials(v exerciseModel.Variant) ([]exerci
 		return []exerciseModel.DefenderCredential{}, nil
 	}
 	out := make([]exerciseModel.DefenderCredential, 0, len(v.Defender.Credentials))
-	seal := v.SealVariant()
+	seal := v.ID
 	for _, c := range v.Defender.Credentials {
 		if c.Secret && c.Value != "" {
 			if err := u.openCredential(seal, &c, "Failed to decrypt a secret credential"); err != nil {

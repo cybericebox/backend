@@ -202,7 +202,8 @@ func (u *ExerciseUseCase) inheritVariantSecrets(target *exerciseModel.Variant, s
 			submitted[targetKey] = true
 		}
 	}
-	return nil
+	// The secret credentials of the defender block take the same rule (one map of submitted keys for both).
+	return u.inheritDefenderSecrets(target, source, linked, submitted)
 }
 
 // sourceSecret is the source variant's secret value of (device, env) and its origin, "" when it has none.

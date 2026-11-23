@@ -67,9 +67,11 @@ type (
 	}
 )
 
-// Files are the dossier as the bootstrap files of the tools device: consoles.json and credentials.json always, topology.json
-// when the dossier shows the topology (the run's topology, redacted). Each is 0600, owned by root.
-func (d Dossier) Files(run Topology) ([]BootstrapFile, error) {
+// Files are the dossier of the reader (the tools device) as its bootstrap files: consoles.json and credentials.json always,
+// topology.json when the mode is full (the run's topology, redacted) or operates (the reader and what it operates, with their
+// links). platform names the platform's own devices of the run (the tools devices): none but the reader is ever listed, so a
+// defender never learns where a bot attacker sits. Each file is 0600, owned by root.
+func (d Dossier) Files(run Topology, reader Device, platform map[uuid.UUID]bool) ([]BootstrapFile, error) {
 	consoles := dossierConsolesFile{Links: []dossierLinkFile{}, Forbidden: nonNil(d.Forbidden)}
 	for _, l := range d.Links {
 		consoles.Links = append(consoles.Links, dossierLinkFile{
@@ -84,11 +86,16 @@ func (d Dossier) Files(run Topology) ([]BootstrapFile, error) {
 		path string
 		v    any
 	}{{DossierConsolesPath, consoles}, {DossierCredentialsPath, credentials}}
-	if d.ShowsTopology {
+	if d.Topology != DefenderTopologyNone {
+		never := func(dev Device) bool { return platform[dev.ID] && dev.ID != reader.ID }
+		listed := func(Device) bool { return true }
+		if d.Topology == DefenderTopologyOperates {
+			listed = func(dev Device) bool { return dev.ID == reader.ID || slices.Contains(d.Operates, dev.Name) }
+		}
 		contents = append(contents, struct {
 			path string
 			v    any
-		}{DossierTopologyPath, redactedRunTopology(run)})
+		}{DossierTopologyPath, redactedRunTopology(run, listed, never, d.Topology == DefenderTopologyOperates)})
 	}
 	out := make([]BootstrapFile, 0, len(contents))
 	for _, c := range contents {
@@ -101,52 +108,68 @@ func (d Dossier) Files(run Topology) ([]BootstrapFile, error) {
 	return out, nil
 }
 
-// redactedRunTopology is the shape of the run's topology without what a device runs and without the platform's control.
-func redactedRunTopology(t Topology) dossierTopologyFile {
-	control := map[uuid.UUID]bool{}
+// redactedRunTopology is the shape of the run's topology without what a device runs. A device is listed when listed says so;
+// a device that never says so is not even named (the platform's control: the control gateways and their switches, with the
+// control NIC of a tools device; and the other tools devices of the run). With touching (a subset), a connection is listed
+// when one of its ends is listed and none is never-named (the far end is named, not listed); without it, when all its ends
+// are listed.
+func redactedRunTopology(t Topology, listed, never func(Device) bool, touching bool) dossierTopologyFile {
+	hide := map[uuid.UUID]bool{}
 	for _, d := range t.Devices {
-		if d.Type == DeviceTypeVPNGateway && IsControlGatewayName(d.Name) {
-			control[d.ID] = true
+		if (d.Type == DeviceTypeVPNGateway && IsControlGatewayName(d.Name)) || never(d) {
+			hide[d.ID] = true
 		}
 	}
 	// A control switch is a switch or hub cabled to a control gateway.
 	for _, c := range t.Connections {
-		if slices.ContainsFunc(c.Endpoints, func(ep Endpoint) bool { return control[ep.DeviceID] }) {
-			for _, ep := range c.Endpoints {
-				for _, d := range t.Devices {
-					if d.ID == ep.DeviceID && d.Type.IsForwarding() {
-						control[d.ID] = true
+		for _, ep := range c.Endpoints {
+			for _, d := range t.Devices {
+				if d.ID == ep.DeviceID && d.Type == DeviceTypeVPNGateway && IsControlGatewayName(d.Name) {
+					for _, other := range c.Endpoints {
+						for _, s := range t.Devices {
+							if s.ID == other.DeviceID && s.Type.IsForwarding() {
+								hide[s.ID] = true
+							}
+						}
 					}
 				}
 			}
 		}
 	}
-	names := make(map[uuid.UUID]string, len(t.Devices))
+	byID := make(map[uuid.UUID]Device, len(t.Devices))
 	for _, d := range t.Devices {
-		names[d.ID] = d.Name
+		byID[d.ID] = d
 	}
+	isListed := func(ep Endpoint) bool { d, ok := byID[ep.DeviceID]; return ok && !hide[d.ID] && listed(d) }
+	isHidden := func(ep Endpoint) bool { return hide[ep.DeviceID] }
 	out := dossierTopologyFile{Devices: []dossierDeviceFile{}, Connections: []dossierConnectionFile{}}
-	controlNIC := map[[2]string]bool{}
+	hiddenNIC := map[[2]string]bool{}
 	for _, c := range t.Connections {
-		if !slices.ContainsFunc(c.Endpoints, func(ep Endpoint) bool { return control[ep.DeviceID] }) {
-			entry := dossierConnectionFile{Kind: c.Kind, Endpoints: []dossierEndpointFile{}}
-			for _, ep := range c.Endpoints {
-				entry.Endpoints = append(entry.Endpoints, dossierEndpointFile{Device: names[ep.DeviceID], Interface: ep.Interface})
+		keep := !slices.ContainsFunc(c.Endpoints, func(ep Endpoint) bool { return !isListed(ep) })
+		if touching {
+			keep = slices.ContainsFunc(c.Endpoints, isListed) && !slices.ContainsFunc(c.Endpoints, isHidden)
+		}
+		if !keep {
+			if slices.ContainsFunc(c.Endpoints, isHidden) {
+				for _, ep := range c.Endpoints {
+					hiddenNIC[[2]string{ep.DeviceID.String(), ep.Interface}] = true
+				}
 			}
-			out.Connections = append(out.Connections, entry)
 			continue
 		}
+		entry := dossierConnectionFile{Kind: c.Kind, Endpoints: []dossierEndpointFile{}}
 		for _, ep := range c.Endpoints {
-			controlNIC[[2]string{ep.DeviceID.String(), ep.Interface}] = true
+			entry.Endpoints = append(entry.Endpoints, dossierEndpointFile{Device: byID[ep.DeviceID].Name, Interface: ep.Interface})
 		}
+		out.Connections = append(out.Connections, entry)
 	}
 	for _, d := range t.Devices {
-		if control[d.ID] {
+		if hide[d.ID] || !listed(d) {
 			continue
 		}
 		entry := dossierDeviceFile{Name: d.Name, Type: d.Type, SerialPorts: slices.Clone(d.SerialPorts)}
 		for _, iface := range d.Interfaces {
-			if !controlNIC[[2]string{d.ID.String(), iface.Name}] {
+			if !hiddenNIC[[2]string{d.ID.String(), iface.Name}] {
 				entry.Interfaces = append(entry.Interfaces, dossierInterfaceFile{Name: iface.Name, IP: iface.IP})
 			}
 		}
@@ -160,15 +183,15 @@ func redactedRunTopology(t Topology) dossierTopologyFile {
 
 // WithDossierFiles is a copy of the run's topology in which the tools device has the files of the dossier in its bootstrap
 // (after its own). The input is not changed.
-func (t Topology) WithDossierFiles(tools uuid.UUID, d Dossier) (Topology, error) {
-	files, err := d.Files(t)
+func (t Topology) WithDossierFiles(tools Device, d Dossier, platform map[uuid.UUID]bool) (Topology, error) {
+	files, err := d.Files(t, tools, platform)
 	if err != nil {
 		return Topology{}, err
 	}
 	out := t
 	out.Devices = slices.Clone(t.Devices)
 	for i := range out.Devices {
-		if out.Devices[i].ID == tools {
+		if out.Devices[i].ID == tools.ID {
 			out.Devices[i].Bootstrap.Files = append(slices.Clone(out.Devices[i].Bootstrap.Files), files...)
 		}
 	}

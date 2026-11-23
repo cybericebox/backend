@@ -7,6 +7,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/gofrs/uuid"
 )
 
 func defenderReason(t *testing.T, err error) (string, string) {
@@ -41,6 +43,11 @@ func TestValidateDefender(t *testing.T) {
 	}}
 	if err := v.ValidateDefender(); err != nil {
 		t.Fatalf("valid block: %v", err)
+	}
+	v.Defender.Topology = DefenderTopologyOperates
+	v.Defender.Credentials[0].Value = strings.Repeat("c", 2*MaxDefenderCredentialSize) // sealed: not the author's text any more
+	if err := v.ValidateDefender(); err != nil {
+		t.Fatalf("operates is a value; a sealed secret has no length rule: %v", err)
 	}
 	for name, tc := range map[string]struct {
 		edit          func(*Defender)
@@ -88,63 +95,77 @@ func TestConsoleLinksOf(t *testing.T) {
 	}
 }
 
-// A seat run: the bot takes the human's seat, so both dossiers have the same links and paths; the bot's forbidden list adds
-// every device with a console port it does not operate.
+// The forbidden list is one rule for the human and the bot: off_limits when named (an override), else the complement of what
+// the defender operates. A seat run gives both the same dossier: the bot takes the human's seat and the opponent's operates.
 func TestHumanAndBotDossiersAgreeForASeatRun(t *testing.T) {
 	v, _ := dossierVariant()
-	v.Defender = &Defender{Seat: "pc1", OffLimits: []string{"web"}}
+	operates := []string{"r1", "core", "db"}
+	v.Defender = &Defender{Seat: "pc1"}
+	v.Opponents = []Opponent{{Role: OpponentDefense, Operates: operates, Seat: "pc1"}}
 	creds := []DefenderCredential{{Device: "r1", Port: "console0", User: "admin", Value: "s3cret"}}
 	human := HumanDossier(v, creds)
-	run, tools, err := v.Topology.WithToolsDevices([]ToolsPlacement{{Image: "d:1", Seat: "pc1", Operates: []string{"r1", "core", "db"}}})
+	run, tools, err := v.Topology.WithToolsDevices([]ToolsPlacement{{Image: "d:1", Seat: "pc1", Operates: operates}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	bot := BotDossier(run, tools[0], []string{"r1", "core", "db"}, v.Defender, creds)
-	if !reflect.DeepEqual(human.Links, bot.Links) || !reflect.DeepEqual(human.Forbidden, bot.Forbidden) || !reflect.DeepEqual(human.Credentials, bot.Credentials) {
+	bot := BotDossier(run, tools[0], operates, v.Defender, creds)
+	if !reflect.DeepEqual(human, bot) {
 		t.Fatalf("human %+v\nbot %+v", human, bot)
 	}
-	if !human.ShowsTopology || !bot.ShowsTopology {
-		t.Fatal("full is the default")
+	if len(human.Forbidden) != 0 || human.Topology != DefenderTopologyFull {
+		t.Fatalf("everything with a console is operated, full is the default: %+v", human)
 	}
-	partial := BotDossier(run, tools[0], []string{"r1"}, v.Defender, creds)
-	if want := []string{"web", "core", "db"}; !reflect.DeepEqual(partial.Forbidden, want) {
-		t.Fatalf("non-operated console devices are forbidden: %+v", partial.Forbidden)
+	if got := BotDossier(run, tools[0], []string{"r1"}, v.Defender, creds).Forbidden; !reflect.DeepEqual(got, []string{"core", "db"}) {
+		t.Fatalf("the complement of operates: %+v", got)
 	}
-	none := BotDossier(run, tools[0], []string{"r1", "core", "db"}, nil, nil)
-	if len(none.Forbidden) != 0 || none.Credentials == nil || !none.ShowsTopology {
-		t.Fatalf("no block: %+v", none)
+	v.Defender.OffLimits = []string{"web"}
+	if got := HumanDossier(v, nil).Forbidden; !reflect.DeepEqual(got, []string{"web"}) {
+		t.Fatalf("off_limits overrides: %+v", got)
+	}
+	// Without an opponent at the seat, the human operates what the seat is cabled to.
+	v.Opponents, v.Defender.OffLimits = nil, nil
+	human = HumanDossier(v, nil)
+	if !reflect.DeepEqual(human.Operates, []string{"r1", "core"}) || !reflect.DeepEqual(human.Forbidden, []string{"db"}) {
+		t.Fatalf("the seat's cables: %+v", human)
 	}
 }
 
-// The files are root-only and follow the shapes of the design; topology.json comes only with topology: full and holds no
-// image, no bootstrap and none of the platform's control.
+// The files are root-only and follow the shapes of the design; topology.json is written for full and operates, never names
+// another tools device or the platform's control, and holds no image and no bootstrap.
 func TestDossierFiles(t *testing.T) {
 	v, _ := dossierVariant()
 	v.Defender = &Defender{Seat: "pc1", OffLimits: []string{"web"}}
-	run, tools, err := v.Topology.WithToolsDevices([]ToolsPlacement{{Image: "d:1", Seat: "pc1", Operates: []string{"r1", "core"}, Env: []EnvVar{{Name: "EDA_RUN_ID", Value: "run"}}}})
+	run, tools, err := v.Topology.WithToolsDevices([]ToolsPlacement{
+		{Image: "d:1", Seat: "pc1", Operates: []string{"r1", "core"}, Env: []EnvVar{{Name: "EDA_RUN_ID", Value: "run"}}},
+		{Image: "a:1", Foothold: "lan"},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
+	platform := map[uuid.UUID]bool{tools[0].ID: true, tools[1].ID: true}
 	creds := []DefenderCredential{{Device: "r1", Port: "console0", User: "admin", Value: "s3cret"}}
-	out, err := run.WithDossierFiles(tools[0].ID, BotDossier(run, tools[0], []string{"r1", "core"}, v.Defender, creds))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var files []BootstrapFile
-	for _, d := range out.Devices {
-		if d.ID == tools[0].ID {
-			files = d.Bootstrap.Files
+	files := func(d Dossier) map[string]BootstrapFile {
+		t.Helper()
+		out, err := run.WithDossierFiles(tools[0], d, platform)
+		if err != nil {
+			t.Fatal(err)
 		}
-	}
-	if len(files) != 3 {
-		t.Fatalf("three files: %+v", files)
-	}
-	byPath := map[string]BootstrapFile{}
-	for _, f := range files {
-		if f.Mode != "0600" || f.Owner != "root" || f.Group != "root" {
-			t.Fatalf("root-only: %+v", f)
+		byPath := map[string]BootstrapFile{}
+		for _, dev := range out.Devices {
+			if dev.ID == tools[0].ID {
+				for _, f := range dev.Bootstrap.Files {
+					if f.Mode != "0600" || f.Owner != "root" || f.Group != "root" {
+						t.Fatalf("root-only: %+v", f)
+					}
+					byPath[f.Path] = f
+				}
+			}
 		}
-		byPath[f.Path] = f
+		return byPath
+	}
+	byPath := files(BotDossier(run, tools[0], []string{"r1", "core"}, v.Defender, creds))
+	if len(byPath) != 3 {
+		t.Fatalf("three files: %+v", byPath)
 	}
 	var consoles map[string]any
 	if err = json.Unmarshal([]byte(byPath[DossierConsolesPath].Content), &consoles); err != nil {
@@ -155,7 +176,7 @@ func TestDossierFiles(t *testing.T) {
 			map[string]any{"serial_port": "serial0", "path": "/dev/ttyCON0", "device": "r1", "console_kind": "program", "program": "vtysh"},
 			map[string]any{"serial_port": "serial1", "path": "/dev/ttyUSB1", "device": "core", "console_kind": "login", "program": ""},
 		},
-		"forbidden": []any{"web", "db"},
+		"forbidden": []any{"web"},
 	}
 	if !reflect.DeepEqual(consoles, wantConsoles) {
 		t.Fatalf("consoles.json: %s", byPath[DossierConsolesPath].Content)
@@ -164,22 +185,37 @@ func TestDossierFiles(t *testing.T) {
 		t.Fatalf("credentials.json: %s", got)
 	}
 	topology := byPath[DossierTopologyPath].Content
-	for _, leak := range []string{"d:1", "EDA_RUN_ID", "ctl", "image", "bootstrap", "pc1"} {
+	for _, leak := range []string{"d:1", "a:1", "EDA_RUN_ID", "ctl", "image", "bootstrap", "pc1", "tools-2"} {
 		if strings.Contains(topology, leak) {
 			t.Fatalf("topology.json holds %q: %s", leak, topology)
 		}
 	}
-	if !strings.Contains(topology, `"name":"tools"`) || !strings.Contains(topology, `"console_ports":["console0","aux0"]`) {
+	if !strings.Contains(topology, `"name":"tools"`) || !strings.Contains(topology, `"console_ports":["console0","aux0"]`) || !strings.Contains(topology, `"name":"web"`) {
 		t.Fatalf("topology.json: %s", topology)
 	}
-	if run.Devices[len(run.Devices)-1].Bootstrap.Files != nil {
-		t.Fatal("the input is not changed")
+
+	v.Defender.Topology = DefenderTopologyOperates
+	subset := files(BotDossier(run, tools[0], []string{"r1", "core"}, v.Defender, nil))[DossierTopologyPath].Content
+	var shape struct {
+		Devices []struct {
+			Name string `json:"name"`
+		} `json:"devices"`
+	}
+	if err = json.Unmarshal([]byte(subset), &shape); err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, d := range shape.Devices {
+		names = append(names, d.Name)
+	}
+	if !reflect.DeepEqual(names, []string{"r1", "core", "tools"}) || !strings.Contains(subset, `{"device":"back","interface":"GigabitEthernet0/2"}`) || strings.Contains(subset, "tools-2") {
+		t.Fatalf("operates: its own devices and their links: %s", subset)
 	}
 
 	v.Defender.Topology = DefenderTopologyNone
-	files, err = BotDossier(run, tools[0], []string{"r1"}, v.Defender, nil).Files(run)
-	if err != nil || len(files) != 2 {
-		t.Fatalf("no topology.json with topology none: %v %d", err, len(files))
+	got, err := BotDossier(run, tools[0], []string{"r1"}, v.Defender, nil).Files(run, tools[0], platform)
+	if err != nil || len(got) != 2 {
+		t.Fatalf("no topology.json with topology none: %v %d", err, len(got))
 	}
 }
 

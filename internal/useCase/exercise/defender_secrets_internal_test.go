@@ -18,8 +18,8 @@ func defenderVariant(id uuid.UUID, value string) exerciseModel.Variant {
 	}}}
 }
 
-// A secret credential is sealed on save, kept by a blank save, blank in a read model, opened for the dossier; a linked
-// variant's copy is sealed to its base, so it opens there too.
+// A secret credential follows the rules of a secret env value: sealed on save to its variant, kept by a blank save, blank in a
+// read model, opened for the dossier; a linked variant or a copy takes its source's value sealed under its own id.
 func TestDefenderCredentialSecrets(t *testing.T) {
 	cipher, err := secret.New(strings.Repeat("66", 32))
 	require.NoError(t, err)
@@ -49,11 +49,20 @@ func TestDefenderCredentialSecrets(t *testing.T) {
 		{Device: "web", User: "root", Value: "plain"},
 	}, opened)
 
-	linked := next[0]
-	linked.ID, linked.LinkedTo = uuid.Must(uuid.NewV7()), uuid.NullUUID{UUID: base, Valid: true}
-	opened, err = u.defenderCredentials(linked)
-	require.NoError(t, err)
-	require.Equal(t, "s3cret", opened[0].Value, "a linked variant opens its base's block")
+	// A linked variant (its block is the base's, blank on the way in) and a copy take the value under their own ids.
+	linked := defenderVariant(uuid.Must(uuid.NewV7()), "")
+	linked.LinkedTo = uuid.NullUUID{UUID: base, Valid: true}
+	copied := defenderVariant(uuid.Must(uuid.NewV7()), "")
+	variants := []exerciseModel.Variant{next[0], linked, copied}
+	inherited := map[string]bool{}
+	require.NoError(t, u.inheritSecrets(variants, map[int]uuid.UUID{1: base, 2: base}, inherited))
+	require.NoError(t, u.encryptDefenderSecrets(variants, inherited))
+	for _, v := range variants[1:] {
+		got, openErr := u.defenderCredentials(v)
+		require.NoError(t, openErr)
+		require.Equal(t, "s3cret", got[0].Value)
+		require.NotEqual(t, sealed, v.Defender.Credentials[0].Value, "sealed under the variant's own id")
+	}
 
 	moved := next[0]
 	moved.Defender = exerciseModel.CopyDefender(moved.Defender)
@@ -61,7 +70,7 @@ func TestDefenderCredentialSecrets(t *testing.T) {
 	_, err = u.defenderCredentials(moved)
 	require.Error(t, err, "a value moved to another credential does not open")
 
-	// The export opens the values (a password-protected archive), the import seals them again.
+	// The export opens the values (a password-protected archive), the import seals them again; an unprotected import refuses one.
 	versions := []exerciseModel.ExerciseVersion{{Variants: []exerciseModel.Variant{{ID: base, Defender: exerciseModel.CopyDefender(next[0].Defender)}}}}
 	require.NoError(t, u.decryptExportedSecrets(versions))
 	require.Equal(t, "s3cret", versions[0].Variants[0].Defender.Credentials[0].Value)
@@ -77,7 +86,8 @@ func TestDefenderCredentialSecrets(t *testing.T) {
 	require.Equal(t, "s3cret", edited.Variants[0].Defender.Credentials[0].Value)
 }
 
-// Only a tools device that operates devices gets the dossier files, with the credentials opened.
+// A tools device that operates devices gets the dossier files, with the credentials opened, when the variant declares a
+// defender block or the device has console lines; an attacker's never.
 func TestWithDossierFiles(t *testing.T) {
 	cipher, err := secret.New(strings.Repeat("77", 32))
 	require.NoError(t, err)
@@ -90,7 +100,8 @@ func TestWithDossierFiles(t *testing.T) {
 	defender := exerciseModel.Device{ID: uuid.Must(uuid.NewV7()), Name: "tools", Type: exerciseModel.DeviceTypeNode}
 	attacker := exerciseModel.Device{ID: uuid.Must(uuid.NewV7()), Name: "tools-2", Type: exerciseModel.DeviceTypeNode}
 	run := exerciseModel.Topology{Devices: []exerciseModel.Device{defender, attacker}}
-	out, err := u.withDossierFiles(variant, run, []exerciseModel.Device{defender, attacker}, []exerciseModel.ToolsPlacement{{Operates: []string{"r1"}}, {Foothold: "lan"}})
+	places := []exerciseModel.ToolsPlacement{{Operates: []string{"r1"}}, {Foothold: "lan"}}
+	out, err := u.withDossierFiles(variant, run, []exerciseModel.Device{defender, attacker}, places)
 	require.NoError(t, err)
 	paths := func(d exerciseModel.Device) []string {
 		var out []string
@@ -101,6 +112,27 @@ func TestWithDossierFiles(t *testing.T) {
 	}
 	require.Equal(t, []string{exerciseModel.DossierConsolesPath, exerciseModel.DossierCredentialsPath, exerciseModel.DossierTopologyPath}, paths(out.Devices[0]))
 	require.Contains(t, out.Devices[0].Bootstrap.Files[1].Content, "s3cret")
+	require.NotContains(t, out.Devices[0].Bootstrap.Files[2].Content, "tools-2", "no other tools device is named")
 	require.Empty(t, paths(out.Devices[1]), "an attacker's tools device gets no dossier")
 	require.Empty(t, run.Devices[0].Bootstrap.Files, "the input is not changed")
+
+	out, err = u.withDossierFiles(exerciseModel.Variant{}, run, []exerciseModel.Device{defender, attacker}, places)
+	require.NoError(t, err)
+	require.Empty(t, paths(out.Devices[0]), "no block and no console lines: nothing to tell, no launcher")
+}
+
+// The deployed dossier is the variant as it is at the deploy, sealed values kept; none without a block or when a bot takes the
+// seat.
+func TestDeployedDossier(t *testing.T) {
+	v := defenderVariant(uuid.Must(uuid.NewV7()), "ciphertext")
+	v.Defender.Seat = "pc1"
+	got := deployedDossier(v, nil)
+	require.NotNil(t, got)
+	require.Equal(t, v.ID, got.Variant)
+	require.Equal(t, "ciphertext", got.Credentials[0].Value)
+	require.True(t, got.Credentials[0].Secret)
+	v.Defender.Credentials[0].Value = "changed later"
+	require.Equal(t, "ciphertext", got.Credentials[0].Value, "a copy: a later edit does not reach it")
+	require.Nil(t, deployedDossier(v, []exerciseModel.ToolsPlacement{{Seat: "pc1"}}))
+	require.Nil(t, deployedDossier(exerciseModel.Variant{}, nil))
 }

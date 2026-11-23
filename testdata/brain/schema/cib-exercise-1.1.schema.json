@@ -82,6 +82,11 @@
           "type": "string"
         },
         "topology": {
+          "enum": [
+            "full",
+            "operates",
+            "none"
+          ],
           "type": "string"
         }
       },
@@ -106,6 +111,9 @@
           "type": "string"
         }
       },
+      "required": [
+        "device"
+      ],
       "type": "object"
     },
     "DevicePersistence": {

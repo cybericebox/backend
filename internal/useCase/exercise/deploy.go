@@ -472,6 +472,10 @@ func (u *ExerciseUseCase) deployVariantTest(ctx context.Context, eventID *uuid.U
 		return exerciseModel.DeployHandle{}, err
 	}
 	deploy := exerciseModel.TestDeploy{EventID: eventID, Flags: deployFlags, ID: id, GroupName: testGroupName(ownerID), LabName: testLabName(id), VersionID: versionID, VariantID: variantID, CreatedBy: ownerID, CreatedAt: now, ExpiresAt: now.Add(lease), Length: lease}
+	// The human defender's dossier is kept as the variant is now (never for an event's preview: event staff are not authors).
+	if eventID == nil {
+		deploy.Dossier = deployedDossier(variant, tools)
+	}
 	retained, provisioned := false, false
 	// Everything an author does to their test labs is serialized, so the group is created with the
 	// first lab, grows with the next ones and is deleted with the last one without racing.

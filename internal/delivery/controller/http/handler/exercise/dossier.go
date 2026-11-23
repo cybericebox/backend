@@ -13,14 +13,17 @@ type (
 	// dossierResponse is the dossier of the human defender of a test lab (console design 9a.3). Declared is false when the
 	// variant has no defender block (no dossier tab); the lists are then empty. Links are the console cables of the seat, in
 	// the order of its serial ports; Forbidden are the devices the defender must not console into; Credentials are the operator
-	// credentials with their values (show and copy controls); ShowsTopology says the schema view belongs in the dossier
-	// (topology: full).
+	// credentials with their values (show and copy controls). Forbidden is off_limits when the task names any, else every
+	// device with a console port the defender does not operate.
 	dossierResponse struct {
 		Declared      bool                        `json:"Declared"`
 		Links         []dossierLinkResponse       `json:"Links"`
 		Forbidden     []string                    `json:"Forbidden"`
 		Credentials   []dossierCredentialResponse `json:"Credentials"`
-		ShowsTopology bool                        `json:"ShowsTopology"`
+		// Topology is full (the schema view of the whole lab), operates (only Operates and their links) or none.
+		Topology string `json:"Topology"`
+		// Operates are the devices the defender operates (the subset of Topology operates).
+		Operates []string `json:"Operates"`
 	}
 
 	// dossierLinkResponse is one cabled line of the seat: SerialPort and its device Path (/dev/ttyCON0), the Device and its
@@ -46,8 +49,8 @@ type (
 
 func dossierToResponse(v exerciseUseCase.DossierView) dossierResponse {
 	out := dossierResponse{
-		Declared: v.Declared, ShowsTopology: v.ShowsTopology, Links: []dossierLinkResponse{}, Forbidden: append([]string{}, v.Forbidden...),
-		Credentials: []dossierCredentialResponse{},
+		Declared: v.Declared, Topology: string(v.Topology), Operates: append([]string{}, v.Operates...), Links: []dossierLinkResponse{},
+		Forbidden: append([]string{}, v.Forbidden...), Credentials: []dossierCredentialResponse{},
 	}
 	for _, l := range v.Links {
 		out.Links = append(out.Links, dossierLinkResponse{
@@ -62,7 +65,7 @@ func dossierToResponse(v exerciseUseCase.DossierView) dossierResponse {
 
 // deployDossier godoc
 // @Summary  The dossier of the human defender of a test lab
-// @Description  The console map of the defender's seat, the forbidden devices, the operator credentials (with their values) and whether the topology is shown. The owner of the test lab only, once the lab is ready (409 otherwise). Declared false: the variant has no defender block. Never cached.
+// @Description  The console map of the defender's seat, the forbidden devices, the operator credentials (with their values) and the topology mode (full, operates, none), as the lab was deployed. The owner of the test lab with author access to the exercise only (checked on every read), never an event preview, once the lab is ready (409 otherwise). Declared false: the lab was deployed without a defender block. Never cached.
 // @Tags     exercises
 // @Produce  json
 // @Param    deployID  path  string  true  "test deployment id"
@@ -84,7 +87,7 @@ func (h *Handler) deployDossier(ctx *gin.Context) {
 	}
 	// The dossier carries operator credentials.
 	ctx.Header("Cache-Control", "private, no-store")
-	view, err := h.useCase.TestDeployDossier(ctx, claims.UserID, deployID)
+	view, err := h.useCase.TestDeployDossier(ctx, exerciseUseCase.Actor{UserID: claims.UserID, Role: claims.Role}, deployID)
 	if err != nil {
 		response.AbortWithError(ctx, err)
 		return

@@ -14,17 +14,17 @@ func TestDossierResponse(t *testing.T) {
 	out := dossierToResponse(exerciseUseCase.DossierView{Declared: true, Dossier: exerciseModel.Dossier{
 		Links:     []exerciseModel.ConsoleLink{{SerialPort: "serial0", Path: "/dev/ttyCON0", Device: "r1", ConsolePort: "console0", Kind: exerciseModel.ConsoleKindProgram, Program: "vtysh"}},
 		Forbidden: []string{"core-fw"}, Credentials: []exerciseModel.DefenderCredential{{Device: "r1", Port: "console0", User: "admin", Value: "s3cret"}},
-		ShowsTopology: true,
+		Topology: exerciseModel.DefenderTopologyOperates, Operates: []string{"r1"},
 	}})
 	raw, err := json.Marshal(out)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"Declared":true,"ShowsTopology":true,"Forbidden":["core-fw"],
+	require.JSONEq(t, `{"Declared":true,"Topology":"operates","Operates":["r1"],"Forbidden":["core-fw"],
 		"Links":[{"SerialPort":"serial0","Path":"/dev/ttyCON0","Device":"r1","ConsolePort":"console0","ConsoleKind":"program","Program":"vtysh"}],
 		"Credentials":[{"Device":"r1","Port":"console0","User":"admin","Value":"s3cret"}]}`, string(raw))
 
 	raw, err = json.Marshal(dossierToResponse(exerciseUseCase.DossierView{}))
 	require.NoError(t, err)
-	require.JSONEq(t, `{"Declared":false,"ShowsTopology":false,"Forbidden":[],"Links":[],"Credentials":[]}`, string(raw))
+	require.JSONEq(t, `{"Declared":false,"Topology":"","Operates":[],"Forbidden":[],"Links":[],"Credentials":[]}`, string(raw))
 }
 
 // A secret credential never goes back to the editor; a plain one does; a blank secret in a request is kept by the save.
