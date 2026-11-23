@@ -14,7 +14,7 @@ import (
 // TestRoutePolicy keeps equal to the router): every declared key is in the catalogue and can be checked at the
 // route's scope source (authz.Decl.Problems); an event(:param) source names a parameter of the path; a delete-shaped
 // route (DELETE, or a reject, revoke, remove, detach or delete action) declares its area's .delete key, and a .delete
-// key stands only on a delete-shaped route; a service route sits under /api/render/ behind its secret layer; the event
+// key stands only on a delete-shaped route; a service or bearer route sits under its prefix behind its credential layer; the event
 // manage area, the catalog and the assistant never stand on a bare self. A route still marked "?" is not declared yet
 // (TestEveryRouteDeclaresKeys holds that list).
 //
@@ -38,9 +38,10 @@ var participantPrefixes = []string{
 // deleteActions are the last path segments that remove something although the method is not DELETE.
 var deleteActions = []string{"reject", "revoke", "remove", "detach", "delete"}
 
-// serviceRoutes: where a service source may stand, and the layer that checks the service's credential.
-var serviceRoutes = map[string]struct{ prefix, layer string }{
-	authz.ServiceRender: {prefix: "/api/render/", layer: "requireSecret"},
+// credentialRoutes: where a service or bearer source may stand, and the layer that checks its credential.
+var credentialRoutes = map[string]struct{ prefix, layer string }{
+	"service(" + authz.ServiceRender + ")":   {prefix: "/api/render/", layer: "requireSecret"},
+	"bearer(" + authz.BearerLiveScreen + ")": {prefix: "/api/events/self/live-screen", layer: "liveScreenGate"},
 }
 
 func testdataPath(handlerRoot, name string) string {
@@ -125,18 +126,18 @@ func declarationViolations(golden string, exceptions, relationExceptions map[str
 				}
 			}
 		}
-		if isParticipantRoute(route) {
+		if _, staff := staffRoutes[id]; !staff && isParticipantRoute(route, layers) {
 			_, listed := relationExceptions[id]
 			if listed {
 				usedRelation[id] = true
 			}
 			kind := decl.Scope.Kind()
-			missing := decl.Relation == "" && kind != "public" && kind != "service"
+			missing := decl.Relation == "" && kind != "public" && kind != "service" && kind != "bearer"
 			switch {
 			case missing && !listed:
 				out = append(out, fmt.Sprintf("%s: a participant route declares no relation (%s); a route A.3 gives self goes on routes.relation-exceptions with its row", id, decl))
-			case !missing && listed:
-				out = append(out, fmt.Sprintf("%s: on routes.relation-exceptions but declares a relation: drop the entry", id))
+			case listed && !isBareSelf(decl):
+				out = append(out, fmt.Sprintf("%s: on routes.relation-exceptions, which admits only a bare self, but declares %s", id, decl))
 			}
 		}
 		_, excepted := exceptions[id]
@@ -173,26 +174,39 @@ func declarationViolations(golden string, exceptions, relationExceptions map[str
 }
 
 func serviceViolations(id, route string, d authz.Decl, layers []string) []string {
-	if d.Scope.Kind() != "service" {
+	if kind := d.Scope.Kind(); kind != "service" && kind != "bearer" {
 		return nil
 	}
-	name := strings.TrimSuffix(strings.TrimPrefix(string(d.Scope), "service("), ")")
-	where, ok := serviceRoutes[name]
+	where, ok := credentialRoutes[string(d.Scope)]
 	if !ok {
-		return []string{fmt.Sprintf("%s: no route rule for service %q", id, name)}
+		return []string{fmt.Sprintf("%s: no route rule for %s", id, d.Scope)}
 	}
 	var out []string
-	if !strings.HasPrefix(route, where.prefix) {
-		out = append(out, fmt.Sprintf("%s: service(%s) only under %s", id, name, where.prefix))
+	if route != where.prefix && !strings.HasPrefix(route, strings.TrimSuffix(where.prefix, "/")+"/") {
+		out = append(out, fmt.Sprintf("%s: %s only under %s", id, d.Scope, where.prefix))
 	}
 	if !slices.ContainsFunc(layers, func(l string) bool { return strings.HasSuffix(l, "."+where.layer) || l == where.layer }) {
-		out = append(out, fmt.Sprintf("%s: service(%s) without its credential layer %s", id, name, where.layer))
+		out = append(out, fmt.Sprintf("%s: %s without its credential layer %s", id, d.Scope, where.layer))
 	}
 	return out
 }
 
-func isParticipantRoute(route string) bool {
-	return slices.ContainsFunc(participantPrefixes, func(p string) bool { return route == p || strings.HasPrefix(route, p+"/") })
+// staffRoutes sit on participant paths but are staff routes: they declare keys, not a relation.
+var staffRoutes = map[string]string{
+	"POST /api/events/self/render-grant": "A.3 #446: the render grant for staff previews (event.read); participants wait for an owner decision",
+}
+
+// participantLayers mark a participant route wherever it is mounted: the presence bookkeeping of the event site and
+// the tenant resolution of its Origin. A new participant route outside participantPrefixes is still checked.
+var participantLayers = []string{"touchPresence", "ResolveEventTenant"}
+
+func isParticipantRoute(route string, layers []string) bool {
+	if slices.ContainsFunc(participantPrefixes, func(p string) bool { return route == p || strings.HasPrefix(route, p+"/") }) {
+		return true
+	}
+	return slices.ContainsFunc(layers, func(l string) bool {
+		return slices.ContainsFunc(participantLayers, func(p string) bool { return strings.Contains(l, p) })
+	})
 }
 
 func isBareSelf(d authz.Decl) bool {

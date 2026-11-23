@@ -136,7 +136,7 @@ func (h *Handler) Init(router *gin.RouterGroup, resolveTenant gin.HandlerFunc) {
 		self.POST("participant-form", h.prot.Route(authz.AnyOf(authz.SourceTenant, authz.Self), nil), h.submitParticipantForm)
 		self.GET("participant-answers", h.prot.Route(authz.AnyOf(authz.SourceTenant, authz.Self), nil), h.participantAnswers)
 		self.PUT("participant-answers", h.prot.Route(authz.AnyOf(authz.SourceTenant, authz.Self), nil), h.updateParticipantAnswers)
-		self.POST("answer-files", middleware.RateLimitPerUser(answerFileUploadsPerMinute, time.Minute), h.uploadAnswerFile)
+		self.POST("answer-files", h.prot.Route(authz.Related(authz.SourceTenant, authz.RelParticipant), nil), middleware.RateLimitPerUser(answerFileUploadsPerMinute, time.Minute), h.uploadAnswerFile)
 		self.GET("answer-files/:fileID", h.prot.Route(authz.AnyOf(authz.SourceTenant, authz.Self), nil), h.downloadAnswerFile)
 	}
 
@@ -144,10 +144,10 @@ func (h *Handler) Init(router *gin.RouterGroup, resolveTenant gin.HandlerFunc) {
 	{
 		teams.POST("", h.prot.Route(authz.Related(authz.SourceEventParam("id"), authz.RelParticipant), nil), h.createTeam)
 		teams.POST("join", h.prot.Route(authz.Related(authz.SourceEventParam("id"), authz.RelParticipant), nil), h.joinTeam)
-		teams.GET("mine", h.ownTeam)
-		teams.GET("mine/members", h.ownTeamMembers)
-		teams.POST("mine/leave", h.leaveTeam)
-		teams.POST("mine/form", h.formTeam)
+		teams.GET("mine", h.prot.Route(authz.Related(authz.SourceOwnTeam("id"), authz.RelTeamMember), nil), h.ownTeam)
+		teams.GET("mine/members", h.prot.Route(authz.Related(authz.SourceOwnTeam("id"), authz.RelTeamMember), nil), h.ownTeamMembers)
+		teams.POST("mine/leave", h.prot.Route(authz.AnyOf(authz.SourceOwnTeam("id"), authz.Self), nil), h.leaveTeam)
+		teams.POST("mine/form", h.prot.Route(authz.Related(authz.SourceOwnTeam("id"), authz.RelCaptain), nil), h.formTeam)
 		teams.PUT(":teamID", h.prot.Route(authz.Related(authz.SourceObject("team"), authz.RelCaptain), nil), h.renameTeam)
 		teams.PUT(":teamID/fields", h.prot.Route(authz.Related(authz.SourceObject("team"), authz.RelCaptain), nil), h.updateTeamFields)
 		teams.POST(":teamID/join-code", h.prot.Route(authz.Related(authz.SourceObject("team"), authz.RelCaptain), nil), h.regenerateJoinCode)

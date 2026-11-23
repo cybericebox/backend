@@ -16,3 +16,4 @@ GET /api/events/self/participant-answers | A.3 #439: self; Applicant or particip
 PUT /api/events/self/participant-answers | A.3 #440: self; Applicant or participant: own answers
 PUT /api/events/self/pseudonym | A.3 #444: self; Applicant or participant: own answers
 GET /api/events/self/team-fields | A.3 #447: self; Before joining; public-ish event data
+POST /api/events/:id/teams/mine/leave | A.3 #425: self; leaving is the caller's own membership

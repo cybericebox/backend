@@ -1,4 +1,4 @@
-# Routes that declare no keys yet (TestEveryRouteDeclaresKeys). The list only shrinks; maxUndeclared counts it.
+# Routes that declare no keys yet (TestEveryRouteDeclaresKeys). The list only shrinks.
 # METHOD /api/path | P1b area and A.3 row; "open:" when the row is not settled in the spec
 # area 2: admin, analytics, dashboard
 GET /api/admin/assistant/statistics | area 2, A.3 #48
@@ -339,16 +339,6 @@ PUT /api/events/:id/manage/teams/:teamID/hidden | area 4, A.3 #383
 PUT /api/events/:id/manage/teams/:teamID/staff-fields | area 4, A.3 #388
 PUT /api/events/:id/manage/theme | area 4, A.3 #391
 PUT /api/events/:id/managers/:userID | area 4, A.3 #394
-# area 5: participant routes
-GET /api/events/:id/teams/mine | area 5, A.3 #423 open: scope "own team (relation)" is not a scope source of the plan
-GET /api/events/:id/teams/mine/members | area 5, A.3 #426 open: scope "own team (relation)" is not a scope source of the plan
-GET /api/events/self/live-screen | area 5, A.3 #435 open: keys cell not in a declarable form
-GET /api/events/self/live-screen/results | area 5, A.3 #436 open: keys cell not in a declarable form
-GET /api/events/self/live-screen/results/live | area 5, A.3 #437 open: keys cell not in a declarable form
-GET /api/events/self/live-screen/version | area 5, A.3 #438 open: keys cell not in a declarable form
-POST /api/events/:id/teams/mine/form | area 5, A.3 #424 open: scope "own team (relation)" is not a scope source of the plan
-POST /api/events/:id/teams/mine/leave | area 5, A.3 #425 open: scope "own team (lookup)" is not a scope source of the plan
-POST /api/events/self/answer-files | area 5, A.3 #427 open: keys cell not in a declarable form
 # area 6: exercises, runs, assistant
 DELETE /api/assistant/sessions/:id | area 6, A.3 #83
 DELETE /api/assistant/sessions/:id/attachments/:aid | area 6, A.3 #86

@@ -1,2 +1,3 @@
 # Declared routes whose keys differ from today's gate on purpose (TestDeclaredKeysMapToTheLegacyGate).
 # METHOD /api/path | A.3 row and the spec section that makes the change
+POST /api/events/self/answer-files | A.3.8 #427: (participant); today UploadAnswerFile has no participant or team check (A.4.1 item 5), a change on purpose for P2 (plan P2 checklist)

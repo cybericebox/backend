@@ -1,0 +1,22 @@
+# Declared routes checked at an event that also address another object (TestEventScopedObjectRoutes).
+# P2: each use case must check that the object belongs to the event. METHOD path | scope | objects
+GET    /api/events/:id/forms/:formID | event(:id) | :formID
+POST   /api/events/:id/forms/:formID/response | event(:id) | :formID
+DELETE /api/events/:id/teams/:teamID | object(team) | :teamID,object(team)
+PUT    /api/events/:id/teams/:teamID | object(team) | :teamID,object(team)
+POST   /api/events/:id/teams/:teamID/captain | object(team) | :teamID,object(team)
+PUT    /api/events/:id/teams/:teamID/fields | object(team) | :teamID,object(team)
+POST   /api/events/:id/teams/:teamID/join-code | object(team) | :teamID,object(team)
+POST   /api/events/:id/teams/:teamID/members/:userID/kick | object(team) | :teamID,:userID,object(team)
+GET    /api/events/:id/teams/challenges/:challengeID/files/:fileID | event(:id) | :challengeID,:fileID
+POST   /api/events/:id/teams/challenges/:challengeID/hints/:hintID/unlock | event(:id) | :challengeID,:hintID
+GET    /api/events/:id/teams/challenges/:challengeID/lab | event(:id) | :challengeID
+POST   /api/events/:id/teams/challenges/:challengeID/lab/link | event(:id) | :challengeID
+POST   /api/events/:id/teams/challenges/:challengeID/open | event(:id) | :challengeID
+POST   /api/events/:id/teams/challenges/:challengeID/run-checks | event(:id) | :challengeID
+GET    /api/events/:id/teams/challenges/:challengeID/solves | event(:id) | :challengeID
+POST   /api/events/:id/teams/challenges/:challengeID/submit | event(:id) | :challengeID
+GET    /api/events/:id/teams/labs/:labID | event(:id) | :labID
+POST   /api/events/:id/teams/labs/:labID/restart | event(:id) | :labID
+POST   /api/events/:id/teams/labs/:labID/stop | event(:id) | :labID
+GET    /api/events/self/answer-files/:fileID | tenant | :fileID
