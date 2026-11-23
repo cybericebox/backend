@@ -244,9 +244,11 @@ func (u *ImageRegistryUseCase) resolveAndStore(ctx context.Context, scope Scope,
 }
 
 // ToolsImageService reads the start configuration of the image of a tools device: a platform image from the stored
-// configurations, any other from its registry (manifest and config blob, no layer), with the pull credential the brain gave
-// for it when there is one. Nothing is stored and the credential goes nowhere else: it is the run's. known is false when the
-// configuration cannot be read.
+// configurations, any other from its registry (manifest and config blob, no layer). The pull credential the brain gave goes only
+// to the registry it names, and only when that is the image's own host (both normalised as the lab's pull secret is,
+// toolsCredentialHost); the token exchange never carries it to another host (SameHostCredentials). Otherwise the image is read
+// anonymously. Each request has its own timeout (the head timeout) inside the call timeout. Nothing is stored: the credential
+// is the run's. known is false when the configuration cannot be read.
 func (u *ImageRegistryUseCase) ToolsImageService(ctx context.Context, image string, pull *exerciseModel.ToolsPull) (exerciseModel.ImageService, bool) {
 	if strings.HasPrefix(image, "platform:") {
 		infos := u.ImageServices(ctx, []string{image})
@@ -264,18 +266,23 @@ func (u *ImageRegistryUseCase) ToolsImageService(ctx context.Context, image stri
 		reference = ref.Tag
 	}
 	username, password := "", ""
-	if pull != nil {
+	if pull != nil && ToolsCredentialHost(pull.Registry) == imageRegistryModel.CredentialHost(ref.Host) {
 		username, password = pull.Username, pull.Password
 	}
 	ctx, cancel := context.WithTimeout(ctx, u.callTimeout)
 	defer cancel()
-	hctx, stop := context.WithTimeout(ctx, u.headTimeout)
-	defer stop()
-	configs, err := u.external(ref.Host, ref.Repository, username, password).ImageConfigs(hctx, reference)
+	client := u.external(ref.Host, ref.Repository, username, password).WithSameHostCredentials().WithRequestTimeout(u.headTimeout)
+	configs, err := client.ImageConfigs(ctx, reference)
 	if err != nil {
 		log.Warn().Str("reason", reasonOfRegistryError(err)).Msg("image config: the start configuration of a tools image cannot be read")
 		return exerciseModel.ImageService{}, false
 	}
 	service, reason := serviceOfConfigs(configs)
 	return service, reason == ""
+}
+
+// ToolsCredentialHost is the registry host a tools pull credential belongs to, normalised as the lab's pull secret of it is
+// (withToolsPull in the exercise use case uses it too): the scheme dropped, the credential host of the registry.
+func ToolsCredentialHost(registry string) string {
+	return imageRegistryModel.CredentialHost(strings.TrimPrefix(strings.TrimPrefix(registry, "https://"), "http://"))
 }

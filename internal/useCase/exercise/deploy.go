@@ -21,7 +21,6 @@ import (
 	"github.com/cybericebox/backend/internal/model"
 	"github.com/cybericebox/backend/internal/model/challengeAttempt"
 	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
-	imageRegistryModel "github.com/cybericebox/backend/internal/model/imageRegistry"
 	infraModel "github.com/cybericebox/backend/internal/model/infrastructure"
 	labAccessModel "github.com/cybericebox/backend/internal/model/labAccess"
 	labBindingModel "github.com/cybericebox/backend/internal/model/labBinding"
@@ -29,6 +28,7 @@ import (
 	calModel "github.com/cybericebox/backend/internal/model/resourceCalendar"
 	resourcesModel "github.com/cybericebox/backend/internal/model/resources"
 	vpnModel "github.com/cybericebox/backend/internal/model/vpn"
+	imageRegistryUseCase "github.com/cybericebox/backend/internal/useCase/imageRegistry"
 	calendarUseCase "github.com/cybericebox/backend/internal/useCase/resourceCalendar"
 	"github.com/cybericebox/backend/pkg/labaccess"
 )
@@ -291,8 +291,7 @@ func withToolsPull(creds []infraModel.RegistryCredential, pull *exerciseModel.To
 	if pull == nil {
 		return creds, nil
 	}
-	registry := strings.TrimPrefix(strings.TrimPrefix(pull.Registry, "https://"), "http://")
-	host := imageRegistryModel.CredentialHost(registry)
+	host := imageRegistryUseCase.ToolsCredentialHost(pull.Registry)
 	c := infraModel.RegistryCredential{Registry: host, Username: pull.Username, Password: pull.Password}
 	for _, have := range creds {
 		if have.Registry == host {

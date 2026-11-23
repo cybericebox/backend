@@ -122,7 +122,7 @@ var (
 	// goal_unknown, goal_repeated, start_unknown, operates_required, operates_forbidden, operates_unknown, foothold_required, foothold_forbidden, foothold_unknown,
 	// operates_repeated, brief_too_long, forbidden_field (the image, toolset, key or budget are the platform's), or one of the
 	// seat: seat_unknown, seat_no_serial, seat_forbidden, seat_repeated, seat_operated, seat_on_foothold, seat_no_network,
-	// seat_referenced.
+	// seat_referenced, seat_console_end.
 	ErrOpponentInvalid = err.ErrInvalidData.WithObjectCode(model.ExerciseDocumentObjectCode).
 				WithMessage("An opponent of the variant is invalid").
 				WithDetailCode(25)

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/gofrs/uuid"
+	"github.com/rs/zerolog/log"
 
 	exerciseModel "github.com/cybericebox/backend/internal/model/exercise"
 )
@@ -29,6 +30,9 @@ func (u *ExerciseUseCase) withToolsServices(ctx context.Context, topo exerciseMo
 		}
 	}
 	reader, _ := u.images.(toolsServiceReader)
+	if reader == nil {
+		reader = noToolsServices{}
+	}
 	out := topo
 	out.Devices = append([]exerciseModel.Device(nil), topo.Devices...)
 	for i, d := range out.Devices {
@@ -36,14 +40,34 @@ func (u *ExerciseUseCase) withToolsServices(ctx context.Context, topo exerciseMo
 		if !isTools || !d.NeedsServiceCommand() || d.ImageService != nil {
 			continue
 		}
-		if reader == nil {
-			return exerciseModel.Topology{}, exerciseModel.ErrToolsNoService
-		}
 		service, known := reader.ToolsImageService(ctx, d.Image, pull)
-		if !known {
-			return exerciseModel.Topology{}, exerciseModel.ErrToolsNoService
+		if known {
+			out.Devices[i].ImageService = &service
+			continue
 		}
-		out.Devices[i].ImageService = &service
+		// Without serial ports no port keeper is needed: the run goes on (what else wanted the launcher is dropped there).
+		if len(d.SerialPorts) == 0 {
+			out.Devices[i] = withoutLauncher(d)
+			continue
+		}
+		return exerciseModel.Topology{}, exerciseModel.ErrToolsNoService
 	}
 	return out, nil
+}
+
+// noToolsServices knows no start configuration (a narrow construction without the image registry).
+type noToolsServices struct{}
+
+func (noToolsServices) ToolsImageService(context.Context, string, *exerciseModel.ToolsPull) (exerciseModel.ImageService, bool) {
+	return exerciseModel.ImageService{}, false
+}
+
+// withoutLauncher is a tools device without serial ports whose start configuration is unknown, with nothing left that would
+// make it start through the launcher: its bootstrap files and script are dropped (the env stays: it needs no launcher).
+func withoutLauncher(d exerciseModel.Device) exerciseModel.Device {
+	if d.HasBootstrapList() {
+		log.Warn().Str("device", d.Name).Msg("The start configuration of the tools image is not known: the device starts without its bootstrap files")
+	}
+	d.Bootstrap.Files, d.Bootstrap.Script, d.Bootstrap.Interpreter = nil, "", ""
+	return d
 }

@@ -60,4 +60,13 @@ func TestWithToolsServices(t *testing.T) {
 
 	_, err = (&ExerciseUseCase{}).withToolsServices(context.Background(), topo, []uuid.UUID{cabled.ID}, places)
 	require.True(t, errors.Is(err, exerciseModel.ErrToolsNoService), "no image access to read it with")
+
+	// Without serial ports the run goes on: no keeper is needed, what would want the launcher is dropped.
+	files := exerciseModel.Device{ID: uuid.Must(uuid.NewV7()), Name: "tools-3", Type: exerciseModel.DeviceTypeNode, Image: "brain/defender:2",
+		Bootstrap: exerciseModel.Bootstrap{Env: []exerciseModel.EnvVar{{Name: "EDA_RUN_ID", Value: "r"}}, Files: []exerciseModel.BootstrapFile{{Path: "/run/eda/consoles.json", Content: "{}"}}}}
+	out, err = u.withToolsServices(context.Background(), exerciseModel.Topology{Devices: []exerciseModel.Device{files}}, []uuid.UUID{files.ID}, []exerciseModel.ToolsPlacement{{}})
+	require.NoError(t, err)
+	require.Empty(t, out.Devices[0].Bootstrap.Files)
+	require.Len(t, out.Devices[0].Bootstrap.Env, 1)
+	require.False(t, out.Devices[0].NeedsServiceCommand())
 }

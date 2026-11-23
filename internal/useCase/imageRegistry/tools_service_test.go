@@ -22,6 +22,12 @@ func TestToolsImageServiceReadsWithTheBrainCredential(t *testing.T) {
 	require.Equal(t, []string{"/app"}, service.Entrypoint)
 	require.Empty(t, f.store.rows, "nothing is stored")
 
+	// A credential for another registry is not sent: the private image is read anonymously and stays unknown.
+	_, known = f.uc.ToolsImageService(ctx, "registry.example/eda/defender:1", &exerciseModel.ToolsPull{Registry: "other.example", Username: "brain", Password: secretToken})
+	require.False(t, known, "the credential goes only to its own registry")
+	_, known = f.uc.ToolsImageService(ctx, "registry.example/eda/defender:1", &exerciseModel.ToolsPull{Registry: "https://registry.example", Username: "brain", Password: secretToken})
+	require.True(t, known, "the registry is normalised as the lab's pull secret is")
+
 	_, known = f.uc.ToolsImageService(ctx, "registry.example/eda/defender:1", nil)
 	require.False(t, known, "a private image without the credential")
 	_, known = f.uc.ToolsImageService(ctx, "not a reference", nil)
