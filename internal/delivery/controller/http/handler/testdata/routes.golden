@@ -1,36 +1,36 @@
-GET    /api/admin/assistant/statistics | gate: platform.settings.read | layers: - | keys: ?
-PUT    /api/admin/assistant/statistics/defaults/:source | gate: platform.settings.write | layers: - | keys: ?
-GET    /api/admin/assistant/statistics/events/:eventID | gate: platform.settings.read | layers: - | keys: ?
-PUT    /api/admin/assistant/statistics/events/:eventID | gate: platform.settings.write | layers: - | keys: ?
-GET    /api/admin/audit-log | gate: platform.audit.read | layers: - | keys: ?
-GET    /api/admin/audit-log/export | gate: platform.audit.read | layers: - | keys: ?
-GET    /api/admin/dashboard | gate: self | layers: dashboard.requireAdminTier | keys: ?
-GET    /api/admin/errors | gate: platform.errors.read | layers: - | keys: ?
-GET    /api/admin/errors/:groupID | gate: platform.errors.read | layers: - | keys: ?
-PATCH  /api/admin/errors/:groupID/status | gate: platform.errors.write | layers: - | keys: ?
-POST   /api/admin/errors/bulk/ignore | gate: platform.errors.write | layers: - | keys: ?
-POST   /api/admin/errors/bulk/reopen | gate: platform.errors.write | layers: - | keys: ?
-POST   /api/admin/errors/bulk/resolve | gate: platform.errors.write | layers: - | keys: ?
-GET    /api/admin/errors/not-found | gate: platform.errors.read | layers: - | keys: ?
-GET    /api/admin/errors/settings | gate: platform.errors.read | layers: - | keys: ?
-PUT    /api/admin/errors/settings | gate: platform.errors.write | layers: - | keys: ?
-POST   /api/admin/errors/settings/test | gate: platform.errors.write | layers: - | keys: ?
-GET    /api/admin/errors/stream | gate: platform.errors.read | layers: - | keys: ?
-GET    /api/analytics/events | gate: analytics.read | layers: - | keys: ?
-GET    /api/analytics/events/export.csv | gate: analytics.read | layers: - | keys: ?
-GET    /api/analytics/events/table | gate: analytics.read | layers: - | keys: ?
-GET    /api/analytics/infrastructure | gate: analytics.read | layers: - | keys: ?
-GET    /api/analytics/infrastructure/export.csv | gate: analytics.read | layers: - | keys: ?
-GET    /api/analytics/mail | gate: analytics.read | layers: - | keys: ?
-GET    /api/analytics/mail/export.csv | gate: analytics.read | layers: - | keys: ?
-GET    /api/analytics/overview | gate: analytics.read | layers: - | keys: ?
-GET    /api/analytics/overview/export.csv | gate: analytics.read | layers: - | keys: ?
-GET    /api/analytics/tasks | gate: analytics.read | layers: - | keys: ?
-GET    /api/analytics/tasks/export.csv | gate: analytics.read | layers: - | keys: ?
-GET    /api/analytics/tasks/table | gate: analytics.read | layers: - | keys: ?
-GET    /api/analytics/users | gate: analytics.read | layers: - | keys: ?
-GET    /api/analytics/users/export.csv | gate: analytics.read | layers: - | keys: ?
-GET    /api/analytics/users/people | gate: analytics.users.read | layers: - | keys: ?
+GET    /api/admin/assistant/statistics | gate: platform.settings.read | layers: - | keys: cyberbrain.stats.read @ platform
+PUT    /api/admin/assistant/statistics/defaults/:source | gate: platform.settings.write | layers: - | keys: cyberbrain.stats.update @ platform
+GET    /api/admin/assistant/statistics/events/:eventID | gate: platform.settings.read | layers: - | keys: anyOf(cyberbrain.stats.read,events.read) @ platform
+PUT    /api/admin/assistant/statistics/events/:eventID | gate: platform.settings.write | layers: - | keys: anyOf(cyberbrain.stats.update,events.stats_source.update) @ platform
+GET    /api/admin/audit-log | gate: platform.audit.read | layers: - | keys: platform.audit.read @ platform
+GET    /api/admin/audit-log/export | gate: platform.audit.read | layers: - | keys: platform.audit.read @ platform
+GET    /api/admin/dashboard | gate: self | layers: dashboard.requireAdminTier | keys: anyOf(events.list,infrastructure.read,exercises.elevations.read,platform.errors.read,analytics.read,users.list) @ platform data(events.list,infrastructure.read,exercises.elevations.read,platform.errors.read,analytics.read,users.list)
+GET    /api/admin/errors | gate: platform.errors.read | layers: - | keys: platform.errors.read @ platform
+GET    /api/admin/errors/:groupID | gate: platform.errors.read | layers: - | keys: platform.errors.read @ platform
+PATCH  /api/admin/errors/:groupID/status | gate: platform.errors.write | layers: - | keys: platform.errors.update @ platform
+POST   /api/admin/errors/bulk/ignore | gate: platform.errors.write | layers: - | keys: platform.errors.update @ platform
+POST   /api/admin/errors/bulk/reopen | gate: platform.errors.write | layers: - | keys: platform.errors.update @ platform
+POST   /api/admin/errors/bulk/resolve | gate: platform.errors.write | layers: - | keys: platform.errors.update @ platform
+GET    /api/admin/errors/not-found | gate: platform.errors.read | layers: - | keys: platform.errors.read @ platform
+GET    /api/admin/errors/settings | gate: platform.errors.read | layers: - | keys: platform.errors.read @ platform
+PUT    /api/admin/errors/settings | gate: platform.errors.write | layers: - | keys: platform.errors.update @ platform
+POST   /api/admin/errors/settings/test | gate: platform.errors.write | layers: - | keys: platform.errors.update @ platform
+GET    /api/admin/errors/stream | gate: platform.errors.read | layers: - | keys: platform.errors.read @ platform
+GET    /api/analytics/events | gate: analytics.read | layers: - | keys: analytics.read @ platform
+GET    /api/analytics/events/export.csv | gate: analytics.read | layers: - | keys: analytics.read @ platform
+GET    /api/analytics/events/table | gate: analytics.read | layers: - | keys: analytics.read @ platform
+GET    /api/analytics/infrastructure | gate: analytics.read | layers: - | keys: analytics.read @ platform
+GET    /api/analytics/infrastructure/export.csv | gate: analytics.read | layers: - | keys: analytics.read @ platform
+GET    /api/analytics/mail | gate: analytics.read | layers: - | keys: analytics.read @ platform
+GET    /api/analytics/mail/export.csv | gate: analytics.read | layers: - | keys: analytics.read @ platform
+GET    /api/analytics/overview | gate: analytics.read | layers: - | keys: analytics.read @ platform
+GET    /api/analytics/overview/export.csv | gate: analytics.read | layers: - | keys: analytics.read @ platform
+GET    /api/analytics/tasks | gate: analytics.read | layers: - | keys: analytics.read @ platform
+GET    /api/analytics/tasks/export.csv | gate: analytics.read | layers: - | keys: analytics.read @ platform
+GET    /api/analytics/tasks/table | gate: analytics.read | layers: - | keys: analytics.read @ platform
+GET    /api/analytics/users | gate: analytics.read | layers: - | keys: analytics.read @ platform
+GET    /api/analytics/users/export.csv | gate: analytics.read | layers: - | keys: analytics.read @ platform
+GET    /api/analytics/users/people | gate: analytics.users.read | layers: - | keys: analytics.users.read @ platform
 GET    /api/assistant/ideas | gate: self | layers: assistant.author | keys: ?
 POST   /api/assistant/sessions | gate: self | layers: assistant.author | keys: ?
 DELETE /api/assistant/sessions/:id | gate: self | layers: assistant.author | keys: ?

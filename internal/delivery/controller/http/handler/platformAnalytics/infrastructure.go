@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	labMonitoringModel "github.com/cybericebox/backend/internal/model/labMonitoring"
 	platformAnalyticsModel "github.com/cybericebox/backend/internal/model/platformAnalytics"
@@ -21,7 +22,10 @@ type InfrastructureUseCase interface {
 }
 
 func (h *Handler) initInfrastructure(router *gin.RouterGroup) {
-	group := router.Group("analytics", h.prot.RequirePermission(rbac.PermAnalyticsRead))
+	group := router.Group("analytics", h.prot.Route(
+		authz.AnyOf(authz.SourcePlatform, authz.AnalyticsRead), // Appendix A.3.4 of the access spec
+		h.prot.RequirePermission(rbac.PermAnalyticsRead),
+	))
 	group.GET("infrastructure", h.infrastructure)
 	group.GET("infrastructure/export.csv", h.exportInfrastructure)
 }
