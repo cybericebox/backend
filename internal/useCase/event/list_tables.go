@@ -38,6 +38,9 @@ type ParticipantsTableQuery struct {
 	Sort     TableSort
 	Page     int
 	PageSize int
+	// HideEmails: the caller does not see the participants' addresses in full (a read-only moderator), so the
+	// search does not match them and the columns that hold one filter and sort by it masked.
+	HideEmails bool
 }
 
 // ParticipantsTableResult is an offset page plus the moderation tab counts.
@@ -57,6 +60,8 @@ type TeamsTableQuery struct {
 	Sort     TableSort
 	Page     int
 	PageSize int
+	// HideEmails: as in ParticipantsTableQuery, for the captain column.
+	HideEmails bool
 }
 
 // TeamsTableResult is an offset page of team views.
@@ -130,7 +135,7 @@ func (u *EventUseCase) ListParticipantsTable(ctx context.Context, q Participants
 	query := participantRepo.TableQuery{
 		EventID: q.EventID, StatusFilter: statusFilter, Kind: q.Kind, Search: q.Search,
 		Filters: answerFiltersJSON(q.Filters), WithAnswers: withAnswers, SortKey: sortKey, SortDesc: q.Sort.Desc,
-		Limit: int32(pageSize), Offset: int32((page - 1) * pageSize),
+		Limit: int32(pageSize), Offset: int32((page - 1) * pageSize), HideEmails: q.HideEmails,
 	}
 	rows, err := u.participants.ListTable(ctx, query)
 	if err != nil {
@@ -167,6 +172,7 @@ func (u *EventUseCase) ListTeamsTable(ctx context.Context, q TeamsTableQuery) (T
 	query := eventTeamRepo.TableQuery{
 		EventID: q.EventID, Search: q.Search, Filters: answerFiltersJSON(q.Filters),
 		SortKey: q.Sort.Key, SortDesc: q.Sort.Desc, Limit: int32(pageSize), Offset: int32((page - 1) * pageSize),
+		HideEmails: q.HideEmails,
 	}
 	rows, err := u.teams.ListTable(ctx, query)
 	if err != nil {

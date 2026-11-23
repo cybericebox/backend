@@ -145,18 +145,18 @@ func TestParticipantListRegistrationAnswerFilters(t *testing.T) {
 		}
 	}
 	filters := []byte(`[{"key":"city","op":"contains","value":"київ"}]`)
-	rows, err := repo.List(ctx, event.ID, -1, participantRepo.KindAll, "", filters, epCursorSentinelTime, epMaxUUID, 10)
+	rows, err := repo.List(ctx, event.ID, -1, participantRepo.KindAll, "", filters, epCursorSentinelTime, epMaxUUID, 10, false)
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
 	if len(rows) != 1 || rows[0].Participant.UserID != userA {
 		t.Fatalf("List = %+v, want only userA", rows)
 	}
-	count, err := repo.CountMatching(ctx, event.ID, -1, participantRepo.KindAll, "", filters)
+	count, err := repo.CountMatching(ctx, event.ID, -1, participantRepo.KindAll, "", filters, false)
 	if err != nil || count != 1 {
 		t.Fatalf("CountMatching = %d err=%v, want 1", count, err)
 	}
-	all, err := repo.CountMatching(ctx, event.ID, -1, participantRepo.KindAll, "", nil)
+	all, err := repo.CountMatching(ctx, event.ID, -1, participantRepo.KindAll, "", nil, false)
 	if err != nil || all != 2 {
 		t.Fatalf("CountMatching without filters = %d err=%v, want 2", all, err)
 	}

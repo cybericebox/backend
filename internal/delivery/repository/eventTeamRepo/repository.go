@@ -301,6 +301,8 @@ type TableQuery struct {
 	SortDesc bool
 	Limit    int32
 	Offset   int32
+	// HideEmails: the caller does not see the addresses in full (an observer); @captain carries the captain's masked.
+	HideEmails bool
 }
 
 func (r *Repository) ListTable(ctx context.Context, q TableQuery) ([]ListedTeam, error) {
@@ -310,7 +312,7 @@ func (r *Repository) ListTable(ctx context.Context, q TableQuery) ([]ListedTeam,
 	}
 	rows, err := r.q.ListEventTeamsTable(ctx, postgres.ListEventTeamsTableParams{
 		EventID: q.EventID, Search: q.Search, Filters: jsonArray(q.Filters), SortDir: dir, SortKey: q.SortKey,
-		OffsetVal: q.Offset, LimitVal: q.Limit,
+		OffsetVal: q.Offset, LimitVal: q.Limit, HideEmails: q.HideEmails,
 	})
 	if err != nil {
 		return nil, err
@@ -330,7 +332,7 @@ func (r *Repository) ListTable(ctx context.Context, q TableQuery) ([]ListedTeam,
 
 // CountTable mirrors ListTable's filters.
 func (r *Repository) CountTable(ctx context.Context, q TableQuery) (int64, error) {
-	return r.q.CountEventTeamsTable(ctx, postgres.CountEventTeamsTableParams{EventID: q.EventID, Search: q.Search, Filters: jsonArray(q.Filters)})
+	return r.q.CountEventTeamsTable(ctx, postgres.CountEventTeamsTableParams{EventID: q.EventID, Search: q.Search, Filters: jsonArray(q.Filters), HideEmails: q.HideEmails})
 }
 
 func toTimestamptz(t *time.Time) pgtype.Timestamptz {

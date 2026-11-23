@@ -106,7 +106,8 @@ WHERE participant.event_id = sqlc.arg(event_id)::uuid
     OR (sqlc.arg(kind)::text = 'applications' AND NOT participant.invited AND participant.status IN (1, 3))
     OR (sqlc.arg(kind)::text = 'invitations' AND participant.invited AND participant.status = 1))
   AND (sqlc.arg(search)::text = ''
-    OR person.email ILIKE '%' || sqlc.arg(search)::text || '%'
+    -- An observer (hide_emails) does not see the addresses in full, so does not find people by them.
+    OR (NOT sqlc.arg(hide_emails)::boolean AND person.email ILIKE '%' || sqlc.arg(search)::text || '%')
     OR (NOT (participant.invited AND participant.status = 1)
         AND (person.first_name || ' ' || person.last_name) ILIKE '%' || sqlc.arg(search)::text || '%')
     OR COALESCE(participant.pseudonym, '') ILIKE '%' || sqlc.arg(search)::text || '%')
@@ -129,7 +130,8 @@ WHERE participant.event_id = sqlc.arg(event_id)::uuid
     OR (sqlc.arg(kind)::text = 'applications' AND NOT participant.invited AND participant.status IN (1, 3))
     OR (sqlc.arg(kind)::text = 'invitations' AND participant.invited AND participant.status = 1))
   AND (sqlc.arg(search)::text = ''
-    OR person.email ILIKE '%' || sqlc.arg(search)::text || '%'
+    -- An observer (hide_emails) does not see the addresses in full, so does not find people by them.
+    OR (NOT sqlc.arg(hide_emails)::boolean AND person.email ILIKE '%' || sqlc.arg(search)::text || '%')
     OR (NOT (participant.invited AND participant.status = 1)
         AND (person.first_name || ' ' || person.last_name) ILIKE '%' || sqlc.arg(search)::text || '%')
     OR COALESCE(participant.pseudonym, '') ILIKE '%' || sqlc.arg(search)::text || '%')
@@ -285,6 +287,12 @@ FROM event_participants participant
          LEFT JOIN event_teams invited_team ON invited_team.id = participant.invited_team_id
          LEFT JOIN event_participant_presence presence ON presence.event_id = participant.event_id AND presence.user_id = participant.user_id
          CROSS JOIN LATERAL (SELECT event_user_last_lab_at(participant.event_id, participant.user_id) AS at) lab
+         -- The address as the caller sees it: masked like dispatch.MaskEmail for an observer (hide_emails), so the
+         -- columns that hold it filter and sort by what the screen shows.
+         CROSS JOIN LATERAL (SELECT CASE
+                                        WHEN sqlc.arg(hide_emails)::boolean
+                                            THEN left(person.email, 1) || '***' || substring(person.email from '@[^@]*$')
+                                        ELSE person.email END AS value) listed_email
          CROSS JOIN LATERAL (SELECT CASE
                                         WHEN sqlc.arg(with_answers)::boolean
                                             THEN COALESCE(event_registration_answers(participant.event_id, participant.user_id), '{}'::jsonb)
@@ -292,11 +300,11 @@ FROM event_participants participant
                                     || jsonb_build_object(
                                         -- A pending invitation is known by the address the organizer typed only:
                                         -- the profile name of an invited account is not theirs to search or sort by.
-                                        '@name', CASE WHEN participant.invited AND participant.status = 1 THEN person.email
+                                        '@name', CASE WHEN participant.invited AND participant.status = 1 THEN listed_email.value
                                                       ELSE COALESCE(NULLIF(btrim(person.first_name || ' ' || person.last_name), ''),
                                                                     NULLIF(event_participant_public_name(participant.event_id, participant.user_id), ''),
-                                                                    person.email) END,
-                                        '@email', person.email,
+                                                                    listed_email.value) END,
+                                        '@email', listed_email.value,
                                         '@pseudonym', participant.pseudonym,
                                         '@status', participant.status::text,
                                         '@invitation', CASE WHEN participant.invitation_sent_at IS NULL THEN 'notSent' ELSE 'sent' END,
@@ -318,7 +326,8 @@ WHERE participant.event_id = sqlc.arg(event_id)::uuid
     OR (sqlc.arg(kind)::text = 'applications' AND NOT participant.invited AND participant.status IN (1, 3))
     OR (sqlc.arg(kind)::text = 'invitations' AND participant.invited AND participant.status = 1))
   AND (sqlc.arg(search)::text = ''
-    OR person.email ILIKE '%' || sqlc.arg(search)::text || '%'
+    -- An observer (hide_emails) does not see the addresses in full, so does not find people by them.
+    OR (NOT sqlc.arg(hide_emails)::boolean AND person.email ILIKE '%' || sqlc.arg(search)::text || '%')
     OR (NOT (participant.invited AND participant.status = 1)
         AND (person.first_name || ' ' || person.last_name) ILIKE '%' || sqlc.arg(search)::text || '%')
     OR COALESCE(participant.pseudonym, '') ILIKE '%' || sqlc.arg(search)::text || '%')
@@ -337,6 +346,12 @@ FROM event_participants participant
          LEFT JOIN event_teams invited_team ON invited_team.id = participant.invited_team_id
          LEFT JOIN event_participant_presence presence ON presence.event_id = participant.event_id AND presence.user_id = participant.user_id
          CROSS JOIN LATERAL (SELECT event_user_last_lab_at(participant.event_id, participant.user_id) AS at) lab
+         -- The address as the caller sees it: masked like dispatch.MaskEmail for an observer (hide_emails), so the
+         -- columns that hold it filter and sort by what the screen shows.
+         CROSS JOIN LATERAL (SELECT CASE
+                                        WHEN sqlc.arg(hide_emails)::boolean
+                                            THEN left(person.email, 1) || '***' || substring(person.email from '@[^@]*$')
+                                        ELSE person.email END AS value) listed_email
          CROSS JOIN LATERAL (SELECT CASE
                                         WHEN sqlc.arg(with_answers)::boolean
                                             THEN COALESCE(event_registration_answers(participant.event_id, participant.user_id), '{}'::jsonb)
@@ -344,11 +359,11 @@ FROM event_participants participant
                                     || jsonb_build_object(
                                         -- A pending invitation is known by the address the organizer typed only:
                                         -- the profile name of an invited account is not theirs to search or sort by.
-                                        '@name', CASE WHEN participant.invited AND participant.status = 1 THEN person.email
+                                        '@name', CASE WHEN participant.invited AND participant.status = 1 THEN listed_email.value
                                                       ELSE COALESCE(NULLIF(btrim(person.first_name || ' ' || person.last_name), ''),
                                                                     NULLIF(event_participant_public_name(participant.event_id, participant.user_id), ''),
-                                                                    person.email) END,
-                                        '@email', person.email,
+                                                                    listed_email.value) END,
+                                        '@email', listed_email.value,
                                         '@pseudonym', participant.pseudonym,
                                         '@status', participant.status::text,
                                         '@invitation', CASE WHEN participant.invitation_sent_at IS NULL THEN 'notSent' ELSE 'sent' END,
@@ -370,7 +385,8 @@ WHERE participant.event_id = sqlc.arg(event_id)::uuid
     OR (sqlc.arg(kind)::text = 'applications' AND NOT participant.invited AND participant.status IN (1, 3))
     OR (sqlc.arg(kind)::text = 'invitations' AND participant.invited AND participant.status = 1))
   AND (sqlc.arg(search)::text = ''
-    OR person.email ILIKE '%' || sqlc.arg(search)::text || '%'
+    -- An observer (hide_emails) does not see the addresses in full, so does not find people by them.
+    OR (NOT sqlc.arg(hide_emails)::boolean AND person.email ILIKE '%' || sqlc.arg(search)::text || '%')
     OR (NOT (participant.invited AND participant.status = 1)
         AND (person.first_name || ' ' || person.last_name) ILIKE '%' || sqlc.arg(search)::text || '%')
     OR COALESCE(participant.pseudonym, '') ILIKE '%' || sqlc.arg(search)::text || '%')

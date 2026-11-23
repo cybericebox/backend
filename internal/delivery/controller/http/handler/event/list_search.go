@@ -63,7 +63,8 @@ type participantsTablePageResponse struct {
 
 // listParticipantsTable is the offset mode of listParticipants (`page` set):
 // filters and sorting over every column.
-func (h *Handler) listParticipantsTable(ctx *gin.Context, id uuid.UUID, status *participantModel.Status, kind participantRepo.Kind, search string, fields []eventUseCase.AnswerFilter) {
+// private: the caller sees the addresses in full (seesPersonalData).
+func (h *Handler) listParticipantsTable(ctx *gin.Context, id uuid.UUID, status *participantModel.Status, kind participantRepo.Kind, search string, fields []eventUseCase.AnswerFilter, private bool) {
 	page, err := utils.GetOffsetPaginationParams(ctx)
 	if err != nil {
 		response.AbortWithBadRequest(ctx, err)
@@ -76,6 +77,7 @@ func (h *Handler) listParticipantsTable(ctx *gin.Context, id uuid.UUID, status *
 	}
 	res, err := h.useCase.ListParticipantsTable(ctx, eventUseCase.ParticipantsTableQuery{
 		EventID: id, Status: status, Kind: kind, Search: search, Filters: fields, Sort: sort, Page: page.Page, PageSize: page.PageSize,
+		HideEmails: !private,
 	})
 	if err != nil {
 		tableQueryError(ctx, err)
@@ -85,9 +87,7 @@ func (h *Handler) listParticipantsTable(ctx *gin.Context, id uuid.UUID, status *
 	for _, p := range res.Participants {
 		items = append(items, toParticipantResponse(p))
 	}
-	if !h.maskParticipantEmails(ctx, id, items) {
-		return
-	}
+	maskParticipantEmails(private, items)
 	response.AbortWithData(ctx, participantsTablePageResponse{
 		OffsetPage: pagination.NewOffsetPage(items, res.Total, res.Page, res.PageSize),
 		Counts:     participantCountsResponse{Participants: res.Counts.Participants, Applications: res.Counts.Applications, Invitations: res.Counts.Invitations},
@@ -96,7 +96,7 @@ func (h *Handler) listParticipantsTable(ctx *gin.Context, id uuid.UUID, status *
 
 // listTeamsTable is the offset mode of listTeams (`page` set): filters and
 // sorting over every column.
-func (h *Handler) listTeamsTable(ctx *gin.Context, id uuid.UUID, search string, fields []eventUseCase.AnswerFilter) {
+func (h *Handler) listTeamsTable(ctx *gin.Context, id uuid.UUID, search string, fields []eventUseCase.AnswerFilter, private bool) {
 	page, err := utils.GetOffsetPaginationParams(ctx)
 	if err != nil {
 		response.AbortWithBadRequest(ctx, err)
@@ -107,7 +107,7 @@ func (h *Handler) listTeamsTable(ctx *gin.Context, id uuid.UUID, search string, 
 		response.AbortWithBadRequest(ctx, err)
 		return
 	}
-	res, err := h.useCase.ListTeamsTable(ctx, eventUseCase.TeamsTableQuery{EventID: id, Search: search, Filters: fields, Sort: sort, Page: page.Page, PageSize: page.PageSize})
+	res, err := h.useCase.ListTeamsTable(ctx, eventUseCase.TeamsTableQuery{EventID: id, Search: search, Filters: fields, Sort: sort, Page: page.Page, PageSize: page.PageSize, HideEmails: !private})
 	if err != nil {
 		tableQueryError(ctx, err)
 		return
@@ -116,5 +116,6 @@ func (h *Handler) listTeamsTable(ctx *gin.Context, id uuid.UUID, search string, 
 	for _, team := range res.Teams {
 		items = append(items, toTeamResponse(team))
 	}
+	maskTeamEmails(private, items)
 	response.AbortWithData(ctx, pagination.NewOffsetPage(items, res.Total, res.Page, res.PageSize))
 }

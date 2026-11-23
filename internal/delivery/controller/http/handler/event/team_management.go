@@ -52,7 +52,14 @@ func (h *Handler) getTeamProfile(ctx *gin.Context) {
 		response.AbortWithError(ctx, err)
 		return
 	}
+	private, ok := h.seesPersonalData(ctx, eventID)
+	if !ok {
+		return
+	}
 	out := teamProfileResponse{Team: toTeamResponse(profile.Team)}
+	teams := []teamResponse{out.Team}
+	maskTeamEmails(private, teams)
+	out.Team = teams[0]
 	if profile.Results != nil {
 		results := toManageResultsTeamResponse(*profile.Results)
 		out.Results = &results
