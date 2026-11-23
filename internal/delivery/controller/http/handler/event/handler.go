@@ -10,17 +10,16 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/cybericebox/backend/internal/authz"
-	"github.com/cybericebox/backend/internal/delivery/repository/participantRepo"
-
 	"github.com/gin-gonic/gin"
 	"github.com/gofrs/uuid"
 
+	"github.com/cybericebox/backend/internal/authz"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/audit"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/middleware"
 	"github.com/cybericebox/backend/internal/delivery/controller/http/response"
 	utils "github.com/cybericebox/backend/internal/delivery/controller/http/utils"
 	"github.com/cybericebox/backend/internal/delivery/repository/eventRepo"
+	"github.com/cybericebox/backend/internal/delivery/repository/participantRepo"
 	eventModel "github.com/cybericebox/backend/internal/model/event"
 	eventConfigModel "github.com/cybericebox/backend/internal/model/eventConfig"
 	eventContentModel "github.com/cybericebox/backend/internal/model/eventContent"
