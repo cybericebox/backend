@@ -335,27 +335,16 @@ func TestAnAnswerWaitsForTheNextStream(t *testing.T) {
 	eventually(t, "the request in progress", func() bool { return stats.now.Load() == 1 })
 	o.brain.fake.Outbox.DropStream()
 	close(stats.release)
-	// A copy of the answer may have gone up the old stream just before it ended and be recorded too; the brain ignores a duplicate.
+	// A copy of the answer may have gone up the old stream just before the brain ended it and be recorded too, while the brain
+	// sends the request again: pkg/brainapi/v1/brain.proto (Outbox): an answer is accepted by request_id on ANY stream and
+	// duplicates are ignored. So: at least one answer, and every copy is the same answer.
 	eventually(t, "answered after the reconnect", func() bool { return len(o.brain.answered("d1")) >= 1 })
-}
-
-// The answer went up a stream the brain then ended and was lost; the brain's resend on the new stream comes while the handling
-// has not freed its slot yet, so it is skipped as a duplicate. The handling must answer again on the new stream.
-func TestAResendSkippedWhileTheLostAnswerIsStillBeingHandledIsAnsweredOnTheNewStream(t *testing.T) {
-	stats := &blockingStats{release: make(chan struct{})}
-	close(stats.release)
-	o := newOutboxRigWith(t, func(d *assistant.Dependencies) { d.Stats = stats }, dataFrame("d1"))
-	answered, hold := make(chan struct{}), make(chan struct{})
-	var first sync.Once
-	o.uc.AfterAnswer(func(string) { first.Do(func() { close(answered); <-hold }) })
-	o.brain.fake.Outbox.LoseAnswers(1)
-	o.run(t)
-	<-answered // the answer is sent (and lost); the slot is still held
-	eventually(t, "the answer to be lost", func() bool { return o.brain.fake.Outbox.Lost() == 1 })
-	o.brain.fake.Outbox.DropStream()
-	eventually(t, "the resend on the new stream to be skipped", func() bool { return o.uc.ResendSkipped("d1") })
-	close(hold)
-	eventually(t, "answered on the new stream", func() bool { return len(o.brain.answered("d1")) >= 1 })
+	got := o.brain.answered("d1")
+	for _, g := range got[1:] {
+		if g != got[0] {
+			t.Fatalf("the copies of an answer differ: %v", got)
+		}
+	}
 }
 
 func TestTheWatcherStopsWhenLeadershipIsLost(t *testing.T) {

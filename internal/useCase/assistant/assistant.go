@@ -156,8 +156,6 @@ type (
 
 		// outbox is the open outbox stream of this replica (the leader's), the one every answer goes up on.
 		outbox outboxStream
-		// afterAnswer is a test seam: called after a request's answer was sent and before its slot is freed.
-		afterAnswer func(requestID string)
 		// reanswer holds the labs (run ids) whose answer the brain asked for again: it never got the first one.
 		reanswer sync.Map
 		// claims orders the claims of labs the brain asks for.
