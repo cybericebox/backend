@@ -335,7 +335,8 @@ func TestAnAnswerWaitsForTheNextStream(t *testing.T) {
 	eventually(t, "the request in progress", func() bool { return stats.now.Load() == 1 })
 	o.brain.fake.Outbox.DropStream()
 	close(stats.release)
-	eventually(t, "answered after the reconnect", func() bool { return len(o.brain.answered("d1")) == 1 })
+	// A copy of the answer may have gone up the old stream just before it ended and be recorded too; the brain ignores a duplicate.
+	eventually(t, "answered after the reconnect", func() bool { return len(o.brain.answered("d1")) >= 1 })
 }
 
 func TestTheWatcherStopsWhenLeadershipIsLost(t *testing.T) {
