@@ -9,7 +9,8 @@ name: Candidate
 # and of two waiting merges only the newer runs (it contains the older one). The run only builds the head of the line: when a newer commit
 # is already there the run says so and stops (the newer run builds the candidate).
 # The tests are not run again: the pull request that was merged had its required checks green (check.yml).
-# The laboratory pin of go.mod must be a laboratory release (.github/scripts/lab-pin.sh require-release), or no candidate is built.
+# The laboratory pin of go.mod must be a laboratory release or release candidate (.github/scripts/lab-pin.sh require-candidate), or no candidate is built.
+# Promote still needs a laboratory release (require-release).
 # Version tags are immutable (Docker Hub): a re-run finds what is already published, checks that it came from this commit (the
 # org.opencontainers.image.revision label) and carries on; a different commit under the same tag fails.
 # Secrets: the Docker Hub credentials are secrets of the environment "candidate" (deployment branches: release/*), so only a run on a release
@@ -83,9 +84,10 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # A candidate goes to staging and may be promoted: go.mod must pin a laboratory release (vX.Y.Z), not a commit or a branch.
-      - name: Laboratory is pinned to a release
-        run: .github/scripts/lab-pin.sh require-release
+      # A candidate goes to staging: go.mod must pin a laboratory release or release candidate (vX.Y.Z[-rc.N]), not a commit or a branch.
+      # It cannot be promoted before the pin is a final laboratory release (promote.yml, require-release).
+      - name: Laboratory is pinned to a release or a candidate
+        run: .github/scripts/lab-pin.sh require-candidate
 
   image:
     name: Image ${{ matrix.name }}

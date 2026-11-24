@@ -5,7 +5,7 @@ name: Promote
 #   verify   the candidate is the newest of its version, its commit is the result of a merged pull request into release/X.Y whose head had
 #            every required check green (the first candidate of a line: a merged pull request into develop), and the line gate still passes
 #            (.github/scripts/release_gate.py; any failed lookup refuses). There is no review requirement.
-#            The released commit pins a laboratory release (.github/scripts/lab-pin.sh require-release).
+#            The released commit pins a laboratory release, not a candidate (.github/scripts/lab-pin.sh require-release).
 #   release  the SAME image gets the tag vX.Y.Z (no rebuild; latest moves when this is the newest release), the git tag and the GitHub
 #            release page are created at the commit of the candidate (a draft published last; no asset: the platform ships images only)
 #   main     LAST, once everything is published: the branch promote/vX.Y.Z is pushed at the commit and a pull request into main is opened
@@ -85,7 +85,8 @@ jobs:
             echo "version=$version"
             echo "latest=$latest"
           } >> "$GITHUB_OUTPUT"
-      # The released commit must pin a laboratory release (the candidate was built only when it did; checked again from the trusted script).
+      # The released commit must pin a final laboratory release: a candidate may pin a laboratory candidate, a release may not
+      # (checked from the trusted script; pin a laboratory release first: LAB=vX.Y.Z mise run dev-push).
       - name: Laboratory is pinned to a release
         env:
           SHA: ${{ steps.rc.outputs.sha }}

@@ -69,9 +69,10 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # A pull request into a release line (it becomes a candidate) needs a laboratory release in go.mod, not a commit or a branch.
-      - name: Laboratory is pinned to a release
-        run: .github/scripts/lab-pin.sh require-release
+      # A pull request into a release line (it becomes a candidate) needs a laboratory release or candidate in go.mod, not a commit or a branch.
+      # Promote needs a final laboratory release (promote.yml).
+      - name: Laboratory is pinned to a release or a candidate
+        run: .github/scripts/lab-pin.sh require-candidate
 
   image:
     name: Image ${{ matrix.name }}
