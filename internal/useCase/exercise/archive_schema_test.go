@@ -114,10 +114,10 @@ func TestArchiveSchemaRefusesWhatTheDecoderRefuses(t *testing.T) {
 	}
 }
 
-// A task archive the brain really produced (its create path, a static task with two attachments) goes through the import the
-// save uses (read, strict decode, content validation) and arrives as a draft; its document also satisfies the schema.
-func TestBrainProducedStaticTaskImportsAsADraft(t *testing.T) {
-	archive, err := os.ReadFile(brainFixtures + "/create/brain-produced-static.cybericebox.zip")
+// A hand-made archive of a static task with two attachments goes through the import the save uses (read, strict decode,
+// content validation) and arrives as a draft; its document also satisfies the schema.
+func TestStaticTaskArchiveImportsAsADraft(t *testing.T) {
+	archive, err := os.ReadFile(brainFixtures + "/create/static-two-attachments.cybericebox.zip")
 	require.NoError(t, err)
 
 	files, err := exercise.ReadArchiveV1(bytes.NewReader(archive), exercise.DefaultLimits())
@@ -130,6 +130,6 @@ func TestBrainProducedStaticTaskImportsAsADraft(t *testing.T) {
 	require.NoError(t, exercise.ValidateImportContentForTest(t.Context(), uc, &parsed, false))
 	require.Len(t, parsed.Versions, 1)
 	require.Equal(t, exerciseModel.VersionStatusDraft, parsed.Versions[0].Status)
-	require.Equal(t, "Rotated Secret", parsed.Versions[0].Name)
+	require.Equal(t, "Sample Static Task", parsed.Versions[0].Name)
 	require.Len(t, parsed.Versions[0].Variants[0].Tasks[0].Attachments, 2)
 }

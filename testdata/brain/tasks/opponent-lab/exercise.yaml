@@ -1,4 +1,4 @@
-# A lab for the brain's opponents: two target devices (web, db) behind a switch the opponents' tools device is cabled to,
+# A lab with opponents: two target devices (web, db) behind a switch the opponents' tools device is cabled to,
 # and a manifest with an attacker and a defender. The tools device itself is not in this document: the platform adds it
 # (with the hidden control gateway "ctl") when an opponent runs; see deployed-topology.json for the result.
 schema: cib-exercise/1.0
@@ -8,7 +8,7 @@ exercise:
   tags: [brain, opponents, dynamic]
 versions:
   - status: draft
-    admin_note: Fixture for the brain's local end-to-end runs.
+    admin_note: Fixture for the import and grader tests.
     variants:
       - index: 1
         tasks:
