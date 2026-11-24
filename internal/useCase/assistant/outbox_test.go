@@ -335,7 +335,16 @@ func TestAnAnswerWaitsForTheNextStream(t *testing.T) {
 	eventually(t, "the request in progress", func() bool { return stats.now.Load() == 1 })
 	o.brain.fake.Outbox.DropStream()
 	close(stats.release)
-	eventually(t, "answered after the reconnect", func() bool { return len(o.brain.answered("d1")) == 1 })
+	// A copy of the answer may have gone up the old stream just before the brain ended it and be recorded too, while the brain
+	// sends the request again: pkg/brainapi/v1/brain.proto (Outbox): an answer is accepted by request_id on ANY stream and
+	// duplicates are ignored. So: at least one answer, and every copy is the same answer.
+	eventually(t, "answered after the reconnect", func() bool { return len(o.brain.answered("d1")) >= 1 })
+	got := o.brain.answered("d1")
+	for _, g := range got[1:] {
+		if g != got[0] {
+			t.Fatalf("the copies of an answer differ: %v", got)
+		}
+	}
 }
 
 func TestTheWatcherStopsWhenLeadershipIsLost(t *testing.T) {
