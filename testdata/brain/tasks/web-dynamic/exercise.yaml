@@ -1,4 +1,4 @@
-# A dynamic web task for the brain's grader: one lab with one web device, reached over the participant VPN.
+# A dynamic web task for the grader tests: one lab with one web device, reached over the participant VPN.
 # One subtask with a fixed flag, delivered to the device through its bootstrap, so the grader has to find it on the site.
 schema: cib-exercise/1.0
 exercise:
@@ -7,7 +7,7 @@ exercise:
   tags: [brain, web, dynamic]
 versions:
   - status: draft
-    admin_note: Fixture for the brain's local end-to-end runs.
+    admin_note: Fixture for the import and grader tests.
     variants:
       - index: 1
         tasks:
