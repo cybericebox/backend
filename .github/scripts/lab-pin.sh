@@ -4,9 +4,12 @@
 #   lab-pin.sh check-runtime-features JSON  require actual native lifecycle support
 #   lab-pin.sh check-label IMAGE TAG  fail unless the image carries the pinned version in org.cybericebox.laboratory.commit
 #   lab-pin.sh require-release fail unless the pin is a laboratory release (vX.Y.Z) that exists on GitHub
+#   lab-pin.sh require-candidate fail unless the pin is a laboratory release or release candidate (vX.Y.Z, vX.Y.Z-rc.N) that exists as a tag on GitHub
+#   LAB_PIN_REMOTE overrides the laboratory repository (the tests use a local one)
 set -euo pipefail
 
 mod=cybericebox/laboratory
+remote="${LAB_PIN_REMOTE:-https://github.com/$mod}"
 version=$(awk -v m="github.com/$mod" '$1 == m { print $2; exit } $1 == "require" && $2 == m { print $3; exit }' go.mod)
 [[ -n "$version" ]] || { echo "error: go.mod does not require github.com/$mod" >&2; exit 1; }
 
@@ -40,9 +43,19 @@ case "${1:-}" in
       echo "::error::go.mod pins laboratory $version, which is not a release; pin a release first (LAB=vX.Y.Z mise run dev-push)"
       exit 1
     fi
-    git ls-remote --exit-code --tags "https://github.com/$mod" "refs/tags/$version" >/dev/null ||
+    git ls-remote --exit-code --tags "$remote" "refs/tags/$version" >/dev/null ||
       { echo "::error::laboratory release $version does not exist"; exit 1; }
     echo "laboratory pin: release $version"
     ;;
-  *) echo "usage: lab-pin.sh version|contract-source|check-runtime-features|check-label|require-release" >&2; exit 1 ;;
+  require-candidate)
+    # A candidate of the backend may pin a laboratory candidate; promote still needs a final laboratory release (require-release).
+    if [[ ! "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ || "$version" == v0.0.0 ]]; then
+      echo "::error::go.mod pins laboratory $version, which is not a release or a release candidate; pin one first (LAB=vX.Y.Z[-rc.N] mise run dev-push)"
+      exit 1
+    fi
+    git ls-remote --exit-code --tags "$remote" "refs/tags/$version" >/dev/null ||
+      { echo "::error::laboratory tag $version does not exist"; exit 1; }
+    echo "laboratory pin: $version"
+    ;;
+  *) echo "usage: lab-pin.sh version|contract-source|check-runtime-features|check-label|require-release|require-candidate" >&2; exit 1 ;;
 esac
