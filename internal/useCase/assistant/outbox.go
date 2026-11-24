@@ -385,6 +385,9 @@ func (u *UseCase) handleRequest(ctx context.Context, r *brainapiv1.BrainRequest)
 		if err != nil {
 			log.Warn().Err(err).Str("request", req.ID).Str("type", req.Type).Msg("An outbox answer did not get through; the brain sends the request again")
 		}
+		if u.afterAnswer != nil {
+			u.afterAnswer(req.ID)
+		}
 		// A resend of the request skipped while it was handled is answered now when the answer did not go up its stream.
 		if !u.outbox.finish(req.ID, sentOn, err != nil) {
 			finished = true

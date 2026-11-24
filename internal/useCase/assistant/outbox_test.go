@@ -339,6 +339,25 @@ func TestAnAnswerWaitsForTheNextStream(t *testing.T) {
 	eventually(t, "answered after the reconnect", func() bool { return len(o.brain.answered("d1")) >= 1 })
 }
 
+// The answer went up a stream the brain then ended and was lost; the brain's resend on the new stream comes while the handling
+// has not freed its slot yet, so it is skipped as a duplicate. The handling must answer again on the new stream.
+func TestAResendSkippedWhileTheLostAnswerIsStillBeingHandledIsAnsweredOnTheNewStream(t *testing.T) {
+	stats := &blockingStats{release: make(chan struct{})}
+	close(stats.release)
+	o := newOutboxRigWith(t, func(d *assistant.Dependencies) { d.Stats = stats }, dataFrame("d1"))
+	answered, hold := make(chan struct{}), make(chan struct{})
+	var first sync.Once
+	o.uc.AfterAnswer(func(string) { first.Do(func() { close(answered); <-hold }) })
+	o.brain.fake.Outbox.LoseAnswers(1)
+	o.run(t)
+	<-answered // the answer is sent (and lost); the slot is still held
+	eventually(t, "the answer to be lost", func() bool { return o.brain.fake.Outbox.Lost() == 1 })
+	o.brain.fake.Outbox.DropStream()
+	eventually(t, "the resend on the new stream to be skipped", func() bool { return o.uc.ResendSkipped("d1") })
+	close(hold)
+	eventually(t, "answered on the new stream", func() bool { return len(o.brain.answered("d1")) >= 1 })
+}
+
 func TestTheWatcherStopsWhenLeadershipIsLost(t *testing.T) {
 	o := newOutboxRig(t)
 	stop := o.run(t)
